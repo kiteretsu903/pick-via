@@ -125,18 +125,78 @@ final class RoutingCoordinatorTests: XCTestCase {
     }
 
     @MainActor
-    func testLaunchFailedPublishesFailureAndRePresentsCurrentRequest() {
+    func testLaunchFailedSanitizesFailureAndRePresentsCurrentRequest() {
         let chooser = ChooserSpy()
         let coordinator = makeCoordinator(chooser: chooser)
         coordinator.enqueue(URL(string: "https://one.example")!)
-        let failure = LaunchFailure(message: "Safe message")
+        let unsafeFailure = LaunchFailure(
+            message: "Process failed for https://one.example: raw internal details"
+        )
 
-        coordinator.launchFailed(failure)
+        coordinator.launchFailed(unsafeFailure)
 
         XCTAssertEqual(coordinator.currentRequest?.url.host, "one.example")
-        XCTAssertEqual(coordinator.currentError, failure)
+        XCTAssertEqual(
+            coordinator.currentError,
+            LaunchFailure(message: "Could not open the selected browser target.")
+        )
         XCTAssertEqual(chooser.presentedHosts, ["one.example", "one.example"])
-        XCTAssertEqual(chooser.presentedErrors.last!, failure)
+        XCTAssertEqual(
+            chooser.presentedErrors.last!,
+            LaunchFailure(message: "Could not open the selected browser target.")
+        )
+    }
+
+    @MainActor
+    func testSelectionAndCancellationAreIgnoredWhileLaunchIsInFlight() async {
+        let chooser = ChooserSpy()
+        let launcher = SuspendingFirstLauncher()
+        let coordinator = RoutingCoordinator(
+            targetProvider: TargetStub.one,
+            chooser: chooser,
+            launcher: launcher
+        )
+        coordinator.enqueue(URL(string: "https://one.example")!)
+        coordinator.enqueue(URL(string: "https://two.example")!)
+        let firstSelection = Task {
+            await coordinator.selected(targetID: "target-1")
+        }
+        await launcher.waitUntilFirstLaunchStarts()
+
+        await coordinator.selected(targetID: "target-1")
+        coordinator.cancelCurrent()
+
+        let launchCount = await launcher.launchCount
+        XCTAssertEqual(launchCount, 1)
+        XCTAssertEqual(coordinator.currentRequest?.url.host, "one.example")
+        XCTAssertEqual(chooser.presentedHosts, ["one.example"])
+
+        await launcher.resumeFirstLaunch()
+        await firstSelection.value
+
+        XCTAssertEqual(coordinator.currentRequest?.url.host, "two.example")
+        XCTAssertEqual(chooser.presentedHosts, ["one.example", "two.example"])
+    }
+
+    @MainActor
+    func testFailedLaunchClearsInFlightGuardAndAllowsRetry() async {
+        let chooser = ChooserSpy()
+        let launcher = SequencedLauncherStub(
+            results: [.failure(TestError.failed), .success(())]
+        )
+        let coordinator = RoutingCoordinator(
+            targetProvider: TargetStub.one,
+            chooser: chooser,
+            launcher: launcher
+        )
+        coordinator.enqueue(URL(string: "https://one.example")!)
+
+        await coordinator.selected(targetID: "target-1")
+        await coordinator.selected(targetID: "target-1")
+
+        XCTAssertEqual(launcher.launchCount, 2)
+        XCTAssertNil(coordinator.currentRequest)
+        XCTAssertNil(coordinator.currentError)
     }
 
     @MainActor
@@ -259,5 +319,57 @@ private final class LauncherStub: BrowserLaunching, @unchecked Sendable {
     ) async throws {
         launches.append(Launch(url: url, application: application, target: target))
         try result.get()
+    }
+}
+
+private actor SuspendingFirstLauncher: BrowserLaunching {
+    private(set) var launchCount = 0
+    private var firstLaunchContinuation: CheckedContinuation<Void, Never>?
+    private var firstLaunchStartWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func launch(
+        url: URL,
+        application: BrowserApplication,
+        target: BrowserTarget
+    ) async throws {
+        launchCount += 1
+        guard launchCount == 1 else { return }
+
+        let waiters = firstLaunchStartWaiters
+        firstLaunchStartWaiters.removeAll()
+        waiters.forEach { $0.resume() }
+        await withCheckedContinuation { continuation in
+            firstLaunchContinuation = continuation
+        }
+    }
+
+    func waitUntilFirstLaunchStarts() async {
+        if launchCount > 0 { return }
+        await withCheckedContinuation { continuation in
+            firstLaunchStartWaiters.append(continuation)
+        }
+    }
+
+    func resumeFirstLaunch() {
+        firstLaunchContinuation?.resume()
+        firstLaunchContinuation = nil
+    }
+}
+
+private final class SequencedLauncherStub: BrowserLaunching, @unchecked Sendable {
+    private var results: [Result<Void, Error>]
+    private(set) var launchCount = 0
+
+    init(results: [Result<Void, Error>]) {
+        self.results = results
+    }
+
+    func launch(
+        url: URL,
+        application: BrowserApplication,
+        target: BrowserTarget
+    ) async throws {
+        launchCount += 1
+        try results.removeFirst().get()
     }
 }

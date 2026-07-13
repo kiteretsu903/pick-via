@@ -68,6 +68,7 @@ public final class RoutingCoordinator {
     private let launcher: any BrowserLaunching
     private var queue: [RoutingRequest] = []
     private var currentSnapshot: RoutingTargetSnapshot?
+    private var launchingRequestID: UUID?
 
     public init(
         targetProvider: any TargetProviding,
@@ -88,6 +89,7 @@ public final class RoutingCoordinator {
     }
 
     public func selected(targetID: BrowserTarget.ID) async {
+        guard launchingRequestID == nil else { return }
         guard
             let request = currentRequest,
             let snapshot = currentSnapshot,
@@ -98,6 +100,7 @@ public final class RoutingCoordinator {
             return
         }
 
+        launchingRequestID = request.id
         do {
             try await launcher.launch(
                 url: request.url,
@@ -105,24 +108,32 @@ public final class RoutingCoordinator {
                 target: target
             )
         } catch {
-            guard currentRequest?.id == request.id else { return }
+            guard
+                currentRequest?.id == request.id,
+                launchingRequestID == request.id
+            else { return }
             launchFailed(Self.sanitizedLaunchFailure)
             return
         }
 
-        guard currentRequest?.id == request.id else { return }
+        guard
+            currentRequest?.id == request.id,
+            launchingRequestID == request.id
+        else { return }
+        launchingRequestID = nil
         finishCurrentRequest()
     }
 
     public func cancelCurrent() {
-        guard currentRequest != nil else { return }
+        guard currentRequest != nil, launchingRequestID == nil else { return }
         finishCurrentRequest()
     }
 
     public func launchFailed(_ failure: LaunchFailure) {
         guard let request = currentRequest, let snapshot = currentSnapshot else { return }
-        currentError = failure
-        present(request: request, snapshot: snapshot, error: failure)
+        launchingRequestID = nil
+        currentError = Self.sanitizedLaunchFailure
+        present(request: request, snapshot: snapshot, error: Self.sanitizedLaunchFailure)
     }
 
     private func finishCurrentRequest() {
@@ -131,6 +142,7 @@ public final class RoutingCoordinator {
         currentRequest = nil
         currentError = nil
         currentSnapshot = nil
+        launchingRequestID = nil
         advanceToNextRequest()
     }
 
