@@ -37,6 +37,7 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
   private var isDismissing = false
   private var suppressesResignCancellation = false
   private var hasReportedPresentation = false
+  private var isPresentationEndReportScheduled = false
 
   var hasActivePresentation: Bool { presentation != nil }
   var isKeyboardMonitorInstalled: Bool { keyMonitor != nil }
@@ -128,10 +129,7 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     presentation = nil
     suppressesResignCancellation = false
     isDismissing = false
-    if hasReportedPresentation {
-      hasReportedPresentation = false
-      onPresentationChange(false)
-    }
+    schedulePresentationEndReport()
   }
 
   public func windowDidResignKey(_ notification: Notification) {
@@ -283,6 +281,21 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
   private func handleResignKey() {
     guard !suppressesResignCancellation else { return }
     cancelAndDismiss()
+  }
+
+  private func schedulePresentationEndReport() {
+    guard hasReportedPresentation, !isPresentationEndReportScheduled else { return }
+    isPresentationEndReportScheduled = true
+    Task { @MainActor [weak self] in
+      self?.reportPresentationEndedIfInactive()
+    }
+  }
+
+  private func reportPresentationEndedIfInactive() {
+    isPresentationEndReportScheduled = false
+    guard hasReportedPresentation, presentation == nil else { return }
+    hasReportedPresentation = false
+    onPresentationChange(false)
   }
 
   static func numberShortcut(

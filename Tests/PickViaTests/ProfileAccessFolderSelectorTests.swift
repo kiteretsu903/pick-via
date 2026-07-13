@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import PickViaCore
 import XCTest
@@ -67,6 +68,24 @@ final class ProfileAccessFolderSelectorTests: XCTestCase {
     let selected = await selector.selectRoot(for: chrome)
 
     XCTAssertEqual(selected, expected)
+  }
+
+  func testAppKitDriverReturnsURLOnlyForOKResponse() {
+    let selected = URL(fileURLWithPath: "/chosen/Chrome")
+
+    XCTAssertEqual(
+      AppKitProfileAccessOpenPanelDriver.selectedURL(
+        for: .OK,
+        panelURL: selected
+      ),
+      selected
+    )
+    XCTAssertNil(
+      AppKitProfileAccessOpenPanelDriver.selectedURL(
+        for: .cancel,
+        panelURL: selected
+      )
+    )
   }
 }
 

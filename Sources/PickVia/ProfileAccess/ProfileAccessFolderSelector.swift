@@ -90,8 +90,17 @@ final class AppKitProfileAccessOpenPanelDriver: ProfileAccessOpenPanelDriving {
   func begin() async -> URL? {
     await withCheckedContinuation { continuation in
       panel.begin { [panel] response in
-        continuation.resume(returning: response == .OK ? panel.url : nil)
+        continuation.resume(
+          returning: Self.selectedURL(for: response, panelURL: panel.url)
+        )
       }
     }
+  }
+
+  static func selectedURL(
+    for response: NSApplication.ModalResponse,
+    panelURL: URL?
+  ) -> URL? {
+    response == .OK ? panelURL : nil
   }
 }

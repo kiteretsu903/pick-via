@@ -158,10 +158,47 @@ final class ChooserModelsTests: XCTestCase {
 
 @MainActor
 final class ChooserPanelControllerTests: XCTestCase {
-  func testPresentationLifecycleReportsOnlyActualPresentationTransition() {
-    var changes: [Bool] = []
+  func testQueuedRoutingRequestCoalescesChooserLifecycleBeforeWizardRetry() async throws {
+    let wizardPresented = expectation(description: "wizard retry presents")
+    let retryObserver = ProfileAccessRetryObserver(
+      onWizardPresent: { wizardPresented.fulfill() }
+    )
     let controller = ChooserPanelController(
-      onPresentationChange: { changes.append($0) }
+      onPresentationChange: { isPresented in
+        retryObserver.chooserPresentationDidChange(isPresented)
+      }
+    )
+    let coordinator = RoutingCoordinator(
+      targetProvider: ChooserTargetProviderStub(),
+      chooser: controller,
+      launcher: ChooserLauncherStub()
+    )
+    coordinator.enqueue(URL(string: "https://example.com/first")!)
+    coordinator.enqueue(URL(string: "https://example.com/second")!)
+
+    NSApp.sendEvent(try makeKeyEvent(keyCode: 53, characters: "\u{1b}"))
+    await Task.yield()
+
+    XCTAssertEqual(retryObserver.presentationChanges, [true])
+    XCTAssertEqual(retryObserver.wizardPresentCallCount, 0)
+    XCTAssertEqual(coordinator.currentRequest?.url, URL(string: "https://example.com/second"))
+
+    NSApp.sendEvent(try makeKeyEvent(keyCode: 53, characters: "\u{1b}"))
+    await fulfillment(of: [wizardPresented], timeout: 1)
+
+    XCTAssertEqual(retryObserver.presentationChanges, [true, false])
+    XCTAssertEqual(retryObserver.wizardPresentCallCount, 1)
+    XCTAssertNil(coordinator.currentRequest)
+  }
+
+  func testPresentationLifecycleReportsOnlyActualPresentationTransition() async {
+    var changes: [Bool] = []
+    let presentationEnded = expectation(description: "presentation ended")
+    let controller = ChooserPanelController(
+      onPresentationChange: {
+        changes.append($0)
+        if !$0 { presentationEnded.fulfill() }
+      }
     )
 
     controller.present(
@@ -183,13 +220,19 @@ final class ChooserPanelControllerTests: XCTestCase {
     controller.dismiss()
     controller.dismiss()
 
+    XCTAssertEqual(changes, [true])
+    await fulfillment(of: [presentationEnded], timeout: 1)
     XCTAssertEqual(changes, [true, false])
   }
 
-  func testResignCancellationReportsPresentationEnded() {
+  func testResignCancellationReportsPresentationEnded() async {
     var changes: [Bool] = []
+    let presentationEnded = expectation(description: "presentation ended")
     let controller = ChooserPanelController(
-      onPresentationChange: { changes.append($0) }
+      onPresentationChange: {
+        changes.append($0)
+        if !$0 { presentationEnded.fulfill() }
+      }
     )
     controller.present(
       request: Fixtures.request,
@@ -201,15 +244,20 @@ final class ChooserPanelControllerTests: XCTestCase {
     )
 
     controller.resignKeyForTesting()
+    await fulfillment(of: [presentationEnded], timeout: 1)
 
     XCTAssertEqual(changes, [true, false])
   }
 
-  func testWindowCloseCancelsAndReportsPresentationEnded() {
+  func testWindowCloseCancelsAndReportsPresentationEnded() async {
     var cancelCount = 0
     var changes: [Bool] = []
+    let presentationEnded = expectation(description: "presentation ended")
     let controller = ChooserPanelController(
-      onPresentationChange: { changes.append($0) }
+      onPresentationChange: {
+        changes.append($0)
+        if !$0 { presentationEnded.fulfill() }
+      }
     )
     controller.present(
       request: Fixtures.request,
@@ -221,16 +269,21 @@ final class ChooserPanelControllerTests: XCTestCase {
     )
 
     controller.windowWillClose(Notification(name: NSWindow.willCloseNotification))
+    await fulfillment(of: [presentationEnded], timeout: 1)
 
     XCTAssertEqual(cancelCount, 1)
     XCTAssertEqual(changes, [true, false])
   }
 
-  func testSuccessfulSelectionDismissReportsPresentationEnded() throws {
+  func testSuccessfulSelectionDismissReportsPresentationEnded() async throws {
     var changes: [Bool] = []
+    let presentationEnded = expectation(description: "presentation ended")
     var controller: ChooserPanelController!
     controller = ChooserPanelController(
-      onPresentationChange: { changes.append($0) }
+      onPresentationChange: {
+        changes.append($0)
+        if !$0 { presentationEnded.fulfill() }
+      }
     )
     controller.present(
       request: Fixtures.request,
@@ -256,8 +309,26 @@ final class ChooserPanelControllerTests: XCTestCase {
     )
 
     NSApp.sendEvent(returnKey)
+    await fulfillment(of: [presentationEnded], timeout: 1)
 
     XCTAssertEqual(changes, [true, false])
+  }
+
+  private func makeKeyEvent(keyCode: UInt16, characters: String) throws -> NSEvent {
+    try XCTUnwrap(
+      NSEvent.keyEvent(
+        with: .keyDown,
+        location: .zero,
+        modifierFlags: [],
+        timestamp: 0,
+        windowNumber: 0,
+        context: nil,
+        characters: characters,
+        charactersIgnoringModifiers: characters,
+        isARepeat: false,
+        keyCode: keyCode
+      )
+    )
   }
 
   func testOpeningBrowserSettingsSuppressesResignCancellationAndRetainsPresentation() {
@@ -385,6 +456,42 @@ final class ChooserPanelControllerTests: XCTestCase {
     XCTAssertEqual(navigation.destination, .browsers)
     XCTAssertEqual(destinationWhenOpened, .browsers)
   }
+}
+
+@MainActor
+private final class ProfileAccessRetryObserver {
+  private(set) var presentationChanges: [Bool] = []
+  private(set) var wizardPresentCallCount = 0
+  private let onWizardPresent: @MainActor () -> Void
+
+  init(onWizardPresent: @escaping @MainActor () -> Void) {
+    self.onWizardPresent = onWizardPresent
+  }
+
+  func chooserPresentationDidChange(_ isPresented: Bool) {
+    presentationChanges.append(isPresented)
+    if !isPresented {
+      wizardPresentCallCount += 1
+      onWizardPresent()
+    }
+  }
+}
+
+private struct ChooserTargetProviderStub: TargetProviding {
+  func availableSnapshot() -> RoutingTargetSnapshot {
+    RoutingTargetSnapshot(
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work]
+    )
+  }
+}
+
+private struct ChooserLauncherStub: BrowserLaunching {
+  func launch(
+    url: URL,
+    application: BrowserApplication,
+    target: BrowserTarget
+  ) async throws {}
 }
 
 @MainActor

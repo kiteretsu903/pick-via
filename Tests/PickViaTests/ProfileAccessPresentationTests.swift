@@ -77,6 +77,19 @@ final class ProfileAccessPresentationTests: XCTestCase {
     XCTAssertEqual(driver.presentCallCount, 0)
     XCTAssertEqual(driver.hideCompetingWindowsCallCount, 0)
   }
+
+  func testExplicitRequestPresentsManualManagerAfterAutomaticSuppression() throws {
+    let driver = ProfileAccessPanelDriverSpy(canPresent: true)
+    let presenter = ProfileAccessPanelController(driver: driver)
+    let model = try ProfileAccessModelFixture.automaticPending()
+    model.skipProfileAccess()
+    model.openProfileAccessManager()
+
+    presenter.request(model: model)
+
+    XCTAssertEqual(driver.presentCallCount, 1)
+    XCTAssertEqual(model.profileAccessPresentation, .presented)
+  }
 }
 
 @MainActor
