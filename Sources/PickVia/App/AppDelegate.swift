@@ -1,11 +1,13 @@
 import AppKit
 import Foundation
 import PickViaCore
+import SwiftUI
 
 @MainActor
 public final class AppDelegate: NSObject, NSApplicationDelegate {
   public let model: AppModel
   public let navigation: SettingsNavigation
+  public let profileAccessPresenter: any ProfileAccessPresenting
 
   private let openSettings: @MainActor () -> Void
 
@@ -15,12 +17,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
       NSApp.activate(ignoringOtherApps: true)
       _ = NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
     }
-    self.init(
-      model: AppModel.production(
-        navigation: navigation,
-        openSettings: openSettings
-      ),
+    let production = AppModel.production(
       navigation: navigation,
+      openSettings: openSettings
+    )
+    self.init(
+      model: production.model,
+      navigation: navigation,
+      profileAccessPresenter: production.profileAccessPresenter,
       openSettings: openSettings
     )
   }
@@ -28,10 +32,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
   init(
     model: AppModel,
     navigation: SettingsNavigation = SettingsNavigation(),
+    profileAccessPresenter: any ProfileAccessPresenting = InactiveAppDelegateProfileAccessPresenter
+      .shared,
     openSettings: @escaping @MainActor () -> Void
   ) {
     self.model = model
     self.navigation = navigation
+    self.profileAccessPresenter = profileAccessPresenter
     self.openSettings = openSettings
     super.init()
   }
@@ -43,9 +50,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   public func applicationDidFinishLaunching(_ notification: Notification) {
-    guard model.configurationRecovery != .none else { return }
-    navigation.destination = .browsers
-    openSettings()
+    if model.configurationRecovery != .none {
+      navigation.destination = .browsers
+      openSettings()
+      return
+    }
+    if model.onboardingStep >= 3 {
+      profileAccessPresenter.requestIfPending(model: model)
+    }
   }
 
   public func applicationDidBecomeActive(_ notification: Notification) {
@@ -62,16 +74,32 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 }
 
+@MainActor
+private final class InactiveAppDelegateProfileAccessPresenter: ProfileAccessPresenting {
+  static let shared = InactiveAppDelegateProfileAccessPresenter()
+
+  func request(model: AppModel) {}
+  func requestIfPending(model: AppModel) {}
+  func environmentDidChange() {}
+  func dismiss() {}
+}
+
 extension AppModel {
   static func production(
     navigation: SettingsNavigation,
     openSettings: @escaping @MainActor () -> Void
-  ) -> AppModel {
+  ) -> (model: AppModel, profileAccessPresenter: any ProfileAccessPresenting) {
     let applicationSupportDirectory = FileManager.default.urls(
       for: .applicationSupportDirectory,
       in: .userDomainMask
     )[0].appending(path: "PickVia", directoryHint: .isDirectory)
     let configStore = JSONConfigStore(directory: applicationSupportDirectory)
+    let profileAccessStore = JSONProfileAccessStore(directory: applicationSupportDirectory)
+    let profileAccessCoordinator = ProfileAccessCoordinator(store: profileAccessStore)
+    let profileRootValidator = BrowserProfileRootValidator()
+    let profileAccessFolderSelector = ProfileAccessFolderSelector()
+    let profileAccessPanelDriver = AppKitProfileAccessPanelDriver()
+    let profileAccessPresenter = ProfileAccessPanelController(driver: profileAccessPanelDriver)
     let preferences = UserDefaultsPreferences()
     let recovery = BrowserSettingsRecovery(
       navigation: navigation,
@@ -82,20 +110,34 @@ extension AppModel {
         preferences.bool(forKey: PreferenceKey.showsURLInChooser) ?? true
       },
       clipboard: SystemClipboardWriter(),
-      openBrowserSettings: recovery.open
+      openBrowserSettings: recovery.open,
+      onPresentationChange: { [weak profileAccessPresenter] _ in
+        profileAccessPresenter?.environmentDidChange()
+      }
     )
     let model = AppComposition.makeModel(
       configStore: configStore,
-      browserCatalog: BrowserCatalog(),
+      browserCatalog: BrowserCatalog(profileRootAccess: profileAccessCoordinator),
       preferences: preferences,
       defaultBrowser: MacOSDefaultBrowserService(),
       loginItem: MacOSLoginItemService(),
       chooser: chooser,
-      launcher: BrowserLauncher()
+      launcher: BrowserLauncher(),
+      profileAccess: profileAccessCoordinator,
+      profileRootValidator: profileRootValidator
     )
+    profileAccessPanelDriver.attachWizardViewFactory { [weak profileAccessPresenter] model in
+      AnyView(
+        ProfileAccessWizardView(
+          folderSelector: profileAccessFolderSelector,
+          dismissWizard: { profileAccessPresenter?.dismiss() }
+        )
+        .environment(model)
+      )
+    }
 
     try? model.load()
-    return model
+    return (model, profileAccessPresenter)
   }
 }
 
@@ -108,7 +150,9 @@ enum AppComposition {
     defaultBrowser: any DefaultBrowserServicing,
     loginItem: any LoginItemServicing,
     chooser: any ChooserPresenting,
-    launcher: any BrowserLaunching
+    launcher: any BrowserLaunching,
+    profileAccess: any ProfileAccessManaging = MissingProfileAccessManager(),
+    profileRootValidator: BrowserProfileRootValidator = BrowserProfileRootValidator()
   ) -> AppModel {
     let targetProvider = MutableTargetSnapshot()
     let coordinator = RoutingCoordinator(
@@ -134,7 +178,9 @@ enum AppComposition {
       defaultBrowser: defaultBrowser,
       loginItem: loginItem,
       routing: routing,
-      targetSnapshot: targetProvider
+      targetSnapshot: targetProvider,
+      profileAccess: profileAccess,
+      profileRootValidator: profileRootValidator
     )
   }
 }

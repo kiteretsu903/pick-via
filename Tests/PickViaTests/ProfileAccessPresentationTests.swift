@@ -6,6 +6,17 @@ import XCTest
 
 @MainActor
 final class ProfileAccessPresentationTests: XCTestCase {
+  func testAutomaticRequestWaitsUntilOnboardingReviewCompletes() throws {
+    let driver = ProfileAccessPanelDriverSpy(canPresent: true)
+    let presenter = ProfileAccessPanelController(driver: driver)
+    let model = try ProfileAccessModelFixture.automaticPending(onboardingStep: 2)
+
+    presenter.requestIfPending(model: model)
+
+    XCTAssertEqual(driver.presentCallCount, 0)
+    XCTAssertEqual(model.profileAccessPresentation, .automaticPending)
+  }
+
   func testPendingWizardWaitsForChooserThenPresentsOnce() throws {
     let driver = ProfileAccessPanelDriverSpy(canPresent: false)
     let presenter = ProfileAccessPanelController(driver: driver)
@@ -36,6 +47,7 @@ final class ProfileAccessPresentationTests: XCTestCase {
     presenter.dismiss()
 
     XCTAssertEqual(driver.dismissAndRestoreWindowsCallCount, 1)
+    XCTAssertEqual(model.profileAccessPresentation, .suppressedForProcess)
   }
 
   func testDismissRestoresOrdinaryWindowsForFinishOrSkip() throws {
@@ -125,7 +137,7 @@ private final class ProfileAccessPanelDriverSpy: ProfileAccessPanelDriving {
 
 @MainActor
 private enum ProfileAccessModelFixture {
-  static func automaticPending() throws -> AppModel {
+  static func automaticPending(onboardingStep: Int = 3) throws -> AppModel {
     let browser = BrowserApplication(
       id: "com.google.Chrome",
       family: .chromium,
@@ -148,7 +160,7 @@ private enum ProfileAccessModelFixture {
     let model = AppModel(
       configStore: ProfileAccessConfigStoreStub(),
       browserCatalog: ProfileAccessCatalogStub(result: scan),
-      preferences: ProfileAccessPreferencesStub(),
+      preferences: ProfileAccessPreferencesStub(onboardingStep: onboardingStep),
       defaultBrowser: ProfileAccessDefaultBrowserStub(),
       loginItem: ProfileAccessLoginItemStub(),
       routing: ProfileAccessRoutingStub()
@@ -175,8 +187,16 @@ private struct ProfileAccessCatalogStub: BrowserDiscovering {
 
 @MainActor
 private final class ProfileAccessPreferencesStub: PreferencesStoring {
+  private let onboardingStep: Int
+
+  init(onboardingStep: Int) {
+    self.onboardingStep = onboardingStep
+  }
+
   func bool(forKey key: String) -> Bool? { nil }
-  func integer(forKey key: String) -> Int? { nil }
+  func integer(forKey key: String) -> Int? {
+    key == "onboardingStep" ? onboardingStep : nil
+  }
   func set(_ value: Bool, forKey key: String) {}
   func set(_ value: Int, forKey key: String) {}
 }

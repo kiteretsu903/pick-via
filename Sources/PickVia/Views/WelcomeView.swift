@@ -2,6 +2,7 @@ import SwiftUI
 
 public struct WelcomeView: View {
   @Environment(AppModel.self) private var model
+  @Environment(\.profileAccessPresenter) private var profileAccessPresenter
   @Environment(\.dismissWindow) private var dismissWindow
 
   public init() {}
@@ -63,7 +64,7 @@ public struct WelcomeView: View {
       )
       .foregroundStyle(.secondary)
       HStack {
-        Button("Scan Again") { try? model.rescan() }
+        Button("Scan Again") { rescan() }
         Spacer()
         Button("Continue") { model.advanceOnboarding() }
           .buttonStyle(.borderedProminent)
@@ -87,11 +88,16 @@ public struct WelcomeView: View {
       }
       .frame(minHeight: 150)
       HStack {
-        Button("Rescan") { try? model.rescan() }
+        Button("Rescan") { rescan() }
         Spacer()
-        Button("Continue") { model.advanceOnboarding() }
-          .buttonStyle(.borderedProminent)
-          .disabled(!model.canRequestDefaultBrowser)
+        Button("Continue") {
+          advanceOnboardingAndPresentProfileAccess(
+            model: model,
+            profileAccessPresenter: profileAccessPresenter
+          )
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(!model.canRequestDefaultBrowser)
       }
     }
   }
@@ -112,6 +118,23 @@ public struct WelcomeView: View {
         .disabled(!model.canRequestDefaultBrowser)
       }
     }
+  }
+
+  private func rescan() {
+    try? model.userRequestedRescan()
+    profileAccessPresenter.requestIfPending(model: model)
+  }
+}
+
+@MainActor
+func advanceOnboardingAndPresentProfileAccess(
+  model: AppModel,
+  profileAccessPresenter: any ProfileAccessPresenting
+) {
+  let previousStep = model.onboardingStep
+  model.advanceOnboarding()
+  if previousStep == 2, model.onboardingStep == 3 {
+    profileAccessPresenter.requestIfPending(model: model)
   }
 }
 

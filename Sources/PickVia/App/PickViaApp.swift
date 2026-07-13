@@ -9,17 +9,20 @@ struct PickViaApp: App {
       StatusMenuView()
         .environment(delegate.model)
         .environment(delegate.navigation)
+        .environment(\.profileAccessPresenter, delegate.profileAccessPresenter)
     }
 
     Settings {
       SettingsRootView()
         .environment(delegate.model)
         .environment(delegate.navigation)
+        .environment(\.profileAccessPresenter, delegate.profileAccessPresenter)
     }
 
     Window("Welcome to PickVia", id: "welcome") {
       WelcomeView()
         .environment(delegate.model)
+        .environment(\.profileAccessPresenter, delegate.profileAccessPresenter)
     }
     .windowResizability(.contentSize)
   }

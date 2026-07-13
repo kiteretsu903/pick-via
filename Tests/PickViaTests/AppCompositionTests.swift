@@ -187,6 +187,54 @@ final class AppCompositionTests: XCTestCase {
     XCTAssertFalse(chooser.showsURLForCurrentPresentation)
     chooser.dismiss()
   }
+
+  func testCompositionInjectsProfileAccessManagerIntoAppModel() throws {
+    let profileAccess = CompositionProfileAccessManagerSpy(
+      persistence: ["com.google.Chrome": .persistent]
+    )
+    let model = AppComposition.makeModel(
+      configStore: CompositionConfigStore(config: .initial),
+      browserCatalog: CompositionCatalogStub(
+        scanResult: CompositionFixtures.loadedChromeScan
+      ),
+      preferences: CompositionPreferencesStub(),
+      defaultBrowser: CompositionDefaultBrowserStub(),
+      loginItem: CompositionLoginItemStub(),
+      chooser: CompositionChooserSpy(),
+      launcher: CompositionLauncherSpy(),
+      profileAccess: profileAccess
+    )
+
+    try model.load()
+    model.openProfileAccessManager()
+
+    XCTAssertEqual(model.profileAccessRows.first?.hasStoredGrant, true)
+    XCTAssertEqual(
+      model.profileAccessRows.first?.state,
+      .granted(profileCount: 1, persistence: .persistent)
+    )
+  }
+
+  func testProductionCreatesOneSharedProfileAccessDependencyGraph() throws {
+    let sources = try String(
+      contentsOf: repositoryRoot.appending(path: "Sources/PickVia/App/AppDelegate.swift"),
+      encoding: .utf8
+    )
+
+    XCTAssertEqual(sources.components(separatedBy: "JSONProfileAccessStore(").count - 1, 1)
+    XCTAssertEqual(sources.components(separatedBy: "ProfileAccessCoordinator(").count - 1, 1)
+    XCTAssertEqual(sources.components(separatedBy: "ProfileAccessFolderSelector(").count - 1, 1)
+    XCTAssertEqual(sources.components(separatedBy: "ProfileAccessPanelController(").count - 1, 1)
+    XCTAssertTrue(sources.contains("BrowserCatalog(profileRootAccess: profileAccessCoordinator)"))
+    XCTAssertTrue(sources.contains("profileAccess: profileAccessCoordinator"))
+  }
+
+  private var repositoryRoot: URL {
+    URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+  }
 }
 
 private final class CompositionConfigStore: ConfigStoring, @unchecked Sendable {
@@ -295,6 +343,31 @@ private actor CompositionLauncherSpy: BrowserLaunching {
   }
 }
 
+private final class CompositionProfileAccessManagerSpy: ProfileAccessManaging, @unchecked Sendable {
+  private let persistences: [String: ProfileGrantPersistence]
+
+  init(persistence: [String: ProfileGrantPersistence]) {
+    persistences = persistence
+  }
+
+  func beginAccess(for bundleIdentifier: String) -> ProfileRootAccessResult {
+    ProfileRootAccessResult(state: .missing, lease: nil)
+  }
+
+  func installGrant(
+    root: URL,
+    for bundleIdentifier: String
+  ) throws -> ProfileGrantPersistence {
+    .persistent
+  }
+
+  func persistence(for bundleIdentifier: String) -> ProfileGrantPersistence? {
+    persistences[bundleIdentifier]
+  }
+
+  func removeGrant(for bundleIdentifier: String) throws {}
+}
+
 private enum CompositionFixtures {
   static let browser = BrowserApplication(
     id: "com.google.Chrome",
@@ -322,6 +395,18 @@ private enum CompositionFixtures {
     schemaVersion: 1,
     browsers: [browser],
     targets: [target]
+  )
+  static let loadedChromeScan = BrowserScanResult(
+    browsers: [
+      DiscoveredBrowser(
+        application: browser,
+        profiles: [
+          DiscoveredProfile(identifier: "Profile 1", displayName: "Work", directoryURL: nil)
+        ],
+        metadataStatus: .loaded
+      )
+    ],
+    profileAccessIssues: []
   )
 
   static func copyTarget(isEnabled: Bool) -> BrowserTarget {

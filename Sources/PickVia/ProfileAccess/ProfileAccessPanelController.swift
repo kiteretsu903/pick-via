@@ -1,9 +1,11 @@
-@MainActor
-public protocol ProfileAccessPresenting: AnyObject {
-  func request(model: AppModel)
-  func requestIfPending(model: AppModel)
-  func environmentDidChange()
-  func dismiss()
+import AppKit
+import SwiftUI
+
+public protocol ProfileAccessPresenting: AnyObject, Sendable {
+  @MainActor func request(model: AppModel)
+  @MainActor func requestIfPending(model: AppModel)
+  @MainActor func environmentDidChange()
+  @MainActor func dismiss()
 }
 
 @MainActor
@@ -31,7 +33,10 @@ public final class ProfileAccessPanelController: ProfileAccessPresenting {
 
   public func requestIfPending(model: AppModel) {
     switch model.profileAccessPresentation {
-    case .automaticPending, .manualPending:
+    case .automaticPending:
+      guard model.onboardingStep >= 3 else { return }
+      request(model: model)
+    case .manualPending:
       request(model: model)
     case .idle, .presented, .suppressedForProcess:
       break
@@ -62,8 +67,106 @@ public final class ProfileAccessPanelController: ProfileAccessPresenting {
     isPresented = true
     driver.hideCompetingPickViaWindows()
     model.profileAccessDidPresent()
-    driver.present(model: model) { [weak self] in
+    driver.present(model: model) { [weak self, weak model] in
+      model?.closeProfileAccess()
       self?.dismiss()
     }
+  }
+}
+
+private final class InactiveProfileAccessPresenter: ProfileAccessPresenting, @unchecked Sendable {
+  static let shared = InactiveProfileAccessPresenter()
+
+  @MainActor func request(model: AppModel) {}
+  @MainActor func requestIfPending(model: AppModel) {}
+  @MainActor func environmentDidChange() {}
+  @MainActor func dismiss() {}
+}
+
+private struct ProfileAccessPresenterEnvironmentKey: EnvironmentKey {
+  static let defaultValue: any ProfileAccessPresenting = InactiveProfileAccessPresenter.shared
+}
+
+extension EnvironmentValues {
+  @MainActor
+  var profileAccessPresenter: any ProfileAccessPresenting {
+    get { self[ProfileAccessPresenterEnvironmentKey.self] }
+    set { self[ProfileAccessPresenterEnvironmentKey.self] = newValue }
+  }
+}
+
+@MainActor
+final class AppKitProfileAccessPanelDriver: NSObject, ProfileAccessPanelDriving, NSWindowDelegate {
+  typealias WizardViewFactory = @MainActor (AppModel) -> AnyView
+
+  private var wizardViewFactory: WizardViewFactory?
+  private var onClose: (@MainActor () -> Void)?
+  private var hiddenWindows: [NSWindow] = []
+
+  private lazy var panel: NSPanel = {
+    let panel = NSPanel(
+      contentRect: NSRect(x: 0, y: 0, width: 620, height: 440),
+      styleMask: [.titled, .closable],
+      backing: .buffered,
+      defer: false
+    )
+    panel.title = "Browser Profile Access"
+    panel.isReleasedWhenClosed = false
+    panel.delegate = self
+    return panel
+  }()
+
+  var canPresent: Bool {
+    wizardViewFactory != nil
+      && !panel.isVisible
+      && NSApp.modalWindow == nil
+      && !NSApp.windows.contains(where: { $0.attachedSheet != nil })
+      && !NSApp.windows.contains(where: { window in
+        window !== panel && window.isVisible && window is NSPanel
+      })
+  }
+
+  func attachWizardViewFactory(_ factory: @escaping WizardViewFactory) {
+    wizardViewFactory = factory
+  }
+
+  func hideCompetingPickViaWindows() {
+    hiddenWindows = NSApp.windows.filter { window in
+      window !== panel
+        && window.isVisible
+        && !window.isSheet
+        && !(window is NSPanel)
+        && window.level == .normal
+    }
+    for window in hiddenWindows {
+      window.orderOut(nil)
+    }
+  }
+
+  func present(model: AppModel, onClose: @escaping @MainActor () -> Void) {
+    guard let wizardViewFactory else { return }
+    self.onClose = onClose
+    panel.contentViewController = NSHostingController(rootView: wizardViewFactory(model))
+    panel.center()
+    NSApp.activate(ignoringOtherApps: true)
+    panel.makeKeyAndOrderFront(nil)
+  }
+
+  func dismissAndRestoreWindows() {
+    onClose = nil
+    panel.orderOut(nil)
+    let windowsToRestore = hiddenWindows
+    hiddenWindows = []
+    for window in windowsToRestore where !window.isVisible {
+      window.orderFront(nil)
+    }
+    windowsToRestore.last?.makeKey()
+  }
+
+  func windowWillClose(_ notification: Notification) {
+    guard notification.object as? NSWindow === panel else { return }
+    let close = onClose
+    onClose = nil
+    close?()
   }
 }

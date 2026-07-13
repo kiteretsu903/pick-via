@@ -4,6 +4,7 @@ import SwiftUI
 public struct StatusMenuView: View {
   @Environment(AppModel.self) private var model
   @Environment(SettingsNavigation.self) private var navigation
+  @Environment(\.profileAccessPresenter) private var profileAccessPresenter
   @Environment(\.openSettings) private var openSettings
 
   public init() {}
@@ -21,7 +22,8 @@ public struct StatusMenuView: View {
     }
 
     Button("Rescan Browsers") {
-      try? model.rescan()
+      try? model.userRequestedRescan()
+      profileAccessPresenter.requestIfPending(model: model)
     }
 
     Divider()

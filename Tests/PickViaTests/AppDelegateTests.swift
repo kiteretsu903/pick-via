@@ -33,9 +33,11 @@ final class AppDelegateTests: XCTestCase {
     try model.load()
     let navigation = SettingsNavigation()
     var destinationWhenOpened: SettingsDestination?
+    let presenter = AppDelegateProfileAccessPresenterSpy()
     let delegate = AppDelegate(
       model: model,
       navigation: navigation,
+      profileAccessPresenter: presenter,
       openSettings: { destinationWhenOpened = navigation.destination }
     )
 
@@ -44,6 +46,53 @@ final class AppDelegateTests: XCTestCase {
     )
 
     XCTAssertEqual(destinationWhenOpened, .browsers)
+    XCTAssertEqual(presenter.requestIfPendingCallCount, 0)
+  }
+
+  func testLaunchRequestsPendingProfileAccessAfterOnboardingReview() throws {
+    let presenter = AppDelegateProfileAccessPresenterSpy()
+    let model = makeModel(
+      catalog: AppDelegateCatalogStub(
+        scanResult: AppDelegateFixtures.profileAccessRequiredScan
+      ),
+      preferences: AppDelegatePreferencesStub(onboardingStep: 3)
+    )
+    try model.load()
+    let delegate = AppDelegate(
+      model: model,
+      profileAccessPresenter: presenter,
+      openSettings: {}
+    )
+
+    delegate.applicationDidFinishLaunching(
+      Notification(name: NSApplication.didFinishLaunchingNotification)
+    )
+
+    XCTAssertEqual(presenter.requestIfPendingCallCount, 1)
+    XCTAssertTrue(presenter.lastModel === model)
+  }
+
+  func testLaunchKeepsProfileAccessPendingDuringOnboardingReview() throws {
+    let presenter = AppDelegateProfileAccessPresenterSpy()
+    let model = makeModel(
+      catalog: AppDelegateCatalogStub(
+        scanResult: AppDelegateFixtures.profileAccessRequiredScan
+      ),
+      preferences: AppDelegatePreferencesStub(onboardingStep: 2)
+    )
+    try model.load()
+    let delegate = AppDelegate(
+      model: model,
+      profileAccessPresenter: presenter,
+      openSettings: {}
+    )
+
+    delegate.applicationDidFinishLaunching(
+      Notification(name: NSApplication.didFinishLaunchingNotification)
+    )
+
+    XCTAssertEqual(model.profileAccessPresentation, .automaticPending)
+    XCTAssertEqual(presenter.requestIfPendingCallCount, 0)
   }
   func testOpenURLsPassesEachURLThroughModelValidation() throws {
     let routing = AppDelegateRoutingSpy()
@@ -83,12 +132,14 @@ final class AppDelegateTests: XCTestCase {
 
   private func makeModel(
     routing: AppDelegateRoutingSpy = AppDelegateRoutingSpy(),
-    defaultBrowser: AppDelegateDefaultBrowserStub = AppDelegateDefaultBrowserStub()
+    defaultBrowser: AppDelegateDefaultBrowserStub = AppDelegateDefaultBrowserStub(),
+    catalog: AppDelegateCatalogStub = AppDelegateCatalogStub(),
+    preferences: AppDelegatePreferencesStub = AppDelegatePreferencesStub()
   ) -> AppModel {
     AppModel(
       configStore: AppDelegateConfigStoreStub(),
-      browserCatalog: AppDelegateCatalogStub(),
-      preferences: AppDelegatePreferencesStub(),
+      browserCatalog: catalog,
+      preferences: preferences,
       defaultBrowser: defaultBrowser,
       loginItem: AppDelegateLoginItemStub(),
       routing: routing
@@ -109,7 +160,18 @@ private struct AppDelegateConfigStoreStub: ConfigStoring {
 }
 
 private struct AppDelegateCatalogStub: BrowserDiscovering {
-  func scan() throws -> [DiscoveredBrowser] { [] }
+  let configuredScanResult: BrowserScanResult
+
+  init(
+    scanResult: BrowserScanResult = BrowserScanResult(
+      browsers: [], warnings: [], isAuthoritative: true
+    )
+  ) {
+    configuredScanResult = scanResult
+  }
+
+  func scan() throws -> [DiscoveredBrowser] { configuredScanResult.browsers }
+  func scanResult() -> BrowserScanResult { configuredScanResult }
   func reconcile(discovered: [DiscoveredBrowser], with config: PickViaConfig) -> PickViaConfig {
     config
   }
@@ -117,8 +179,16 @@ private struct AppDelegateCatalogStub: BrowserDiscovering {
 
 @MainActor
 private final class AppDelegatePreferencesStub: PreferencesStoring {
+  private let onboardingStep: Int?
+
+  init(onboardingStep: Int? = nil) {
+    self.onboardingStep = onboardingStep
+  }
+
   func bool(forKey key: String) -> Bool? { nil }
-  func integer(forKey key: String) -> Int? { nil }
+  func integer(forKey key: String) -> Int? {
+    key == "onboardingStep" ? onboardingStep : nil
+  }
   func set(_ value: Bool, forKey key: String) {}
   func set(_ value: Int, forKey key: String) {}
 }
@@ -144,4 +214,45 @@ private final class AppDelegateRoutingSpy: AppRouting {
   private(set) var acceptedURLs: [URL] = []
   func accept(_ url: URL) { acceptedURLs.append(url) }
   func preview(_ url: URL) {}
+}
+
+@MainActor
+private final class AppDelegateProfileAccessPresenterSpy: ProfileAccessPresenting {
+  private(set) var requestIfPendingCallCount = 0
+  private(set) weak var lastModel: AppModel?
+
+  func request(model: AppModel) {
+    lastModel = model
+  }
+
+  func requestIfPending(model: AppModel) {
+    requestIfPendingCallCount += 1
+    lastModel = model
+  }
+
+  func environmentDidChange() {}
+  func dismiss() {}
+}
+
+private enum AppDelegateFixtures {
+  static let chrome = BrowserApplication(
+    id: "com.google.Chrome",
+    family: .chromium,
+    displayName: "Google Chrome",
+    bundleIdentifier: "com.google.Chrome",
+    applicationURL: URL(fileURLWithPath: "/Applications/Google Chrome.app"),
+    executableURL: nil,
+    isAvailable: true
+  )
+
+  static let profileAccessRequiredScan = BrowserScanResult(
+    browsers: [
+      DiscoveredBrowser(
+        application: chrome,
+        profiles: [],
+        metadataStatus: .accessRequired
+      )
+    ],
+    profileAccessIssues: [.accessRequired(bundleIdentifier: chrome.bundleIdentifier)]
+  )
 }

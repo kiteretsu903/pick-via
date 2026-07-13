@@ -3,6 +3,7 @@ import SwiftUI
 
 public struct BrowserSettingsView: View {
   @Environment(AppModel.self) private var model
+  @Environment(\.profileAccessPresenter) private var profileAccessPresenter
   @State private var showsAddTarget = false
 
   public init() {}
@@ -53,12 +54,21 @@ public struct BrowserSettingsView: View {
       ToolbarItemGroup {
         Button("Add Target", systemImage: "plus") { showsAddTarget = true }
           .disabled(availableBrowsers.isEmpty)
-        Button("Rescan", systemImage: "arrow.clockwise") { try? model.rescan() }
+        Button("Manage Profile Access…", systemImage: "folder.badge.key") {
+          model.openProfileAccessManager()
+          profileAccessPresenter.request(model: model)
+        }
+        Button("Rescan", systemImage: "arrow.clockwise") { rescan() }
       }
     }
     .sheet(isPresented: $showsAddTarget) {
       AddTargetView(browsers: availableBrowsers)
         .environment(model)
+    }
+    .onChange(of: showsAddTarget) { _, isPresented in
+      if !isPresented {
+        profileAccessPresenter.environmentDidChange()
+      }
     }
   }
 
@@ -76,6 +86,11 @@ public struct BrowserSettingsView: View {
       if $0.sortOrder != $1.sortOrder { return $0.sortOrder < $1.sortOrder }
       return $0.id < $1.id
     }
+  }
+
+  private func rescan() {
+    try? model.userRequestedRescan()
+    profileAccessPresenter.requestIfPending(model: model)
   }
 
   private func move(browserTargets: [BrowserTarget], from offsets: IndexSet, to destination: Int) {
