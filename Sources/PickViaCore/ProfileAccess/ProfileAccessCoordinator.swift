@@ -169,56 +169,63 @@ public final class ProfileAccessCoordinator: ProfileAccessManaging, @unchecked S
     root: URL,
     for bundleIdentifier: String
   ) throws -> ProfileGrantPersistence {
-    let bookmark: Data
-    do {
-      bookmark = try bookmarkCodec.makeReadOnlyBookmark(for: root)
-    } catch ProfileBookmarkCreationError.persistenceUnavailable {
-      if try store.bookmark(for: bundleIdentifier) != nil {
-        throw ProfileBookmarkCreationError.persistenceUnavailable
+    try lock.withLock {
+      let bookmark: Data
+      do {
+        bookmark = try bookmarkCodec.makeReadOnlyBookmark(for: root)
+      } catch ProfileBookmarkCreationError.persistenceUnavailable {
+        if try store.bookmark(for: bundleIdentifier) != nil {
+          throw ProfileBookmarkCreationError.persistenceUnavailable
+        }
+        sessionRoots[bundleIdentifier] = root
+        return .currentSessionOnly
       }
-      lock.withLock { sessionRoots[bundleIdentifier] = root }
-      return .currentSessionOnly
-    }
 
-    try store.save(bookmark, for: bundleIdentifier)
-    lock.withLock { sessionRoots[bundleIdentifier] = root }
-    return .persistent
+      try store.save(bookmark, for: bundleIdentifier)
+      sessionRoots[bundleIdentifier] = root
+      return .persistent
+    }
   }
 
   public func persistence(for bundleIdentifier: String) -> ProfileGrantPersistence? {
-    if (try? store.bookmark(for: bundleIdentifier)) != nil {
-      return .persistent
-    }
     return lock.withLock {
-      sessionRoots[bundleIdentifier] == nil ? nil : .currentSessionOnly
+      if (try? store.bookmark(for: bundleIdentifier)) != nil {
+        return .persistent
+      }
+      return sessionRoots[bundleIdentifier] == nil
+        ? nil : ProfileGrantPersistence.currentSessionOnly
     }
   }
 
   public func beginAccess(for bundleIdentifier: String) -> ProfileRootAccessResult {
-    let bookmark: Data?
-    do {
-      bookmark = try store.bookmark(for: bundleIdentifier)
-    } catch {
-      return ProfileRootAccessResult(state: .revoked, lease: nil)
-    }
+    lock.withLock {
+      let bookmark: Data?
+      do {
+        bookmark = try store.bookmark(for: bundleIdentifier)
+      } catch {
+        return ProfileRootAccessResult(state: .revoked, lease: nil)
+      }
 
-    if let bookmark {
-      return beginPersistentAccess(bookmark: bookmark, bundleIdentifier: bundleIdentifier)
-    }
+      if let bookmark {
+        return beginPersistentAccess(bookmark: bookmark, bundleIdentifier: bundleIdentifier)
+      }
 
-    guard let root = lock.withLock({ sessionRoots[bundleIdentifier] }) else {
-      return ProfileRootAccessResult(state: .missing, lease: nil)
+      guard let root = sessionRoots[bundleIdentifier] else {
+        return ProfileRootAccessResult(state: .missing, lease: nil)
+      }
+      let didStart = resourceAccess.startAccessing(root)
+      return ProfileRootAccessResult(
+        state: .granted,
+        lease: makeLease(root: root, stopsScopedAccess: didStart)
+      )
     }
-    let didStart = resourceAccess.startAccessing(root)
-    return ProfileRootAccessResult(
-      state: .granted,
-      lease: makeLease(root: root, stopsScopedAccess: didStart)
-    )
   }
 
   public func removeGrant(for bundleIdentifier: String) throws {
-    try store.remove(for: bundleIdentifier)
-    _ = lock.withLock { sessionRoots.removeValue(forKey: bundleIdentifier) }
+    try lock.withLock {
+      try store.remove(for: bundleIdentifier)
+      _ = sessionRoots.removeValue(forKey: bundleIdentifier)
+    }
   }
 
   private func beginPersistentAccess(

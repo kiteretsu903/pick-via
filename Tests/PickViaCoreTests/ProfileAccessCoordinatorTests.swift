@@ -207,6 +207,55 @@ struct ProfileAccessCoordinatorTests {
     #expect(harness.coordinator.beginAccess(for: chromeBundleIdentifier).state == .missing)
   }
 
+  @Test func concurrentRemoveWaitsForInstallStateTransition() throws {
+    let harness = CoordinatorHarness.missing()
+    harness.codec.madeBookmark = Data("persistent".utf8)
+    let makeStarted = DispatchSemaphore(value: 0)
+    let allowMake = DispatchSemaphore(value: 0)
+    let removeEnteredStore = DispatchSemaphore(value: 0)
+    harness.codec.makeStarted = makeStarted
+    harness.codec.allowMake = allowMake
+    harness.store.removeStarted = removeEnteredStore
+    let coordinator = harness.coordinator
+
+    let errors = CoordinatorErrorRecorder()
+    let group = DispatchGroup()
+    group.enter()
+    DispatchQueue.global().async {
+      defer { group.leave() }
+      do {
+        _ = try coordinator.installGrant(
+          root: URL(fileURLWithPath: "/Chrome"),
+          for: chromeBundleIdentifier
+        )
+      } catch {
+        errors.record(error)
+      }
+    }
+    #expect(makeStarted.wait(timeout: .now() + 2) == .success)
+
+    let removeStarted = DispatchSemaphore(value: 0)
+    group.enter()
+    DispatchQueue.global().async {
+      defer { group.leave() }
+      removeStarted.signal()
+      do {
+        try coordinator.removeGrant(for: chromeBundleIdentifier)
+      } catch {
+        errors.record(error)
+      }
+    }
+    #expect(removeStarted.wait(timeout: .now() + 2) == .success)
+    let removeOverlappedInstall =
+      removeEnteredStore.wait(timeout: .now() + 1) == .success
+    allowMake.signal()
+
+    #expect(group.wait(timeout: .now() + 5) == .success)
+    #expect(!removeOverlappedInstall)
+    #expect(errors.errors.isEmpty)
+    #expect(coordinator.persistence(for: chromeBundleIdentifier) == nil)
+  }
+
   @Test func missingManagerReportsUnavailableWithoutSideEffects() {
     let manager = MissingProfileAccessManager()
 
@@ -299,6 +348,7 @@ private final class ProfileAccessStoreSpy: ProfileAccessStoring, @unchecked Send
   var bookmarkError: (any Error)?
   var saveError: (any Error)?
   var removeError: (any Error)?
+  var removeStarted: DispatchSemaphore?
 
   init(bookmarks: [String: Data] = [:]) {
     self.bookmarks = bookmarks
@@ -328,6 +378,7 @@ private final class ProfileAccessStoreSpy: ProfileAccessStoring, @unchecked Send
   }
 
   func remove(for bundleIdentifier: String) throws {
+    removeStarted?.signal()
     try lock.withLock {
       if let removeError { throw removeError }
       bookmarks.removeValue(forKey: bundleIdentifier)
@@ -347,17 +398,22 @@ private final class ProfileBookmarkCodecSpy: ProfileBookmarkCoding, @unchecked S
     isStale: false
   )
   var resolveError: (any Error)?
+  var makeStarted: DispatchSemaphore?
+  var allowMake: DispatchSemaphore?
 
   var madeRoots: [URL] {
     lock.withLock { recordedMadeRoots }
   }
 
   func makeReadOnlyBookmark(for root: URL) throws -> Data {
-    try lock.withLock {
+    let result: (Data, (any Error)?, DispatchSemaphore?, DispatchSemaphore?) = lock.withLock {
       recordedMadeRoots.append(root)
-      if let makeError { throw makeError }
-      return madeBookmark
+      return (madeBookmark, makeError, makeStarted, allowMake)
     }
+    result.2?.signal()
+    result.3?.wait()
+    if let error = result.1 { throw error }
+    return result.0
   }
 
   func resolve(_ bookmark: Data) throws -> ResolvedProfileBookmark {
@@ -365,6 +421,19 @@ private final class ProfileBookmarkCodecSpy: ProfileBookmarkCoding, @unchecked S
       if let resolveError { throw resolveError }
       return resolvedBookmark
     }
+  }
+}
+
+private final class CoordinatorErrorRecorder: @unchecked Sendable {
+  private let lock = NSLock()
+  private var recordedErrors: [any Error] = []
+
+  var errors: [any Error] {
+    lock.withLock { recordedErrors }
+  }
+
+  func record(_ error: any Error) {
+    lock.withLock { recordedErrors.append(error) }
   }
 }
 

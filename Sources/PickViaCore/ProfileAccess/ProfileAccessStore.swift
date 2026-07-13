@@ -22,27 +22,33 @@ public enum ProfileAccessStoreError: Error, Equatable, Sendable {
 
 public struct JSONProfileAccessStore: ProfileAccessStoring, Sendable {
   public let directory: URL
-  private let fileSystem: any FileSystem
+  private let state: State
 
   public init(directory: URL, fileSystem: any FileSystem = FoundationFileSystem()) {
     self.directory = directory
-    self.fileSystem = fileSystem
+    state = State(fileSystem: fileSystem)
   }
 
   public func bookmark(for bundleIdentifier: String) throws -> Data? {
-    try loadDocument().bookmarks[bundleIdentifier]
+    try state.lock.withLock {
+      try loadDocument().bookmarks[bundleIdentifier]
+    }
   }
 
   public func save(_ bookmark: Data, for bundleIdentifier: String) throws {
-    var document = try loadDocument()
-    document.bookmarks[bundleIdentifier] = bookmark
-    try save(document)
+    try state.lock.withLock {
+      var document = try loadDocument()
+      document.bookmarks[bundleIdentifier] = bookmark
+      try save(document)
+    }
   }
 
   public func remove(for bundleIdentifier: String) throws {
-    var document = try loadDocument()
-    document.bookmarks.removeValue(forKey: bundleIdentifier)
-    try save(document)
+    try state.lock.withLock {
+      var document = try loadDocument()
+      document.bookmarks.removeValue(forKey: bundleIdentifier)
+      try save(document)
+    }
   }
 
   private var fileURL: URL {
@@ -50,12 +56,12 @@ public struct JSONProfileAccessStore: ProfileAccessStoring, Sendable {
   }
 
   private func loadDocument() throws -> ProfileAccessBookmarkDocument {
-    try fileSystem.createDirectory(at: directory)
-    guard fileSystem.fileExists(at: fileURL) else {
+    try state.fileSystem.createDirectory(at: directory)
+    guard state.fileSystem.fileExists(at: fileURL) else {
       return ProfileAccessBookmarkDocument()
     }
 
-    let data = try fileSystem.read(from: fileURL)
+    let data = try state.fileSystem.read(from: fileURL)
     do {
       let document = try JSONDecoder().decode(ProfileAccessBookmarkDocument.self, from: data)
       guard document.schemaVersion == 1 else {
@@ -72,12 +78,21 @@ public struct JSONProfileAccessStore: ProfileAccessStoring, Sendable {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys]
     let data = try encoder.encode(document)
-    try fileSystem.writeAtomically(data, to: temporary)
+    try state.fileSystem.writeAtomically(data, to: temporary)
 
-    if fileSystem.fileExists(at: fileURL) {
-      try fileSystem.replaceItem(at: fileURL, with: temporary)
+    if state.fileSystem.fileExists(at: fileURL) {
+      try state.fileSystem.replaceItem(at: fileURL, with: temporary)
     } else {
-      try fileSystem.moveItem(at: temporary, to: fileURL)
+      try state.fileSystem.moveItem(at: temporary, to: fileURL)
+    }
+  }
+
+  private final class State: @unchecked Sendable {
+    let lock = NSLock()
+    let fileSystem: any FileSystem
+
+    init(fileSystem: any FileSystem) {
+      self.fileSystem = fileSystem
     }
   }
 }
