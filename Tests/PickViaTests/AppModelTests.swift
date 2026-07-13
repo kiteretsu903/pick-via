@@ -675,6 +675,10 @@ final class AppModelTests: XCTestCase {
       ["work", "personal"]
     )
     XCTAssertEqual(routing.refreshCallCount, 1)
+    XCTAssertEqual(
+      model.profileAccessRows.first?.state,
+      .granted(profileCount: 2, persistence: .persistent)
+    )
     XCTAssertEqual(model.profileAccessPresentation, .idle)
   }
 
@@ -717,6 +721,117 @@ final class AppModelTests: XCTestCase {
     )
     XCTAssertEqual(routing.refreshCallCount, 0)
     XCTAssertEqual(model.profileAccessPresentation, .presented)
+    XCTAssertFalse(model.errorMessage?.contains("denied") ?? false)
+  }
+
+  func testFinishSaveFailureRebuildsGrantedRowAsAuthoritativelyRevoked() throws {
+    let accessRequired = BrowserScanResult(
+      browsers: [Fixtures.installedBrowser("com.google.Chrome", status: .accessRequired)],
+      profileAccessIssues: [.accessRequired(bundleIdentifier: "com.google.Chrome")]
+    )
+    let revoked = BrowserScanResult(
+      browsers: [Fixtures.installedBrowser("com.google.Chrome", status: .accessRevoked)],
+      profileAccessIssues: [.accessRevoked(bundleIdentifier: "com.google.Chrome")]
+    )
+    let store = ConfigStoreStub(config: Fixtures.editableConfig)
+    let snapshot = MutableTargetSnapshot()
+    snapshot.publish(Fixtures.editableConfig)
+    let routing = RoutingSpy()
+    let catalog = BrowserCatalogStub(
+      reconciled: Fixtures.editableConfig,
+      scanResult: accessRequired,
+      targeted: ["com.google.Chrome": Fixtures.discoveredChromeWithProfiles]
+    )
+    let model = makeModel(
+      store: store,
+      catalog: catalog,
+      routing: routing,
+      targetSnapshot: snapshot,
+      access: ProfileAccessManagerSpy(),
+      profileRootValidator: profileRootValidator(validRoots: ["/Chrome"])
+    )
+    try model.load()
+    try model.grantProfileAccess(
+      for: "com.google.Chrome",
+      root: URL(fileURLWithPath: "/Chrome")
+    )
+    model.profileAccessDidPresent()
+    catalog.reconciled = Fixtures.profileEditConfig
+    catalog.setScanResult(revoked)
+    store.saveError = TestError.denied
+    store.resetSaved()
+
+    XCTAssertThrowsError(try model.finishProfileAccessAndRescan())
+
+    XCTAssertEqual(model.profileAccessRows.first?.state, .accessRevoked)
+    XCTAssertTrue(model.profileAccessRows.first?.hasStoredGrant == true)
+    XCTAssertFalse(model.canFinishProfileAccess)
+    XCTAssertEqual(model.config, Fixtures.editableConfig)
+    XCTAssertEqual(snapshot.availableSnapshot().targets.map(\.id), ["work"])
+    XCTAssertEqual(routing.refreshCallCount, 0)
+    XCTAssertTrue(store.saved.isEmpty)
+    XCTAssertEqual(model.profileAccessPresentation, .presented)
+    XCTAssertNotNil(model.errorMessage)
+    XCTAssertFalse(model.errorMessage?.contains("denied") ?? false)
+  }
+
+  func testFinishSaveFailureUsesAuthoritativeLoadedProfileCount() throws {
+    let accessRequired = BrowserScanResult(
+      browsers: [Fixtures.installedBrowser("com.google.Chrome", status: .accessRequired)],
+      profileAccessIssues: [.accessRequired(bundleIdentifier: "com.google.Chrome")]
+    )
+    let loaded = BrowserScanResult(
+      browsers: [
+        Fixtures.installedBrowser(
+          "com.google.Chrome",
+          status: .loaded,
+          profiles: Fixtures.discoveredChrome.profiles
+        )
+      ],
+      profileAccessIssues: []
+    )
+    let store = ConfigStoreStub(config: Fixtures.editableConfig)
+    let snapshot = MutableTargetSnapshot()
+    snapshot.publish(Fixtures.editableConfig)
+    let routing = RoutingSpy()
+    let catalog = BrowserCatalogStub(
+      reconciled: Fixtures.editableConfig,
+      scanResult: accessRequired,
+      targeted: ["com.google.Chrome": Fixtures.discoveredChromeWithProfiles]
+    )
+    let model = makeModel(
+      store: store,
+      catalog: catalog,
+      routing: routing,
+      targetSnapshot: snapshot,
+      access: ProfileAccessManagerSpy(),
+      profileRootValidator: profileRootValidator(validRoots: ["/Chrome"])
+    )
+    try model.load()
+    try model.grantProfileAccess(
+      for: "com.google.Chrome",
+      root: URL(fileURLWithPath: "/Chrome")
+    )
+    model.profileAccessDidPresent()
+    catalog.reconciled = Fixtures.profileEditConfig
+    catalog.setScanResult(loaded)
+    store.saveError = TestError.denied
+    store.resetSaved()
+
+    XCTAssertThrowsError(try model.finishProfileAccessAndRescan())
+
+    XCTAssertEqual(
+      model.profileAccessRows.first?.state,
+      .granted(profileCount: 1, persistence: .persistent)
+    )
+    XCTAssertTrue(model.profileAccessRows.first?.hasStoredGrant == true)
+    XCTAssertTrue(model.canFinishProfileAccess)
+    XCTAssertEqual(model.config, Fixtures.editableConfig)
+    XCTAssertEqual(snapshot.availableSnapshot().targets.map(\.id), ["work"])
+    XCTAssertEqual(routing.refreshCallCount, 0)
+    XCTAssertTrue(store.saved.isEmpty)
+    XCTAssertEqual(model.profileAccessPresentation, .presented)
+    XCTAssertNotNil(model.errorMessage)
     XCTAssertFalse(model.errorMessage?.contains("denied") ?? false)
   }
 

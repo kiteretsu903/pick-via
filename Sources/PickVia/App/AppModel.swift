@@ -260,7 +260,7 @@ public final class AppModel {
     targetedProfileAccessOverlays[bundleIdentifier] = nil
     let scan = browserCatalog.scanResult()
     guard scan.isAuthoritative else {
-      rebuildProfileAccessRowsAfterRemoval(using: latestAuthoritativeBrowserScan)
+      rebuildProfileAccessRows(using: latestAuthoritativeBrowserScan)
       errorMessage = "Browser discovery could not be completed. Existing targets were preserved."
       throw ProfileAccessFlowError.scanNotAuthoritative
     }
@@ -268,7 +268,7 @@ public final class AppModel {
     do {
       try commitAuthoritativeScan(scan, base: config, refreshRouting: true)
     } catch {
-      rebuildProfileAccessRowsAfterRemoval(using: scan)
+      rebuildProfileAccessRows(using: scan)
       errorMessage = "Browser discovery produced a configuration that could not be committed."
       throw error
     }
@@ -290,6 +290,7 @@ public final class AppModel {
     do {
       try commitAuthoritativeScan(scan, base: config, refreshRouting: true)
     } catch {
+      rebuildProfileAccessRows(using: scan)
       errorMessage = "Browser discovery produced a configuration that could not be committed."
       profileAccessPresentation = .presented
       throw error
@@ -599,7 +600,7 @@ public final class AppModel {
     targetedProfileAccessOverlays.removeAll()
   }
 
-  private func rebuildProfileAccessRowsAfterRemoval(using scan: BrowserScanResult?) {
+  private func rebuildProfileAccessRows(using scan: BrowserScanResult?) {
     profileAccessRows = manualProfileAccessRows(from: scan)
   }
 
