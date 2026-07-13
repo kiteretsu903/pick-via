@@ -111,7 +111,10 @@ enum AppComposition {
     )
     let preview = PreviewPresenter(
       targetProvider: targetProvider,
-      chooser: chooser
+      chooser: chooser,
+      canPresent: { [weak coordinator] in
+        coordinator?.currentRequest == nil
+      }
     )
     let routing = RoutingCoordinatorAdapter(
       coordinator: coordinator,
@@ -132,16 +135,20 @@ enum AppComposition {
 private final class PreviewPresenter {
   private let targetProvider: any TargetProviding
   private let chooser: any ChooserPresenting
+  private let canPresent: @MainActor () -> Bool
 
   init(
     targetProvider: any TargetProviding,
-    chooser: any ChooserPresenting
+    chooser: any ChooserPresenting,
+    canPresent: @escaping @MainActor () -> Bool
   ) {
     self.targetProvider = targetProvider
     self.chooser = chooser
+    self.canPresent = canPresent
   }
 
   func present(_ url: URL) {
+    guard canPresent() else { return }
     let snapshot = targetProvider.availableSnapshot()
     chooser.present(
       request: RoutingRequest(url: url),

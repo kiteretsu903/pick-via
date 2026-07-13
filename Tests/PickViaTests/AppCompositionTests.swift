@@ -6,6 +6,33 @@ import XCTest
 
 @MainActor
 final class AppCompositionTests: XCTestCase {
+  func testPreviewDoesNotReplaceActiveLiveRoutingPresentation() throws {
+    let chooser = CompositionChooserSpy()
+    let model = AppComposition.makeModel(
+      configStore: CompositionConfigStore(config: CompositionFixtures.config),
+      browserCatalog: CompositionCatalogStub(),
+      preferences: CompositionPreferencesStub(),
+      defaultBrowser: CompositionDefaultBrowserStub(),
+      loginItem: CompositionLoginItemStub(),
+      chooser: chooser,
+      launcher: CompositionLauncherSpy()
+    )
+    try model.load()
+    let liveURL = try XCTUnwrap(URL(string: "https://example.com/live"))
+    let subsequentURL = try XCTUnwrap(URL(string: "https://example.com/subsequent"))
+
+    model.accept(url: liveURL)
+    model.previewChooser()
+
+    XCTAssertEqual(chooser.presentedRequests.map(\.url), [liveURL])
+
+    chooser.cancel()
+    model.accept(url: subsequentURL)
+
+    XCTAssertEqual(chooser.dismissCallCount, 1)
+    XCTAssertEqual(chooser.presentedRequests.map(\.url), [liveURL, subsequentURL])
+  }
+
   func testPreviewSelectionDismissesWithoutLaunchingBrowser() async throws {
     let chooser = CompositionChooserSpy()
     let launcher = CompositionLauncherSpy()
@@ -32,6 +59,33 @@ final class AppCompositionTests: XCTestCase {
     XCTAssertEqual(chooser.dismissCallCount, 1)
     let launchCount = await launcher.launchCount
     XCTAssertEqual(launchCount, 0)
+  }
+
+  func testLiveRoutingPresentationReplacesIdlePreview() throws {
+    let chooser = CompositionChooserSpy()
+    let model = AppComposition.makeModel(
+      configStore: CompositionConfigStore(config: CompositionFixtures.config),
+      browserCatalog: CompositionCatalogStub(),
+      preferences: CompositionPreferencesStub(),
+      defaultBrowser: CompositionDefaultBrowserStub(),
+      loginItem: CompositionLoginItemStub(),
+      chooser: chooser,
+      launcher: CompositionLauncherSpy()
+    )
+    try model.load()
+    let liveURL = try XCTUnwrap(URL(string: "https://example.com/live-priority"))
+
+    model.previewChooser()
+    model.accept(url: liveURL)
+
+    XCTAssertEqual(
+      chooser.presentedRequests.map(\.url),
+      [
+        URL(string: "https://pickvia.invalid/chooser-preview")!,
+        liveURL,
+      ])
+    chooser.cancel()
+    XCTAssertEqual(chooser.dismissCallCount, 1)
   }
 
   func testAppModelURLPreferenceIsResolvedByChooserForEachPreview() throws {
@@ -106,6 +160,7 @@ private final class CompositionChooserSpy: ChooserPresenting {
   private(set) var presentedRequests: [RoutingRequest] = []
   private(set) var dismissCallCount = 0
   private var onSelection: ((BrowserTarget.ID) -> Void)?
+  private var onCancel: (() -> Void)?
 
   func present(
     request: RoutingRequest,
@@ -117,15 +172,21 @@ private final class CompositionChooserSpy: ChooserPresenting {
   ) {
     presentedRequests.append(request)
     self.onSelection = onSelection
+    self.onCancel = onCancel
   }
 
   func dismiss() {
     dismissCallCount += 1
     onSelection = nil
+    onCancel = nil
   }
 
   func select(targetID: BrowserTarget.ID) {
     onSelection?(targetID)
+  }
+
+  func cancel() {
+    onCancel?()
   }
 }
 
