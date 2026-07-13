@@ -9,9 +9,12 @@ let package = Package(
     ],
     products: [
         .library(name: "PickViaCore", targets: ["PickViaCore"]),
+        .library(name: "PickVia", targets: ["PickVia"]),
     ],
     targets: [
         .target(name: "PickViaCore"),
+        .target(name: "PickVia", dependencies: ["PickViaCore"]),
         .testTarget(name: "PickViaCoreTests", dependencies: ["PickViaCore"]),
+        .testTarget(name: "PickViaTests", dependencies: ["PickVia", "PickViaCore"]),
     ]
 )
