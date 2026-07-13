@@ -116,6 +116,49 @@ struct BrowserCatalogTests {
         #expect(result.targets[0].mode == .normal)
         #expect(result.targets[0].isEnabled)
     }
+
+    @Test func reconcileKeepsManualTargetAvailableWhenBrowserAndProfileStillExist() throws {
+        let manual = manualTarget(profileID: "Profile 1", availability: .unavailable)
+        let existing = PickViaConfig(
+            schemaVersion: 1,
+            browsers: [chrome(profileID: "Profile 1", profileName: "Work").application],
+            targets: [manual]
+        )
+
+        let result = BrowserCatalog.reconcile(
+            discovered: [chrome(profileID: "Profile 1", profileName: "Renamed by Browser")],
+            with: existing
+        )
+
+        let reconciled = try #require(result.targets.first { $0.id == manual.id })
+        #expect(reconciled.label == manual.label)
+        #expect(reconciled.profileIdentifier == manual.profileIdentifier)
+        #expect(reconciled.profileDisplayName == manual.profileDisplayName)
+        #expect(reconciled.mode == manual.mode)
+        #expect(reconciled.isEnabled == manual.isEnabled)
+        #expect(reconciled.sortOrder == manual.sortOrder)
+        #expect(reconciled.origin == .manual)
+        #expect(reconciled.availability == .available)
+    }
+
+    @Test func reconcileMarksManualTargetUnavailableWhenProfileDisappears() throws {
+        let manual = manualTarget(profileID: "Profile 2", availability: .available)
+        let existing = PickViaConfig(
+            schemaVersion: 1,
+            browsers: [chrome(profileID: "Profile 1", profileName: "Work").application],
+            targets: [manual]
+        )
+
+        let result = BrowserCatalog.reconcile(
+            discovered: [chrome(profileID: "Profile 1", profileName: "Work")],
+            with: existing
+        )
+
+        let reconciled = try #require(result.targets.first { $0.id == manual.id })
+        #expect(reconciled.availability == .unavailable)
+        #expect(reconciled.profileIdentifier == "Profile 2")
+        #expect(reconciled.label == manual.label)
+    }
 }
 
 private func chrome(profileID: String, profileName: String) -> DiscoveredBrowser {
@@ -151,6 +194,24 @@ private func target(
         sortOrder: order,
         origin: .detected,
         availability: .available
+    )
+}
+
+private func manualTarget(
+    profileID: String,
+    availability: BrowserTargetAvailability
+) -> BrowserTarget {
+    BrowserTarget(
+        id: "manual-\(profileID)",
+        browserID: "com.google.Chrome",
+        label: "Pinned Manual",
+        profileIdentifier: profileID,
+        profileDisplayName: "Pinned Profile",
+        mode: .private,
+        isEnabled: false,
+        sortOrder: 37,
+        origin: .manual,
+        availability: availability
     )
 }
 

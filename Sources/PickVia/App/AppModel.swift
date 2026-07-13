@@ -162,6 +162,9 @@ public final class AppModel {
 
     public func setTargetMode(id: BrowserTarget.ID, mode: BrowserMode) throws {
         try updateTarget(id: id) { [config] target in
+            guard target.origin == .manual || target.mode == mode else {
+                throw TargetEditingError.detectedTargetIdentityIsImmutable
+            }
             guard let browser = config.browsers.first(where: { $0.id == target.browserID }) else {
                 throw TargetEditingError.browserNotFound
             }
@@ -177,6 +180,9 @@ public final class AppModel {
         profileIdentifier: String?
     ) throws {
         try updateTarget(id: id) { [config] target in
+            guard target.origin == .manual || target.profileIdentifier == profileIdentifier else {
+                throw TargetEditingError.detectedTargetIdentityIsImmutable
+            }
             guard let browser = supportedAvailableBrowser(id: target.browserID, in: config) else {
                 throw TargetEditingError.browserUnavailableOrUnsupported
             }
@@ -326,6 +332,7 @@ public enum TargetEditingError: Error, Equatable {
     case safariPrivateModeUnsupported
     case browserUnavailableOrUnsupported
     case invalidProfileIdentity
+    case detectedTargetIdentityIsImmutable
     case detectedTargetCannotBeRemoved
     case invalidMove
 }

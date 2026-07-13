@@ -209,19 +209,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
         reconciled.append(contentsOf: config.targets
             .filter { !reconciledIDs.contains($0.id) }
             .map { target in
-                BrowserTarget(
-                    id: target.id,
-                    browserID: target.browserID,
-                    label: target.label,
-                    profileIdentifier: target.profileIdentifier,
-                    profileDisplayName: target.profileDisplayName,
-                    mode: target.mode,
-                    isEnabled: target.isEnabled,
-                    sortOrder: target.sortOrder,
-                    origin: target.origin,
-                    availability: .unavailable,
-                    validationError: target.validationError
-                )
+                preservingManualAvailability(target, discovered: discovered)
             })
 
         reconciled.sort {
@@ -326,6 +314,47 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
             origin: existing.origin,
             availability: .available,
             validationError: nil
+        )
+    }
+
+    private static func preservingManualAvailability(
+        _ target: BrowserTarget,
+        discovered: [DiscoveredBrowser]
+    ) -> BrowserTarget {
+        let availability: BrowserTargetAvailability
+        if target.origin == .manual,
+           let browser = discovered.first(where: { $0.application.id == target.browserID }),
+           browser.application.isAvailable,
+           BrowserDescriptor.supported.contains(where: {
+               $0.bundleIdentifier == browser.application.bundleIdentifier
+                   && $0.family == browser.application.family
+           }) {
+            switch browser.application.family {
+            case .safari:
+                availability = target.profileIdentifier == nil && target.mode == .normal
+                    ? .available
+                    : .unavailable
+            case .chromium, .firefox:
+                availability = target.profileIdentifier.map { identifier in
+                    browser.profiles.contains { $0.identifier == identifier }
+                } == true ? .available : .unavailable
+            }
+        } else {
+            availability = .unavailable
+        }
+
+        return BrowserTarget(
+            id: target.id,
+            browserID: target.browserID,
+            label: target.label,
+            profileIdentifier: target.profileIdentifier,
+            profileDisplayName: target.profileDisplayName,
+            mode: target.mode,
+            isEnabled: target.isEnabled,
+            sortOrder: target.sortOrder,
+            origin: target.origin,
+            availability: availability,
+            validationError: target.validationError
         )
     }
 }

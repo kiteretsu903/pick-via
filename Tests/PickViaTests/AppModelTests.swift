@@ -330,28 +330,125 @@ final class AppModelTests: XCTestCase {
     }
 
     func testTargetProfileEditUsesDetectedIdentityAndDisplayName() throws {
-        let store = ConfigStoreStub(config: Fixtures.profileEditConfig)
+        let manual = BrowserTarget(
+            id: "manual-edit",
+            browserID: Fixtures.chrome.id,
+            label: "Manual",
+            profileIdentifier: "Profile 1",
+            profileDisplayName: "Work",
+            mode: .normal,
+            isEnabled: true,
+            sortOrder: 30,
+            origin: .manual,
+            availability: .available
+        )
+        let config = PickViaConfig(
+            schemaVersion: 1,
+            browsers: Fixtures.profileEditConfig.browsers,
+            targets: Fixtures.profileEditConfig.targets + [manual]
+        )
+        let store = ConfigStoreStub(config: config)
         let model = makeModel(store: store)
         try model.load()
 
-        try model.setTargetProfile(id: "work", profileIdentifier: "Profile 2")
+        try model.setTargetProfile(id: manual.id, profileIdentifier: "Profile 2")
 
-        let edited = try XCTUnwrap(model.targets.first { $0.id == "work" })
+        let edited = try XCTUnwrap(model.targets.first { $0.id == manual.id })
         XCTAssertEqual(edited.profileIdentifier, "Profile 2")
         XCTAssertEqual(edited.profileDisplayName, "Personal")
         XCTAssertEqual(store.saved.last, model.config)
     }
 
     func testInvalidTargetProfileEditIsRejectedWithoutMutation() throws {
+        let manual = BrowserTarget(
+            id: "manual-invalid",
+            browserID: Fixtures.chrome.id,
+            label: "Manual",
+            profileIdentifier: "Profile 1",
+            profileDisplayName: "Work",
+            mode: .normal,
+            isEnabled: true,
+            sortOrder: 30,
+            origin: .manual,
+            availability: .available
+        )
+        let original = PickViaConfig(
+            schemaVersion: 1,
+            browsers: Fixtures.profileEditConfig.browsers,
+            targets: Fixtures.profileEditConfig.targets + [manual]
+        )
+        let store = ConfigStoreStub(config: original)
+        let model = makeModel(store: store)
+        try model.load()
+
+        XCTAssertThrowsError(try model.setTargetProfile(id: manual.id, profileIdentifier: "Missing"))
+
+        XCTAssertEqual(model.config, original)
+        XCTAssertTrue(store.saved.isEmpty)
+    }
+
+    func testDetectedTargetProfileEditIsRejectedWithoutMutation() throws {
         let store = ConfigStoreStub(config: Fixtures.profileEditConfig)
         let model = makeModel(store: store)
         try model.load()
         let original = model.config
 
-        XCTAssertThrowsError(try model.setTargetProfile(id: "work", profileIdentifier: "Missing"))
+        XCTAssertThrowsError(try model.setTargetProfile(id: "work", profileIdentifier: "Profile 2"))
 
         XCTAssertEqual(model.config, original)
         XCTAssertTrue(store.saved.isEmpty)
+    }
+
+    func testDetectedTargetModeEditIsRejectedWithoutMutation() throws {
+        let store = ConfigStoreStub(config: Fixtures.profileEditConfig)
+        let model = makeModel(store: store)
+        try model.load()
+        let original = model.config
+
+        XCTAssertThrowsError(try model.setTargetMode(id: "work", mode: .private))
+
+        XCTAssertEqual(model.config, original)
+        XCTAssertTrue(store.saved.isEmpty)
+    }
+
+    func testManualTargetProfileEditSurvivesRescan() throws {
+        let manual = BrowserTarget(
+            id: "manual",
+            browserID: Fixtures.chrome.id,
+            label: "My Window",
+            profileIdentifier: "Profile 1",
+            profileDisplayName: "Work",
+            mode: .private,
+            isEnabled: false,
+            sortOrder: 41,
+            origin: .manual,
+            availability: .available
+        )
+        let config = PickViaConfig(
+            schemaVersion: 1,
+            browsers: Fixtures.profileEditConfig.browsers,
+            targets: Fixtures.profileEditConfig.targets + [manual]
+        )
+        let store = ConfigStoreStub(config: config)
+        let catalog = BrowserCatalogStub(
+            discovered: [],
+            reconciler: { BrowserCatalog.reconcile(discovered: [Fixtures.discoveredChromeWithProfiles], with: $0) }
+        )
+        let model = makeModel(store: store, catalog: catalog)
+        try model.load()
+
+        try model.setTargetProfile(id: manual.id, profileIdentifier: "Profile 2")
+        try model.rescan()
+
+        let rescanned = try XCTUnwrap(model.targets.first { $0.id == manual.id })
+        XCTAssertEqual(rescanned.label, "My Window")
+        XCTAssertEqual(rescanned.profileIdentifier, "Profile 2")
+        XCTAssertEqual(rescanned.profileDisplayName, "Personal")
+        XCTAssertEqual(rescanned.mode, .private)
+        XCTAssertFalse(rescanned.isEnabled)
+        XCTAssertEqual(rescanned.sortOrder, 41)
+        XCTAssertEqual(rescanned.origin, .manual)
+        XCTAssertEqual(rescanned.availability, .available)
     }
 
     func testManualTargetCannotValidateAnotherManualTargetProfileIdentity() throws {
@@ -558,6 +655,14 @@ private enum Fixtures {
     static let discoveredChrome = DiscoveredBrowser(
         application: chrome,
         profiles: [DiscoveredProfile(identifier: "Profile 1", displayName: "Work", directoryURL: nil)]
+    )
+
+    static let discoveredChromeWithProfiles = DiscoveredBrowser(
+        application: chrome,
+        profiles: [
+            DiscoveredProfile(identifier: "Profile 1", displayName: "Work", directoryURL: nil),
+            DiscoveredProfile(identifier: "Profile 2", displayName: "Personal", directoryURL: nil),
+        ]
     )
 
     static let editableConfig = PickViaConfig(

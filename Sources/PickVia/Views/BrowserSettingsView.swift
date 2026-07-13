@@ -104,10 +104,10 @@ private struct TargetSettingsRow: View {
                     get: { target.label },
                     set: { try? model.renameTarget(id: target.id, label: $0) }
                 ))
-                if browser.family == .safari {
-                    Text("Default")
+                if target.origin == .detected || browser.family == .safari {
+                    Text(target.profileDisplayName ?? "Default")
                         .foregroundStyle(.secondary)
-                        .frame(width: 130, alignment: .leading)
+                        .frame(width: 150, alignment: .leading)
                 } else {
                     Picker("Profile", selection: Binding(
                         get: { target.profileIdentifier ?? "" },
@@ -119,14 +119,20 @@ private struct TargetSettingsRow: View {
                     }
                     .frame(width: 150)
                 }
-                Picker("Mode", selection: Binding(
-                    get: { target.mode },
-                    set: { try? model.setTargetMode(id: target.id, mode: $0) }
-                )) {
-                    Text("Normal").tag(BrowserMode.normal)
-                    if browser.family != .safari { Text("Private").tag(BrowserMode.private) }
+                if target.origin == .detected {
+                    Text(target.mode == .private ? "Private" : "Normal")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 130, alignment: .leading)
+                } else {
+                    Picker("Mode", selection: Binding(
+                        get: { target.mode },
+                        set: { try? model.setTargetMode(id: target.id, mode: $0) }
+                    )) {
+                        Text("Normal").tag(BrowserMode.normal)
+                        if browser.family != .safari { Text("Private").tag(BrowserMode.private) }
+                    }
+                    .frame(width: 130)
                 }
-                .frame(width: 130)
                 if let onRemove {
                     Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
                         .labelStyle(.iconOnly)
