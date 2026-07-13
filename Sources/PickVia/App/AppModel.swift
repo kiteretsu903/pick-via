@@ -12,6 +12,7 @@ public final class AppModel {
   public private(set) var configurationRecovery: ConfigurationRecoveryState = .none
   public private(set) var profileAccessRows: [BrowserProfileAccessRow] = []
   public private(set) var profileAccessPresentation: ProfileAccessPresentationState = .idle
+  public private(set) var isProfileAccessSurfaceActive = false
 
   public var configurationRecoveryMessage: String? {
     switch configurationRecovery {
@@ -45,7 +46,9 @@ public final class AppModel {
   }
 
   public var canRequestDefaultBrowser: Bool {
-    canContinueOnboardingReview && !hasUnresolvedAutomaticProfileAccess
+    canContinueOnboardingReview
+      && !hasUnresolvedAutomaticProfileAccess
+      && canPresentOrdinaryAppSurface
   }
 
   public var canContinueOnboardingReview: Bool {
@@ -88,7 +91,7 @@ public final class AppModel {
   }
 
   public var canPresentOrdinaryAppSurface: Bool {
-    profileAccessPresentation != .presented
+    !isProfileAccessSurfaceActive
   }
 
   private let configStore: any ConfigStoring
@@ -104,6 +107,7 @@ public final class AppModel {
   private var latestAuthoritativeBrowserScan: BrowserScanResult?
   private var targetedProfileAccessOverlays: [String: TargetedProfileAccessOverlay] = [:]
   private var isAutomaticProfileAccessFlowPresented = false
+  private var deferredAcceptedURLs: [URL] = []
 
   public init(
     configStore: any ConfigStoring,
@@ -220,12 +224,16 @@ public final class AppModel {
 
   public func openProfileAccessManager() {
     guard canPresentOrdinaryAppSurface else { return }
-    isAutomaticProfileAccessFlowPresented = false
     profileAccessRows = manualProfileAccessRows(from: latestAuthoritativeBrowserScan)
+    guard profileAccessPresentation != .automaticPending,
+      !isAutomaticProfileAccessFlowPresented
+    else { return }
+    isAutomaticProfileAccessFlowPresented = false
     profileAccessPresentation = .manualPending
   }
 
   public func userRequestedRescan() throws {
+    guard canPresentOrdinaryAppSurface else { return }
     isAutomaticProfileAccessFlowPresented = false
     profileAccessPresentation = .idle
     try rescan()
@@ -342,11 +350,23 @@ public final class AppModel {
     case .automaticPending:
       isAutomaticProfileAccessFlowPresented = true
       profileAccessPresentation = .presented
+      isProfileAccessSurfaceActive = true
     case .manualPending:
       isAutomaticProfileAccessFlowPresented = false
       profileAccessPresentation = .presented
+      isProfileAccessSurfaceActive = true
     case .idle, .presented, .suppressedForProcess:
       break
+    }
+  }
+
+  public func profileAccessDidDismiss() {
+    guard isProfileAccessSurfaceActive else { return }
+    isProfileAccessSurfaceActive = false
+    let urls = deferredAcceptedURLs
+    deferredAcceptedURLs.removeAll(keepingCapacity: true)
+    for url in urls {
+      routing.accept(url)
     }
   }
 
@@ -369,7 +389,11 @@ public final class AppModel {
   public func accept(url: URL) {
     do {
       let validated = try URLValidator.validate(url)
-      routing.accept(validated)
+      if isProfileAccessSurfaceActive {
+        deferredAcceptedURLs.append(validated)
+      } else {
+        routing.accept(validated)
+      }
       errorMessage = nil
     } catch {
       errorMessage = "Only valid HTTP and HTTPS URLs can be opened."

@@ -147,6 +147,14 @@ final class ProfileAccessWizardTests: XCTestCase {
     XCTAssertTrue(settings.contains("profileAccessPresenter.request(model: model)"))
     XCTAssertTrue(settings.contains("profileAccessPresenter.environmentDidChange()"))
 
+    XCTAssertEqual(
+      statusMenu.components(separatedBy: ".disabled(!model.canPresentOrdinaryAppSurface)").count
+        - 1,
+      4
+    )
+    XCTAssertTrue(statusMenu.contains("guard model.canPresentOrdinaryAppSurface else { return }"))
+    XCTAssertTrue(statusMenu.contains("showAboutIfAllowed(model: model)"))
+
     for sources in [settings, welcome, statusMenu] {
       XCTAssertTrue(sources.contains("model.userRequestedRescan()"))
       XCTAssertTrue(sources.contains("profileAccessPresenter.requestIfPending(model: model)"))

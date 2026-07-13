@@ -214,6 +214,7 @@ final class AppModelTests: XCTestCase {
 
     XCTAssertEqual(model.profileAccessPresentation, .suppressedForProcess)
 
+    model.profileAccessDidDismiss()
     try model.userRequestedRescan()
 
     XCTAssertEqual(catalog.scanResultCallCount, 2)
@@ -535,6 +536,7 @@ final class AppModelTests: XCTestCase {
     )
 
     model.closeProfileAccess()
+    model.profileAccessDidDismiss()
     model.openProfileAccessManager()
 
     XCTAssertEqual(
@@ -568,6 +570,7 @@ final class AppModelTests: XCTestCase {
     )
 
     model.closeProfileAccess()
+    model.profileAccessDidDismiss()
     model.openProfileAccessManager()
 
     XCTAssertEqual(
@@ -1148,10 +1151,39 @@ final class AppModelTests: XCTestCase {
     XCTAssertTrue(defaults.requestedSchemes.isEmpty)
 
     model.skipProfileAccess()
+    model.profileAccessDidDismiss()
 
     XCTAssertFalse(model.hasUnresolvedAutomaticProfileAccess)
     XCTAssertTrue(model.canRequestDefaultBrowser)
     await model.requestDefaultBrowser()
+    XCTAssertEqual(defaults.requestedSchemes, ["http", "https"])
+  }
+
+  func testSkipDoesNotEnableDefaultConsentUntilPhysicalSurfaceDismissal() async throws {
+    let defaults = DefaultBrowserSpy()
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.config),
+      catalog: BrowserCatalogStub(
+        reconciled: Fixtures.config,
+        scanResult: automaticProfileAccessScan
+      ),
+      preferences: PreferencesStub(integers: ["onboardingStep": 3]),
+      defaultBrowser: defaults
+    )
+    try model.load()
+    model.profileAccessDidPresent()
+
+    model.skipProfileAccess()
+    await model.requestDefaultBrowser()
+
+    XCTAssertTrue(model.isProfileAccessSurfaceActive)
+    XCTAssertFalse(model.canRequestDefaultBrowser)
+    XCTAssertTrue(defaults.requestedSchemes.isEmpty)
+
+    model.profileAccessDidDismiss()
+    await model.requestDefaultBrowser()
+
+    XCTAssertTrue(model.canRequestDefaultBrowser)
     XCTAssertEqual(defaults.requestedSchemes, ["http", "https"])
   }
 
@@ -1176,6 +1208,30 @@ final class AppModelTests: XCTestCase {
     XCTAssertFalse(model.canRequestDefaultBrowser)
   }
 
+  func testOpeningManagerCannotDowngradeQueuedAutomaticProfileAccessOrReachDefaultService()
+    async throws
+  {
+    let defaults = DefaultBrowserSpy()
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.config),
+      catalog: BrowserCatalogStub(
+        reconciled: Fixtures.config,
+        scanResult: automaticProfileAccessScan
+      ),
+      preferences: PreferencesStub(integers: ["onboardingStep": 3]),
+      defaultBrowser: defaults
+    )
+    try model.load()
+
+    model.openProfileAccessManager()
+    await model.requestDefaultBrowser()
+
+    XCTAssertEqual(model.profileAccessPresentation, .automaticPending)
+    XCTAssertTrue(model.hasUnresolvedAutomaticProfileAccess)
+    XCTAssertFalse(model.canRequestDefaultBrowser)
+    XCTAssertTrue(defaults.requestedSchemes.isEmpty)
+  }
+
   func testChooserPreviewIsBlockedOnlyWhileProfileAccessPanelIsPresented() throws {
     let routing = RoutingSpy()
     let model = makeModel(
@@ -1193,11 +1249,37 @@ final class AppModelTests: XCTestCase {
     XCTAssertTrue(routing.previewedURLs.isEmpty)
 
     model.closeProfileAccess()
+    model.profileAccessDidDismiss()
     model.previewChooser()
     XCTAssertEqual(routing.previewedURLs.count, 1)
   }
 
-  func testManualProfileAccessManagerDoesNotBlockDefaultRequest() async throws {
+  func testUserRescanCannotRewriteStateWhileProfileAccessSurfaceIsPhysicallyActive() throws {
+    let catalog = BrowserCatalogStub(
+      reconciled: Fixtures.config,
+      scanResult: automaticProfileAccessScan
+    )
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.config),
+      catalog: catalog,
+      preferences: PreferencesStub(integers: ["onboardingStep": 3])
+    )
+    try model.load()
+    model.profileAccessDidPresent()
+    let rowsBeforeRescan = model.profileAccessRows
+    catalog.resetScanCalls()
+
+    try model.userRequestedRescan()
+
+    XCTAssertEqual(catalog.scanResultCallCount, 0)
+    XCTAssertEqual(model.profileAccessRows, rowsBeforeRescan)
+    XCTAssertEqual(model.profileAccessPresentation, .presented)
+    XCTAssertTrue(model.isProfileAccessSurfaceActive)
+    XCTAssertTrue(model.hasUnresolvedAutomaticProfileAccess)
+    XCTAssertFalse(model.canRequestDefaultBrowser)
+  }
+
+  func testManualProfileAccessManagerDoesNotLeaveAutomaticBlockerAfterDismissal() async throws {
     let defaults = DefaultBrowserSpy()
     let scan = BrowserScanResult(
       browsers: [
@@ -1220,6 +1302,11 @@ final class AppModelTests: XCTestCase {
     model.profileAccessDidPresent()
 
     XCTAssertFalse(model.hasUnresolvedAutomaticProfileAccess)
+    XCTAssertFalse(model.canRequestDefaultBrowser)
+    await model.requestDefaultBrowser()
+    XCTAssertTrue(defaults.requestedSchemes.isEmpty)
+
+    model.profileAccessDidDismiss()
     XCTAssertTrue(model.canRequestDefaultBrowser)
     await model.requestDefaultBrowser()
 

@@ -85,6 +85,28 @@ final class ProfileAccessPresentationTests: XCTestCase {
     XCTAssertEqual(driver.presentCallCount, 1)
   }
 
+  func testManageWhileAutomaticRequestIsBlockedPreservesAutomaticFlow() throws {
+    let driver = ProfileAccessPanelDriverSpy(canPresent: false)
+    let presenter = ProfileAccessPanelController(driver: driver)
+    let model = try ProfileAccessModelFixture.automaticPending()
+    presenter.requestIfPending(model: model)
+
+    model.openProfileAccessManager()
+    presenter.request(model: model)
+
+    XCTAssertEqual(model.profileAccessPresentation, .automaticPending)
+    XCTAssertTrue(model.hasUnresolvedAutomaticProfileAccess)
+    XCTAssertFalse(model.canRequestDefaultBrowser)
+    XCTAssertEqual(driver.presentCallCount, 0)
+
+    driver.canPresent = true
+    driver.signalEnvironmentDidChange()
+
+    XCTAssertEqual(driver.presentCallCount, 1)
+    XCTAssertEqual(model.profileAccessPresentation, .presented)
+    XCTAssertTrue(model.hasUnresolvedAutomaticProfileAccess)
+  }
+
   func testHiddenActiveChooserKeepsManagerAndRescanQueuedUntilChooserLifecycleEnds()
     async throws
   {
@@ -148,6 +170,138 @@ final class ProfileAccessPresentationTests: XCTestCase {
     XCTAssertEqual(driver.dismissAndRestoreWindowsCallCount, 1)
   }
 
+  func testPhysicalSurfaceRemainsExclusiveAfterSkipUntilPresenterRestoresWindows() throws {
+    let driver = ProfileAccessPanelDriverSpy(canPresent: true)
+    let presenter = ProfileAccessPanelController(driver: driver)
+    let model = try ProfileAccessModelFixture.automaticPending()
+    presenter.requestIfPending(model: model)
+
+    XCTAssertTrue(model.isProfileAccessSurfaceActive)
+    XCTAssertFalse(model.canPresentOrdinaryAppSurface)
+
+    model.skipProfileAccess()
+
+    XCTAssertEqual(model.profileAccessPresentation, .suppressedForProcess)
+    XCTAssertTrue(model.isProfileAccessSurfaceActive)
+    XCTAssertFalse(model.canPresentOrdinaryAppSurface)
+
+    presenter.dismiss()
+
+    XCTAssertEqual(driver.dismissAndRestoreWindowsCallCount, 1)
+    XCTAssertFalse(model.isProfileAccessSurfaceActive)
+    XCTAssertTrue(model.canPresentOrdinaryAppSurface)
+
+    presenter.dismiss()
+    XCTAssertEqual(driver.dismissAndRestoreWindowsCallCount, 1)
+    XCTAssertFalse(model.isProfileAccessSurfaceActive)
+  }
+
+  func testProgrammaticRescanCannotOverlapAnAlreadyPresentedPanel() throws {
+    let driver = ProfileAccessPanelDriverSpy(canPresent: true)
+    let presenter = ProfileAccessPanelController(driver: driver)
+    let model = try ProfileAccessModelFixture.automaticPending()
+    presenter.requestIfPending(model: model)
+
+    try model.userRequestedRescan()
+    presenter.requestIfPending(model: model)
+    presenter.environmentDidChange()
+
+    XCTAssertEqual(driver.presentCallCount, 1)
+    XCTAssertEqual(model.profileAccessPresentation, .presented)
+    XCTAssertTrue(model.isProfileAccessSurfaceActive)
+    XCTAssertTrue(model.hasUnresolvedAutomaticProfileAccess)
+  }
+
+  func testIncomingURLsFlushInOrderOnceAfterSkipRestoresWindows() throws {
+    var lifecycleEvents: [String] = []
+    let routing = ProfileAccessRoutingSpy(
+      onAccept: { lifecycleEvents.append("accept:\($0.absoluteString)") }
+    )
+    let driver = ProfileAccessPanelDriverSpy(canPresent: true)
+    driver.onDismissAndRestore = { lifecycleEvents.append("restore") }
+    let presenter = ProfileAccessPanelController(driver: driver)
+    let model = try ProfileAccessModelFixture.automaticPending(routing: routing)
+    let delegate = AppDelegate(
+      model: model,
+      profileAccessPresenter: presenter,
+      openSettings: {}
+    )
+    presenter.requestIfPending(model: model)
+    let urls = [
+      URL(string: "https://example.com/first")!,
+      URL(string: "https://example.com/second")!,
+      URL(string: "http://example.com/third")!,
+    ]
+
+    delegate.application(NSApplication.shared, open: urls)
+    model.skipProfileAccess()
+
+    XCTAssertTrue(routing.acceptedURLs.isEmpty)
+    XCTAssertTrue(model.isProfileAccessSurfaceActive)
+
+    presenter.dismiss()
+
+    XCTAssertEqual(routing.acceptedURLs, urls)
+    XCTAssertEqual(
+      lifecycleEvents,
+      ["restore"] + urls.map { "accept:\($0.absoluteString)" }
+    )
+    XCTAssertFalse(model.isProfileAccessSurfaceActive)
+
+    presenter.dismiss()
+    model.profileAccessDidDismiss()
+    XCTAssertEqual(routing.acceptedURLs, urls)
+  }
+
+  func testIncomingURLFlushesAfterWindowCloseDismissal() throws {
+    let routing = ProfileAccessRoutingSpy()
+    let driver = ProfileAccessPanelDriverSpy(canPresent: true)
+    let presenter = ProfileAccessPanelController(driver: driver)
+    let model = try ProfileAccessModelFixture.automaticPending(routing: routing)
+    let delegate = AppDelegate(
+      model: model,
+      profileAccessPresenter: presenter,
+      openSettings: {}
+    )
+    presenter.requestIfPending(model: model)
+    let url = URL(string: "https://example.com/after-close")!
+
+    delegate.application(NSApplication.shared, open: [url])
+    XCTAssertTrue(routing.acceptedURLs.isEmpty)
+
+    driver.closePresentedPanel()
+
+    XCTAssertEqual(model.profileAccessPresentation, .suppressedForProcess)
+    XCTAssertFalse(model.isProfileAccessSurfaceActive)
+    XCTAssertEqual(routing.acceptedURLs, [url])
+  }
+
+  func testIncomingURLFlushesAfterSuccessfulFinishDismissal() throws {
+    let routing = ProfileAccessRoutingSpy()
+    let driver = ProfileAccessPanelDriverSpy(canPresent: true)
+    let presenter = ProfileAccessPanelController(driver: driver)
+    let model = try ProfileAccessModelFixture.automaticPending(routing: routing)
+    let delegate = AppDelegate(
+      model: model,
+      profileAccessPresenter: presenter,
+      openSettings: {}
+    )
+    presenter.requestIfPending(model: model)
+    let url = URL(string: "https://example.com/after-finish")!
+
+    delegate.application(NSApplication.shared, open: [url])
+    try model.finishProfileAccessAndRescan()
+
+    XCTAssertTrue(routing.acceptedURLs.isEmpty)
+    XCTAssertTrue(model.isProfileAccessSurfaceActive)
+
+    presenter.dismiss()
+
+    XCTAssertEqual(model.profileAccessPresentation, .idle)
+    XCTAssertFalse(model.isProfileAccessSurfaceActive)
+    XCTAssertEqual(routing.acceptedURLs, [url])
+  }
+
   func testSuppressedProcessDoesNotAutomaticallyRequestAgain() throws {
     let driver = ProfileAccessPanelDriverSpy(canPresent: true)
     let presenter = ProfileAccessPanelController(driver: driver)
@@ -203,6 +357,7 @@ private final class ProfileAccessPanelDriverSpy: ProfileAccessPanelDriving {
   private(set) var presentCallCount = 0
   private(set) var hideCompetingWindowsCallCount = 0
   private(set) var dismissAndRestoreWindowsCallCount = 0
+  var onDismissAndRestore: (@MainActor () -> Void)?
   private var onClose: (@MainActor () -> Void)?
 
   init(canPresent: Bool) {
@@ -226,6 +381,7 @@ private final class ProfileAccessPanelDriverSpy: ProfileAccessPanelDriving {
 
   func dismissAndRestoreWindows() {
     dismissAndRestoreWindowsCallCount += 1
+    onDismissAndRestore?()
     onClose = nil
   }
 
@@ -245,7 +401,10 @@ private final class ProfileAccessLifecycleRelay {
 
 @MainActor
 private enum ProfileAccessModelFixture {
-  static func automaticPending(onboardingStep: Int = 3) throws -> AppModel {
+  static func automaticPending(
+    onboardingStep: Int = 3,
+    routing: any AppRouting = ProfileAccessRoutingStub()
+  ) throws -> AppModel {
     let browser = BrowserApplication(
       id: "com.google.Chrome",
       family: .chromium,
@@ -271,7 +430,7 @@ private enum ProfileAccessModelFixture {
       preferences: ProfileAccessPreferencesStub(onboardingStep: onboardingStep),
       defaultBrowser: ProfileAccessDefaultBrowserStub(),
       loginItem: ProfileAccessLoginItemStub(),
-      routing: ProfileAccessRoutingStub()
+      routing: routing
     )
     try model.load()
     return model
@@ -324,5 +483,22 @@ private final class ProfileAccessLoginItemStub: LoginItemServicing {
 @MainActor
 private final class ProfileAccessRoutingStub: AppRouting {
   func accept(_ url: URL) {}
+  func preview(_ url: URL) {}
+}
+
+@MainActor
+private final class ProfileAccessRoutingSpy: AppRouting {
+  private(set) var acceptedURLs: [URL] = []
+  private let onAccept: @MainActor (URL) -> Void
+
+  init(onAccept: @escaping @MainActor (URL) -> Void = { _ in }) {
+    self.onAccept = onAccept
+  }
+
+  func accept(_ url: URL) {
+    acceptedURLs.append(url)
+    onAccept(url)
+  }
+
   func preview(_ url: URL) {}
 }

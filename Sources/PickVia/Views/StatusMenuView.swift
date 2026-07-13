@@ -28,13 +28,17 @@ public struct StatusMenuView: View {
       try? model.userRequestedRescan()
       profileAccessPresenter.requestIfPending(model: model)
     }
+    .disabled(!model.canPresentOrdinaryAppSurface)
 
     Divider()
 
     Button("About PickVia") {
-      NSApp.activate(ignoringOtherApps: true)
-      NSApp.orderFrontStandardAboutPanel(nil)
+      showAboutIfAllowed(model: model) {
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.orderFrontStandardAboutPanel(nil)
+      }
     }
+    .disabled(!model.canPresentOrdinaryAppSurface)
 
     Divider()
 
@@ -43,4 +47,13 @@ public struct StatusMenuView: View {
     }
     .keyboardShortcut("q", modifiers: .command)
   }
+}
+
+@MainActor
+func showAboutIfAllowed(
+  model: AppModel,
+  showAbout: @MainActor () -> Void
+) {
+  guard model.canPresentOrdinaryAppSurface else { return }
+  showAbout()
 }

@@ -21,6 +21,7 @@ protocol ProfileAccessPanelDriving: AnyObject {
 public final class ProfileAccessPanelController: ProfileAccessPresenting {
   private let driver: any ProfileAccessPanelDriving
   private weak var pendingModel: AppModel?
+  private weak var presentedModel: AppModel?
   private var isPresented = false
 
   init(driver: any ProfileAccessPanelDriving) {
@@ -55,6 +56,9 @@ public final class ProfileAccessPanelController: ProfileAccessPresenting {
     guard isPresented else { return }
     isPresented = false
     driver.dismissAndRestoreWindows()
+    let model = presentedModel
+    presentedModel = nil
+    model?.profileAccessDidDismiss()
   }
 
   private func presentIfPossible() {
@@ -69,12 +73,13 @@ public final class ProfileAccessPanelController: ProfileAccessPresenting {
     guard driver.canPresent else { return }
     pendingModel = nil
     isPresented = true
+    presentedModel = model
     driver.hideCompetingPickViaWindows()
-    model.profileAccessDidPresent()
     driver.present(model: model) { [weak self, weak model] in
       model?.closeProfileAccess()
       self?.dismiss()
     }
+    model.profileAccessDidPresent()
   }
 }
 

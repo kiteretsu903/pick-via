@@ -188,7 +188,36 @@ final class AppDelegateTests: XCTestCase {
       NSApplication.shared,
       hasVisibleWindows: false
     )
+    XCTAssertEqual(openSettingsCallCount, 0)
+
+    model.profileAccessDidDismiss()
+    _ = delegate.applicationShouldHandleReopen(
+      NSApplication.shared,
+      hasVisibleWindows: false
+    )
     XCTAssertEqual(openSettingsCallCount, 1)
+  }
+
+  func testAboutCommandWaitsForExactProfileAccessDismissal() throws {
+    var aboutCallCount = 0
+    let model = makeModel(
+      catalog: AppDelegateCatalogStub(
+        scanResult: AppDelegateFixtures.profileAccessRequiredScan
+      )
+    )
+    try model.load()
+    model.profileAccessDidPresent()
+
+    showAboutIfAllowed(model: model) { aboutCallCount += 1 }
+    model.skipProfileAccess()
+    showAboutIfAllowed(model: model) { aboutCallCount += 1 }
+
+    XCTAssertEqual(aboutCallCount, 0)
+
+    model.profileAccessDidDismiss()
+    showAboutIfAllowed(model: model) { aboutCallCount += 1 }
+
+    XCTAssertEqual(aboutCallCount, 1)
   }
 
   private func makeModel(
