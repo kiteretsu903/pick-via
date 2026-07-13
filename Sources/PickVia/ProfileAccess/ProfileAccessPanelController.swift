@@ -106,28 +106,38 @@ final class AppKitProfileAccessPanelDriver: NSObject, ProfileAccessPanelDriving,
   var environmentDidChangeHandler: (@MainActor () -> Void)?
 
   private let notificationCenter: NotificationCenter
+  private let isChooserActive: @MainActor () -> Bool
   private var wizardViewFactory: WizardViewFactory?
   private var onClose: (@MainActor () -> Void)?
   private var hiddenWindows: [NSWindow] = []
-  nonisolated(unsafe) private var sheetEndObserver: NSObjectProtocol?
+  nonisolated(unsafe) private var lifecycleObservers: [NSObjectProtocol] = []
 
-  init(notificationCenter: NotificationCenter = .default) {
+  init(
+    notificationCenter: NotificationCenter = .default,
+    isChooserActive: @escaping @MainActor () -> Bool = { false }
+  ) {
     self.notificationCenter = notificationCenter
+    self.isChooserActive = isChooserActive
     super.init()
-    sheetEndObserver = notificationCenter.addObserver(
-      forName: NSWindow.didEndSheetNotification,
-      object: nil,
-      queue: .main
-    ) { [weak self] _ in
-      Task { @MainActor [weak self] in
-        self?.environmentDidChangeHandler?()
+    lifecycleObservers = [
+      NSWindow.didEndSheetNotification,
+      NSWindow.willCloseNotification,
+    ].map { name in
+      notificationCenter.addObserver(
+        forName: name,
+        object: nil,
+        queue: .main
+      ) { [weak self] _ in
+        Task { @MainActor [weak self] in
+          self?.environmentDidChangeHandler?()
+        }
       }
     }
   }
 
   deinit {
-    if let sheetEndObserver {
-      notificationCenter.removeObserver(sheetEndObserver)
+    for observer in lifecycleObservers {
+      notificationCenter.removeObserver(observer)
     }
   }
 
@@ -145,7 +155,8 @@ final class AppKitProfileAccessPanelDriver: NSObject, ProfileAccessPanelDriving,
   }()
 
   var canPresent: Bool {
-    wizardViewFactory != nil
+    !isChooserActive()
+      && wizardViewFactory != nil
       && !panel.isVisible
       && NSApp.modalWindow == nil
       && !NSApp.windows.contains(where: { $0.attachedSheet != nil })

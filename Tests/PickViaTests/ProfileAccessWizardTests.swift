@@ -106,6 +106,21 @@ final class ProfileAccessWizardTests: XCTestCase {
     )
   }
 
+  func testWizardCommitErrorUsesModelSanitizedCopyWithoutRawErrorOrPath() throws {
+    let model = makeOnboardingModel(step: 3)
+    try model.load()
+    model.reportProfileAccessCommitFailure()
+
+    let rendered = try XCTUnwrap(profileAccessWizardErrorText(model.errorMessage))
+
+    XCTAssertEqual(
+      rendered,
+      "Browser discovery produced a configuration that could not be committed."
+    )
+    XCTAssertFalse(rendered.contains("/Users/"))
+    XCTAssertNil(profileAccessWizardErrorText(nil))
+  }
+
   func testWizardSourceContainsApprovedControlsAndNoRejectedCopy() throws {
     let sources = try String(
       contentsOf: repositoryRoot.appending(

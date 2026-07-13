@@ -68,6 +68,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     _ sender: NSApplication,
     hasVisibleWindows flag: Bool
   ) -> Bool {
+    guard model.canPresentOrdinaryAppSurface else { return true }
     navigation.destination = .general
     openSettings()
     return true
@@ -98,7 +99,10 @@ extension AppModel {
     let profileAccessCoordinator = ProfileAccessCoordinator(store: profileAccessStore)
     let profileRootValidator = BrowserProfileRootValidator()
     let profileAccessFolderSelector = ProfileAccessFolderSelector()
-    let profileAccessPanelDriver = AppKitProfileAccessPanelDriver()
+    let chooserActivity = ChooserPresentationActivity()
+    let profileAccessPanelDriver = AppKitProfileAccessPanelDriver(
+      isChooserActive: { chooserActivity.chooser?.hasActivePresentation == true }
+    )
     let profileAccessPresenter = ProfileAccessPanelController(driver: profileAccessPanelDriver)
     let preferences = UserDefaultsPreferences()
     let recovery = BrowserSettingsRecovery(
@@ -115,6 +119,7 @@ extension AppModel {
         profileAccessPresenter?.environmentDidChange()
       }
     )
+    chooserActivity.chooser = chooser
     let model = AppComposition.makeModel(
       configStore: configStore,
       browserCatalog: BrowserCatalog(profileRootAccess: profileAccessCoordinator),
@@ -139,6 +144,11 @@ extension AppModel {
     try? model.load()
     return (model, profileAccessPresenter)
   }
+}
+
+@MainActor
+private final class ChooserPresentationActivity {
+  weak var chooser: ChooserPanelController?
 }
 
 @MainActor

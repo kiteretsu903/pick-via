@@ -49,6 +49,39 @@ final class AppDelegateTests: XCTestCase {
     XCTAssertEqual(presenter.requestIfPendingCallCount, 0)
   }
 
+  func testClosingRecoveredSettingsQueuesAutomaticProfileAccessAfterReview() throws {
+    let model = AppModel(
+      configStore: AppDelegateConfigStoreStub(
+        outcome: .recoveredCorruption(.initial)
+      ),
+      browserCatalog: AppDelegateCatalogStub(
+        scanResult: AppDelegateFixtures.profileAccessRequiredScan
+      ),
+      preferences: AppDelegatePreferencesStub(onboardingStep: 3),
+      defaultBrowser: AppDelegateDefaultBrowserStub(),
+      loginItem: AppDelegateLoginItemStub(),
+      routing: AppDelegateRoutingSpy()
+    )
+    try model.load()
+    let presenter = AppDelegateProfileAccessPresenterSpy()
+    let delegate = AppDelegate(
+      model: model,
+      profileAccessPresenter: presenter,
+      openSettings: {}
+    )
+    delegate.applicationDidFinishLaunching(
+      Notification(name: NSApplication.didFinishLaunchingNotification)
+    )
+    XCTAssertEqual(presenter.requestIfPendingCallCount, 0)
+
+    settingsDidClose(model: model, profileAccessPresenter: presenter)
+
+    XCTAssertEqual(model.configurationRecovery, .none)
+    XCTAssertEqual(model.profileAccessPresentation, .automaticPending)
+    XCTAssertEqual(presenter.requestIfPendingCallCount, 1)
+    XCTAssertTrue(presenter.lastModel === model)
+  }
+
   func testLaunchRequestsPendingProfileAccessAfterOnboardingReview() throws {
     let presenter = AppDelegateProfileAccessPresenterSpy()
     let model = makeModel(
@@ -128,6 +161,34 @@ final class AppDelegateTests: XCTestCase {
     XCTAssertTrue(handled)
     XCTAssertEqual(openSettingsCallCount, 1)
     XCTAssertEqual(destinationWhenOpened, .general)
+  }
+
+  func testReopenCannotOpenSettingsWhileProfileAccessPanelIsPresented() throws {
+    var openSettingsCallCount = 0
+    let model = makeModel(
+      catalog: AppDelegateCatalogStub(
+        scanResult: AppDelegateFixtures.profileAccessRequiredScan
+      )
+    )
+    try model.load()
+    model.profileAccessDidPresent()
+    let delegate = AppDelegate(
+      model: model,
+      openSettings: { openSettingsCallCount += 1 }
+    )
+
+    _ = delegate.applicationShouldHandleReopen(
+      NSApplication.shared,
+      hasVisibleWindows: false
+    )
+    XCTAssertEqual(openSettingsCallCount, 0)
+
+    model.closeProfileAccess()
+    _ = delegate.applicationShouldHandleReopen(
+      NSApplication.shared,
+      hasVisibleWindows: false
+    )
+    XCTAssertEqual(openSettingsCallCount, 1)
   }
 
   private func makeModel(

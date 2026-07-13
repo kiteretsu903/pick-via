@@ -87,6 +87,10 @@ public final class AppModel {
     profileAccessPresentation == .automaticPending
   }
 
+  public var canPresentOrdinaryAppSurface: Bool {
+    profileAccessPresentation != .presented
+  }
+
   private let configStore: any ConfigStoring
   private let browserCatalog: any BrowserDiscovering
   private let preferences: any PreferencesStoring
@@ -215,6 +219,7 @@ public final class AppModel {
   }
 
   public func openProfileAccessManager() {
+    guard canPresentOrdinaryAppSurface else { return }
     isAutomaticProfileAccessFlowPresented = false
     profileAccessRows = manualProfileAccessRows(from: latestAuthoritativeBrowserScan)
     profileAccessPresentation = .manualPending
@@ -372,6 +377,7 @@ public final class AppModel {
   }
 
   public func previewChooser() {
+    guard canPresentOrdinaryAppSurface else { return }
     routing.preview(URL(string: "https://pickvia.invalid/chooser-preview")!)
   }
 

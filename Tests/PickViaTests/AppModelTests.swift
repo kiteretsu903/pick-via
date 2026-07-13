@@ -1155,6 +1155,48 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(defaults.requestedSchemes, ["http", "https"])
   }
 
+  func testOpeningManagerCannotDowngradePresentedAutomaticProfileAccess() throws {
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.config),
+      catalog: BrowserCatalogStub(
+        reconciled: Fixtures.config,
+        scanResult: automaticProfileAccessScan
+      ),
+      preferences: PreferencesStub(integers: ["onboardingStep": 3])
+    )
+    try model.load()
+    model.profileAccessDidPresent()
+    let rowsBeforeReentrantOpen = model.profileAccessRows
+
+    model.openProfileAccessManager()
+
+    XCTAssertEqual(model.profileAccessPresentation, .presented)
+    XCTAssertEqual(model.profileAccessRows, rowsBeforeReentrantOpen)
+    XCTAssertTrue(model.hasUnresolvedAutomaticProfileAccess)
+    XCTAssertFalse(model.canRequestDefaultBrowser)
+  }
+
+  func testChooserPreviewIsBlockedOnlyWhileProfileAccessPanelIsPresented() throws {
+    let routing = RoutingSpy()
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.config),
+      catalog: BrowserCatalogStub(
+        reconciled: Fixtures.config,
+        scanResult: automaticProfileAccessScan
+      ),
+      routing: routing
+    )
+    try model.load()
+    model.profileAccessDidPresent()
+
+    model.previewChooser()
+    XCTAssertTrue(routing.previewedURLs.isEmpty)
+
+    model.closeProfileAccess()
+    model.previewChooser()
+    XCTAssertEqual(routing.previewedURLs.count, 1)
+  }
+
   func testManualProfileAccessManagerDoesNotBlockDefaultRequest() async throws {
     let defaults = DefaultBrowserSpy()
     let scan = BrowserScanResult(

@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import PickViaCore
+import SwiftUI
 import XCTest
 
 @testable import PickVia
@@ -35,6 +36,24 @@ final class ProfileAccessPresentationTests: XCTestCase {
     await fulfillment(of: [signal], timeout: 1)
   }
 
+  func testAppKitDriverSignalsEnvironmentChangeAfterSettingsWindowCloses() async {
+    let notificationCenter = NotificationCenter()
+    let driver = AppKitProfileAccessPanelDriver(notificationCenter: notificationCenter)
+    let signal = expectation(description: "post-settings environment signal")
+    driver.environmentDidChangeHandler = { signal.fulfill() }
+
+    notificationCenter.post(name: NSWindow.willCloseNotification, object: nil)
+
+    await fulfillment(of: [signal], timeout: 1)
+  }
+
+  func testAppKitDriverCannotPresentWhileLogicalChooserPresentationIsActive() {
+    let driver = AppKitProfileAccessPanelDriver(isChooserActive: { true })
+    driver.attachWizardViewFactory { _ in AnyView(EmptyView()) }
+
+    XCTAssertFalse(driver.canPresent)
+  }
+
   func testAutomaticRequestWaitsUntilOnboardingReviewCompletes() throws {
     let driver = ProfileAccessPanelDriverSpy(canPresent: true)
     let presenter = ProfileAccessPanelController(driver: driver)
@@ -64,6 +83,45 @@ final class ProfileAccessPresentationTests: XCTestCase {
 
     presenter.environmentDidChange()
     XCTAssertEqual(driver.presentCallCount, 1)
+  }
+
+  func testHiddenActiveChooserKeepsManagerAndRescanQueuedUntilChooserLifecycleEnds()
+    async throws
+  {
+    let relay = ProfileAccessLifecycleRelay()
+    let chooser = ChooserPanelController(
+      openBrowserSettings: {},
+      onPresentationChange: { _ in relay.handler?() }
+    )
+    let driver = ProfileAccessPanelDriverSpy(canPresent: { !chooser.hasActivePresentation })
+    let presenter = ProfileAccessPanelController(driver: driver)
+    relay.handler = { presenter.environmentDidChange() }
+    let model = try ProfileAccessModelFixture.automaticPending()
+    chooser.present(
+      request: RoutingRequest(url: URL(string: "https://example.com/hidden")!),
+      applications: [],
+      targets: [],
+      error: nil,
+      onSelection: { _ in },
+      onCancel: {}
+    )
+    chooser.showBrowserSettings()
+    XCTAssertTrue(chooser.hasActivePresentation)
+
+    try model.userRequestedRescan()
+    presenter.requestIfPending(model: model)
+    model.openProfileAccessManager()
+    presenter.request(model: model)
+    model.settingsDidClose()
+    presenter.environmentDidChange()
+
+    XCTAssertEqual(driver.presentCallCount, 0)
+
+    chooser.dismiss()
+    await Task.yield()
+
+    XCTAssertEqual(driver.presentCallCount, 1)
+    XCTAssertEqual(model.profileAccessPresentation, .presented)
   }
 
   func testCloseRestoresOrdinaryWindowsExactlyOnce() throws {
@@ -136,14 +194,25 @@ final class ProfileAccessPresentationTests: XCTestCase {
 @MainActor
 private final class ProfileAccessPanelDriverSpy: ProfileAccessPanelDriving {
   var environmentDidChangeHandler: (@MainActor () -> Void)?
-  var canPresent: Bool
+  var canPresent: Bool {
+    get { canPresentProvider?() ?? storedCanPresent }
+    set { storedCanPresent = newValue }
+  }
+  private var storedCanPresent: Bool
+  private let canPresentProvider: (@MainActor () -> Bool)?
   private(set) var presentCallCount = 0
   private(set) var hideCompetingWindowsCallCount = 0
   private(set) var dismissAndRestoreWindowsCallCount = 0
   private var onClose: (@MainActor () -> Void)?
 
   init(canPresent: Bool) {
-    self.canPresent = canPresent
+    storedCanPresent = canPresent
+    canPresentProvider = nil
+  }
+
+  init(canPresent: @escaping @MainActor () -> Bool) {
+    storedCanPresent = false
+    canPresentProvider = canPresent
   }
 
   func hideCompetingPickViaWindows() {
@@ -167,6 +236,11 @@ private final class ProfileAccessPanelDriverSpy: ProfileAccessPanelDriving {
   func signalEnvironmentDidChange() {
     environmentDidChangeHandler?()
   }
+}
+
+@MainActor
+private final class ProfileAccessLifecycleRelay {
+  var handler: (@MainActor () -> Void)?
 }
 
 @MainActor

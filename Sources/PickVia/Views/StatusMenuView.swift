@@ -11,15 +11,18 @@ public struct StatusMenuView: View {
 
   public var body: some View {
     Button("Open Settings…") {
+      guard model.canPresentOrdinaryAppSurface else { return }
       navigation.destination = .general
       NSApp.activate(ignoringOtherApps: true)
       openSettings()
     }
     .keyboardShortcut(",", modifiers: .command)
+    .disabled(!model.canPresentOrdinaryAppSurface)
 
     Button("Test Browser Chooser…") {
       model.previewChooser()
     }
+    .disabled(!model.canPresentOrdinaryAppSurface)
 
     Button("Rescan Browsers") {
       try? model.userRequestedRescan()

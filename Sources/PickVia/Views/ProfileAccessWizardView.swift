@@ -42,6 +42,11 @@ func profileAccessCanFinish(rows: [BrowserProfileAccessRow]) -> Bool {
   }
 }
 
+func profileAccessWizardErrorText(_ modelErrorMessage: String?) -> String? {
+  guard let modelErrorMessage, !modelErrorMessage.isEmpty else { return nil }
+  return modelErrorMessage
+}
+
 func profileAccessGuidanceText(
   for state: BrowserProfileAccessRowState,
   requiredMarker: String
@@ -80,6 +85,11 @@ public struct ProfileAccessWizardView: View {
         .foregroundStyle(.secondary)
       List(model.profileAccessRows) { row in
         ProfileAccessRowView(row: row, folderSelector: folderSelector)
+      }
+      if let errorMessage = profileAccessWizardErrorText(model.errorMessage) {
+        Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+          .font(.callout)
+          .foregroundStyle(.red)
       }
       HStack {
         Button("Skip for Now") {

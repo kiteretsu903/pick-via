@@ -20,6 +20,7 @@ public enum SettingsDestination: String, CaseIterable, Identifiable {
 public struct SettingsRootView: View {
   @Environment(AppModel.self) private var model
   @Environment(SettingsNavigation.self) private var navigation
+  @Environment(\.profileAccessPresenter) private var profileAccessPresenter
 
   public init() {}
 
@@ -40,6 +41,20 @@ public struct SettingsRootView: View {
     }
     .environment(model)
     .frame(minWidth: 720, minHeight: 480)
-    .onDisappear { model.settingsDidClose() }
+    .onDisappear {
+      settingsDidClose(
+        model: model,
+        profileAccessPresenter: profileAccessPresenter
+      )
+    }
   }
+}
+
+@MainActor
+func settingsDidClose(
+  model: AppModel,
+  profileAccessPresenter: any ProfileAccessPresenting
+) {
+  model.settingsDidClose()
+  profileAccessPresenter.requestIfPending(model: model)
 }

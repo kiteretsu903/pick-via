@@ -227,6 +227,8 @@ final class AppCompositionTests: XCTestCase {
     XCTAssertEqual(sources.components(separatedBy: "ProfileAccessPanelController(").count - 1, 1)
     XCTAssertTrue(sources.contains("BrowserCatalog(profileRootAccess: profileAccessCoordinator)"))
     XCTAssertTrue(sources.contains("profileAccess: profileAccessCoordinator"))
+    XCTAssertTrue(sources.contains("isChooserActive:"))
+    XCTAssertTrue(sources.contains("chooser?.hasActivePresentation"))
   }
 
   private var repositoryRoot: URL {
