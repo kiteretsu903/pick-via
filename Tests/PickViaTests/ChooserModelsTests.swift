@@ -158,6 +158,108 @@ final class ChooserModelsTests: XCTestCase {
 
 @MainActor
 final class ChooserPanelControllerTests: XCTestCase {
+  func testPresentationLifecycleReportsOnlyActualPresentationTransition() {
+    var changes: [Bool] = []
+    let controller = ChooserPanelController(
+      onPresentationChange: { changes.append($0) }
+    )
+
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work],
+      error: nil,
+      onSelection: { _ in },
+      onCancel: {}
+    )
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work],
+      error: nil,
+      onSelection: { _ in },
+      onCancel: {}
+    )
+    controller.dismiss()
+    controller.dismiss()
+
+    XCTAssertEqual(changes, [true, false])
+  }
+
+  func testResignCancellationReportsPresentationEnded() {
+    var changes: [Bool] = []
+    let controller = ChooserPanelController(
+      onPresentationChange: { changes.append($0) }
+    )
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work],
+      error: nil,
+      onSelection: { _ in },
+      onCancel: {}
+    )
+
+    controller.resignKeyForTesting()
+
+    XCTAssertEqual(changes, [true, false])
+  }
+
+  func testWindowCloseCancelsAndReportsPresentationEnded() {
+    var cancelCount = 0
+    var changes: [Bool] = []
+    let controller = ChooserPanelController(
+      onPresentationChange: { changes.append($0) }
+    )
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work],
+      error: nil,
+      onSelection: { _ in },
+      onCancel: { cancelCount += 1 }
+    )
+
+    controller.windowWillClose(Notification(name: NSWindow.willCloseNotification))
+
+    XCTAssertEqual(cancelCount, 1)
+    XCTAssertEqual(changes, [true, false])
+  }
+
+  func testSuccessfulSelectionDismissReportsPresentationEnded() throws {
+    var changes: [Bool] = []
+    var controller: ChooserPanelController!
+    controller = ChooserPanelController(
+      onPresentationChange: { changes.append($0) }
+    )
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work],
+      error: nil,
+      onSelection: { _ in controller.dismiss() },
+      onCancel: {}
+    )
+    let returnKey = try XCTUnwrap(
+      NSEvent.keyEvent(
+        with: .keyDown,
+        location: .zero,
+        modifierFlags: [],
+        timestamp: 0,
+        windowNumber: 0,
+        context: nil,
+        characters: "\r",
+        charactersIgnoringModifiers: "\r",
+        isARepeat: false,
+        keyCode: 36
+      )
+    )
+
+    NSApp.sendEvent(returnKey)
+
+    XCTAssertEqual(changes, [true, false])
+  }
+
   func testOpeningBrowserSettingsSuppressesResignCancellationAndRetainsPresentation() {
     var cancelCount = 0
     let controller = ChooserPanelController(openBrowserSettings: {})

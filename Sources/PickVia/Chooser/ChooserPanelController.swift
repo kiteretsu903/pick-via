@@ -22,6 +22,7 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
   private let clipboard: any ClipboardWriting
   private let openBrowserSettings: @MainActor () -> Void
   private let showsURLProvider: @MainActor () -> Bool
+  private let onPresentationChange: @MainActor (Bool) -> Void
 
   private(set) var showsURLForCurrentPresentation = true
 
@@ -35,6 +36,7 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
   private var onCancel: (() -> Void)?
   private var isDismissing = false
   private var suppressesResignCancellation = false
+  private var hasReportedPresentation = false
 
   var hasActivePresentation: Bool { presentation != nil }
   var isKeyboardMonitorInstalled: Bool { keyMonitor != nil }
@@ -42,22 +44,26 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
   public init(
     clipboard: any ClipboardWriting = SystemClipboardWriter(),
     showsURL: Bool = true,
-    openBrowserSettings: @escaping @MainActor () -> Void = {}
+    openBrowserSettings: @escaping @MainActor () -> Void = {},
+    onPresentationChange: @escaping @MainActor (Bool) -> Void = { _ in }
   ) {
     self.clipboard = clipboard
     self.showsURLProvider = { showsURL }
     self.openBrowserSettings = openBrowserSettings
+    self.onPresentationChange = onPresentationChange
     super.init()
   }
 
   public init(
     showsURLProvider: @escaping @MainActor () -> Bool,
     clipboard: any ClipboardWriting = SystemClipboardWriter(),
-    openBrowserSettings: @escaping @MainActor () -> Void = {}
+    openBrowserSettings: @escaping @MainActor () -> Void = {},
+    onPresentationChange: @escaping @MainActor (Bool) -> Void = { _ in }
   ) {
     self.clipboard = clipboard
     self.showsURLProvider = showsURLProvider
     self.openBrowserSettings = openBrowserSettings
+    self.onPresentationChange = onPresentationChange
     super.init()
   }
 
@@ -106,6 +112,10 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     position(panel)
     NSApp.activate(ignoringOtherApps: true)
     panel.makeKeyAndOrderFront(nil)
+    if !hasReportedPresentation {
+      hasReportedPresentation = true
+      onPresentationChange(true)
+    }
   }
 
   public func dismiss() {
@@ -118,11 +128,19 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     presentation = nil
     suppressesResignCancellation = false
     isDismissing = false
+    if hasReportedPresentation {
+      hasReportedPresentation = false
+      onPresentationChange(false)
+    }
   }
 
   public func windowDidResignKey(_ notification: Notification) {
     guard notification.object as? NSPanel === panel, !isDismissing else { return }
     handleResignKey()
+  }
+
+  public func windowWillClose(_ notification: Notification) {
+    cancelAndDismiss()
   }
 
   func copyURL(_ url: URL) {
