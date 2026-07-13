@@ -56,7 +56,7 @@ struct BrowserCatalogTests {
     #expect(fileSystem.readURLs == [localStateURL, profilesURL])
   }
 
-  @Test func scanIsolatesUnreadableMetadataAndReturnsMixedSuccessWarnings() throws {
+  @Test func permissionDeniedConventionalRootRequiresAccessWithoutBlockingOtherBrowsers() throws {
     let chromeURL = URL(fileURLWithPath: "/Applications/Google Chrome.app", isDirectory: true)
     let firefoxURL = URL(fileURLWithPath: "/Applications/Firefox.app", isDirectory: true)
     let localStateURL = URL(
@@ -79,8 +79,12 @@ struct BrowserCatalogTests {
 
     #expect(result.browsers.count == 2)
     #expect(result.browsers[0].profiles.count == 2)
-    #expect(result.browsers[1].metadataStatus == .unreadable)
-    #expect(result.warnings == [.metadataUnreadable(bundleIdentifier: "org.mozilla.firefox")])
+    #expect(result.browsers[1].metadataStatus == .accessRequired)
+    #expect(
+      result.profileAccessIssues == [
+        .accessRequired(bundleIdentifier: "org.mozilla.firefox")
+      ])
+    #expect(result.warnings == result.profileAccessIssues)
   }
 
   @Test func malformedChromiumMetadataDoesNotAbortFirefoxDiscovery() throws {
@@ -102,14 +106,140 @@ struct BrowserCatalogTests {
     let result = catalog.scanResult()
 
     #expect(result.browsers.count == 2)
-    #expect(result.browsers[0].metadataStatus == .unreadable)
+    #expect(result.browsers[0].metadataStatus == .metadataDamaged)
     #expect(result.browsers[1].profiles.count == 2)
-    #expect(result.warnings == [.metadataUnreadable(bundleIdentifier: "com.google.Chrome")])
+    #expect(
+      result.profileAccessIssues == [
+        .metadataDamaged(bundleIdentifier: "com.google.Chrome")
+      ])
+  }
+
+  @Test func missingConventionalMarkerIsMetadataAbsent() {
+    let catalog = BrowserCatalog(
+      descriptors: [chromeDescriptor],
+      applicationLocator: StubApplicationLocator(applications: [
+        "com.google.Chrome": URL(fileURLWithPath: "/Applications/Google Chrome.app")
+      ]),
+      fileSystem: DiscoveryFileSystem(
+        files: [:],
+        readErrors: [
+          URL(
+            fileURLWithPath:
+              "/home/Library/Application Support/Google/Chrome/Local State"
+          ): CocoaError(.fileReadNoSuchFile)
+        ]
+      ),
+      homeDirectory: URL(fileURLWithPath: "/home", isDirectory: true)
+    )
+
+    let result = catalog.scanResult()
+
+    #expect(result.browsers.first?.metadataStatus == .metadataAbsent)
+    #expect(result.profileAccessIssues.isEmpty)
+  }
+
+  @Test func revokedSavedGrantDoesNotRetryConventionalPath() {
+    let conventionalMarker = URL(
+      fileURLWithPath: "/home/Library/Application Support/Google/Chrome/Local State")
+    let fileSystem = DiscoveryFileSystem(files: [conventionalMarker: Data("{}".utf8)])
+    let access = StubProfileRootAccess(states: ["com.google.Chrome": .revoked])
+    let catalog = BrowserCatalog(
+      descriptors: [chromeDescriptor],
+      applicationLocator: StubApplicationLocator(applications: [
+        "com.google.Chrome": URL(fileURLWithPath: "/Applications/Google Chrome.app")
+      ]),
+      fileSystem: fileSystem,
+      profileRootAccess: access,
+      homeDirectory: URL(fileURLWithPath: "/home", isDirectory: true)
+    )
+
+    let result = catalog.scanResult()
+
+    #expect(result.browsers.first?.metadataStatus == .accessRevoked)
+    #expect(
+      result.profileAccessIssues == [
+        .accessRevoked(bundleIdentifier: "com.google.Chrome")
+      ])
+    #expect(fileSystem.readURLs.isEmpty)
+  }
+
+  @Test func resolvedSavedGrantUsesGrantedRootAndEndsLease() throws {
+    let grantedRoot = URL(fileURLWithPath: "/Granted/Chrome", isDirectory: true)
+    let marker = grantedRoot.appending(path: "Local State")
+    let fileSystem = DiscoveryFileSystem(files: [
+      marker: try fixtureData("chromium-local-state.json")
+    ])
+    let access = StubProfileRootAccess(grantedRoots: ["com.google.Chrome": grantedRoot])
+    let catalog = BrowserCatalog(
+      descriptors: [chromeDescriptor],
+      applicationLocator: StubApplicationLocator(applications: [
+        "com.google.Chrome": URL(fileURLWithPath: "/Applications/Google Chrome.app")
+      ]),
+      fileSystem: fileSystem,
+      profileRootAccess: access,
+      homeDirectory: URL(fileURLWithPath: "/home", isDirectory: true)
+    )
+
+    let result = catalog.scanResult()
+
+    #expect(result.browsers.first?.metadataStatus == .loaded)
+    #expect(result.browsers.first?.profiles.map(\.identifier) == ["Default", "Profile 1"])
+    #expect(fileSystem.readURLs == [marker])
+    #expect(access.endedBundleIdentifiers == ["com.google.Chrome"])
+  }
+
+  @Test func grantedRootWithoutRequiredMarkerIsAccessRevoked() {
+    let grantedRoot = URL(fileURLWithPath: "/Moved/Chrome", isDirectory: true)
+    let access = StubProfileRootAccess(grantedRoots: ["com.google.Chrome": grantedRoot])
+    let catalog = BrowserCatalog(
+      descriptors: [chromeDescriptor],
+      applicationLocator: StubApplicationLocator(applications: [
+        "com.google.Chrome": URL(fileURLWithPath: "/Applications/Google Chrome.app")
+      ]),
+      fileSystem: DiscoveryFileSystem(files: [:]),
+      profileRootAccess: access,
+      homeDirectory: URL(fileURLWithPath: "/home", isDirectory: true)
+    )
+
+    let result = catalog.scanResult()
+
+    #expect(result.browsers.first?.metadataStatus == .accessRevoked)
+    #expect(access.endedBundleIdentifiers == ["com.google.Chrome"])
+  }
+
+  @Test func targetedScanInspectsOnlyMatchingDescriptor() throws {
+    let chromeMarker = URL(
+      fileURLWithPath: "/home/Library/Application Support/Google/Chrome/Local State")
+    let firefoxMarker = URL(
+      fileURLWithPath: "/home/Library/Application Support/Firefox/profiles.ini")
+    let locator = StubApplicationLocator(applications: [
+      "com.google.Chrome": URL(fileURLWithPath: "/Applications/Google Chrome.app"),
+      "org.mozilla.firefox": URL(fileURLWithPath: "/Applications/Firefox.app"),
+    ])
+    let fileSystem = DiscoveryFileSystem(files: [
+      chromeMarker: try fixtureData("chromium-local-state.json"),
+      firefoxMarker: try fixtureData("firefox-profiles.ini"),
+    ])
+    let access = StubProfileRootAccess()
+    let catalog = BrowserCatalog(
+      descriptors: [chromeDescriptor, firefoxDescriptor],
+      applicationLocator: locator,
+      fileSystem: fileSystem,
+      profileRootAccess: access,
+      homeDirectory: URL(fileURLWithPath: "/home", isDirectory: true)
+    )
+
+    let result = catalog.scanResult(for: "com.google.Chrome")
+
+    #expect(result?.application.bundleIdentifier == "com.google.Chrome")
+    #expect(locator.requestedBundleIdentifiers == ["com.google.Chrome"])
+    #expect(access.requestedBundleIdentifiers == ["com.google.Chrome"])
+    #expect(fileSystem.readURLs == [chromeMarker])
   }
 
   @Test func emptyProfileMetadataCreatesUnprofiledNormalAndPrivateFallbacks() {
     let result = BrowserCatalog.reconcile(
-      discovered: [chrome(profiles: [], metadataStatus: .absent)],
+      discovered: [chrome(profiles: [], metadataStatus: .metadataAbsent)],
       with: .initial
     )
 
@@ -119,7 +249,7 @@ struct BrowserCatalogTests {
     #expect(result.targets.map(\.isEnabled) == [true, false])
   }
 
-  @Test func transientUnreadableMetadataPreservesExistingProfileAvailability() throws {
+  @Test func damagedMetadataPreservesExistingProfileAvailability() throws {
     let existingTarget = target(
       bundleID: "com.google.Chrome",
       profileID: "Profile 1",
@@ -134,11 +264,76 @@ struct BrowserCatalogTests {
     )
 
     let result = BrowserCatalog.reconcile(
-      discovered: [chrome(profiles: [], metadataStatus: .unreadable)],
+      discovered: [chrome(profiles: [], metadataStatus: .metadataDamaged)],
       with: existing
     )
 
     #expect(result.targets.first { $0.id == existingTarget.id }?.availability == .available)
+    #expect(!result.targets.contains { $0.profileIdentifier == nil })
+  }
+
+  @Test func protectedMetadataAddsFallbackAndPreservesCustomizedProfileAsUnavailable() throws {
+    for status in [ProfileMetadataStatus.accessRequired, .accessRevoked] {
+      let existingTarget = target(
+        bundleID: "com.google.Chrome",
+        profileID: "Profile 1",
+        label: "Client Work",
+        enabled: false,
+        order: 7
+      )
+      let manual = unprofiledManualTarget(browserID: "com.google.Chrome")
+      let existing = PickViaConfig(
+        schemaVersion: 1,
+        browsers: [chrome(profileID: "Profile 1", profileName: "Work").application],
+        targets: [existingTarget, manual]
+      )
+
+      let result = BrowserCatalog.reconcile(
+        discovered: [
+          chrome(
+            profiles: [
+              DiscoveredProfile(
+                identifier: "stale-profile",
+                displayName: "Stale Profile",
+                directoryURL: nil
+              )
+            ],
+            metadataStatus: status
+          )
+        ],
+        with: existing
+      )
+
+      let preserved = try #require(result.targets.first { $0.id == existingTarget.id })
+      #expect(preserved.label == "Client Work")
+      #expect(preserved.availability == .unavailable)
+      #expect(preserved.isEnabled == false)
+      #expect(preserved.sortOrder == 7)
+      #expect(result.targets.contains { $0.profileIdentity == nil && $0.mode == .normal })
+      #expect(result.targets.contains { $0.profileIdentity == nil && $0.mode == .private })
+      #expect(try #require(result.targets.first { $0.id == manual.id }) == manual)
+    }
+  }
+
+  @Test func loadedScanRestoresStableProfileAfterAccessReturnsWithoutDuplicate() throws {
+    let original = BrowserCatalog.reconcile(
+      discovered: [chrome(profileID: "Profile 1", profileName: "Work")],
+      with: .initial
+    )
+    let protected = BrowserCatalog.reconcile(
+      discovered: [chrome(profiles: [], metadataStatus: .accessRequired)],
+      with: original
+    )
+
+    let restored = BrowserCatalog.reconcile(
+      discovered: [chrome(profileID: "Profile 1", profileName: "Renamed")],
+      with: protected
+    )
+
+    let profileTargets = restored.targets.filter { $0.profileIdentity == "Profile 1" }
+    #expect(profileTargets.count == 2)
+    #expect(profileTargets.allSatisfy { $0.availability == .available })
+    #expect(Set(restored.targets.map(\.id)).count == restored.targets.count)
   }
 
   @Test func firefoxRenameReconcilesByNormalizedProfilePath() throws {
@@ -575,6 +770,14 @@ private func chrome(profileID: String, profileName: String) -> DiscoveredBrowser
     ])
 }
 
+private let chromeDescriptor = BrowserDescriptor.supported.first {
+  $0.bundleIdentifier == "com.google.Chrome"
+}!
+
+private let firefoxDescriptor = BrowserDescriptor.supported.first {
+  $0.bundleIdentifier == "org.mozilla.firefox"
+}!
+
 private func chrome(
   profiles: [DiscoveredProfile],
   metadataStatus: ProfileMetadataStatus = .loaded
@@ -707,6 +910,37 @@ private final class StubApplicationLocator: ApplicationLocating, @unchecked Send
   func applicationURL(forBundleIdentifier bundleIdentifier: String) -> URL? {
     requestedBundleIdentifiers.append(bundleIdentifier)
     return applications[bundleIdentifier]
+  }
+}
+
+private final class StubProfileRootAccess: ProfileRootAccessProviding, @unchecked Sendable {
+  private let states: [String: ProfileRootAccessState]
+  private let grantedRoots: [String: URL]
+  private(set) var requestedBundleIdentifiers: [String] = []
+  private(set) var endedBundleIdentifiers: [String] = []
+
+  init(
+    states: [String: ProfileRootAccessState] = [:],
+    grantedRoots: [String: URL] = [:]
+  ) {
+    self.states = states
+    self.grantedRoots = grantedRoots
+  }
+
+  func beginAccess(for bundleIdentifier: String) -> ProfileRootAccessResult {
+    requestedBundleIdentifiers.append(bundleIdentifier)
+    if let root = grantedRoots[bundleIdentifier] {
+      return ProfileRootAccessResult(
+        state: .granted,
+        lease: ProfileRootLease(root: root) { [weak self] in
+          self?.endedBundleIdentifiers.append(bundleIdentifier)
+        }
+      )
+    }
+    return ProfileRootAccessResult(
+      state: states[bundleIdentifier] ?? .missing,
+      lease: nil
+    )
   }
 }
 

@@ -88,29 +88,49 @@ public struct DiscoveredBrowser: Equatable, Sendable {
 
 public enum ProfileMetadataStatus: Equatable, Sendable {
   case notApplicable
-  case absent
+  case metadataAbsent
   case loaded
-  case unreadable
+  case accessRequired
+  case accessRevoked
+  case metadataDamaged
 }
 
-public enum BrowserDiscoveryWarning: Equatable, Sendable {
-  case metadataUnreadable(bundleIdentifier: String)
+public enum BrowserProfileAccessIssue: Equatable, Sendable {
+  case accessRequired(bundleIdentifier: String)
+  case accessRevoked(bundleIdentifier: String)
+  case metadataDamaged(bundleIdentifier: String)
 }
+
+public typealias BrowserDiscoveryWarning = BrowserProfileAccessIssue
 
 public struct BrowserScanResult: Equatable, Sendable {
   public let browsers: [DiscoveredBrowser]
-  public let warnings: [BrowserDiscoveryWarning]
+  public let profileAccessIssues: [BrowserProfileAccessIssue]
   public let isAuthoritative: Bool
+
+  public init(
+    browsers: [DiscoveredBrowser],
+    profileAccessIssues: [BrowserProfileAccessIssue],
+    isAuthoritative: Bool = true
+  ) {
+    self.browsers = browsers
+    self.profileAccessIssues = profileAccessIssues
+    self.isAuthoritative = isAuthoritative
+  }
 
   public init(
     browsers: [DiscoveredBrowser],
     warnings: [BrowserDiscoveryWarning],
     isAuthoritative: Bool = true
   ) {
-    self.browsers = browsers
-    self.warnings = warnings
-    self.isAuthoritative = isAuthoritative
+    self.init(
+      browsers: browsers,
+      profileAccessIssues: warnings,
+      isAuthoritative: isAuthoritative
+    )
   }
+
+  public var warnings: [BrowserDiscoveryWarning] { profileAccessIssues }
 }
 
 public protocol ApplicationLocating: Sendable {
@@ -128,6 +148,7 @@ public struct WorkspaceApplicationLocator: ApplicationLocating, TrustedBrowserRe
 public protocol BrowserDiscovering: Sendable {
   func scan() throws -> [DiscoveredBrowser]
   func scanResult() -> BrowserScanResult
+  func scanResult(for bundleIdentifier: String) -> DiscoveredBrowser?
   func reconcile(discovered: [DiscoveredBrowser], with config: PickViaConfig) -> PickViaConfig
 }
 
@@ -139,23 +160,32 @@ extension BrowserDiscovering {
       return BrowserScanResult(browsers: [], warnings: [], isAuthoritative: false)
     }
   }
+
+  public func scanResult(for bundleIdentifier: String) -> DiscoveredBrowser? {
+    scanResult().browsers.first {
+      $0.application.bundleIdentifier == bundleIdentifier
+    }
+  }
 }
 
 public struct BrowserCatalog: BrowserDiscovering, Sendable {
   private let descriptors: [BrowserDescriptor]
   private let applicationLocator: any ApplicationLocating
   private let fileSystem: any FileSystem
+  private let profileRootAccess: any ProfileRootAccessProviding
   private let homeDirectory: URL
 
   public init(
     descriptors: [BrowserDescriptor] = BrowserDescriptor.supported,
     applicationLocator: any ApplicationLocating = WorkspaceApplicationLocator(),
     fileSystem: any FileSystem = FoundationFileSystem(),
+    profileRootAccess: any ProfileRootAccessProviding = MissingProfileAccessManager(),
     homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
   ) {
     self.descriptors = descriptors
     self.applicationLocator = applicationLocator
     self.fileSystem = fileSystem
+    self.profileRootAccess = profileRootAccess
     self.homeDirectory = homeDirectory
   }
 
@@ -164,45 +194,26 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   }
 
   public func scanResult() -> BrowserScanResult {
-    var warnings: [BrowserDiscoveryWarning] = []
+    var issues: [BrowserProfileAccessIssue] = []
     let browsers = descriptors.compactMap { descriptor -> DiscoveredBrowser? in
-      guard
-        let applicationURL = applicationLocator.applicationURL(
-          forBundleIdentifier: descriptor.bundleIdentifier
-        )
-      else {
-        return nil
-      }
-
-      let executableURL = descriptor.executableRelativePath.map {
-        applicationURL.appending(path: $0)
-      }
-      let application = BrowserApplication(
-        id: descriptor.bundleIdentifier,
-        family: descriptor.family,
-        displayName: descriptor.displayName,
-        bundleIdentifier: descriptor.bundleIdentifier,
-        applicationURL: applicationURL,
-        executableURL: executableURL,
-        isAvailable: true
-      )
-      do {
-        let result = try readProfiles(for: descriptor)
-        return DiscoveredBrowser(
-          application: application,
-          profiles: result.profiles,
-          metadataStatus: result.status
-        )
-      } catch {
-        warnings.append(.metadataUnreadable(bundleIdentifier: descriptor.bundleIdentifier))
-        return DiscoveredBrowser(
-          application: application,
-          profiles: [],
-          metadataStatus: .unreadable
-        )
-      }
+      guard let result = discover(descriptor) else { return nil }
+      if let issue = result.issue { issues.append(issue) }
+      return result.browser
     }
-    return BrowserScanResult(browsers: browsers, warnings: warnings, isAuthoritative: true)
+    return BrowserScanResult(
+      browsers: browsers,
+      profileAccessIssues: issues,
+      isAuthoritative: true
+    )
+  }
+
+  public func scanResult(for bundleIdentifier: String) -> DiscoveredBrowser? {
+    guard let descriptor = descriptors.first(where: {
+      $0.bundleIdentifier == bundleIdentifier
+    }) else {
+      return nil
+    }
+    return discover(descriptor)?.browser
   }
 
   public func reconcile(
@@ -300,32 +311,121 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       .joined(separator: "|")
   }
 
+  private func discover(
+    _ descriptor: BrowserDescriptor
+  ) -> (browser: DiscoveredBrowser, issue: BrowserProfileAccessIssue?)? {
+    guard
+      let applicationURL = applicationLocator.applicationURL(
+        forBundleIdentifier: descriptor.bundleIdentifier
+      )
+    else {
+      return nil
+    }
+
+    let application = BrowserApplication(
+      id: descriptor.bundleIdentifier,
+      family: descriptor.family,
+      displayName: descriptor.displayName,
+      bundleIdentifier: descriptor.bundleIdentifier,
+      applicationURL: applicationURL,
+      executableURL: descriptor.executableRelativePath.map {
+        applicationURL.appending(path: $0)
+      },
+      isAvailable: true
+    )
+    let metadata = readProfiles(for: descriptor)
+    return (
+      DiscoveredBrowser(
+        application: application,
+        profiles: metadata.profiles,
+        metadataStatus: metadata.status
+      ),
+      issue(for: metadata.status, bundleIdentifier: descriptor.bundleIdentifier)
+    )
+  }
+
   private func readProfiles(
     for descriptor: BrowserDescriptor
-  ) throws -> (profiles: [DiscoveredProfile], status: ProfileMetadataStatus) {
+  ) -> (profiles: [DiscoveredProfile], status: ProfileMetadataStatus) {
     guard let profileRoot = descriptor.profileRoot else { return ([], .notApplicable) }
-    let rootURL = homeDirectory.appending(path: profileRoot, directoryHint: .isDirectory)
-    let metadataURL: URL
-    switch descriptor.family {
-    case .safari:
-      return ([], .notApplicable)
-    case .chromium:
-      metadataURL = rootURL.appending(path: "Local State")
-    case .firefox:
-      metadataURL = rootURL.appending(path: "profiles.ini")
+    let conventionalRoot = homeDirectory.appending(
+      path: profileRoot,
+      directoryHint: .isDirectory
+    )
+    let access = profileRootAccess.beginAccess(for: descriptor.bundleIdentifier)
+    switch access.state {
+    case .revoked:
+      return ([], .accessRevoked)
+    case .granted:
+      guard let lease = access.lease else { return ([], .accessRevoked) }
+      defer { lease.end() }
+      return readProfiles(
+        at: lease.root,
+        for: descriptor,
+        usesSavedGrant: true
+      )
+    case .missing:
+      return readProfiles(
+        at: conventionalRoot,
+        for: descriptor,
+        usesSavedGrant: false
+      )
     }
-    guard fileSystem.fileExists(at: metadataURL) else { return ([], .absent) }
-    let data = try fileSystem.read(from: metadataURL)
-    switch descriptor.family {
-    case .safari:
+  }
+
+  private func readProfiles(
+    at root: URL,
+    for descriptor: BrowserDescriptor,
+    usesSavedGrant: Bool
+  ) -> (profiles: [DiscoveredProfile], status: ProfileMetadataStatus) {
+    guard let marker = BrowserProfileRootValidator.requiredMarker(for: descriptor.family) else {
       return ([], .notApplicable)
-    case .chromium:
-      return (try ChromiumProfileParser.parse(data: data), .loaded)
-    case .firefox:
-      guard let text = String(data: data, encoding: .utf8) else {
-        throw CocoaError(.fileReadInapplicableStringEncoding)
+    }
+    let data: Data
+    do {
+      data = try fileSystem.read(from: root.appending(path: marker))
+    } catch {
+      switch ProfileMetadataReadError(error) {
+      case .absent:
+        return ([], usesSavedGrant ? .accessRevoked : .metadataAbsent)
+      case .accessDenied, .other:
+        return ([], usesSavedGrant ? .accessRevoked : .accessRequired)
       }
-      return (try FirefoxProfileParser.parse(text: text, baseDirectory: rootURL), .loaded)
+    }
+
+    do {
+      switch descriptor.family {
+      case .safari:
+        return ([], .notApplicable)
+      case .chromium:
+        return (try ChromiumProfileParser.parse(data: data), .loaded)
+      case .firefox:
+        guard let text = String(data: data, encoding: .utf8) else {
+          return ([], .metadataDamaged)
+        }
+        return (
+          try FirefoxProfileParser.parse(text: text, baseDirectory: root),
+          .loaded
+        )
+      }
+    } catch {
+      return ([], .metadataDamaged)
+    }
+  }
+
+  private func issue(
+    for status: ProfileMetadataStatus,
+    bundleIdentifier: String
+  ) -> BrowserProfileAccessIssue? {
+    switch status {
+    case .notApplicable, .metadataAbsent, .loaded:
+      nil
+    case .accessRequired:
+      .accessRequired(bundleIdentifier: bundleIdentifier)
+    case .accessRevoked:
+      .accessRevoked(bundleIdentifier: bundleIdentifier)
+    case .metadataDamaged:
+      .metadataDamaged(bundleIdentifier: bundleIdentifier)
     }
   }
 
@@ -338,6 +438,17 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
           mode: .normal
         )
       ]
+    }
+    switch browser.metadataStatus {
+    case .metadataDamaged:
+      return []
+    case .accessRequired, .accessRevoked:
+      return [
+        candidate(browser: browser.application, profile: nil, mode: .normal),
+        candidate(browser: browser.application, profile: nil, mode: .private),
+      ]
+    case .notApplicable, .metadataAbsent, .loaded:
+      break
     }
     let uniqueProfiles = uniqueProfiles(browser.profiles)
     let profiles: [DiscoveredProfile?] =
@@ -412,9 +523,16 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
           && $0.family == browser.application.family
       })
     {
-      if browser.metadataStatus == .unreadable {
-        availability = target.availability
-      } else {
+      switch browser.metadataStatus {
+      case .metadataDamaged:
+        return target
+      case .accessRequired, .accessRevoked:
+        if target.origin == .manual {
+          return target
+        }
+        availability = target.profileIdentity == nil && target.profileIdentifier == nil
+          ? .available : .unavailable
+      case .notApplicable, .metadataAbsent, .loaded:
         let profiles = uniqueProfiles(browser.profiles)
         refreshesMutableLaunchSelector = browser.application.family == .firefox
         switch browser.application.family {
