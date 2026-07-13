@@ -31,6 +31,10 @@ public final class ProfileAccessPanelController: ProfileAccessPresenting {
     }
   }
 
+  isolated deinit {
+    cleanupPresentation()
+  }
+
   public func request(model: AppModel) {
     pendingModel = model
     presentIfPossible()
@@ -53,6 +57,10 @@ public final class ProfileAccessPanelController: ProfileAccessPresenting {
   }
 
   public func dismiss() {
+    cleanupPresentation()
+  }
+
+  private func cleanupPresentation() {
     guard isPresented else { return }
     isPresented = false
     driver.dismissAndRestoreWindows()

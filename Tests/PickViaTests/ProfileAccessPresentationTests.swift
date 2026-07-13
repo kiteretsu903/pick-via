@@ -196,6 +196,47 @@ final class ProfileAccessPresentationTests: XCTestCase {
     XCTAssertFalse(model.isProfileAccessSurfaceActive)
   }
 
+  func testControllerDeinitRestoresSurfaceAndFlushesDeferredURLExactlyOnce() throws {
+    var lifecycleEvents: [String] = []
+    let routing = ProfileAccessRoutingSpy(
+      onAccept: { lifecycleEvents.append("accept:\($0.absoluteString)") }
+    )
+    let driver = ProfileAccessPanelDriverSpy(canPresent: true)
+    driver.onDismissAndRestore = { lifecycleEvents.append("restore") }
+    let model = try ProfileAccessModelFixture.automaticPending(routing: routing)
+    let url = URL(string: "https://example.com/controller-lifetime")!
+    weak var releasedController: ProfileAccessPanelController?
+
+    do {
+      let controller = ProfileAccessPanelController(driver: driver)
+      releasedController = controller
+      controller.requestIfPending(model: model)
+      model.accept(url: url)
+
+      XCTAssertTrue(model.isProfileAccessSurfaceActive)
+      XCTAssertTrue(routing.acceptedURLs.isEmpty)
+    }
+
+    XCTAssertNil(releasedController)
+    XCTAssertEqual(driver.dismissAndRestoreWindowsCallCount, 1)
+    XCTAssertFalse(model.isProfileAccessSurfaceActive)
+    XCTAssertEqual(routing.acceptedURLs, [url])
+    XCTAssertEqual(
+      lifecycleEvents,
+      ["restore", "accept:\(url.absoluteString)"]
+    )
+
+    driver.closePresentedPanel()
+    model.profileAccessDidDismiss()
+
+    XCTAssertEqual(driver.dismissAndRestoreWindowsCallCount, 1)
+    XCTAssertEqual(routing.acceptedURLs, [url])
+    XCTAssertEqual(
+      lifecycleEvents,
+      ["restore", "accept:\(url.absoluteString)"]
+    )
+  }
+
   func testProgrammaticRescanCannotOverlapAnAlreadyPresentedPanel() throws {
     let driver = ProfileAccessPanelDriverSpy(canPresent: true)
     let presenter = ProfileAccessPanelController(driver: driver)
