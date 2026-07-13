@@ -1,2 +1,4 @@
 .agent-artifacts/
 .worktrees/
+.build/
+build/
