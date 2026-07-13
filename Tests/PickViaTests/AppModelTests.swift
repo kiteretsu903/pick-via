@@ -392,6 +392,43 @@ final class AppModelTests: XCTestCase {
     XCTAssertFalse(model.errorMessage?.contains("secret replacement") ?? false)
   }
 
+  func testInvalidFolderReplacementRetainsExistingGrantAndFinishEligibility() throws {
+    let scan = BrowserScanResult(
+      browsers: [
+        Fixtures.installedBrowser(
+          "com.google.Chrome",
+          status: .loaded,
+          profiles: Fixtures.discoveredChromeWithProfiles.profiles
+        )
+      ],
+      profileAccessIssues: []
+    )
+    let access = ProfileAccessManagerSpy(
+      persistence: ["com.google.Chrome": .persistent]
+    )
+    let model = makeModel(
+      catalog: BrowserCatalogStub(scanResult: scan),
+      access: access,
+      profileRootValidator: profileRootValidator(validRoots: [])
+    )
+    try model.load()
+    model.openProfileAccessManager()
+
+    try model.grantProfileAccess(
+      for: "com.google.Chrome",
+      root: URL(fileURLWithPath: "/Users/private/wrong-chrome-folder")
+    )
+
+    XCTAssertEqual(
+      model.profileAccessRows.first?.state,
+      .invalidFolder(requiredMarker: "Local State")
+    )
+    XCTAssertTrue(model.profileAccessRows.first?.hasStoredGrant == true)
+    XCTAssertTrue(model.canFinishProfileAccess)
+    XCTAssertTrue(access.installed.isEmpty)
+    XCTAssertEqual(access.persistence(for: "com.google.Chrome"), .persistent)
+  }
+
   func testValidGrantUpdatesOnlyItsRowWithoutPublishingRoutingConfiguration() throws {
     let scan = BrowserScanResult(
       browsers: [
@@ -646,6 +683,184 @@ final class AppModelTests: XCTestCase {
       ]
     )
     XCTAssertEqual(model.profileAccessPresentation, .presented)
+  }
+
+  func testRemovalWithNonAuthoritativeScanRebuildsRowsFromActualGrantState() throws {
+    let initial = BrowserScanResult(
+      browsers: [
+        Fixtures.installedBrowser(
+          "com.google.Chrome",
+          status: .loaded,
+          profiles: Fixtures.discoveredChromeWithProfiles.profiles
+        ),
+        Fixtures.installedBrowser(
+          "org.mozilla.firefox",
+          status: .loaded,
+          profiles: [
+            DiscoveredProfile(identifier: "default", displayName: "Default", directoryURL: nil)
+          ]
+        ),
+      ],
+      profileAccessIssues: []
+    )
+    let store = ConfigStoreStub(config: Fixtures.editableConfig)
+    let snapshot = MutableTargetSnapshot()
+    snapshot.publish(Fixtures.editableConfig)
+    let routing = RoutingSpy()
+    let access = ProfileAccessManagerSpy(
+      persistence: [
+        "com.google.Chrome": .persistent,
+        "org.mozilla.firefox": .persistent,
+      ]
+    )
+    let catalog = BrowserCatalogStub(
+      reconciled: Fixtures.editableConfig,
+      scanResult: initial
+    )
+    let model = makeModel(
+      store: store,
+      catalog: catalog,
+      routing: routing,
+      targetSnapshot: snapshot,
+      access: access
+    )
+    try model.load()
+    model.openProfileAccessManager()
+    model.profileAccessDidPresent()
+    catalog.setScanResult(
+      BrowserScanResult(browsers: [], profileAccessIssues: [], isAuthoritative: false)
+    )
+    store.resetSaved()
+
+    XCTAssertThrowsError(try model.removeProfileAccess(for: "com.google.Chrome"))
+
+    XCTAssertNil(access.persistence(for: "com.google.Chrome"))
+    XCTAssertEqual(
+      model.profileAccessRows.map(\.state),
+      [
+        .accessNeeded,
+        .granted(profileCount: 1, persistence: .persistent),
+      ]
+    )
+    XCTAssertEqual(model.profileAccessRows.map(\.hasStoredGrant), [false, true])
+    XCTAssertTrue(model.canFinishProfileAccess)
+    XCTAssertEqual(model.config, Fixtures.editableConfig)
+    XCTAssertEqual(snapshot.availableSnapshot().targets.map(\.id), ["work"])
+    XCTAssertTrue(store.saved.isEmpty)
+    XCTAssertEqual(routing.refreshCallCount, 0)
+    XCTAssertEqual(model.profileAccessPresentation, .presented)
+  }
+
+  func testRemovalSaveFailureRebuildsRowsWithoutPublishingStaleFallback() throws {
+    let initial = BrowserScanResult(
+      browsers: [
+        Fixtures.installedBrowser(
+          "com.google.Chrome",
+          status: .loaded,
+          profiles: Fixtures.discoveredChromeWithProfiles.profiles
+        ),
+        Fixtures.installedBrowser(
+          "org.mozilla.firefox",
+          status: .loaded,
+          profiles: [
+            DiscoveredProfile(identifier: "default", displayName: "Default", directoryURL: nil)
+          ]
+        ),
+      ],
+      profileAccessIssues: []
+    )
+    let afterRemoval = BrowserScanResult(
+      browsers: [
+        Fixtures.installedBrowser("com.google.Chrome", status: .accessRequired),
+        Fixtures.installedBrowser(
+          "org.mozilla.firefox",
+          status: .loaded,
+          profiles: [
+            DiscoveredProfile(identifier: "default", displayName: "Default", directoryURL: nil)
+          ]
+        ),
+      ],
+      profileAccessIssues: [.accessRequired(bundleIdentifier: "com.google.Chrome")]
+    )
+    let store = ConfigStoreStub(config: Fixtures.editableConfig)
+    let snapshot = MutableTargetSnapshot()
+    snapshot.publish(Fixtures.editableConfig)
+    let routing = RoutingSpy()
+    let access = ProfileAccessManagerSpy(
+      persistence: [
+        "com.google.Chrome": .persistent,
+        "org.mozilla.firefox": .persistent,
+      ]
+    )
+    let catalog = BrowserCatalogStub(
+      reconciled: Fixtures.editableConfig,
+      scanResult: initial
+    )
+    let model = makeModel(
+      store: store,
+      catalog: catalog,
+      routing: routing,
+      targetSnapshot: snapshot,
+      access: access
+    )
+    try model.load()
+    model.openProfileAccessManager()
+    model.profileAccessDidPresent()
+    catalog.reconciled = Fixtures.profileEditConfig
+    catalog.setScanResult(afterRemoval)
+    store.saveError = TestError.denied
+    store.resetSaved()
+
+    XCTAssertThrowsError(try model.removeProfileAccess(for: "com.google.Chrome"))
+
+    XCTAssertNil(access.persistence(for: "com.google.Chrome"))
+    XCTAssertEqual(
+      model.profileAccessRows.map(\.state),
+      [
+        .accessNeeded,
+        .granted(profileCount: 1, persistence: .persistent),
+      ]
+    )
+    XCTAssertEqual(model.profileAccessRows.map(\.hasStoredGrant), [false, true])
+    XCTAssertTrue(model.canFinishProfileAccess)
+    XCTAssertEqual(model.config, Fixtures.editableConfig)
+    XCTAssertEqual(snapshot.availableSnapshot().targets.map(\.id), ["work"])
+    XCTAssertTrue(store.saved.isEmpty)
+    XCTAssertEqual(routing.refreshCallCount, 0)
+    XCTAssertEqual(model.profileAccessPresentation, .presented)
+    XCTAssertFalse(model.errorMessage?.contains("denied") ?? false)
+  }
+
+  func testNonAuthoritativeUserRescanRetainsManualManagerInventory() throws {
+    let initial = BrowserScanResult(
+      browsers: [
+        Fixtures.installedBrowser(
+          "com.google.Chrome",
+          status: .loaded,
+          profiles: Fixtures.discoveredChromeWithProfiles.profiles
+        )
+      ],
+      profileAccessIssues: []
+    )
+    let access = ProfileAccessManagerSpy(
+      persistence: ["com.google.Chrome": .persistent]
+    )
+    let catalog = BrowserCatalogStub(scanResult: initial)
+    let model = makeModel(catalog: catalog, access: access)
+    try model.load()
+    catalog.setScanResult(
+      BrowserScanResult(browsers: [], profileAccessIssues: [], isAuthoritative: false)
+    )
+
+    try model.userRequestedRescan()
+    model.openProfileAccessManager()
+
+    XCTAssertEqual(model.profileAccessRows.map(\.bundleIdentifier), ["com.google.Chrome"])
+    XCTAssertEqual(
+      model.profileAccessRows.first?.state,
+      .granted(profileCount: 2, persistence: .persistent)
+    )
+    XCTAssertEqual(model.profileAccessPresentation, .manualPending)
   }
 
   func testThirdOnboardingStepIsDisabledWithoutValidEnabledTarget() throws {
@@ -1537,7 +1752,7 @@ private final class ConfigStoreStub: ConfigStoring, @unchecked Sendable {
   var config: PickViaConfig
   private(set) var loadCallCount = 0
   private(set) var saved: [PickViaConfig] = []
-  let saveError: Error?
+  var saveError: Error?
   let configuredLoadOutcome: ConfigLoadOutcome?
 
   init(

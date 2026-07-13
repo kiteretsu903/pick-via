@@ -82,7 +82,7 @@ public final class AppModel {
   private let profileAccess: any ProfileAccessManaging
   private let profileRootValidator: BrowserProfileRootValidator
   private var isLoaded = false
-  private var latestBrowserScan: BrowserScanResult?
+  private var latestAuthoritativeBrowserScan: BrowserScanResult?
 
   public init(
     configStore: any ConfigStoring,
@@ -129,8 +129,8 @@ public final class AppModel {
 
     if configurationRecovery != .loadFailed {
       let scan = browserCatalog.scanResult()
-      latestBrowserScan = scan
       if scan.isAuthoritative {
+        latestAuthoritativeBrowserScan = scan
         do {
           try commitAuthoritativeScan(scan, base: loadedConfig, refreshRouting: false)
           didCommitAuthoritativeScan = true
@@ -177,12 +177,12 @@ public final class AppModel {
 
   public func rescan() throws {
     let scan = browserCatalog.scanResult()
-    latestBrowserScan = scan
     guard scan.isAuthoritative else {
       errorMessage = "Browser discovery could not be completed. Existing targets were preserved."
       updateAutomaticProfileAccessRows(from: scan)
       return
     }
+    latestAuthoritativeBrowserScan = scan
     do {
       try commitAuthoritativeScan(scan, base: config, refreshRouting: true)
     } catch {
@@ -198,7 +198,7 @@ public final class AppModel {
   }
 
   public func openProfileAccessManager() {
-    profileAccessRows = manualProfileAccessRows(from: latestBrowserScan)
+    profileAccessRows = manualProfileAccessRows(from: latestAuthoritativeBrowserScan)
     profileAccessPresentation = .manualPending
   }
 
@@ -254,14 +254,16 @@ public final class AppModel {
   public func removeProfileAccess(for bundleIdentifier: String) throws {
     try profileAccess.removeGrant(for: bundleIdentifier)
     let scan = browserCatalog.scanResult()
-    latestBrowserScan = scan
     guard scan.isAuthoritative else {
+      rebuildProfileAccessRowsAfterRemoval(using: latestAuthoritativeBrowserScan)
       errorMessage = "Browser discovery could not be completed. Existing targets were preserved."
       throw ProfileAccessFlowError.scanNotAuthoritative
     }
+    latestAuthoritativeBrowserScan = scan
     do {
       try commitAuthoritativeScan(scan, base: config, refreshRouting: true)
     } catch {
+      rebuildProfileAccessRowsAfterRemoval(using: scan)
       errorMessage = "Browser discovery produced a configuration that could not be committed."
       throw error
     }
@@ -274,12 +276,12 @@ public final class AppModel {
 
   public func finishProfileAccessAndRescan() throws {
     let scan = browserCatalog.scanResult()
-    latestBrowserScan = scan
     guard scan.isAuthoritative else {
       errorMessage = "Browser discovery could not be completed. Existing targets were preserved."
       profileAccessPresentation = .presented
       throw ProfileAccessFlowError.scanNotAuthoritative
     }
+    latestAuthoritativeBrowserScan = scan
     do {
       try commitAuthoritativeScan(scan, base: config, refreshRouting: true)
     } catch {
@@ -585,6 +587,10 @@ public final class AppModel {
     case .notApplicable, .metadataAbsent, .accessRequired:
       .accessNeeded
     }
+  }
+
+  private func rebuildProfileAccessRowsAfterRemoval(using scan: BrowserScanResult?) {
+    profileAccessRows = manualProfileAccessRows(from: scan)
   }
 
   private func updateAutomaticProfileAccessRows(from scan: BrowserScanResult) {
