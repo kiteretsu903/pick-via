@@ -513,6 +513,113 @@ final class AppModelTests: XCTestCase {
     XCTAssertTrue(model.profileAccessRows.first?.hasStoredGrant == true)
   }
 
+  func testPersistentGrantRemainsGrantedWhenManagerReopensBeforeFullScan() throws {
+    let scan = BrowserScanResult(
+      browsers: [Fixtures.installedBrowser("com.google.Chrome", status: .accessRequired)],
+      profileAccessIssues: [.accessRequired(bundleIdentifier: "com.google.Chrome")]
+    )
+    let catalog = BrowserCatalogStub(
+      scanResult: scan,
+      targeted: ["com.google.Chrome": Fixtures.discoveredChromeWithProfiles]
+    )
+    let model = makeModel(
+      catalog: catalog,
+      access: ProfileAccessManagerSpy(installOutcome: .persistent),
+      profileRootValidator: profileRootValidator(validRoots: ["/Chrome"])
+    )
+    try model.load()
+    model.profileAccessDidPresent()
+    try model.grantProfileAccess(
+      for: "com.google.Chrome",
+      root: URL(fileURLWithPath: "/Chrome")
+    )
+
+    model.closeProfileAccess()
+    model.openProfileAccessManager()
+
+    XCTAssertEqual(
+      model.profileAccessRows.first?.state,
+      .granted(profileCount: 2, persistence: .persistent)
+    )
+    XCTAssertTrue(model.profileAccessRows.first?.hasStoredGrant == true)
+    XCTAssertTrue(model.canFinishProfileAccess)
+    XCTAssertEqual(model.profileAccessPresentation, .manualPending)
+  }
+
+  func testSessionOnlyGrantRemainsGrantedWhenManagerReopensBeforeFullScan() throws {
+    let scan = BrowserScanResult(
+      browsers: [Fixtures.installedBrowser("com.google.Chrome", status: .accessRequired)],
+      profileAccessIssues: [.accessRequired(bundleIdentifier: "com.google.Chrome")]
+    )
+    let catalog = BrowserCatalogStub(
+      scanResult: scan,
+      targeted: ["com.google.Chrome": Fixtures.discoveredChrome]
+    )
+    let model = makeModel(
+      catalog: catalog,
+      access: ProfileAccessManagerSpy(installOutcome: .currentSessionOnly),
+      profileRootValidator: profileRootValidator(validRoots: ["/Chrome"])
+    )
+    try model.load()
+    model.profileAccessDidPresent()
+    try model.grantProfileAccess(
+      for: "com.google.Chrome",
+      root: URL(fileURLWithPath: "/Chrome")
+    )
+
+    model.closeProfileAccess()
+    model.openProfileAccessManager()
+
+    XCTAssertEqual(
+      model.profileAccessRows.first?.state,
+      .granted(profileCount: 1, persistence: .currentSessionOnly)
+    )
+    XCTAssertTrue(model.profileAccessRows.first?.hasStoredGrant == true)
+    XCTAssertTrue(model.canFinishProfileAccess)
+    XCTAssertEqual(model.profileAccessPresentation, .manualPending)
+  }
+
+  func testAuthoritativeFullScanReplacesTargetedGrantProfileCount() throws {
+    let accessRequired = BrowserScanResult(
+      browsers: [Fixtures.installedBrowser("com.google.Chrome", status: .accessRequired)],
+      profileAccessIssues: [.accessRequired(bundleIdentifier: "com.google.Chrome")]
+    )
+    let loaded = BrowserScanResult(
+      browsers: [
+        Fixtures.installedBrowser(
+          "com.google.Chrome",
+          status: .loaded,
+          profiles: Fixtures.discoveredChrome.profiles
+        )
+      ],
+      profileAccessIssues: []
+    )
+    let catalog = BrowserCatalogStub(
+      scanResult: accessRequired,
+      targeted: ["com.google.Chrome": Fixtures.discoveredChromeWithProfiles]
+    )
+    let model = makeModel(
+      catalog: catalog,
+      access: ProfileAccessManagerSpy(installOutcome: .persistent),
+      profileRootValidator: profileRootValidator(validRoots: ["/Chrome"])
+    )
+    try model.load()
+    try model.grantProfileAccess(
+      for: "com.google.Chrome",
+      root: URL(fileURLWithPath: "/Chrome")
+    )
+    catalog.setScanResult(loaded)
+
+    try model.rescan()
+    model.openProfileAccessManager()
+
+    XCTAssertEqual(
+      model.profileAccessRows.first?.state,
+      .granted(profileCount: 1, persistence: .persistent)
+    )
+    XCTAssertTrue(model.canFinishProfileAccess)
+  }
+
   func testFinishPerformsOneAuthoritativeValidateSavePublishTransaction() throws {
     let accessRequired = BrowserScanResult(
       browsers: [Fixtures.installedBrowser("com.google.Chrome", status: .accessRequired)],

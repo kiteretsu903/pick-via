@@ -83,6 +83,7 @@ public final class AppModel {
   private let profileRootValidator: BrowserProfileRootValidator
   private var isLoaded = false
   private var latestAuthoritativeBrowserScan: BrowserScanResult?
+  private var targetedProfileAccessOverlays: [String: TargetedProfileAccessOverlay] = [:]
 
   public init(
     configStore: any ConfigStoring,
@@ -130,7 +131,7 @@ public final class AppModel {
     if configurationRecovery != .loadFailed {
       let scan = browserCatalog.scanResult()
       if scan.isAuthoritative {
-        latestAuthoritativeBrowserScan = scan
+        recordAuthoritativeScan(scan)
         do {
           try commitAuthoritativeScan(scan, base: loadedConfig, refreshRouting: false)
           didCommitAuthoritativeScan = true
@@ -182,7 +183,7 @@ public final class AppModel {
       updateAutomaticProfileAccessRows(from: scan)
       return
     }
-    latestAuthoritativeBrowserScan = scan
+    recordAuthoritativeScan(scan)
     do {
       try commitAuthoritativeScan(scan, base: config, refreshRouting: true)
     } catch {
@@ -243,6 +244,9 @@ public final class AppModel {
     }
 
     let targeted = browserCatalog.scanResult(for: bundleIdentifier)
+    targetedProfileAccessOverlays[bundleIdentifier] = TargetedProfileAccessOverlay(
+      browser: targeted
+    )
     profileAccessRows[index].state = targetedProfileAccessState(
       targeted,
       persistence: persistence
@@ -253,13 +257,14 @@ public final class AppModel {
 
   public func removeProfileAccess(for bundleIdentifier: String) throws {
     try profileAccess.removeGrant(for: bundleIdentifier)
+    targetedProfileAccessOverlays[bundleIdentifier] = nil
     let scan = browserCatalog.scanResult()
     guard scan.isAuthoritative else {
       rebuildProfileAccessRowsAfterRemoval(using: latestAuthoritativeBrowserScan)
       errorMessage = "Browser discovery could not be completed. Existing targets were preserved."
       throw ProfileAccessFlowError.scanNotAuthoritative
     }
-    latestAuthoritativeBrowserScan = scan
+    recordAuthoritativeScan(scan)
     do {
       try commitAuthoritativeScan(scan, base: config, refreshRouting: true)
     } catch {
@@ -281,7 +286,7 @@ public final class AppModel {
       profileAccessPresentation = .presented
       throw ProfileAccessFlowError.scanNotAuthoritative
     }
-    latestAuthoritativeBrowserScan = scan
+    recordAuthoritativeScan(scan)
     do {
       try commitAuthoritativeScan(scan, base: config, refreshRouting: true)
     } catch {
@@ -589,6 +594,11 @@ public final class AppModel {
     }
   }
 
+  private func recordAuthoritativeScan(_ scan: BrowserScanResult) {
+    latestAuthoritativeBrowserScan = scan
+    targetedProfileAccessOverlays.removeAll()
+  }
+
   private func rebuildProfileAccessRowsAfterRemoval(using scan: BrowserScanResult?) {
     profileAccessRows = manualProfileAccessRows(from: scan)
   }
@@ -628,15 +638,26 @@ public final class AppModel {
         for: browser.application.bundleIdentifier
       )
       let state: BrowserProfileAccessRowState
-      switch browser.metadataStatus {
-      case .loaded where persistence != nil:
-        state = .granted(profileCount: browser.profiles.count, persistence: persistence!)
-      case .accessRevoked:
-        state = .accessRevoked
-      case .metadataDamaged:
-        state = .metadataDamaged
-      case .notApplicable, .metadataAbsent, .loaded, .accessRequired:
-        state = .accessNeeded
+      if let persistence,
+        let targetedOverlay = targetedProfileAccessOverlays[
+          browser.application.bundleIdentifier
+        ]
+      {
+        state = targetedProfileAccessState(
+          targetedOverlay.browser,
+          persistence: persistence
+        )
+      } else {
+        switch browser.metadataStatus {
+        case .loaded where persistence != nil:
+          state = .granted(profileCount: browser.profiles.count, persistence: persistence!)
+        case .accessRevoked:
+          state = .accessRevoked
+        case .metadataDamaged:
+          state = .metadataDamaged
+        case .notApplicable, .metadataAbsent, .loaded, .accessRequired:
+          state = .accessNeeded
+        }
       }
       return profileAccessRow(for: browser, state: state)
     }
@@ -679,6 +700,10 @@ public final class AppModel {
     }
     return bounded
   }
+}
+
+private struct TargetedProfileAccessOverlay {
+  let browser: DiscoveredBrowser?
 }
 
 public enum TargetEditingError: Error, Equatable {
