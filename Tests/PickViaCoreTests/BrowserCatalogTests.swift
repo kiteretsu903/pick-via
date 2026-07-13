@@ -214,6 +214,173 @@ struct BrowserCatalogTests {
     #expect(Set(result.targets.compactMap(\.profileIdentity)).count == 2)
   }
 
+  @Test func duplicateFirefoxPathMetadataProducesOneTargetPair() {
+    let browser = firefox(
+      profiles: [
+        firefoxProfile(path: "/profiles/same", name: "First Name"),
+        firefoxProfile(path: "/profiles/same", name: "Duplicate Name"),
+      ])
+
+    let result = BrowserCatalog.reconcile(discovered: [browser], with: .initial)
+
+    #expect(result.targets.count == 2)
+    #expect(Set(result.targets.map(\.id)).count == 2)
+    #expect(Set(result.targets.compactMap(\.profileIdentity)) == ["/profiles/same"])
+  }
+
+  @Test func duplicateFirefoxNamesDoNotReuseLegacyDetectedCustomization() {
+    let legacy = BrowserTarget(
+      id: BrowserCatalog.targetID(
+        bundleIdentifier: "org.mozilla.firefox",
+        profileIdentifier: "Same",
+        mode: .normal
+      ),
+      browserID: "org.mozilla.firefox",
+      label: "Customized Legacy",
+      profileIdentifier: "Same",
+      profileDisplayName: "Same",
+      mode: .normal,
+      isEnabled: false,
+      sortOrder: 8,
+      origin: .detected,
+      availability: .available
+    )
+    let browser = firefox(
+      profiles: [
+        firefoxProfile(path: "/profiles/one", name: "Same"),
+        firefoxProfile(path: "/profiles/two", name: "Same"),
+      ])
+    let existing = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [browser.application],
+      targets: [legacy]
+    )
+
+    let result = BrowserCatalog.reconcile(discovered: [browser], with: existing)
+
+    #expect(
+      result.targets.filter { $0.profileIdentity != nil }.allSatisfy {
+        $0.label != "Customized Legacy"
+      })
+  }
+
+  @Test func uniquelyNamedLegacyManualFirefoxTargetMigratesToDurablePath() throws {
+    let path = URL(fileURLWithPath: "/profiles/unique", isDirectory: true).standardizedFileURL
+    let manual = BrowserTarget(
+      id: "manual-firefox-legacy",
+      browserID: "org.mozilla.firefox",
+      label: "Pinned",
+      profileIdentifier: "Unique Name",
+      profileDisplayName: "Unique Name",
+      mode: .private,
+      isEnabled: true,
+      sortOrder: 12,
+      origin: .manual,
+      availability: .available
+    )
+    let browser = firefox(profilePath: path, profileName: "Unique Name")
+    let existing = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [browser.application],
+      targets: [manual]
+    )
+
+    let result = BrowserCatalog.reconcile(discovered: [browser], with: existing)
+    let migrated = try #require(result.targets.first { $0.id == manual.id })
+
+    #expect(migrated.profileIdentifier == "Unique Name")
+    #expect(migrated.profileIdentity == path.path)
+    #expect(migrated.availability == .available)
+  }
+
+  @Test func duplicateMetadataForOnePathStillMigratesUniqueLegacyManualTarget() throws {
+    let path = URL(fileURLWithPath: "/profiles/one-path", isDirectory: true).standardizedFileURL
+    let manual = BrowserTarget(
+      id: "manual-firefox-duplicate-metadata",
+      browserID: "org.mozilla.firefox",
+      label: "Pinned",
+      profileIdentifier: "Same",
+      profileDisplayName: "Same",
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 13,
+      origin: .manual,
+      availability: .available
+    )
+    let duplicate = firefoxProfile(path: path.path, name: "Same")
+    let browser = firefox(profiles: [duplicate, duplicate])
+    let existing = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [browser.application],
+      targets: [manual]
+    )
+
+    let result = BrowserCatalog.reconcile(discovered: [browser], with: existing)
+    let migrated = try #require(result.targets.first { $0.id == manual.id })
+
+    #expect(migrated.profileIdentity == path.path)
+    #expect(migrated.availability == .available)
+  }
+
+  @Test func duplicateNameLegacyManualFirefoxTargetDoesNotGuessDurablePath() throws {
+    let manual = BrowserTarget(
+      id: "manual-firefox-legacy",
+      browserID: "org.mozilla.firefox",
+      label: "Pinned",
+      profileIdentifier: "Same",
+      profileDisplayName: "Same",
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 12,
+      origin: .manual,
+      availability: .available
+    )
+    let browser = firefox(
+      profiles: [
+        firefoxProfile(path: "/profiles/one", name: "Same"),
+        firefoxProfile(path: "/profiles/two", name: "Same"),
+      ])
+    let existing = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [browser.application],
+      targets: [manual]
+    )
+
+    let result = BrowserCatalog.reconcile(discovered: [browser], with: existing)
+    let unresolved = try #require(result.targets.first { $0.id == manual.id })
+
+    #expect(unresolved.profileIdentity == nil)
+    #expect(unresolved.availability == .unavailable)
+  }
+
+  @Test func unprofiledManualChromiumTargetStaysAvailableWhenProfilesExist() throws {
+    let manual = unprofiledManualTarget(browserID: "com.google.Chrome")
+    let browser = chrome(profileID: "Profile 1", profileName: "Work")
+    let existing = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [browser.application],
+      targets: [manual]
+    )
+
+    let result = BrowserCatalog.reconcile(discovered: [browser], with: existing)
+
+    #expect(try #require(result.targets.first { $0.id == manual.id }).availability == .available)
+  }
+
+  @Test func unprofiledManualFirefoxTargetStaysAvailableWhenProfilesExist() throws {
+    let manual = unprofiledManualTarget(browserID: "org.mozilla.firefox")
+    let browser = firefox(profilePath: URL(fileURLWithPath: "/profiles/work"), profileName: "Work")
+    let existing = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [browser.application],
+      targets: [manual]
+    )
+
+    let result = BrowserCatalog.reconcile(discovered: [browser], with: existing)
+
+    #expect(try #require(result.targets.first { $0.id == manual.id }).availability == .available)
+  }
+
   @Test func firefoxDisappearanceMarksNormalPrivateAndManualTargetsUnavailable() throws {
     let path = URL(fileURLWithPath: "/profiles/work", isDirectory: true).standardizedFileURL
     let initial = BrowserCatalog.reconcile(
@@ -510,6 +677,22 @@ private func manualTarget(
     sortOrder: 37,
     origin: .manual,
     availability: availability
+  )
+}
+
+private func unprofiledManualTarget(browserID: String) -> BrowserTarget {
+  BrowserTarget(
+    id: "manual-default-\(browserID)",
+    browserID: browserID,
+    label: "Browser Default",
+    profileIdentifier: nil,
+    profileDisplayName: nil,
+    profileIdentity: nil,
+    mode: .normal,
+    isEnabled: true,
+    sortOrder: 40,
+    origin: .manual,
+    availability: .unavailable
   )
 }
 

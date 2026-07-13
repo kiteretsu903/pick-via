@@ -106,7 +106,12 @@ public struct BrowserLauncher: BrowserLaunching, Sendable {
 
     switch application.family {
     case .safari:
-      guard target.profileIdentifier == nil, target.mode == .normal else {
+      guard
+        target.profileIdentifier == nil,
+        target.profileDisplayName == nil,
+        target.profileIdentity == nil,
+        target.mode == .normal
+      else {
         throw Self.launchFailure
       }
       return .workspace(application: trustedApplicationURL, url: url)
@@ -142,7 +147,9 @@ public struct BrowserLauncher: BrowserLaunching, Sendable {
         throw Self.launchFailure
       }
       var arguments: [String] = []
-      if let profile = target.profileIdentifier {
+      if let profilePath = target.profileIdentity {
+        arguments.append(contentsOf: ["-profile", profilePath])
+      } else if let profile = target.profileIdentifier {
         arguments.append(contentsOf: ["-P", profile])
       }
       arguments.append(target.mode == .private ? "-private-window" : "-new-tab")
@@ -152,9 +159,11 @@ public struct BrowserLauncher: BrowserLaunching, Sendable {
   }
 
   private func trustedExecutable(applicationURL: URL, relativePath: String) -> URL? {
-    let application = applicationURL.standardizedFileURL
+    let application = applicationURL.standardizedFileURL.resolvingSymlinksInPath()
     guard application.isFileURL, application.pathExtension == "app" else { return nil }
-    let executable = application.appending(path: relativePath).standardizedFileURL
+    let executable = application.appending(path: relativePath)
+      .standardizedFileURL
+      .resolvingSymlinksInPath()
     let bundlePrefix = application.path.hasSuffix("/") ? application.path : application.path + "/"
     guard executable.path.hasPrefix(bundlePrefix) else { return nil }
     return executable

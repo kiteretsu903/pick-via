@@ -133,6 +133,27 @@ struct BrowserLauncherTests {
     #expect(arguments == ["-P", "work", "-new-tab", "https://example.com"])
   }
 
+  @Test func firefoxDurableIdentityUsesPathSelectorInsteadOfDuplicateProfileName() throws {
+    let launcher = testLauncher()
+    let profilePath = "/profiles/one.default-release"
+
+    let plan = try launcher.makePlan(
+      url: url,
+      application: application(family: .firefox),
+      target: target(
+        family: .firefox,
+        profile: "Same Name",
+        profileIdentity: profilePath
+      )
+    )
+
+    guard case .executable(_, let arguments) = plan else {
+      Issue.record("Expected executable launch plan")
+      return
+    }
+    #expect(arguments == ["-profile", profilePath, "-new-tab", url.absoluteString])
+  }
+
   @Test func firefoxPrivatePlanUsesExactProfilePrivateWindowAndURLTokens() throws {
     let launcher = testLauncher()
 
@@ -325,6 +346,45 @@ struct BrowserLauncherTests {
     #expect(arguments[3] == unicodeURL.absoluteString)
   }
 
+  @Test func symlinkedExecutableEscapingResolvedBundleIsRejected() throws {
+    let fileManager = FileManager.default
+    let root = fileManager.temporaryDirectory.appending(
+      path: "PickViaLauncherTests-\(UUID().uuidString)",
+      directoryHint: .isDirectory
+    )
+    defer { try? fileManager.removeItem(at: root) }
+
+    let realBundle = root.appending(path: "Real Chrome.app", directoryHint: .isDirectory)
+    let executableDirectory = realBundle.appending(
+      path: "Contents/MacOS", directoryHint: .isDirectory)
+    let outsideExecutable = root.appending(path: "outside-executable")
+    let bundleSymlink = root.appending(path: "Google Chrome.app", directoryHint: .isDirectory)
+    try fileManager.createDirectory(at: executableDirectory, withIntermediateDirectories: true)
+    try Data().write(to: outsideExecutable)
+    try fileManager.createSymbolicLink(
+      at: executableDirectory.appending(path: "Google Chrome"),
+      withDestinationURL: outsideExecutable
+    )
+    try fileManager.createSymbolicLink(at: bundleSymlink, withDestinationURL: realBundle)
+
+    let launcher = BrowserLauncher(
+      trustedBrowserResolver: StubTrustedBrowserResolver(urls: [
+        "com.google.Chrome": bundleSymlink
+      ]),
+      processRunner: RecordingProcessRunner(),
+      workspace: RecordingWorkspace(),
+      executableValidator: StubExecutableValidator(isExecutable: true)
+    )
+
+    #expect(throws: LaunchFailure.self) {
+      try launcher.makePlan(
+        url: url,
+        application: application(family: .chromium),
+        target: target(family: .chromium, profile: nil)
+      )
+    }
+  }
+
   @Test func executeDispatchesExecutablePlanToInjectedProcessRunner() async throws {
     let process = RecordingProcessRunner()
     let launcher = BrowserLauncher(processRunner: process, workspace: RecordingWorkspace())
@@ -405,6 +465,7 @@ private func target(
   family: BrowserFamily? = nil,
   browserID: BrowserApplication.ID? = nil,
   profile: String?,
+  profileIdentity: String? = nil,
   mode: BrowserMode = .normal,
   availability: BrowserTargetAvailability = .available
 ) -> BrowserTarget {
@@ -415,6 +476,7 @@ private func target(
     label: "Target",
     profileIdentifier: profile,
     profileDisplayName: profile,
+    profileIdentity: profileIdentity,
     mode: mode,
     isEnabled: true,
     sortOrder: 0,

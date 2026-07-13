@@ -40,5 +40,6 @@ public struct SettingsRootView: View {
     }
     .environment(model)
     .frame(minWidth: 720, minHeight: 480)
+    .onDisappear { model.settingsDidClose() }
   }
 }

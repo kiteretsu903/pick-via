@@ -55,6 +55,11 @@ final class ConfigStoreTests: XCTestCase {
         browsers: [validChrome],
         targets: [copyTarget(validTarget, id: "bad-profile", profileIdentity: "  ")]
       ),
+      PickViaConfig(
+        schemaVersion: 1,
+        browsers: [validSafari],
+        targets: [validSafariTargetWithMetadata]
+      ),
     ]
 
     for config in corruptConfigurations {
@@ -247,6 +252,30 @@ private let validTarget = BrowserTarget(
   label: "Personal",
   profileIdentifier: "Default",
   profileDisplayName: "Personal",
+  mode: .normal,
+  isEnabled: true,
+  sortOrder: 0,
+  origin: .detected,
+  availability: .available
+)
+
+private let validSafari = BrowserApplication(
+  id: "com.apple.Safari",
+  family: .safari,
+  displayName: "Safari",
+  bundleIdentifier: "com.apple.Safari",
+  applicationURL: URL(fileURLWithPath: "/Applications/Safari.app"),
+  executableURL: nil,
+  isAvailable: true
+)
+
+private let validSafariTargetWithMetadata = BrowserTarget(
+  id: "com.apple.Safari||normal",
+  browserID: validSafari.id,
+  label: "Safari",
+  profileIdentifier: nil,
+  profileDisplayName: "Unexpected",
+  profileIdentity: "/unexpected/profile",
   mode: .normal,
   isEnabled: true,
   sortOrder: 0,

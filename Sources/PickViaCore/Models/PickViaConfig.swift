@@ -21,7 +21,7 @@ public struct PickViaConfig: Codable, Equatable, Sendable {
     targets: []
   )
 
-  func validatedAndMigrated() throws -> PickViaConfig {
+  public func validatedAndMigrated() throws -> PickViaConfig {
     guard (0...Self.currentSchemaVersion).contains(schemaVersion) else {
       throw ConfigDocumentError.unsupportedSchema
     }
@@ -74,7 +74,8 @@ public struct PickViaConfig: Codable, Equatable, Sendable {
         throw ConfigDocumentError.invalidTarget
       }
       if browser.family == .safari,
-        target.profileIdentifier != nil || target.mode != .normal
+        target.profileIdentifier != nil || target.profileDisplayName != nil
+          || target.profileIdentity != nil || target.mode != .normal
       {
         throw ConfigDocumentError.invalidTarget
       }

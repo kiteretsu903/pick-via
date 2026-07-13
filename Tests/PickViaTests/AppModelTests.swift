@@ -66,6 +66,47 @@ final class AppModelTests: XCTestCase {
     try model.load()
 
     XCTAssertEqual(model.configurationRecovery, .recoveredCorruption)
+    XCTAssertNotNil(model.configurationRecoveryMessage)
+    XCTAssertNil(model.errorMessage)
+  }
+
+  func testValidURLDoesNotClearPersistentConfigurationRecoveryMessage() throws {
+    let routing = RoutingSpy()
+    let model = makeModel(
+      store: ConfigStoreStub(
+        config: .initial,
+        loadOutcome: .recoveredCorruption(.initial)
+      ),
+      routing: routing
+    )
+    try model.load()
+
+    model.accept(url: URL(string: "https://example.com/recovered")!)
+
+    XCTAssertEqual(routing.acceptedURLs, [URL(string: "https://example.com/recovered")!])
+    XCTAssertNotNil(model.configurationRecoveryMessage)
+  }
+
+  func testInvalidStartupReconciliationPreservesLastValidConfigAndSnapshot() throws {
+    let valid = Fixtures.editableConfig
+    let invalid = PickViaConfig(
+      schemaVersion: 1,
+      browsers: valid.browsers,
+      targets: [valid.targets[0], valid.targets[0]]
+    )
+    let store = ConfigStoreStub(config: valid)
+    let snapshot = MutableTargetSnapshot()
+    let catalog = BrowserCatalogStub(
+      discovered: [Fixtures.discoveredChrome],
+      reconciled: invalid
+    )
+    let model = makeModel(store: store, catalog: catalog, targetSnapshot: snapshot)
+
+    try model.load()
+
+    XCTAssertEqual(model.config, valid)
+    XCTAssertEqual(snapshot.availableSnapshot().targets.map(\.id), ["work"])
+    XCTAssertTrue(store.saved.isEmpty)
     XCTAssertNotNil(model.errorMessage)
   }
 
@@ -97,11 +138,13 @@ final class AppModelTests: XCTestCase {
   }
 
   func testRescanReconcilesAndPersistsConfiguration() throws {
-    let store = ConfigStoreStub(config: Fixtures.config)
+    let store = ConfigStoreStub(config: Fixtures.editableConfig)
     let reconciled = PickViaConfig(
       schemaVersion: 1,
-      browsers: Fixtures.config.browsers,
-      targets: [Fixtures.target(label: "Reconciled")]
+      browsers: Fixtures.editableConfig.browsers,
+      targets: Fixtures.editableConfig.targets.map {
+        $0.id == "work" ? Fixtures.copy($0, label: "Reconciled") : $0
+      }
     )
     let catalog = BrowserCatalogStub(discovered: [], reconciled: reconciled)
     let model = makeModel(store: store, catalog: catalog)
@@ -305,6 +348,25 @@ final class AppModelTests: XCTestCase {
     XCTAssertNil(model.errorMessage)
   }
 
+  func testMultiCharacterLabelPersistenceDoesNotRefreshChooserUntilSettingsClose() throws {
+    let routing = RoutingSpy()
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.editableConfig),
+      routing: routing
+    )
+    try model.load()
+
+    try model.renameTarget(id: "work", label: "C")
+    try model.renameTarget(id: "work", label: "Cl")
+    try model.renameTarget(id: "work", label: "Client")
+
+    XCTAssertEqual(routing.refreshCallCount, 0)
+
+    model.settingsDidClose()
+
+    XCTAssertEqual(routing.refreshCallCount, 1)
+  }
+
   func testChooserPreviewNeverUsesAcceptedURLPath() throws {
     let routing = RoutingSpy()
     let model = makeModel(routing: routing)
@@ -328,7 +390,7 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(store.saved.last, model.config)
   }
 
-  func testTargetEditRefreshesRetainedRoutingRequest() throws {
+  func testTargetEditPersistsWithoutRefreshingChooserBeforeSettingsClose() throws {
     let routing = RoutingSpy()
     let model = makeModel(
       store: ConfigStoreStub(config: Fixtures.editableConfig),
@@ -338,7 +400,7 @@ final class AppModelTests: XCTestCase {
 
     try model.renameTarget(id: "work", label: "Client Work")
 
-    XCTAssertEqual(routing.refreshCallCount, 1)
+    XCTAssertEqual(routing.refreshCallCount, 0)
   }
 
   func testBlankLabelIsRejectedWithoutMutatingConfig() throws {
@@ -619,6 +681,78 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(store.saved.count, 2)
   }
 
+  func testFirefoxManualCreationStoresMutableNameAndDurablePickerIdentitySeparately() throws {
+    let path = URL(fileURLWithPath: "/profiles/one", isDirectory: true).standardizedFileURL
+    let discovered = Fixtures.discoveredFirefox(
+      profiles: [
+        DiscoveredProfile(
+          identifier: path.path,
+          displayName: "Same Name",
+          directoryURL: path,
+          launchIdentifier: "Same Name"
+        )
+      ])
+    let config = BrowserCatalog.reconcile(discovered: [discovered], with: .initial)
+    let model = makeModel(store: ConfigStoreStub(config: config))
+    try model.load()
+
+    let id = try model.addManualTarget(
+      browserID: discovered.application.id,
+      profileIdentifier: path.path,
+      label: "Pinned path",
+      mode: .normal
+    )
+
+    let manual = try XCTUnwrap(model.targets.first { $0.id == id })
+    XCTAssertEqual(manual.profileIdentifier, "Same Name")
+    XCTAssertEqual(manual.profileIdentity, path.path)
+    XCTAssertEqual(manual.profileDisplayName, "Same Name")
+  }
+
+  func testUnprofiledManualTargetsSurviveRescanAndRemainRoutableForBothFamilies() throws {
+    let firefoxPath = URL(fileURLWithPath: "/profiles/work", isDirectory: true).standardizedFileURL
+    let cases = [
+      Fixtures.discoveredChromeWithProfiles,
+      Fixtures.discoveredFirefox(
+        profiles: [
+          DiscoveredProfile(
+            identifier: firefoxPath.path,
+            displayName: "Work",
+            directoryURL: firefoxPath,
+            launchIdentifier: "Work"
+          )
+        ]),
+    ]
+
+    for discovered in cases {
+      let initial = BrowserCatalog.reconcile(discovered: [discovered], with: .initial)
+      let store = ConfigStoreStub(config: initial)
+      let routing = RoutingSpy()
+      let catalog = BrowserCatalogStub(
+        discovered: [discovered],
+        reconciler: { BrowserCatalog.reconcile(discovered: [discovered], with: $0) }
+      )
+      let model = makeModel(store: store, catalog: catalog, routing: routing)
+      try model.load()
+
+      let id = try model.addManualTarget(
+        browserID: discovered.application.id,
+        profileIdentifier: nil,
+        label: "Browser Default",
+        mode: .normal
+      )
+      try model.rescan()
+      model.accept(url: URL(string: "https://example.com/route")!)
+
+      XCTAssertEqual(
+        try XCTUnwrap(model.targets.first { $0.id == id }).availability,
+        .available,
+        discovered.application.family.rawValue
+      )
+      XCTAssertEqual(routing.acceptedURLs.last, URL(string: "https://example.com/route")!)
+    }
+  }
+
   func testUnprofiledManualTargetCanBeAddedForSupportedChromiumBrowser() throws {
     let store = ConfigStoreStub(config: Fixtures.editableConfig)
     let model = makeModel(store: store)
@@ -719,7 +853,8 @@ final class AppModelTests: XCTestCase {
     preferences: PreferencesStub = PreferencesStub(),
     defaultBrowser: DefaultBrowserSpy = DefaultBrowserSpy(),
     loginItem: LoginItemStub = LoginItemStub(),
-    routing: RoutingSpy = RoutingSpy()
+    routing: RoutingSpy = RoutingSpy(),
+    targetSnapshot: MutableTargetSnapshot? = nil
   ) -> AppModel {
     AppModel(
       configStore: store,
@@ -727,7 +862,8 @@ final class AppModelTests: XCTestCase {
       preferences: preferences,
       defaultBrowser: defaultBrowser,
       loginItem: loginItem,
-      routing: routing
+      routing: routing,
+      targetSnapshot: targetSnapshot
     )
   }
 }
@@ -796,6 +932,21 @@ private enum Fixtures {
       DiscoveredProfile(identifier: "Profile 2", displayName: "Personal", directoryURL: nil),
     ]
   )
+
+  static func discoveredFirefox(profiles: [DiscoveredProfile]) -> DiscoveredBrowser {
+    DiscoveredBrowser(
+      application: BrowserApplication(
+        id: "org.mozilla.firefox",
+        family: .firefox,
+        displayName: "Firefox",
+        bundleIdentifier: "org.mozilla.firefox",
+        applicationURL: URL(fileURLWithPath: "/Applications/Firefox.app"),
+        executableURL: URL(fileURLWithPath: "/Applications/Firefox.app/Contents/MacOS/firefox"),
+        isAvailable: true
+      ),
+      profiles: profiles
+    )
+  }
 
   static let editableConfig = PickViaConfig(
     schemaVersion: 1,

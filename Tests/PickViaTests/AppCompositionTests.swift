@@ -33,6 +33,53 @@ final class AppCompositionTests: XCTestCase {
     XCTAssertEqual(store.loadCallCount, 1)
     XCTAssertEqual(chooser.presentedTargetIDs.last, [CompositionFixtures.target.id])
   }
+
+  func testSettingsCloseWithoutEditsRePresentsRetainedLiveRequest() throws {
+    let chooser = CompositionChooserSpy()
+    let model = AppComposition.makeModel(
+      configStore: CompositionConfigStore(config: CompositionFixtures.config),
+      browserCatalog: CompositionCatalogStub(),
+      preferences: CompositionPreferencesStub(),
+      defaultBrowser: CompositionDefaultBrowserStub(),
+      loginItem: CompositionLoginItemStub(),
+      chooser: chooser,
+      launcher: CompositionLauncherSpy()
+    )
+    try model.load()
+    let url = try XCTUnwrap(URL(string: "https://example.com/retained"))
+
+    model.accept(url: url)
+    model.settingsDidClose()
+
+    XCTAssertEqual(chooser.presentedRequests.map(\.url), [url, url])
+  }
+
+  func testQueuedURLWaitsWhileSettingsOpenAndAppearsAfterRetainedRequestCompletes() throws {
+    let chooser = CompositionChooserSpy()
+    let model = AppComposition.makeModel(
+      configStore: CompositionConfigStore(config: CompositionFixtures.config),
+      browserCatalog: CompositionCatalogStub(),
+      preferences: CompositionPreferencesStub(),
+      defaultBrowser: CompositionDefaultBrowserStub(),
+      loginItem: CompositionLoginItemStub(),
+      chooser: chooser,
+      launcher: CompositionLauncherSpy()
+    )
+    try model.load()
+    let first = try XCTUnwrap(URL(string: "https://example.com/first"))
+    let queued = try XCTUnwrap(URL(string: "https://example.com/queued"))
+
+    model.accept(url: first)
+    model.accept(url: queued)
+    XCTAssertEqual(chooser.presentedRequests.map(\.url), [first])
+
+    model.settingsDidClose()
+    XCTAssertEqual(chooser.presentedRequests.map(\.url), [first, first])
+
+    chooser.cancel()
+    XCTAssertEqual(chooser.presentedRequests.map(\.url), [first, first, queued])
+  }
+
   func testPreviewDoesNotReplaceActiveLiveRoutingPresentation() throws {
     let chooser = CompositionChooserSpy()
     let model = AppComposition.makeModel(

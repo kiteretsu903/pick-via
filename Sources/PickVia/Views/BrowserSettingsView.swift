@@ -9,9 +9,9 @@ public struct BrowserSettingsView: View {
 
   public var body: some View {
     List {
-      if model.configurationRecovery != .none, let errorMessage = model.errorMessage {
+      if let recoveryMessage = model.configurationRecoveryMessage {
         Section {
-          Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+          Label(recoveryMessage, systemImage: "exclamationmark.triangle.fill")
             .foregroundStyle(.red)
         }
       }

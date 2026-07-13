@@ -244,7 +244,8 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       for candidate in candidates {
         let existing =
           existingByID[candidate.id]
-          ?? legacyProfileMatch(for: candidate, in: config.targets)
+          ?? (hasUniqueMutableProfileName(candidate, among: candidates)
+            ? legacyProfileMatch(for: candidate, in: config.targets) : nil)
         if let existing {
           consumedExistingIDs.insert(existing.id)
           reconciled.append(merging(candidate, preserving: existing))
@@ -338,10 +339,11 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
         )
       ]
     }
+    let uniqueProfiles = uniqueProfiles(browser.profiles)
     let profiles: [DiscoveredProfile?] =
-      browser.profiles.isEmpty
+      uniqueProfiles.isEmpty
       ? [nil]
-      : browser.profiles.map(Optional.some)
+      : uniqueProfiles.map(Optional.some)
     return profiles.flatMap { profile in
       [
         candidate(browser: browser.application, profile: profile, mode: .normal),
@@ -413,6 +415,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       if browser.metadataStatus == .unreadable {
         availability = target.availability
       } else {
+        let profiles = uniqueProfiles(browser.profiles)
         refreshesMutableLaunchSelector = browser.application.family == .firefox
         switch browser.application.family {
         case .safari:
@@ -422,11 +425,20 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
             : .unavailable
         case .chromium, .firefox:
           if target.profileIdentifier == nil {
-            availability = browser.profiles.isEmpty ? .available : .unavailable
+            availability =
+              target.origin == .manual || profiles.isEmpty ? .available : .unavailable
           } else {
-            let identity = target.profileIdentity ?? target.profileIdentifier
-            resolvedProfile = browser.profiles.first {
-              $0.identifier == identity || $0.launchIdentifier == target.profileIdentifier
+            if let profileIdentity = target.profileIdentity {
+              resolvedProfile = profiles.first { $0.identifier == profileIdentity }
+            } else if browser.application.family == .firefox {
+              let nameMatches = profiles.filter {
+                $0.launchIdentifier == target.profileIdentifier
+              }
+              resolvedProfile = nameMatches.count == 1 ? nameMatches[0] : nil
+            } else {
+              resolvedProfile = profiles.first {
+                $0.identifier == target.profileIdentifier
+              }
             }
             availability = resolvedProfile == nil ? .unavailable : .available
           }
@@ -446,7 +458,9 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       profileDisplayName: refreshesMutableLaunchSelector
         ? (resolvedProfile?.displayName ?? target.profileDisplayName)
         : target.profileDisplayName,
-      profileIdentity: target.profileIdentity,
+      profileIdentity: target.profileIdentity
+        ?? (target.origin == .manual && refreshesMutableLaunchSelector
+          ? resolvedProfile?.identifier : nil),
       mode: target.mode,
       isEnabled: target.isEnabled,
       sortOrder: target.sortOrder,
@@ -467,5 +481,26 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
         && $0.profileIdentity == nil
         && $0.profileIdentifier == candidate.profileIdentifier
     }
+  }
+
+  private static func hasUniqueMutableProfileName(
+    _ candidate: BrowserTarget,
+    among candidates: [BrowserTarget]
+  ) -> Bool {
+    candidates.filter {
+      $0.mode == candidate.mode && $0.profileIdentifier == candidate.profileIdentifier
+    }.count == 1
+  }
+
+  private static func uniqueProfiles(_ profiles: [DiscoveredProfile]) -> [DiscoveredProfile] {
+    let sorted = profiles.sorted {
+      if $0.identifier != $1.identifier { return $0.identifier < $1.identifier }
+      if $0.launchIdentifier != $1.launchIdentifier {
+        return $0.launchIdentifier < $1.launchIdentifier
+      }
+      return $0.displayName < $1.displayName
+    }
+    var seen = Set<String>()
+    return sorted.filter { seen.insert($0.identifier).inserted }
   }
 }

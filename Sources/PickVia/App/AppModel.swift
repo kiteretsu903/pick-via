@@ -11,6 +11,17 @@ public final class AppModel {
   public private(set) var errorMessage: String?
   public private(set) var configurationRecovery: ConfigurationRecoveryState = .none
 
+  public var configurationRecoveryMessage: String? {
+    switch configurationRecovery {
+    case .none:
+      nil
+    case .recoveredCorruption:
+      "PickVia recovered a corrupt configuration. Review Browser settings before continuing."
+    case .loadFailed:
+      "PickVia could not read its configuration. The existing file was left unchanged."
+    }
+  }
+
   public var showsURLInChooser: Bool {
     didSet {
       guard isLoaded else { return }
@@ -82,28 +93,24 @@ public final class AppModel {
     case .recoveredCorruption(let recovered):
       loadedConfig = recovered
       configurationRecovery = .recoveredCorruption
-      errorMessage =
-        "PickVia recovered a corrupt configuration. Review Browser settings before continuing."
     case .failure:
       loadedConfig = .initial
       configurationRecovery = .loadFailed
-      errorMessage =
-        "PickVia could not read its configuration. The existing file was left unchanged."
     }
-    config = loadedConfig
-    targetSnapshot?.publish(config)
+
+    var resolvedConfig = loadedConfig
+    let shouldPublishSnapshot = configurationRecovery != .loadFailed
 
     if configurationRecovery != .loadFailed {
       let scan = browserCatalog.scanResult()
       if scan.isAuthoritative {
         let reconciled = browserCatalog.reconcile(discovered: scan.browsers, with: loadedConfig)
-        config = reconciled
-        targetSnapshot?.publish(config)
         do {
-          try configStore.save(reconciled)
+          let validated = try reconciled.validatedAndMigrated()
+          try configStore.save(validated)
+          resolvedConfig = validated
         } catch {
-          errorMessage =
-            "Browser discovery succeeded, but the refreshed configuration could not be saved."
+          errorMessage = "Browser discovery produced a configuration that could not be committed."
         }
         if !scan.warnings.isEmpty, configurationRecovery == .none, errorMessage == nil {
           errorMessage =
@@ -112,6 +119,10 @@ public final class AppModel {
       } else if configurationRecovery == .none {
         errorMessage = "Browser discovery could not be completed. Existing targets were preserved."
       }
+    }
+    config = resolvedConfig
+    if shouldPublishSnapshot {
+      targetSnapshot?.publish(resolvedConfig)
     }
     showsURLInChooser = preferences.bool(forKey: PreferenceKey.showsURLInChooser) ?? true
     launchesAtLogin = loginItem.isEnabled
@@ -143,8 +154,9 @@ public final class AppModel {
       return
     }
     let reconciled = browserCatalog.reconcile(discovered: scan.browsers, with: config)
-    try configStore.save(reconciled)
-    config = reconciled
+    let validated = try reconciled.validatedAndMigrated()
+    try configStore.save(validated)
+    config = validated
     targetSnapshot?.publish(config)
     routing.refreshCurrent()
     errorMessage =
@@ -155,6 +167,13 @@ public final class AppModel {
 
   public func refreshDefaultStatus() {
     defaultStatus = defaultBrowser.status()
+  }
+
+  public func settingsDidClose() {
+    routing.refreshCurrent()
+    if configurationRecovery == .recoveredCorruption {
+      configurationRecovery = .none
+    }
   }
 
   public func accept(url: URL) {
@@ -315,12 +334,12 @@ public final class AppModel {
       throw TargetEditingError.safariPrivateModeUnsupported
     }
 
-    let profileDisplayName: String?
+    let selectedProfile: BrowserTarget?
     if browser.family == .safari {
       guard profileIdentifier == nil else { throw TargetEditingError.invalidProfileIdentity }
-      profileDisplayName = nil
+      selectedProfile = nil
     } else if profileIdentifier == nil {
-      profileDisplayName = nil
+      selectedProfile = nil
     } else {
       guard
         let profileIdentifier,
@@ -331,7 +350,7 @@ public final class AppModel {
           in: config
         )
       else { throw TargetEditingError.invalidProfileIdentity }
-      profileDisplayName = profileTarget.profileDisplayName
+      selectedProfile = profileTarget
     }
 
     let id = UUID().uuidString
@@ -339,15 +358,9 @@ public final class AppModel {
       id: id,
       browserID: browserID,
       label: label,
-      profileIdentifier: profileIdentifier,
-      profileDisplayName: profileDisplayName,
-      profileIdentity: profileIdentifier.flatMap { identity in
-        detectedProfileTarget(
-          browserID: browserID,
-          profileIdentifier: identity,
-          in: config
-        )?.profileIdentity
-      },
+      profileIdentifier: selectedProfile?.profileIdentifier,
+      profileDisplayName: selectedProfile?.profileDisplayName,
+      profileIdentity: selectedProfile?.profileIdentity,
       mode: mode,
       isEnabled: true,
       sortOrder: (config.targets.map(\.sortOrder).max() ?? -1) + 1,
@@ -387,7 +400,6 @@ public final class AppModel {
     try configStore.save(updated)
     config = updated
     targetSnapshot?.publish(config)
-    routing.refreshCurrent()
     errorMessage = nil
   }
 
