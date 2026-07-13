@@ -406,7 +406,7 @@ private func detectedProfileTarget(
   }
 }
 
-private enum PreferenceKey {
+enum PreferenceKey {
   static let showsURLInChooser = "showsURLInChooser"
   static let onboardingStep = "onboardingStep"
 }

@@ -2,10 +2,33 @@ import SwiftUI
 
 public struct WelcomeView: View {
   @Environment(AppModel.self) private var model
+  @Environment(\.dismissWindow) private var dismissWindow
 
   public init() {}
 
   public var body: some View {
+    Group {
+      if lifecycle.shouldShowContent(isOnboardingComplete: model.isOnboardingComplete) {
+        welcomeContent
+      } else {
+        Color.clear
+          .frame(width: 0, height: 0)
+          .accessibilityHidden(true)
+      }
+    }
+    .onAppear {
+      lifecycle.synchronize(isOnboardingComplete: model.isOnboardingComplete)
+    }
+    .onChange(of: model.isOnboardingComplete) { _, isComplete in
+      lifecycle.synchronize(isOnboardingComplete: isComplete)
+    }
+  }
+
+  private var lifecycle: WelcomeLifecycle {
+    WelcomeLifecycle(dismiss: { dismissWindow(id: "welcome") })
+  }
+
+  private var welcomeContent: some View {
     VStack(alignment: .leading, spacing: 20) {
       Text("Welcome to PickVia")
         .font(.largeTitle.bold())
@@ -15,8 +38,10 @@ public struct WelcomeView: View {
         discoveryStep
       case 2:
         reviewStep
-      default:
+      case 3:
         defaultBrowserStep
+      default:
+        EmptyView()
       }
 
       if let errorMessage = model.errorMessage {
@@ -86,6 +111,21 @@ public struct WelcomeView: View {
         .buttonStyle(.borderedProminent)
         .disabled(!model.canRequestDefaultBrowser)
       }
+    }
+  }
+}
+
+@MainActor
+struct WelcomeLifecycle {
+  let dismiss: @MainActor () -> Void
+
+  func shouldShowContent(isOnboardingComplete: Bool) -> Bool {
+    !isOnboardingComplete
+  }
+
+  func synchronize(isOnboardingComplete: Bool) {
+    if isOnboardingComplete {
+      dismiss()
     }
   }
 }

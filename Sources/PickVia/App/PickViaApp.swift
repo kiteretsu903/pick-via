@@ -8,11 +8,13 @@ struct PickViaApp: App {
     MenuBarExtra("PickVia", systemImage: "arrow.triangle.branch") {
       StatusMenuView()
         .environment(delegate.model)
+        .environment(delegate.navigation)
     }
 
     Settings {
       SettingsRootView()
         .environment(delegate.model)
+        .environment(delegate.navigation)
     }
 
     Window("Welcome to PickVia", id: "welcome") {

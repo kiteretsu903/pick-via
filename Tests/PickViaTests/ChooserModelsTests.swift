@@ -172,6 +172,58 @@ final class ChooserPanelControllerTests: XCTestCase {
     XCTAssertEqual(clipboard.strings, ["https://example.com/a"])
     XCTAssertEqual(settingsCallCount, 1)
   }
+
+  func testURLVisibilityIsResolvedForEachPresentation() {
+    let preference = URLVisibilityPreference(value: true)
+    let controller = ChooserPanelController(showsURLProvider: { preference.value })
+
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work],
+      error: nil,
+      onSelection: { _ in },
+      onCancel: {}
+    )
+    XCTAssertTrue(controller.showsURLForCurrentPresentation)
+    controller.dismiss()
+
+    preference.value = false
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work],
+      error: nil,
+      onSelection: { _ in },
+      onCancel: {}
+    )
+    XCTAssertFalse(controller.showsURLForCurrentPresentation)
+    controller.dismiss()
+  }
+
+  func testBrowserRecoverySelectsBrowserSettingsBeforeOpeningSettings() {
+    let navigation = SettingsNavigation()
+    var destinationWhenOpened: SettingsDestination?
+    let recovery = BrowserSettingsRecovery(
+      navigation: navigation,
+      openSettings: { destinationWhenOpened = navigation.destination }
+    )
+    let controller = ChooserPanelController(openBrowserSettings: recovery.open)
+
+    controller.showBrowserSettings()
+
+    XCTAssertEqual(navigation.destination, .browsers)
+    XCTAssertEqual(destinationWhenOpened, .browsers)
+  }
+}
+
+@MainActor
+private final class URLVisibilityPreference {
+  var value: Bool
+
+  init(value: Bool) {
+    self.value = value
+  }
 }
 
 @MainActor

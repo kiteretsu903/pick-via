@@ -21,7 +21,9 @@ public final class SystemClipboardWriter: ClipboardWriting {
 public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindowDelegate {
   private let clipboard: any ClipboardWriting
   private let openBrowserSettings: @MainActor () -> Void
-  private let showsURL: Bool
+  private let showsURLProvider: @MainActor () -> Bool
+
+  private(set) var showsURLForCurrentPresentation = true
 
   private var panel: NSPanel?
   private var hostingView: NSHostingView<ChooserView>?
@@ -39,7 +41,18 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     openBrowserSettings: @escaping @MainActor () -> Void = {}
   ) {
     self.clipboard = clipboard
-    self.showsURL = showsURL
+    self.showsURLProvider = { showsURL }
+    self.openBrowserSettings = openBrowserSettings
+    super.init()
+  }
+
+  public init(
+    showsURLProvider: @escaping @MainActor () -> Bool,
+    clipboard: any ClipboardWriting = SystemClipboardWriter(),
+    openBrowserSettings: @escaping @MainActor () -> Void = {}
+  ) {
+    self.clipboard = clipboard
+    self.showsURLProvider = showsURLProvider
     self.openBrowserSettings = openBrowserSettings
     super.init()
   }
@@ -58,6 +71,7 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     onSelection: @escaping (BrowserTarget.ID) -> Void,
     onCancel: @escaping () -> Void
   ) {
+    showsURLForCurrentPresentation = showsURLProvider()
     let preservedTargetID: BrowserTarget.ID?
     if presentation?.request.id == request.id,
       let index = presentation?.selectedIndex,
@@ -117,7 +131,7 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     guard let presentation else { return }
     let view = ChooserView(
       presentation: presentation,
-      showsURL: showsURL,
+      showsURL: showsURLForCurrentPresentation,
       onSelection: { [weak self] targetID in self?.select(targetID) },
       onCopyURL: { [weak self] in self?.copyCurrentURL() },
       onOpenBrowserSettings: { [weak self] in self?.showBrowserSettings() },

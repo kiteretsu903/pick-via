@@ -22,7 +22,16 @@ final class AppDelegateTests: XCTestCase {
 
   func testReopenOpensSettingsAndReportsHandled() {
     var openSettingsCallCount = 0
-    let delegate = AppDelegate(model: makeModel(), openSettings: { openSettingsCallCount += 1 })
+    let navigation = SettingsNavigation(destination: .browsers)
+    var destinationWhenOpened: SettingsDestination?
+    let delegate = AppDelegate(
+      model: makeModel(),
+      navigation: navigation,
+      openSettings: {
+        openSettingsCallCount += 1
+        destinationWhenOpened = navigation.destination
+      }
+    )
 
     let handled = delegate.applicationShouldHandleReopen(
       NSApplication.shared,
@@ -31,6 +40,7 @@ final class AppDelegateTests: XCTestCase {
 
     XCTAssertTrue(handled)
     XCTAssertEqual(openSettingsCallCount, 1)
+    XCTAssertEqual(destinationWhenOpened, .general)
   }
 
   private func makeModel(routing: AppDelegateRoutingSpy = AppDelegateRoutingSpy()) -> AppModel {

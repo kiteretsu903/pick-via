@@ -3,12 +3,14 @@ import SwiftUI
 
 public struct StatusMenuView: View {
   @Environment(AppModel.self) private var model
+  @Environment(SettingsNavigation.self) private var navigation
   @Environment(\.openSettings) private var openSettings
 
   public init() {}
 
   public var body: some View {
     Button("Open Settings…") {
+      navigation.destination = .general
       NSApp.activate(ignoringOtherApps: true)
       openSettings()
     }

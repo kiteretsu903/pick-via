@@ -19,19 +19,20 @@ public enum SettingsDestination: String, CaseIterable, Identifiable {
 
 public struct SettingsRootView: View {
   @Environment(AppModel.self) private var model
-  @State private var selection: SettingsDestination? = .general
+  @Environment(SettingsNavigation.self) private var navigation
 
   public init() {}
 
   public var body: some View {
+    @Bindable var navigation = navigation
     NavigationSplitView {
-      List(SettingsDestination.allCases, selection: $selection) { destination in
+      List(SettingsDestination.allCases, selection: $navigation.destination) { destination in
         Label(destination.title, systemImage: destination.systemImage)
-          .tag(Optional(destination))
+          .tag(destination)
       }
       .navigationSplitViewColumnWidth(min: 150, ideal: 180)
     } detail: {
-      switch selection ?? .general {
+      switch navigation.destination {
       case .general: GeneralSettingsView()
       case .browsers: BrowserSettingsView()
       case .about: AboutView()
