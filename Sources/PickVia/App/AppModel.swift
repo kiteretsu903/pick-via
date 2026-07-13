@@ -172,6 +172,35 @@ public final class AppModel {
         }
     }
 
+    public func setTargetProfile(
+        id: BrowserTarget.ID,
+        profileIdentifier: String?
+    ) throws {
+        try updateTarget(id: id) { [config] target in
+            guard let browser = supportedAvailableBrowser(id: target.browserID, in: config) else {
+                throw TargetEditingError.browserUnavailableOrUnsupported
+            }
+            if browser.family == .safari {
+                guard profileIdentifier == nil else { throw TargetEditingError.invalidProfileIdentity }
+                return copy(target, profileIdentifier: nil, profileDisplayName: nil)
+            }
+            guard
+                let profileIdentifier,
+                !profileIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                let candidate = detectedProfileTarget(
+                    browserID: browser.id,
+                    profileIdentifier: profileIdentifier,
+                    in: config
+                )
+            else { throw TargetEditingError.invalidProfileIdentity }
+            return copy(
+                target,
+                profileIdentifier: candidate.profileIdentifier,
+                profileDisplayName: candidate.profileDisplayName
+            )
+        }
+    }
+
     public func moveTargets(fromOffsets offsets: IndexSet, toOffset destination: Int) throws {
         var ordered = config.targets.sorted {
             if $0.sortOrder != $1.sortOrder { return $0.sortOrder < $1.sortOrder }
@@ -202,13 +231,9 @@ public final class AppModel {
     ) throws -> BrowserTarget.ID {
         let label = label.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !label.isEmpty else { throw TargetEditingError.blankLabel }
-        guard
-            let browser = config.browsers.first(where: { $0.id == browserID }),
-            browser.isAvailable,
-            BrowserDescriptor.supported.contains(where: {
-                $0.bundleIdentifier == browser.bundleIdentifier && $0.family == browser.family
-            })
-        else { throw TargetEditingError.browserUnavailableOrUnsupported }
+        guard let browser = supportedAvailableBrowser(id: browserID, in: config) else {
+            throw TargetEditingError.browserUnavailableOrUnsupported
+        }
         guard browser.family != .safari || mode == .normal else {
             throw TargetEditingError.safariPrivateModeUnsupported
         }
@@ -221,11 +246,11 @@ public final class AppModel {
             guard
                 let profileIdentifier,
                 !profileIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                let profileTarget = config.targets.first(where: {
-                    $0.browserID == browserID
-                        && $0.profileIdentifier == profileIdentifier
-                        && $0.availability == .available
-                })
+                let profileTarget = detectedProfileTarget(
+                    browserID: browserID,
+                    profileIdentifier: profileIdentifier,
+                    in: config
+                )
             else { throw TargetEditingError.invalidProfileIdentity }
             profileDisplayName = profileTarget.profileDisplayName
         }
@@ -325,6 +350,51 @@ private func copy(
         availability: target.availability,
         validationError: target.validationError
     )
+}
+
+private func copy(
+    _ target: BrowserTarget,
+    profileIdentifier: String?,
+    profileDisplayName: String?
+) -> BrowserTarget {
+    BrowserTarget(
+        id: target.id,
+        browserID: target.browserID,
+        label: target.label,
+        profileIdentifier: profileIdentifier,
+        profileDisplayName: profileDisplayName,
+        mode: target.mode,
+        isEnabled: target.isEnabled,
+        sortOrder: target.sortOrder,
+        origin: target.origin,
+        availability: target.availability,
+        validationError: target.validationError
+    )
+}
+
+private func supportedAvailableBrowser(
+    id: BrowserApplication.ID,
+    in config: PickViaConfig
+) -> BrowserApplication? {
+    guard let browser = config.browsers.first(where: { $0.id == id && $0.isAvailable }) else {
+        return nil
+    }
+    return BrowserDescriptor.supported.contains {
+        $0.bundleIdentifier == browser.bundleIdentifier && $0.family == browser.family
+    } ? browser : nil
+}
+
+private func detectedProfileTarget(
+    browserID: BrowserApplication.ID,
+    profileIdentifier: String,
+    in config: PickViaConfig
+) -> BrowserTarget? {
+    config.targets.first {
+        $0.browserID == browserID
+            && $0.profileIdentifier == profileIdentifier
+            && $0.origin == .detected
+            && $0.availability == .available
+    }
 }
 
 private enum PreferenceKey {

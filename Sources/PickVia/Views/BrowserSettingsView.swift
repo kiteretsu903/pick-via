@@ -55,7 +55,9 @@ public struct BrowserSettingsView: View {
 
     private var availableBrowsers: [BrowserApplication] {
         model.browsers.filter { browser in
-            browser.isAvailable && BrowserDescriptor.supported.contains { $0.bundleIdentifier == browser.bundleIdentifier }
+            browser.isAvailable && BrowserDescriptor.supported.contains {
+                $0.bundleIdentifier == browser.bundleIdentifier && $0.family == browser.family
+            }
         }
     }
 
@@ -102,6 +104,21 @@ private struct TargetSettingsRow: View {
                     get: { target.label },
                     set: { try? model.renameTarget(id: target.id, label: $0) }
                 ))
+                if browser.family == .safari {
+                    Text("Default")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 130, alignment: .leading)
+                } else {
+                    Picker("Profile", selection: Binding(
+                        get: { target.profileIdentifier ?? "" },
+                        set: { try? model.setTargetProfile(id: target.id, profileIdentifier: $0) }
+                    )) {
+                        ForEach(profileChoices) { profile in
+                            Text(profile.displayName).tag(profile.identifier)
+                        }
+                    }
+                    .frame(width: 150)
+                }
                 Picker("Mode", selection: Binding(
                     get: { target.mode },
                     set: { try? model.setTargetMode(id: target.id, mode: $0) }
@@ -129,6 +146,10 @@ private struct TargetSettingsRow: View {
             .foregroundStyle(.secondary)
         }
         .padding(.vertical, 4)
+    }
+
+    private var profileChoices: [BrowserProfileChoice] {
+        availableProfileChoices(browserID: browser.id, targets: model.targets)
     }
 }
 
@@ -179,12 +200,8 @@ private struct AddTargetView: View {
 
     private var selectedBrowser: BrowserApplication? { browsers.first { $0.id == browserID } }
 
-    private var profiles: [(identifier: String, displayName: String)] {
-        var seen = Set<String>()
-        return model.targets.compactMap { target in
-            guard target.browserID == browserID, target.availability == .available, let identifier = target.profileIdentifier, seen.insert(identifier).inserted else { return nil }
-            return (identifier, target.profileDisplayName ?? identifier)
-        }
+    private var profiles: [BrowserProfileChoice] {
+        availableProfileChoices(browserID: browserID, targets: model.targets)
     }
 
     private func selectInitialValues() {
@@ -210,5 +227,32 @@ private struct AddTargetView: View {
         } catch {
             errorMessage = "The target could not be added. Check the browser, profile, label, and mode."
         }
+    }
+}
+
+struct BrowserProfileChoice: Equatable, Identifiable {
+    let identifier: String
+    let displayName: String
+
+    var id: String { identifier }
+}
+
+func availableProfileChoices(
+    browserID: BrowserApplication.ID,
+    targets: [BrowserTarget]
+) -> [BrowserProfileChoice] {
+    var seen = Set<String>()
+    return targets.compactMap { target in
+        guard
+            target.browserID == browserID,
+            target.origin == .detected,
+            target.availability == .available,
+            let identifier = target.profileIdentifier,
+            seen.insert(identifier).inserted
+        else { return nil }
+        return BrowserProfileChoice(
+            identifier: identifier,
+            displayName: target.profileDisplayName ?? identifier
+        )
     }
 }

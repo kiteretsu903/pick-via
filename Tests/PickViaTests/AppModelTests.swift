@@ -329,6 +329,96 @@ final class AppModelTests: XCTestCase {
         XCTAssertTrue(store.saved.isEmpty)
     }
 
+    func testTargetProfileEditUsesDetectedIdentityAndDisplayName() throws {
+        let store = ConfigStoreStub(config: Fixtures.profileEditConfig)
+        let model = makeModel(store: store)
+        try model.load()
+
+        try model.setTargetProfile(id: "work", profileIdentifier: "Profile 2")
+
+        let edited = try XCTUnwrap(model.targets.first { $0.id == "work" })
+        XCTAssertEqual(edited.profileIdentifier, "Profile 2")
+        XCTAssertEqual(edited.profileDisplayName, "Personal")
+        XCTAssertEqual(store.saved.last, model.config)
+    }
+
+    func testInvalidTargetProfileEditIsRejectedWithoutMutation() throws {
+        let store = ConfigStoreStub(config: Fixtures.profileEditConfig)
+        let model = makeModel(store: store)
+        try model.load()
+        let original = model.config
+
+        XCTAssertThrowsError(try model.setTargetProfile(id: "work", profileIdentifier: "Missing"))
+
+        XCTAssertEqual(model.config, original)
+        XCTAssertTrue(store.saved.isEmpty)
+    }
+
+    func testManualTargetCannotValidateAnotherManualTargetProfileIdentity() throws {
+        let manualOnly = BrowserTarget(
+            id: "manual-source",
+            browserID: Fixtures.chrome.id,
+            label: "Manual Source",
+            profileIdentifier: "Profile 9",
+            profileDisplayName: "Manual Only",
+            mode: .normal,
+            isEnabled: true,
+            sortOrder: 0,
+            origin: .manual,
+            availability: .available
+        )
+        let config = PickViaConfig(schemaVersion: 1, browsers: [Fixtures.chrome], targets: [manualOnly])
+        let store = ConfigStoreStub(config: config)
+        let model = makeModel(store: store)
+        try model.load()
+
+        XCTAssertThrowsError(try model.addManualTarget(
+            browserID: Fixtures.chrome.id,
+            profileIdentifier: "Profile 9",
+            label: "Second Manual",
+            mode: .normal
+        ))
+        XCTAssertEqual(model.config, config)
+        XCTAssertTrue(store.saved.isEmpty)
+    }
+
+    func testBrowserProfileChoicesExposeOnlyDetectedAvailableIdentities() {
+        let manual = BrowserTarget(
+            id: "manual",
+            browserID: Fixtures.chrome.id,
+            label: "Manual",
+            profileIdentifier: "Manual Profile",
+            profileDisplayName: "Manual Profile",
+            mode: .normal,
+            isEnabled: true,
+            sortOrder: 3,
+            origin: .manual,
+            availability: .available
+        )
+        let unavailable = BrowserTarget(
+            id: "unavailable",
+            browserID: Fixtures.chrome.id,
+            label: "Unavailable",
+            profileIdentifier: "Missing",
+            profileDisplayName: "Missing",
+            mode: .normal,
+            isEnabled: true,
+            sortOrder: 4,
+            origin: .detected,
+            availability: .unavailable
+        )
+
+        let choices = availableProfileChoices(
+            browserID: Fixtures.chrome.id,
+            targets: Fixtures.profileEditConfig.targets + [manual, unavailable]
+        )
+
+        XCTAssertEqual(choices, [
+            BrowserProfileChoice(identifier: "Profile 1", displayName: "Work"),
+            BrowserProfileChoice(identifier: "Profile 2", displayName: "Personal"),
+        ])
+    }
+
     func testValidManualTargetCanBeAddedAndRemoved() throws {
         let store = ConfigStoreStub(config: Fixtures.editableConfig)
         let model = makeModel(store: store)
@@ -476,6 +566,14 @@ private enum Fixtures {
         targets: [
             BrowserTarget(id: "work", browserID: chrome.id, label: "Work", profileIdentifier: "Profile 1", profileDisplayName: "Work", mode: .normal, isEnabled: true, sortOrder: 9, origin: .detected, availability: .available),
             BrowserTarget(id: "work-private", browserID: chrome.id, label: "Work Private", profileIdentifier: "Profile 1", profileDisplayName: "Work", mode: .private, isEnabled: false, sortOrder: 20, origin: .detected, availability: .available),
+        ]
+    )
+
+    static let profileEditConfig = PickViaConfig(
+        schemaVersion: 1,
+        browsers: [chrome],
+        targets: editableConfig.targets + [
+            BrowserTarget(id: "personal", browserID: chrome.id, label: "Personal", profileIdentifier: "Profile 2", profileDisplayName: "Personal", mode: .normal, isEnabled: true, sortOrder: 21, origin: .detected, availability: .available),
         ]
     )
 
