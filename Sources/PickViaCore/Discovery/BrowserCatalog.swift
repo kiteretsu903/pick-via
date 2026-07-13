@@ -73,6 +73,10 @@ public struct BrowserDescriptor: Sendable {
             executableRelativePath: "Contents/MacOS/firefox"
         ),
     ]
+
+    public static func family(forBundleIdentifier bundleIdentifier: String) -> BrowserFamily? {
+        supported.first { $0.bundleIdentifier == bundleIdentifier }?.family
+    }
 }
 
 public struct DiscoveredBrowser: Equatable, Sendable {

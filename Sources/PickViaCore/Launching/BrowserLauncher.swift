@@ -14,6 +14,18 @@ public protocol WorkspaceOpening: Sendable {
     func open(_ url: URL, withApplicationAt application: URL) async throws
 }
 
+public protocol ExecutableValidating: Sendable {
+    func isExecutableFile(at url: URL) -> Bool
+}
+
+public struct FoundationExecutableValidator: ExecutableValidating {
+    public init() {}
+
+    public func isExecutableFile(at url: URL) -> Bool {
+        FileManager.default.isExecutableFile(atPath: url.path)
+    }
+}
+
 public struct SystemProcessRunner: ProcessRunning {
     public init() {}
 
@@ -53,13 +65,16 @@ public struct BrowserLauncher: BrowserLaunching, Sendable {
 
     private let processRunner: any ProcessRunning
     private let workspace: any WorkspaceOpening
+    private let executableValidator: any ExecutableValidating
 
     public init(
         processRunner: any ProcessRunning = SystemProcessRunner(),
-        workspace: any WorkspaceOpening = SystemWorkspace()
+        workspace: any WorkspaceOpening = SystemWorkspace(),
+        executableValidator: any ExecutableValidating = FoundationExecutableValidator()
     ) {
         self.processRunner = processRunner
         self.workspace = workspace
+        self.executableValidator = executableValidator
     }
 
     public func makePlan(
@@ -69,6 +84,8 @@ public struct BrowserLauncher: BrowserLaunching, Sendable {
     ) throws -> LaunchPlan {
         guard
             application.id == target.browserID,
+            application.id == application.bundleIdentifier,
+            BrowserDescriptor.family(forBundleIdentifier: application.bundleIdentifier) == application.family,
             application.isAvailable,
             target.availability == .available
         else {
@@ -83,7 +100,10 @@ public struct BrowserLauncher: BrowserLaunching, Sendable {
             return .workspace(application: application.applicationURL, url: url)
 
         case .chromium:
-            guard let executable = application.executableURL else {
+            guard
+                let executable = application.executableURL,
+                executableValidator.isExecutableFile(at: executable)
+            else {
                 throw Self.launchFailure
             }
             var arguments: [String] = []
@@ -97,7 +117,10 @@ public struct BrowserLauncher: BrowserLaunching, Sendable {
             return .executable(application: executable, arguments: arguments)
 
         case .firefox:
-            guard let executable = application.executableURL else {
+            guard
+                let executable = application.executableURL,
+                executableValidator.isExecutableFile(at: executable)
+            else {
                 throw Self.launchFailure
             }
             var arguments: [String] = []
