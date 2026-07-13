@@ -67,6 +67,37 @@ final class ConfigStoreTests: XCTestCase {
         )
     }
 
+    func testReadFailureIsPropagatedWithoutQuarantiningConfiguration() {
+        let fileSystem = ReadFailingFileSystem()
+        let store = JSONConfigStore(
+            directory: URL(fileURLWithPath: "/virtual/application-support"),
+            fileSystem: fileSystem
+        )
+
+        XCTAssertThrowsError(try store.load()) { error in
+            XCTAssertEqual(error as? FileSystemTestError, .readFailed)
+        }
+        XCTAssertEqual(fileSystem.moveCallCount, 0)
+    }
+
+    func testSavingOverExistingFileReplacesConfigurationAndLeavesNoTemporaryFile() throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = JSONConfigStore(directory: directory)
+        let first = PickViaConfig(schemaVersion: 1, browsers: [], targets: [])
+        let second = PickViaConfig(schemaVersion: 2, browsers: [], targets: [])
+
+        try store.save(first)
+        try store.save(second)
+
+        XCTAssertEqual(try store.load(), second)
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: directory.appending(path: "PickViaConfig.json.tmp").path
+            )
+        )
+    }
+
     func testSaveLeavesNoTemporaryFile() throws {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -86,5 +117,42 @@ final class ConfigStoreTests: XCTestCase {
             .appending(path: "PickViaCoreTests-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory
+    }
+}
+
+private enum FileSystemTestError: Error, Equatable {
+    case readFailed
+}
+
+private final class ReadFailingFileSystem: FileSystem, @unchecked Sendable {
+    private let lock = NSLock()
+    private var recordedMoveCallCount = 0
+
+    var moveCallCount: Int {
+        lock.withLock { recordedMoveCallCount }
+    }
+
+    func createDirectory(at url: URL) throws {}
+
+    func fileExists(at url: URL) -> Bool {
+        true
+    }
+
+    func read(from url: URL) throws -> Data {
+        throw FileSystemTestError.readFailed
+    }
+
+    func writeAtomically(_ data: Data, to url: URL) throws {
+        preconditionFailure("Unexpected write")
+    }
+
+    func moveItem(at source: URL, to destination: URL) throws {
+        lock.withLock {
+            recordedMoveCallCount += 1
+        }
+    }
+
+    func replaceItem(at destination: URL, with source: URL) throws {
+        preconditionFailure("Unexpected replacement")
     }
 }
