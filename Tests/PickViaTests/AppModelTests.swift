@@ -159,6 +159,495 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(store.saved, [reconciled])
   }
 
+  func testAutomaticWizardContainsOnlyAccessFailuresAndSuppressesAfterSkip() throws {
+    let scan = BrowserScanResult(
+      browsers: [
+        Fixtures.installedBrowser("com.google.Chrome", status: .accessRequired),
+        Fixtures.installedBrowser("org.mozilla.firefox", status: .accessRevoked),
+        Fixtures.installedBrowser("com.microsoft.edgemac", status: .metadataAbsent),
+        Fixtures.installedBrowser("com.brave.Browser", status: .metadataDamaged),
+      ],
+      profileAccessIssues: [
+        .accessRequired(bundleIdentifier: "com.google.Chrome"),
+        .accessRevoked(bundleIdentifier: "org.mozilla.firefox"),
+        .metadataDamaged(bundleIdentifier: "com.brave.Browser"),
+      ],
+      isAuthoritative: true
+    )
+    let access = ProfileAccessManagerSpy(
+      persistence: ["org.mozilla.firefox": .persistent]
+    )
+    let model = makeModel(
+      catalog: BrowserCatalogStub(scanResult: scan),
+      access: access
+    )
+
+    try model.load()
+
+    XCTAssertEqual(
+      model.profileAccessRows.map(\.bundleIdentifier),
+      ["com.google.Chrome", "org.mozilla.firefox"]
+    )
+    XCTAssertEqual(model.profileAccessRows.map(\.state), [.accessNeeded, .accessRevoked])
+    XCTAssertEqual(model.profileAccessRows.map(\.hasStoredGrant), [false, true])
+    XCTAssertEqual(model.profileAccessPresentation, .automaticPending)
+    XCTAssertTrue(model.shouldAutomaticallyPresentProfileAccess)
+
+    model.skipProfileAccess()
+
+    XCTAssertEqual(model.profileAccessPresentation, .suppressedForProcess)
+    XCTAssertFalse(model.shouldAutomaticallyPresentProfileAccess)
+  }
+
+  func testCloseSuppressesAutomaticWizardUntilDirectUserRescan() throws {
+    let scan = BrowserScanResult(
+      browsers: [Fixtures.installedBrowser("com.google.Chrome", status: .accessRequired)],
+      profileAccessIssues: [.accessRequired(bundleIdentifier: "com.google.Chrome")],
+      isAuthoritative: true
+    )
+    let catalog = BrowserCatalogStub(scanResult: scan)
+    let model = makeModel(catalog: catalog)
+    try model.load()
+    model.profileAccessDidPresent()
+
+    model.closeProfileAccess()
+
+    XCTAssertEqual(model.profileAccessPresentation, .suppressedForProcess)
+
+    try model.userRequestedRescan()
+
+    XCTAssertEqual(catalog.scanResultCallCount, 2)
+    XCTAssertEqual(model.profileAccessPresentation, .automaticPending)
+    XCTAssertTrue(model.shouldAutomaticallyPresentProfileAccess)
+  }
+
+  func testManualManagerContainsEveryInstalledNonSafariBrowserWithApprovedCopy() throws {
+    let scan = BrowserScanResult(
+      browsers: [
+        Fixtures.installedBrowser(
+          "com.google.Chrome",
+          status: .loaded,
+          profiles: Fixtures.discoveredChromeWithProfiles.profiles
+        ),
+        Fixtures.installedBrowser("org.mozilla.firefox", status: .metadataDamaged),
+        Fixtures.installedBrowser("com.apple.Safari", status: .notApplicable),
+      ],
+      profileAccessIssues: [.metadataDamaged(bundleIdentifier: "org.mozilla.firefox")],
+      isAuthoritative: true
+    )
+    let access = ProfileAccessManagerSpy(
+      persistence: ["com.google.Chrome": .persistent]
+    )
+    let model = makeModel(
+      catalog: BrowserCatalogStub(scanResult: scan),
+      access: access
+    )
+    try model.load()
+
+    XCTAssertEqual(model.profileAccessPresentation, .idle)
+
+    model.openProfileAccessManager()
+
+    XCTAssertEqual(model.profileAccessPresentation, .manualPending)
+    XCTAssertEqual(
+      model.profileAccessRows.map(\.bundleIdentifier),
+      ["com.google.Chrome", "org.mozilla.firefox"]
+    )
+    XCTAssertEqual(
+      model.profileAccessRows.map(\.state),
+      [
+        .granted(profileCount: 2, persistence: .persistent),
+        .metadataDamaged,
+      ]
+    )
+    let chrome = try XCTUnwrap(model.profileAccessRows.first)
+    XCTAssertEqual(chrome.displayName, "Google Chrome")
+    XCTAssertEqual(chrome.family, .chromium)
+    XCTAssertEqual(chrome.expectedRootSuffix, "Library/Application Support/Google/Chrome")
+    XCTAssertEqual(chrome.requiredMarker, "Local State")
+    XCTAssertTrue(chrome.hasStoredGrant)
+  }
+
+  func testFinishEligibilityRequiresAtLeastOneGrantedRow() throws {
+    let scan = BrowserScanResult(
+      browsers: [
+        Fixtures.installedBrowser("com.google.Chrome", status: .accessRequired),
+        Fixtures.installedBrowser(
+          "org.mozilla.firefox",
+          status: .loaded,
+          profiles: [
+            DiscoveredProfile(identifier: "default", displayName: "Default", directoryURL: nil)
+          ]
+        ),
+      ],
+      profileAccessIssues: [.accessRequired(bundleIdentifier: "com.google.Chrome")],
+      isAuthoritative: true
+    )
+    let access = ProfileAccessManagerSpy(
+      persistence: ["org.mozilla.firefox": .currentSessionOnly]
+    )
+    let model = makeModel(
+      catalog: BrowserCatalogStub(scanResult: scan),
+      access: access
+    )
+    try model.load()
+
+    XCTAssertFalse(model.canFinishProfileAccess)
+
+    model.openProfileAccessManager()
+
+    XCTAssertTrue(model.canFinishProfileAccess)
+    XCTAssertEqual(
+      model.profileAccessRows.last?.state,
+      .granted(profileCount: 1, persistence: .currentSessionOnly)
+    )
+  }
+
+  func testWrongRootDoesNotInstallGrantOrDiscardAnotherGrantedRow() throws {
+    let scan = BrowserScanResult(
+      browsers: [
+        Fixtures.installedBrowser("com.google.Chrome", status: .accessRequired),
+        Fixtures.installedBrowser("org.mozilla.firefox", status: .accessRequired),
+      ],
+      profileAccessIssues: [
+        .accessRequired(bundleIdentifier: "com.google.Chrome"),
+        .accessRequired(bundleIdentifier: "org.mozilla.firefox"),
+      ]
+    )
+    let access = ProfileAccessManagerSpy()
+    let catalog = BrowserCatalogStub(
+      reconciled: Fixtures.editableConfig,
+      scanResult: scan,
+      targeted: ["com.google.Chrome": Fixtures.discoveredChromeWithProfiles]
+    )
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.editableConfig),
+      catalog: catalog,
+      access: access,
+      profileRootValidator: profileRootValidator(validRoots: ["/Chrome"])
+    )
+    try model.load()
+    try model.grantProfileAccess(
+      for: "com.google.Chrome",
+      root: URL(fileURLWithPath: "/Chrome")
+    )
+
+    try model.grantProfileAccess(
+      for: "org.mozilla.firefox",
+      root: URL(fileURLWithPath: "/Users/private/wrong-firefox-folder")
+    )
+
+    XCTAssertEqual(access.installed.map(\.bundleIdentifier), ["com.google.Chrome"])
+    XCTAssertEqual(
+      model.profileAccessRows.map(\.state),
+      [
+        .granted(profileCount: 2, persistence: .persistent),
+        .invalidFolder(requiredMarker: "profiles.ini"),
+      ]
+    )
+    XCTAssertTrue(model.canFinishProfileAccess)
+    XCTAssertFalse(
+      String(describing: model.profileAccessRows).contains("/Users/private")
+    )
+  }
+
+  func testFailedGrantReplacementKeepsPriorGrantAndRowAuthoritative() throws {
+    let scan = BrowserScanResult(
+      browsers: [
+        Fixtures.installedBrowser(
+          "com.google.Chrome",
+          status: .loaded,
+          profiles: Fixtures.discoveredChromeWithProfiles.profiles
+        )
+      ],
+      profileAccessIssues: []
+    )
+    let access = ProfileAccessManagerSpy(
+      persistence: ["com.google.Chrome": .persistent],
+      installError: NSError(
+        domain: "secret replacement /Users/private/Chrome",
+        code: 17
+      )
+    )
+    let model = makeModel(
+      catalog: BrowserCatalogStub(scanResult: scan),
+      access: access,
+      profileRootValidator: profileRootValidator(validRoots: ["/Replacement"])
+    )
+    try model.load()
+    model.openProfileAccessManager()
+    let priorRow = try XCTUnwrap(model.profileAccessRows.first)
+
+    XCTAssertThrowsError(
+      try model.grantProfileAccess(
+        for: "com.google.Chrome",
+        root: URL(fileURLWithPath: "/Replacement")
+      )
+    )
+
+    XCTAssertEqual(model.profileAccessRows.first, priorRow)
+    XCTAssertEqual(access.persistence(for: "com.google.Chrome"), .persistent)
+    XCTAssertEqual(access.installed.map(\.bundleIdentifier), ["com.google.Chrome"])
+    XCTAssertFalse(model.errorMessage?.contains("/Users/private") ?? false)
+    XCTAssertFalse(model.errorMessage?.contains("secret replacement") ?? false)
+  }
+
+  func testValidGrantUpdatesOnlyItsRowWithoutPublishingRoutingConfiguration() throws {
+    let scan = BrowserScanResult(
+      browsers: [
+        Fixtures.installedBrowser("com.google.Chrome", status: .accessRequired),
+        Fixtures.installedBrowser("org.mozilla.firefox", status: .accessRequired),
+      ],
+      profileAccessIssues: [
+        .accessRequired(bundleIdentifier: "com.google.Chrome"),
+        .accessRequired(bundleIdentifier: "org.mozilla.firefox"),
+      ]
+    )
+    let store = ConfigStoreStub(config: Fixtures.editableConfig)
+    let snapshot = MutableTargetSnapshot()
+    snapshot.publish(Fixtures.editableConfig)
+    let routing = RoutingSpy()
+    let catalog = BrowserCatalogStub(
+      reconciled: Fixtures.editableConfig,
+      scanResult: scan,
+      targeted: ["com.google.Chrome": Fixtures.discoveredChromeWithProfiles]
+    )
+    let access = ProfileAccessManagerSpy(installOutcome: .persistent)
+    let model = makeModel(
+      store: store,
+      catalog: catalog,
+      routing: routing,
+      targetSnapshot: snapshot,
+      access: access,
+      profileRootValidator: profileRootValidator(validRoots: ["/Chrome"])
+    )
+    try model.load()
+    store.resetSaved()
+    catalog.resetTargetedScanCalls()
+    let publishedTargetIDs = snapshot.availableSnapshot().targets.map(\.id)
+
+    try model.grantProfileAccess(
+      for: "com.google.Chrome",
+      root: URL(fileURLWithPath: "/Chrome")
+    )
+
+    XCTAssertEqual(
+      model.profileAccessRows.map(\.state),
+      [
+        .granted(profileCount: 2, persistence: .persistent),
+        .accessNeeded,
+      ]
+    )
+    XCTAssertEqual(catalog.targetedScanBundleIdentifiers, ["com.google.Chrome"])
+    XCTAssertTrue(store.saved.isEmpty)
+    XCTAssertEqual(model.config, Fixtures.editableConfig)
+    XCTAssertEqual(
+      snapshot.availableSnapshot().targets.map(\.id),
+      publishedTargetIDs
+    )
+    XCTAssertEqual(routing.refreshCallCount, 0)
+  }
+
+  func testSessionOnlyGrantCarriesAccuratePersistenceState() throws {
+    let scan = BrowserScanResult(
+      browsers: [Fixtures.installedBrowser("com.google.Chrome", status: .accessRequired)],
+      profileAccessIssues: [.accessRequired(bundleIdentifier: "com.google.Chrome")]
+    )
+    let catalog = BrowserCatalogStub(
+      scanResult: scan,
+      targeted: ["com.google.Chrome": Fixtures.discoveredChrome]
+    )
+    let model = makeModel(
+      catalog: catalog,
+      access: ProfileAccessManagerSpy(installOutcome: .currentSessionOnly),
+      profileRootValidator: profileRootValidator(validRoots: ["/Chrome"])
+    )
+    try model.load()
+
+    try model.grantProfileAccess(
+      for: "com.google.Chrome",
+      root: URL(fileURLWithPath: "/Chrome")
+    )
+
+    XCTAssertEqual(
+      model.profileAccessRows.first?.state,
+      .granted(profileCount: 1, persistence: .currentSessionOnly)
+    )
+    XCTAssertTrue(model.profileAccessRows.first?.hasStoredGrant == true)
+  }
+
+  func testFinishPerformsOneAuthoritativeValidateSavePublishTransaction() throws {
+    let accessRequired = BrowserScanResult(
+      browsers: [Fixtures.installedBrowser("com.google.Chrome", status: .accessRequired)],
+      profileAccessIssues: [.accessRequired(bundleIdentifier: "com.google.Chrome")]
+    )
+    let loaded = BrowserScanResult(
+      browsers: [
+        Fixtures.installedBrowser(
+          "com.google.Chrome",
+          status: .loaded,
+          profiles: Fixtures.discoveredChromeWithProfiles.profiles
+        )
+      ],
+      profileAccessIssues: []
+    )
+    let store = ConfigStoreStub(config: Fixtures.editableConfig)
+    let snapshot = MutableTargetSnapshot()
+    snapshot.publish(Fixtures.editableConfig)
+    let routing = RoutingSpy()
+    let catalog = BrowserCatalogStub(
+      reconciled: Fixtures.editableConfig,
+      scanResult: accessRequired,
+      targeted: ["com.google.Chrome": Fixtures.discoveredChromeWithProfiles]
+    )
+    let model = makeModel(
+      store: store,
+      catalog: catalog,
+      routing: routing,
+      targetSnapshot: snapshot,
+      access: ProfileAccessManagerSpy(),
+      profileRootValidator: profileRootValidator(validRoots: ["/Chrome"])
+    )
+    try model.load()
+    try model.grantProfileAccess(
+      for: "com.google.Chrome",
+      root: URL(fileURLWithPath: "/Chrome")
+    )
+    model.profileAccessDidPresent()
+    catalog.reconciled = Fixtures.profileEditConfig
+    catalog.setScanResult(loaded)
+    catalog.resetScanCalls()
+    catalog.resetReconcileInputs()
+    store.resetSaved()
+
+    try model.finishProfileAccessAndRescan()
+
+    XCTAssertEqual(catalog.scanResultCallCount, 1)
+    XCTAssertEqual(catalog.reconcileInputs, [Fixtures.editableConfig])
+    XCTAssertEqual(store.saved, [Fixtures.profileEditConfig])
+    XCTAssertEqual(model.config, Fixtures.profileEditConfig)
+    XCTAssertEqual(
+      snapshot.availableSnapshot().targets.map(\.id),
+      ["work", "personal"]
+    )
+    XCTAssertEqual(routing.refreshCallCount, 1)
+    XCTAssertEqual(model.profileAccessPresentation, .idle)
+  }
+
+  func testFinishSaveFailureLeavesPublishedStateAndPresentationUnchanged() throws {
+    let loaded = BrowserScanResult(
+      browsers: [
+        Fixtures.installedBrowser(
+          "com.google.Chrome",
+          status: .loaded,
+          profiles: Fixtures.discoveredChromeWithProfiles.profiles
+        )
+      ],
+      profileAccessIssues: []
+    )
+    let store = ConfigStoreStub(config: Fixtures.editableConfig, saveError: TestError.denied)
+    let snapshot = MutableTargetSnapshot()
+    snapshot.publish(Fixtures.editableConfig)
+    let routing = RoutingSpy()
+    let catalog = BrowserCatalogStub(
+      reconciled: Fixtures.profileEditConfig,
+      scanResult: loaded
+    )
+    let model = makeModel(
+      store: store,
+      catalog: catalog,
+      routing: routing,
+      targetSnapshot: snapshot,
+      access: ProfileAccessManagerSpy(persistence: ["com.google.Chrome": .persistent])
+    )
+    try model.load()
+    model.openProfileAccessManager()
+    model.profileAccessDidPresent()
+
+    XCTAssertThrowsError(try model.finishProfileAccessAndRescan())
+
+    XCTAssertEqual(model.config, Fixtures.editableConfig)
+    XCTAssertEqual(
+      snapshot.availableSnapshot().targets.map(\.id),
+      ["work"]
+    )
+    XCTAssertEqual(routing.refreshCallCount, 0)
+    XCTAssertEqual(model.profileAccessPresentation, .presented)
+    XCTAssertFalse(model.errorMessage?.contains("denied") ?? false)
+  }
+
+  func testRemovalCommitsFallbackAndPreservesOtherGrantedRows() throws {
+    let initial = BrowserScanResult(
+      browsers: [
+        Fixtures.installedBrowser(
+          "com.google.Chrome",
+          status: .loaded,
+          profiles: Fixtures.discoveredChromeWithProfiles.profiles
+        ),
+        Fixtures.installedBrowser(
+          "org.mozilla.firefox",
+          status: .loaded,
+          profiles: [
+            DiscoveredProfile(identifier: "default", displayName: "Default", directoryURL: nil)
+          ]
+        ),
+      ],
+      profileAccessIssues: []
+    )
+    let afterRemoval = BrowserScanResult(
+      browsers: [
+        Fixtures.installedBrowser("com.google.Chrome", status: .accessRequired),
+        Fixtures.installedBrowser(
+          "org.mozilla.firefox",
+          status: .loaded,
+          profiles: [
+            DiscoveredProfile(identifier: "default", displayName: "Default", directoryURL: nil)
+          ]
+        ),
+      ],
+      profileAccessIssues: [.accessRequired(bundleIdentifier: "com.google.Chrome")]
+    )
+    let store = ConfigStoreStub(config: Fixtures.editableConfig)
+    let routing = RoutingSpy()
+    let access = ProfileAccessManagerSpy(
+      persistence: [
+        "com.google.Chrome": .persistent,
+        "org.mozilla.firefox": .persistent,
+      ]
+    )
+    let catalog = BrowserCatalogStub(
+      reconciled: Fixtures.editableConfig,
+      scanResult: initial
+    )
+    let model = makeModel(
+      store: store,
+      catalog: catalog,
+      routing: routing,
+      access: access
+    )
+    try model.load()
+    model.openProfileAccessManager()
+    model.profileAccessDidPresent()
+    catalog.setScanResult(afterRemoval)
+    catalog.resetScanCalls()
+    store.resetSaved()
+
+    try model.removeProfileAccess(for: "com.google.Chrome")
+
+    XCTAssertEqual(access.removedBundleIdentifiers, ["com.google.Chrome"])
+    XCTAssertEqual(catalog.scanResultCallCount, 1)
+    XCTAssertEqual(store.saved, [Fixtures.editableConfig])
+    XCTAssertEqual(routing.refreshCallCount, 1)
+    XCTAssertEqual(
+      model.profileAccessRows.map(\.state),
+      [
+        .accessNeeded,
+        .granted(profileCount: 1, persistence: .persistent),
+      ]
+    )
+    XCTAssertEqual(model.profileAccessPresentation, .presented)
+  }
+
   func testThirdOnboardingStepIsDisabledWithoutValidEnabledTarget() throws {
     let unavailable = Fixtures.target(
       isEnabled: true,
@@ -854,7 +1343,9 @@ final class AppModelTests: XCTestCase {
     defaultBrowser: DefaultBrowserSpy = DefaultBrowserSpy(),
     loginItem: LoginItemStub = LoginItemStub(),
     routing: RoutingSpy = RoutingSpy(),
-    targetSnapshot: MutableTargetSnapshot? = nil
+    targetSnapshot: MutableTargetSnapshot? = nil,
+    access: ProfileAccessManagerSpy = ProfileAccessManagerSpy(),
+    profileRootValidator: BrowserProfileRootValidator = BrowserProfileRootValidator()
   ) -> AppModel {
     AppModel(
       configStore: store,
@@ -863,8 +1354,21 @@ final class AppModelTests: XCTestCase {
       defaultBrowser: defaultBrowser,
       loginItem: loginItem,
       routing: routing,
-      targetSnapshot: targetSnapshot
+      targetSnapshot: targetSnapshot,
+      profileAccess: access,
+      profileRootValidator: profileRootValidator
     )
+  }
+
+  private func profileRootValidator(validRoots: Set<String>) -> BrowserProfileRootValidator {
+    let files = Dictionary(
+      uniqueKeysWithValues: validRoots.flatMap { root in
+        [
+          (URL(fileURLWithPath: root).appending(path: "Local State"), Data()),
+          (URL(fileURLWithPath: root).appending(path: "profiles.ini"), Data()),
+        ]
+      })
+    return BrowserProfileRootValidator(fileSystem: ProfileRootValidatorFileSystem(files: files))
   }
 }
 
@@ -932,6 +1436,27 @@ private enum Fixtures {
       DiscoveredProfile(identifier: "Profile 2", displayName: "Personal", directoryURL: nil),
     ]
   )
+
+  static func installedBrowser(
+    _ bundleIdentifier: String,
+    status: ProfileMetadataStatus,
+    profiles: [DiscoveredProfile] = []
+  ) -> DiscoveredBrowser {
+    let descriptor = BrowserDescriptor.descriptor(forBundleIdentifier: bundleIdentifier)!
+    return DiscoveredBrowser(
+      application: BrowserApplication(
+        id: descriptor.bundleIdentifier,
+        family: descriptor.family,
+        displayName: descriptor.displayName,
+        bundleIdentifier: descriptor.bundleIdentifier,
+        applicationURL: URL(fileURLWithPath: "/Applications/\(descriptor.displayName).app"),
+        executableURL: nil,
+        isAvailable: true
+      ),
+      profiles: profiles,
+      metadataStatus: status
+    )
+  }
 
   static func discoveredFirefox(profiles: [DiscoveredProfile]) -> DiscoveredBrowser {
     DiscoveredBrowser(
@@ -1044,23 +1569,33 @@ private final class BrowserCatalogStub: BrowserDiscovering, @unchecked Sendable 
   var reconciled: PickViaConfig
   private(set) var reconcileInputs: [PickViaConfig] = []
   private let reconciler: ((PickViaConfig) -> PickViaConfig)?
-  private let configuredScanResult: BrowserScanResult?
+  private var configuredScanResult: BrowserScanResult?
+  private let targeted: [String: DiscoveredBrowser]
+  private(set) var scanResultCallCount = 0
+  private(set) var targetedScanBundleIdentifiers: [String] = []
 
   init(
     discovered: [DiscoveredBrowser] = [],
     reconciled: PickViaConfig = .initial,
     scanResult: BrowserScanResult? = nil,
+    targeted: [String: DiscoveredBrowser] = [:],
     reconciler: ((PickViaConfig) -> PickViaConfig)? = nil
   ) {
     self.discovered = discovered
     self.reconciled = reconciled
     self.reconciler = reconciler
     self.configuredScanResult = scanResult
+    self.targeted = targeted
+  }
+  func scanResult(for bundleIdentifier: String) -> DiscoveredBrowser? {
+    targetedScanBundleIdentifiers.append(bundleIdentifier)
+    return targeted[bundleIdentifier]
   }
 
   func scan() throws -> [DiscoveredBrowser] { discovered }
   func scanResult() -> BrowserScanResult {
-    configuredScanResult
+    scanResultCallCount += 1
+    return configuredScanResult
       ?? BrowserScanResult(
         browsers: discovered,
         warnings: [],
@@ -1072,6 +1607,68 @@ private final class BrowserCatalogStub: BrowserDiscovering, @unchecked Sendable 
     return reconciler?(config) ?? reconciled
   }
   func resetReconcileInputs() { reconcileInputs.removeAll() }
+  func resetScanCalls() { scanResultCallCount = 0 }
+  func resetTargetedScanCalls() { targetedScanBundleIdentifiers.removeAll() }
+  func setScanResult(_ scanResult: BrowserScanResult) { configuredScanResult = scanResult }
+}
+
+private final class ProfileAccessManagerSpy: ProfileAccessManaging, @unchecked Sendable {
+  private var persistenceByBundleIdentifier: [String: ProfileGrantPersistence]
+  private let installOutcome: ProfileGrantPersistence
+  private let installError: Error?
+  private(set) var installed: [(root: URL, bundleIdentifier: String)] = []
+  private(set) var removedBundleIdentifiers: [String] = []
+
+  init(
+    persistence: [String: ProfileGrantPersistence] = [:],
+    installOutcome: ProfileGrantPersistence = .persistent,
+    installError: Error? = nil
+  ) {
+    persistenceByBundleIdentifier = persistence
+    self.installOutcome = installOutcome
+    self.installError = installError
+  }
+
+  func beginAccess(for bundleIdentifier: String) -> ProfileRootAccessResult {
+    ProfileRootAccessResult(state: .missing, lease: nil)
+  }
+
+  func installGrant(
+    root: URL,
+    for bundleIdentifier: String
+  ) throws -> ProfileGrantPersistence {
+    installed.append((root, bundleIdentifier))
+    if let installError { throw installError }
+    persistenceByBundleIdentifier[bundleIdentifier] = installOutcome
+    return installOutcome
+  }
+
+  func persistence(for bundleIdentifier: String) -> ProfileGrantPersistence? {
+    persistenceByBundleIdentifier[bundleIdentifier]
+  }
+
+  func removeGrant(for bundleIdentifier: String) throws {
+    removedBundleIdentifiers.append(bundleIdentifier)
+    persistenceByBundleIdentifier[bundleIdentifier] = nil
+  }
+}
+
+private final class ProfileRootValidatorFileSystem: FileSystem, @unchecked Sendable {
+  let files: [URL: Data]
+
+  init(files: [URL: Data]) {
+    self.files = files
+  }
+
+  func createDirectory(at url: URL) throws {}
+  func fileExists(at url: URL) -> Bool { files[url] != nil }
+  func read(from url: URL) throws -> Data {
+    guard let data = files[url] else { throw CocoaError(.fileReadNoSuchFile) }
+    return data
+  }
+  func writeAtomically(_ data: Data, to url: URL) throws {}
+  func moveItem(at source: URL, to destination: URL) throws {}
+  func replaceItem(at destination: URL, with source: URL) throws {}
 }
 
 @MainActor

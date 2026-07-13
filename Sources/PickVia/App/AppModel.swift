@@ -10,6 +10,8 @@ public final class AppModel {
   public private(set) var launchesAtLogin = false
   public private(set) var errorMessage: String?
   public private(set) var configurationRecovery: ConfigurationRecoveryState = .none
+  public private(set) var profileAccessRows: [BrowserProfileAccessRow] = []
+  public private(set) var profileAccessPresentation: ProfileAccessPresentationState = .idle
 
   public var configurationRecoveryMessage: String? {
     switch configurationRecovery {
@@ -53,6 +55,23 @@ public final class AppModel {
     }
   }
 
+  public var canFinishProfileAccess: Bool {
+    profileAccessRows.contains { row in
+      switch row.state {
+      case .granted:
+        true
+      case .invalidFolder:
+        row.hasStoredGrant
+      case .accessNeeded, .accessRevoked, .metadataDamaged:
+        false
+      }
+    }
+  }
+
+  public var shouldAutomaticallyPresentProfileAccess: Bool {
+    profileAccessPresentation == .automaticPending
+  }
+
   private let configStore: any ConfigStoring
   private let browserCatalog: any BrowserDiscovering
   private let preferences: any PreferencesStoring
@@ -60,7 +79,10 @@ public final class AppModel {
   private let loginItem: any LoginItemServicing
   private let routing: any AppRouting
   private let targetSnapshot: MutableTargetSnapshot?
+  private let profileAccess: any ProfileAccessManaging
+  private let profileRootValidator: BrowserProfileRootValidator
   private var isLoaded = false
+  private var latestBrowserScan: BrowserScanResult?
 
   public init(
     configStore: any ConfigStoring,
@@ -69,7 +91,9 @@ public final class AppModel {
     defaultBrowser: any DefaultBrowserServicing,
     loginItem: any LoginItemServicing,
     routing: any AppRouting,
-    targetSnapshot: MutableTargetSnapshot? = nil
+    targetSnapshot: MutableTargetSnapshot? = nil,
+    profileAccess: any ProfileAccessManaging = MissingProfileAccessManager(),
+    profileRootValidator: BrowserProfileRootValidator = BrowserProfileRootValidator()
   ) {
     self.configStore = configStore
     self.browserCatalog = browserCatalog
@@ -78,6 +102,8 @@ public final class AppModel {
     self.loginItem = loginItem
     self.routing = routing
     self.targetSnapshot = targetSnapshot
+    self.profileAccess = profileAccess
+    self.profileRootValidator = profileRootValidator
     showsURLInChooser = true
     onboardingStep = 1
   }
@@ -98,17 +124,16 @@ public final class AppModel {
       configurationRecovery = .loadFailed
     }
 
-    var resolvedConfig = loadedConfig
     let shouldPublishSnapshot = configurationRecovery != .loadFailed
+    var didCommitAuthoritativeScan = false
 
     if configurationRecovery != .loadFailed {
       let scan = browserCatalog.scanResult()
+      latestBrowserScan = scan
       if scan.isAuthoritative {
-        let reconciled = browserCatalog.reconcile(discovered: scan.browsers, with: loadedConfig)
         do {
-          let validated = try reconciled.validatedAndMigrated()
-          try configStore.save(validated)
-          resolvedConfig = validated
+          try commitAuthoritativeScan(scan, base: loadedConfig, refreshRouting: false)
+          didCommitAuthoritativeScan = true
         } catch {
           errorMessage = "Browser discovery produced a configuration that could not be committed."
         }
@@ -119,10 +144,13 @@ public final class AppModel {
       } else if configurationRecovery == .none {
         errorMessage = "Browser discovery could not be completed. Existing targets were preserved."
       }
+      updateAutomaticProfileAccessRows(from: scan)
     }
-    config = resolvedConfig
-    if shouldPublishSnapshot {
-      targetSnapshot?.publish(resolvedConfig)
+    if !didCommitAuthoritativeScan {
+      config = loadedConfig
+      if shouldPublishSnapshot {
+        targetSnapshot?.publish(loadedConfig)
+      }
     }
     showsURLInChooser = preferences.bool(forKey: PreferenceKey.showsURLInChooser) ?? true
     launchesAtLogin = loginItem.isEnabled
@@ -149,20 +177,144 @@ public final class AppModel {
 
   public func rescan() throws {
     let scan = browserCatalog.scanResult()
+    latestBrowserScan = scan
     guard scan.isAuthoritative else {
       errorMessage = "Browser discovery could not be completed. Existing targets were preserved."
+      updateAutomaticProfileAccessRows(from: scan)
       return
     }
-    let reconciled = browserCatalog.reconcile(discovered: scan.browsers, with: config)
-    let validated = try reconciled.validatedAndMigrated()
-    try configStore.save(validated)
-    config = validated
-    targetSnapshot?.publish(config)
-    routing.refreshCurrent()
+    do {
+      try commitAuthoritativeScan(scan, base: config, refreshRouting: true)
+    } catch {
+      errorMessage = "Browser discovery produced a configuration that could not be committed."
+      updateAutomaticProfileAccessRows(from: scan)
+      throw error
+    }
     errorMessage =
       scan.warnings.isEmpty
       ? nil
       : "Some browser profile metadata could not be read. Existing targets were preserved."
+    updateAutomaticProfileAccessRows(from: scan)
+  }
+
+  public func openProfileAccessManager() {
+    profileAccessRows = manualProfileAccessRows(from: latestBrowserScan)
+    profileAccessPresentation = .manualPending
+  }
+
+  public func userRequestedRescan() throws {
+    profileAccessPresentation = .idle
+    try rescan()
+  }
+
+  public func grantProfileAccess(for bundleIdentifier: String, root: URL) throws {
+    guard
+      let index = profileAccessRows.firstIndex(where: {
+        $0.bundleIdentifier == bundleIdentifier
+      }),
+      let descriptor = BrowserDescriptor.descriptor(
+        forBundleIdentifier: bundleIdentifier
+      )
+    else { throw ProfileAccessFlowError.browserNotFound }
+
+    let validation = profileRootValidator.validate(root, for: descriptor)
+    switch validation {
+    case .invalid(let requiredMarker):
+      profileAccessRows[index].state = .invalidFolder(requiredMarker: requiredMarker)
+      return
+    case .unreadable:
+      profileAccessRows[index].state = .invalidFolder(
+        requiredMarker: profileAccessRows[index].requiredMarker
+      )
+      return
+    case .valid:
+      break
+    }
+
+    let persistence: ProfileGrantPersistence
+    do {
+      persistence = try profileAccess.installGrant(
+        root: root,
+        for: bundleIdentifier
+      )
+    } catch {
+      errorMessage = "The selected browser folder access could not be saved."
+      throw error
+    }
+
+    let targeted = browserCatalog.scanResult(for: bundleIdentifier)
+    profileAccessRows[index].state = targetedProfileAccessState(
+      targeted,
+      persistence: persistence
+    )
+    profileAccessRows[index].hasStoredGrant = true
+    errorMessage = nil
+  }
+
+  public func removeProfileAccess(for bundleIdentifier: String) throws {
+    try profileAccess.removeGrant(for: bundleIdentifier)
+    let scan = browserCatalog.scanResult()
+    latestBrowserScan = scan
+    guard scan.isAuthoritative else {
+      errorMessage = "Browser discovery could not be completed. Existing targets were preserved."
+      throw ProfileAccessFlowError.scanNotAuthoritative
+    }
+    do {
+      try commitAuthoritativeScan(scan, base: config, refreshRouting: true)
+    } catch {
+      errorMessage = "Browser discovery produced a configuration that could not be committed."
+      throw error
+    }
+    profileAccessRows = manualProfileAccessRows(from: scan)
+    errorMessage =
+      scan.warnings.isEmpty
+      ? nil
+      : "Some browser profile metadata could not be read. Existing targets were preserved."
+  }
+
+  public func finishProfileAccessAndRescan() throws {
+    let scan = browserCatalog.scanResult()
+    latestBrowserScan = scan
+    guard scan.isAuthoritative else {
+      errorMessage = "Browser discovery could not be completed. Existing targets were preserved."
+      profileAccessPresentation = .presented
+      throw ProfileAccessFlowError.scanNotAuthoritative
+    }
+    do {
+      try commitAuthoritativeScan(scan, base: config, refreshRouting: true)
+    } catch {
+      errorMessage = "Browser discovery produced a configuration that could not be committed."
+      profileAccessPresentation = .presented
+      throw error
+    }
+    profileAccessRows = manualProfileAccessRows(from: scan)
+    profileAccessPresentation = .idle
+    errorMessage =
+      scan.warnings.isEmpty
+      ? nil
+      : "Some browser profile metadata could not be read. Existing targets were preserved."
+  }
+
+  public func skipProfileAccess() {
+    profileAccessPresentation = .suppressedForProcess
+  }
+
+  public func closeProfileAccess() {
+    profileAccessPresentation = .suppressedForProcess
+  }
+
+  public func profileAccessDidPresent() {
+    switch profileAccessPresentation {
+    case .automaticPending, .manualPending:
+      profileAccessPresentation = .presented
+    case .idle, .presented, .suppressedForProcess:
+      break
+    }
+  }
+
+  public func reportProfileAccessCommitFailure() {
+    profileAccessPresentation = .presented
+    errorMessage = "Browser discovery produced a configuration that could not be committed."
   }
 
   public func refreshDefaultStatus() {
@@ -403,6 +555,110 @@ public final class AppModel {
     errorMessage = nil
   }
 
+  private func commitAuthoritativeScan(
+    _ scan: BrowserScanResult,
+    base: PickViaConfig,
+    refreshRouting: Bool
+  ) throws {
+    let reconciled = browserCatalog.reconcile(discovered: scan.browsers, with: base)
+    let validated = try reconciled.validatedAndMigrated()
+    try configStore.save(validated)
+    config = validated
+    targetSnapshot?.publish(validated)
+    if refreshRouting {
+      routing.refreshCurrent()
+    }
+  }
+
+  private func targetedProfileAccessState(
+    _ browser: DiscoveredBrowser?,
+    persistence: ProfileGrantPersistence
+  ) -> BrowserProfileAccessRowState {
+    guard let browser else { return .accessRevoked }
+    return switch browser.metadataStatus {
+    case .loaded:
+      .granted(profileCount: browser.profiles.count, persistence: persistence)
+    case .accessRevoked:
+      .accessRevoked
+    case .metadataDamaged:
+      .metadataDamaged
+    case .notApplicable, .metadataAbsent, .accessRequired:
+      .accessNeeded
+    }
+  }
+
+  private func updateAutomaticProfileAccessRows(from scan: BrowserScanResult) {
+    let wasSuppressed = profileAccessPresentation == .suppressedForProcess
+    let issueByBundleIdentifier = Dictionary(
+      uniqueKeysWithValues: scan.profileAccessIssues.compactMap { issue in
+        switch issue {
+        case .accessRequired(let bundleIdentifier):
+          (bundleIdentifier, BrowserProfileAccessRowState.accessNeeded)
+        case .accessRevoked(let bundleIdentifier):
+          (bundleIdentifier, BrowserProfileAccessRowState.accessRevoked)
+        case .metadataDamaged:
+          nil
+        }
+      }
+    )
+    profileAccessRows = scan.browsers.compactMap { browser in
+      guard let state = issueByBundleIdentifier[browser.application.bundleIdentifier] else {
+        return nil
+      }
+      return profileAccessRow(for: browser, state: state)
+    }
+    if wasSuppressed {
+      profileAccessPresentation = .suppressedForProcess
+    } else {
+      profileAccessPresentation = profileAccessRows.isEmpty ? .idle : .automaticPending
+    }
+  }
+
+  private func manualProfileAccessRows(from scan: BrowserScanResult?) -> [BrowserProfileAccessRow] {
+    guard let scan else { return [] }
+    return scan.browsers.compactMap { browser in
+      guard browser.application.family != .safari else { return nil }
+      let persistence = profileAccess.persistence(
+        for: browser.application.bundleIdentifier
+      )
+      let state: BrowserProfileAccessRowState
+      switch browser.metadataStatus {
+      case .loaded where persistence != nil:
+        state = .granted(profileCount: browser.profiles.count, persistence: persistence!)
+      case .accessRevoked:
+        state = .accessRevoked
+      case .metadataDamaged:
+        state = .metadataDamaged
+      case .notApplicable, .metadataAbsent, .loaded, .accessRequired:
+        state = .accessNeeded
+      }
+      return profileAccessRow(for: browser, state: state)
+    }
+  }
+
+  private func profileAccessRow(
+    for browser: DiscoveredBrowser,
+    state: BrowserProfileAccessRowState
+  ) -> BrowserProfileAccessRow? {
+    guard
+      let descriptor = BrowserDescriptor.descriptor(
+        forBundleIdentifier: browser.application.bundleIdentifier
+      ),
+      descriptor.family != .safari,
+      let expectedRootSuffix = descriptor.profileRoot,
+      let requiredMarker = BrowserProfileRootValidator.requiredMarker(for: descriptor.family)
+    else { return nil }
+    return BrowserProfileAccessRow(
+      bundleIdentifier: descriptor.bundleIdentifier,
+      displayName: descriptor.displayName,
+      family: descriptor.family,
+      expectedRootSuffix: expectedRootSuffix,
+      requiredMarker: requiredMarker,
+      state: state,
+      hasStoredGrant: profileAccess.persistence(for: descriptor.bundleIdentifier) != nil
+    )
+  }
+
   private var hasConfirmedDefaultStatus: Bool {
     defaultStatus.http == .isDefault && defaultStatus.https == .isDefault
   }
@@ -429,6 +685,11 @@ public enum TargetEditingError: Error, Equatable {
   case detectedTargetIdentityIsImmutable
   case detectedTargetCannotBeRemoved
   case invalidMove
+}
+
+public enum ProfileAccessFlowError: Error, Equatable {
+  case browserNotFound
+  case scanNotAuthoritative
 }
 
 public enum ConfigurationRecoveryState: Equatable {
