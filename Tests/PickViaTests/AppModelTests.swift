@@ -253,6 +253,148 @@ final class AppModelTests: XCTestCase {
         XCTAssertTrue(routing.acceptedURLs.isEmpty)
     }
 
+    func testDuplicateLabelsAreAllowedAndPersisted() throws {
+        let config = Fixtures.editableConfig
+        let store = ConfigStoreStub(config: config)
+        let model = makeModel(store: store)
+        try model.load()
+
+        try model.renameTarget(id: "work-private", label: "Work")
+
+        XCTAssertEqual(model.targets.map(\.label), ["Work", "Work"])
+        XCTAssertEqual(store.saved.last, model.config)
+    }
+
+    func testBlankLabelIsRejectedWithoutMutatingConfig() throws {
+        let store = ConfigStoreStub(config: Fixtures.editableConfig)
+        let model = makeModel(store: store)
+        try model.load()
+        let original = model.config
+
+        XCTAssertThrowsError(try model.renameTarget(id: "work", label: "  \n"))
+
+        XCTAssertEqual(model.config, original)
+        XCTAssertTrue(store.saved.isEmpty)
+    }
+
+    func testSafariPrivateEditIsRejectedWithoutMutatingConfig() throws {
+        let store = ConfigStoreStub(config: Fixtures.safariConfig)
+        let model = makeModel(store: store)
+        try model.load()
+        let original = model.config
+
+        XCTAssertThrowsError(try model.setTargetMode(id: "safari", mode: .private))
+
+        XCTAssertEqual(model.config, original)
+        XCTAssertTrue(store.saved.isEmpty)
+    }
+
+    func testManualTargetRequiresInstalledSupportedBrowser() throws {
+        let unsupported = BrowserApplication(
+            id: "com.example.browser",
+            family: .chromium,
+            displayName: "Example",
+            bundleIdentifier: "com.example.browser",
+            applicationURL: URL(fileURLWithPath: "/Applications/Example.app"),
+            executableURL: URL(fileURLWithPath: "/Applications/Example.app/Contents/MacOS/Example"),
+            isAvailable: true
+        )
+        let config = PickViaConfig(schemaVersion: 1, browsers: [unsupported], targets: [])
+        let store = ConfigStoreStub(config: config)
+        let model = makeModel(store: store)
+        try model.load()
+
+        XCTAssertThrowsError(try model.addManualTarget(
+            browserID: unsupported.id,
+            profileIdentifier: "Default",
+            label: "Example",
+            mode: .normal
+        ))
+        XCTAssertEqual(model.config, config)
+        XCTAssertTrue(store.saved.isEmpty)
+    }
+
+    func testManualTargetRequiresKnownProfileIdentity() throws {
+        let store = ConfigStoreStub(config: Fixtures.editableConfig)
+        let model = makeModel(store: store)
+        try model.load()
+
+        XCTAssertThrowsError(try model.addManualTarget(
+            browserID: Fixtures.chrome.id,
+            profileIdentifier: "Missing",
+            label: "Missing profile",
+            mode: .normal
+        ))
+        XCTAssertEqual(model.config, Fixtures.editableConfig)
+        XCTAssertTrue(store.saved.isEmpty)
+    }
+
+    func testValidManualTargetCanBeAddedAndRemoved() throws {
+        let store = ConfigStoreStub(config: Fixtures.editableConfig)
+        let model = makeModel(store: store)
+        try model.load()
+
+        let id = try model.addManualTarget(
+            browserID: Fixtures.chrome.id,
+            profileIdentifier: "Profile 1",
+            label: "Second Work",
+            mode: .private
+        )
+
+        XCTAssertEqual(model.targets.last?.id, id)
+        XCTAssertEqual(model.targets.last?.origin, .manual)
+        XCTAssertEqual(model.targets.last?.profileDisplayName, "Work")
+        try model.removeManualTarget(id: id)
+        XCTAssertEqual(model.config, Fixtures.editableConfig)
+        XCTAssertEqual(store.saved.count, 2)
+    }
+
+    func testRemovingDetectedTargetIsRejectedWithoutMutation() throws {
+        let store = ConfigStoreStub(config: Fixtures.editableConfig)
+        let model = makeModel(store: store)
+        try model.load()
+
+        XCTAssertThrowsError(try model.removeManualTarget(id: "work"))
+        XCTAssertEqual(model.config, Fixtures.editableConfig)
+        XCTAssertTrue(store.saved.isEmpty)
+    }
+
+    func testReorderingPersistsContiguousSortPositions() throws {
+        let store = ConfigStoreStub(config: Fixtures.editableConfig)
+        let model = makeModel(store: store)
+        try model.load()
+
+        try model.moveTargets(fromOffsets: IndexSet(integer: 0), toOffset: 2)
+
+        XCTAssertEqual(model.targets.map(\.id), ["work-private", "work"])
+        XCTAssertEqual(model.targets.map(\.sortOrder), [0, 1])
+        XCTAssertEqual(store.saved.last, model.config)
+    }
+
+    func testDisabledDetectedTargetRemainsDisabledAfterRescan() throws {
+        let store = ConfigStoreStub(config: Fixtures.editableConfig)
+        let catalog = BrowserCatalogStub(
+            discovered: [],
+            reconciler: { BrowserCatalog.reconcile(discovered: [Fixtures.discoveredChrome], with: $0) }
+        )
+        let model = makeModel(store: store, catalog: catalog)
+        try model.load()
+
+        try model.setTargetEnabled(id: "work", isEnabled: false)
+        try model.rescan()
+
+        XCTAssertFalse(try XCTUnwrap(model.targets.first { $0.id == "work" }).isEnabled)
+    }
+
+    func testSaveFailureLeavesPublishedConfigUnchanged() throws {
+        let store = ConfigStoreStub(config: Fixtures.editableConfig, saveError: TestError.denied)
+        let model = makeModel(store: store)
+        try model.load()
+
+        XCTAssertThrowsError(try model.renameTarget(id: "work", label: "Renamed"))
+        XCTAssertEqual(model.config, Fixtures.editableConfig)
+    }
+
     private func makeModel(
         store: ConfigStoreStub = ConfigStoreStub(config: .initial),
         catalog: BrowserCatalogStub = BrowserCatalogStub(),
@@ -312,32 +454,75 @@ private enum Fixtures {
         browsers: [browser],
         targets: [target()]
     )
+
+    static let chrome = BrowserApplication(
+        id: "com.google.Chrome",
+        family: .chromium,
+        displayName: "Google Chrome",
+        bundleIdentifier: "com.google.Chrome",
+        applicationURL: URL(fileURLWithPath: "/Applications/Google Chrome.app"),
+        executableURL: URL(fileURLWithPath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+        isAvailable: true
+    )
+
+    static let discoveredChrome = DiscoveredBrowser(
+        application: chrome,
+        profiles: [DiscoveredProfile(identifier: "Profile 1", displayName: "Work", directoryURL: nil)]
+    )
+
+    static let editableConfig = PickViaConfig(
+        schemaVersion: 1,
+        browsers: [chrome],
+        targets: [
+            BrowserTarget(id: "work", browserID: chrome.id, label: "Work", profileIdentifier: "Profile 1", profileDisplayName: "Work", mode: .normal, isEnabled: true, sortOrder: 9, origin: .detected, availability: .available),
+            BrowserTarget(id: "work-private", browserID: chrome.id, label: "Work Private", profileIdentifier: "Profile 1", profileDisplayName: "Work", mode: .private, isEnabled: false, sortOrder: 20, origin: .detected, availability: .available),
+        ]
+    )
+
+    static let safariConfig = PickViaConfig(
+        schemaVersion: 1,
+        browsers: [BrowserApplication(id: "com.apple.Safari", family: .safari, displayName: "Safari", bundleIdentifier: "com.apple.Safari", applicationURL: URL(fileURLWithPath: "/Applications/Safari.app"), executableURL: nil, isAvailable: true)],
+        targets: [BrowserTarget(id: "safari", browserID: "com.apple.Safari", label: "Safari", profileIdentifier: nil, profileDisplayName: nil, mode: .normal, isEnabled: true, sortOrder: 0, origin: .detected, availability: .available)]
+    )
 }
 
 private final class ConfigStoreStub: ConfigStoring, @unchecked Sendable {
     var config: PickViaConfig
     private(set) var loadCallCount = 0
     private(set) var saved: [PickViaConfig] = []
+    let saveError: Error?
 
-    init(config: PickViaConfig) { self.config = config }
+    init(config: PickViaConfig, saveError: Error? = nil) {
+        self.config = config
+        self.saveError = saveError
+    }
     func load() throws -> PickViaConfig { loadCallCount += 1; return config }
-    func save(_ config: PickViaConfig) throws { saved.append(config) }
+    func save(_ config: PickViaConfig) throws {
+        if let saveError { throw saveError }
+        saved.append(config)
+    }
 }
 
 private final class BrowserCatalogStub: BrowserDiscovering, @unchecked Sendable {
     var discovered: [DiscoveredBrowser]
     var reconciled: PickViaConfig
     private(set) var reconcileInputs: [PickViaConfig] = []
+    private let reconciler: ((PickViaConfig) -> PickViaConfig)?
 
-    init(discovered: [DiscoveredBrowser] = [], reconciled: PickViaConfig = .initial) {
+    init(
+        discovered: [DiscoveredBrowser] = [],
+        reconciled: PickViaConfig = .initial,
+        reconciler: ((PickViaConfig) -> PickViaConfig)? = nil
+    ) {
         self.discovered = discovered
         self.reconciled = reconciled
+        self.reconciler = reconciler
     }
 
     func scan() throws -> [DiscoveredBrowser] { discovered }
     func reconcile(discovered: [DiscoveredBrowser], with config: PickViaConfig) -> PickViaConfig {
         reconcileInputs.append(config)
-        return reconciled
+        return reconciler?(config) ?? reconciled
     }
 }
 

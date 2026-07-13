@@ -146,6 +146,138 @@ public final class AppModel {
         }
     }
 
+    public func renameTarget(id: BrowserTarget.ID, label: String) throws {
+        let label = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !label.isEmpty else { throw TargetEditingError.blankLabel }
+        try updateTarget(id: id) { target in
+            copy(target, label: label)
+        }
+    }
+
+    public func setTargetEnabled(id: BrowserTarget.ID, isEnabled: Bool) throws {
+        try updateTarget(id: id) { target in
+            copy(target, isEnabled: isEnabled)
+        }
+    }
+
+    public func setTargetMode(id: BrowserTarget.ID, mode: BrowserMode) throws {
+        try updateTarget(id: id) { [config] target in
+            guard let browser = config.browsers.first(where: { $0.id == target.browserID }) else {
+                throw TargetEditingError.browserNotFound
+            }
+            guard browser.family != .safari || mode == .normal else {
+                throw TargetEditingError.safariPrivateModeUnsupported
+            }
+            return copy(target, mode: mode)
+        }
+    }
+
+    public func moveTargets(fromOffsets offsets: IndexSet, toOffset destination: Int) throws {
+        var ordered = config.targets.sorted {
+            if $0.sortOrder != $1.sortOrder { return $0.sortOrder < $1.sortOrder }
+            return $0.id < $1.id
+        }
+        guard
+            !offsets.isEmpty,
+            offsets.allSatisfy({ ordered.indices.contains($0) }),
+            (0...ordered.count).contains(destination)
+        else { throw TargetEditingError.invalidMove }
+
+        let moved = offsets.map { ordered[$0] }
+        for index in offsets.reversed() {
+            ordered.remove(at: index)
+        }
+        let insertionIndex = destination - offsets.filter { $0 < destination }.count
+        ordered.insert(contentsOf: moved, at: insertionIndex)
+        ordered = ordered.enumerated().map { copy($0.element, sortOrder: $0.offset) }
+        try persist(targets: ordered)
+    }
+
+    @discardableResult
+    public func addManualTarget(
+        browserID: BrowserApplication.ID,
+        profileIdentifier: String?,
+        label: String,
+        mode: BrowserMode
+    ) throws -> BrowserTarget.ID {
+        let label = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !label.isEmpty else { throw TargetEditingError.blankLabel }
+        guard
+            let browser = config.browsers.first(where: { $0.id == browserID }),
+            browser.isAvailable,
+            BrowserDescriptor.supported.contains(where: {
+                $0.bundleIdentifier == browser.bundleIdentifier && $0.family == browser.family
+            })
+        else { throw TargetEditingError.browserUnavailableOrUnsupported }
+        guard browser.family != .safari || mode == .normal else {
+            throw TargetEditingError.safariPrivateModeUnsupported
+        }
+
+        let profileDisplayName: String?
+        if browser.family == .safari {
+            guard profileIdentifier == nil else { throw TargetEditingError.invalidProfileIdentity }
+            profileDisplayName = nil
+        } else {
+            guard
+                let profileIdentifier,
+                !profileIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                let profileTarget = config.targets.first(where: {
+                    $0.browserID == browserID
+                        && $0.profileIdentifier == profileIdentifier
+                        && $0.availability == .available
+                })
+            else { throw TargetEditingError.invalidProfileIdentity }
+            profileDisplayName = profileTarget.profileDisplayName
+        }
+
+        let id = UUID().uuidString
+        let target = BrowserTarget(
+            id: id,
+            browserID: browserID,
+            label: label,
+            profileIdentifier: profileIdentifier,
+            profileDisplayName: profileDisplayName,
+            mode: mode,
+            isEnabled: true,
+            sortOrder: (config.targets.map(\.sortOrder).max() ?? -1) + 1,
+            origin: .manual,
+            availability: .available
+        )
+        try persist(targets: config.targets + [target])
+        return id
+    }
+
+    public func removeManualTarget(id: BrowserTarget.ID) throws {
+        guard let target = config.targets.first(where: { $0.id == id }) else {
+            throw TargetEditingError.targetNotFound
+        }
+        guard target.origin == .manual else { throw TargetEditingError.detectedTargetCannotBeRemoved }
+        try persist(targets: config.targets.filter { $0.id != id })
+    }
+
+    private func updateTarget(
+        id: BrowserTarget.ID,
+        transform: (BrowserTarget) throws -> BrowserTarget
+    ) throws {
+        guard let index = config.targets.firstIndex(where: { $0.id == id }) else {
+            throw TargetEditingError.targetNotFound
+        }
+        var targets = config.targets
+        targets[index] = try transform(targets[index])
+        try persist(targets: targets)
+    }
+
+    private func persist(targets: [BrowserTarget]) throws {
+        let updated = PickViaConfig(
+            schemaVersion: config.schemaVersion,
+            browsers: config.browsers,
+            targets: targets
+        )
+        try configStore.save(updated)
+        config = updated
+        errorMessage = nil
+    }
+
     private var hasConfirmedDefaultStatus: Bool {
         defaultStatus.http == .isDefault && defaultStatus.https == .isDefault
     }
@@ -160,6 +292,39 @@ public final class AppModel {
         }
         return bounded
     }
+}
+
+public enum TargetEditingError: Error, Equatable {
+    case targetNotFound
+    case browserNotFound
+    case blankLabel
+    case safariPrivateModeUnsupported
+    case browserUnavailableOrUnsupported
+    case invalidProfileIdentity
+    case detectedTargetCannotBeRemoved
+    case invalidMove
+}
+
+private func copy(
+    _ target: BrowserTarget,
+    label: String? = nil,
+    mode: BrowserMode? = nil,
+    isEnabled: Bool? = nil,
+    sortOrder: Int? = nil
+) -> BrowserTarget {
+    BrowserTarget(
+        id: target.id,
+        browserID: target.browserID,
+        label: label ?? target.label,
+        profileIdentifier: target.profileIdentifier,
+        profileDisplayName: target.profileDisplayName,
+        mode: mode ?? target.mode,
+        isEnabled: isEnabled ?? target.isEnabled,
+        sortOrder: sortOrder ?? target.sortOrder,
+        origin: target.origin,
+        availability: target.availability,
+        validationError: target.validationError
+    )
 }
 
 private enum PreferenceKey {
