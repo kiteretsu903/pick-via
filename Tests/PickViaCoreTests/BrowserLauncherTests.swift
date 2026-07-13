@@ -19,8 +19,86 @@ struct BrowserLauncherTests {
       Issue.record("Expected executable launch plan")
       return
     }
-    #expect(application == executableURL)
+    #expect(application == applicationURL.appending(path: "Contents/MacOS/Google Chrome"))
     #expect(arguments == ["--profile-directory=Profile 1", "https://example.com/a?x=1"])
+  }
+
+  @Test func persistedApplicationAndExecutablePathsAreIgnoredAtLaunchBoundary() throws {
+    let trustedApplication = URL(
+      fileURLWithPath: "/Applications/Trusted Google Chrome.app", isDirectory: true)
+    let substituted = BrowserApplication(
+      id: "com.google.Chrome",
+      family: .chromium,
+      displayName: "Google Chrome",
+      bundleIdentifier: "com.google.Chrome",
+      applicationURL: URL(fileURLWithPath: "/tmp/Evil.app", isDirectory: true),
+      executableURL: URL(fileURLWithPath: "/tmp/payload"),
+      isAvailable: true
+    )
+    let launcher = BrowserLauncher(
+      trustedBrowserResolver: StubTrustedBrowserResolver(urls: [
+        "com.google.Chrome": trustedApplication
+      ]),
+      processRunner: RecordingProcessRunner(),
+      workspace: RecordingWorkspace(),
+      executableValidator: StubExecutableValidator(isExecutable: true)
+    )
+
+    let plan = try launcher.makePlan(
+      url: url,
+      application: substituted,
+      target: target(family: .chromium, profile: nil)
+    )
+
+    guard case .executable(let executable, _) = plan else {
+      Issue.record("Expected executable plan")
+      return
+    }
+    #expect(
+      executable
+        == trustedApplication.appending(path: "Contents/MacOS/Google Chrome"))
+    #expect(!executable.path.hasPrefix("/tmp"))
+  }
+
+  @Test func launchFailsWhenSupportedBundleCannotBeResolvedCurrently() {
+    let launcher = BrowserLauncher(
+      trustedBrowserResolver: StubTrustedBrowserResolver(urls: [:]),
+      processRunner: RecordingProcessRunner(),
+      workspace: RecordingWorkspace(),
+      executableValidator: StubExecutableValidator(isExecutable: true)
+    )
+
+    #expect(throws: LaunchFailure.self) {
+      try launcher.makePlan(
+        url: url,
+        application: application(family: .chromium),
+        target: target(family: .chromium, profile: nil)
+      )
+    }
+  }
+
+  @Test func unprofiledChromiumAndFirefoxPlansUseBrowserLevelArguments() throws {
+    let launcher = testLauncher()
+
+    let chromium = try launcher.makePlan(
+      url: url,
+      application: application(family: .chromium),
+      target: target(family: .chromium, profile: nil)
+    )
+    let firefoxPrivate = try launcher.makePlan(
+      url: url,
+      application: application(family: .firefox),
+      target: target(family: .firefox, profile: nil, mode: .private)
+    )
+
+    guard case .executable(_, let chromiumArguments) = chromium,
+      case .executable(_, let firefoxArguments) = firefoxPrivate
+    else {
+      Issue.record("Expected executable plans")
+      return
+    }
+    #expect(chromiumArguments == [url.absoluteString])
+    #expect(firefoxArguments == ["-private-window", url.absoluteString])
   }
 
   @Test func chromiumPrivatePlanUsesExactProfileIncognitoAndURLTokens() throws {
@@ -137,22 +215,23 @@ struct BrowserLauncherTests {
     }
   }
 
-  @Test func missingExecutableFailsBeforeProcessLaunch() async {
+  @Test func missingPersistedExecutableDoesNotBlockTrustedLaunchResolution() async throws {
     let process = RecordingProcessRunner()
     let launcher = BrowserLauncher(
+      trustedBrowserResolver: StubTrustedBrowserResolver(urls: [
+        "com.google.Chrome": applicationURL
+      ]),
       processRunner: process,
       workspace: RecordingWorkspace(),
       executableValidator: StubExecutableValidator(isExecutable: true)
     )
 
-    await #expect(throws: LaunchFailure.self) {
-      try await launcher.launch(
-        url: url,
-        application: application(family: .chromium, executable: nil),
-        target: target(family: .chromium, profile: "Profile 1")
-      )
-    }
-    #expect(process.invocations.isEmpty)
+    try await launcher.launch(
+      url: url,
+      application: application(family: .chromium, executable: nil),
+      target: target(family: .chromium, profile: "Profile 1")
+    )
+    #expect(process.invocations.count == 1)
   }
 
   @Test(arguments: [
@@ -163,6 +242,9 @@ struct BrowserLauncherTests {
     let process = RecordingProcessRunner()
     let validator = StubExecutableValidator(isExecutable: false)
     let launcher = BrowserLauncher(
+      trustedBrowserResolver: StubTrustedBrowserResolver(urls: [
+        "com.google.Chrome": applicationURL
+      ]),
       processRunner: process,
       workspace: RecordingWorkspace(),
       executableValidator: validator
@@ -175,7 +257,9 @@ struct BrowserLauncherTests {
         target: target(family: .chromium, profile: "Profile 1")
       )
     }
-    #expect(validator.requestedURLs == [invalidExecutable])
+    #expect(
+      validator.requestedURLs
+        == [applicationURL.appending(path: "Contents/MacOS/Google Chrome")])
     #expect(process.invocations.isEmpty)
   }
 
@@ -349,10 +433,23 @@ private func bundleID(for family: BrowserFamily) -> String {
 
 private func testLauncher() -> BrowserLauncher {
   BrowserLauncher(
+    trustedBrowserResolver: StubTrustedBrowserResolver(urls: [
+      "com.apple.Safari": applicationURL,
+      "com.google.Chrome": applicationURL,
+      "org.mozilla.firefox": applicationURL,
+    ]),
     processRunner: RecordingProcessRunner(),
     workspace: RecordingWorkspace(),
     executableValidator: StubExecutableValidator(isExecutable: true)
   )
+}
+
+private struct StubTrustedBrowserResolver: TrustedBrowserResolving {
+  let urls: [String: URL]
+
+  func applicationURL(forBundleIdentifier bundleIdentifier: String) -> URL? {
+    urls[bundleIdentifier]
+  }
 }
 
 enum ExecutionKind: Sendable {

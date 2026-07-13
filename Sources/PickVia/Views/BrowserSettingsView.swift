@@ -9,6 +9,12 @@ public struct BrowserSettingsView: View {
 
   public var body: some View {
     List {
+      if model.configurationRecovery != .none, let errorMessage = model.errorMessage {
+        Section {
+          Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+            .foregroundStyle(.red)
+        }
+      }
       ForEach(model.browsers) { browser in
         Section {
           let targets = targets(for: browser)
@@ -124,10 +130,16 @@ private struct TargetSettingsRow: View {
           Picker(
             "Profile",
             selection: Binding(
-              get: { target.profileIdentifier ?? "" },
-              set: { try? model.setTargetProfile(id: target.id, profileIdentifier: $0) }
+              get: { target.profileIdentity ?? target.profileIdentifier ?? "" },
+              set: {
+                try? model.setTargetProfile(
+                  id: target.id,
+                  profileIdentifier: $0.isEmpty ? nil : $0
+                )
+              }
             )
           ) {
+            Text("Browser Default").tag("")
             ForEach(profileChoices) { profile in
               Text(profile.displayName).tag(profile.identifier)
             }
@@ -196,6 +208,7 @@ private struct AddTargetView: View {
         }
         if selectedBrowser?.family != .safari {
           Picker("Profile", selection: $profileIdentifier) {
+            Text("Browser Default").tag("")
             ForEach(profiles, id: \.identifier) { profile in
               Text(profile.displayName).tag(profile.identifier)
             }
@@ -215,7 +228,7 @@ private struct AddTargetView: View {
           .buttonStyle(.borderedProminent)
           .disabled(
             label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedBrowser == nil
-              || (selectedBrowser?.family != .safari && profileIdentifier.isEmpty))
+          )
       }
     }
     .padding(24)
@@ -245,7 +258,9 @@ private struct AddTargetView: View {
     do {
       try model.addManualTarget(
         browserID: browserID,
-        profileIdentifier: selectedBrowser?.family == .safari ? nil : profileIdentifier,
+        profileIdentifier: selectedBrowser?.family == .safari || profileIdentifier.isEmpty
+          ? nil
+          : profileIdentifier,
         label: label,
         mode: mode
       )
@@ -273,7 +288,7 @@ func availableProfileChoices(
       target.browserID == browserID,
       target.origin == .detected,
       target.availability == .available,
-      let identifier = target.profileIdentifier,
+      let identifier = target.profileIdentity ?? target.profileIdentifier,
       seen.insert(identifier).inserted
     else { return nil }
     return BrowserProfileChoice(

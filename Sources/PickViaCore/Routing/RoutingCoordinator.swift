@@ -32,6 +32,39 @@ public protocol TargetProviding: Sendable {
   func availableSnapshot() -> RoutingTargetSnapshot
 }
 
+public final class MutableTargetSnapshot: TargetProviding, @unchecked Sendable {
+  private let lock = NSLock()
+  private var config: PickViaConfig = .initial
+
+  public init() {}
+
+  public func publish(_ config: PickViaConfig) {
+    lock.withLock { self.config = config }
+  }
+
+  public func availableSnapshot() -> RoutingTargetSnapshot {
+    lock.withLock {
+      let applications = config.browsers.filter(\.isAvailable)
+      let applicationIDs = Set(applications.map(\.id))
+      let targets = config.targets
+        .filter {
+          $0.isEnabled
+            && $0.availability == .available
+            && applicationIDs.contains($0.browserID)
+        }
+        .sorted {
+          if $0.sortOrder != $1.sortOrder { return $0.sortOrder < $1.sortOrder }
+          return $0.id < $1.id
+        }
+      let targetBrowserIDs = Set(targets.map(\.browserID))
+      return RoutingTargetSnapshot(
+        applications: applications.filter { targetBrowserIDs.contains($0.id) },
+        targets: targets
+      )
+    }
+  }
+}
+
 @MainActor
 public protocol ChooserPresenting: AnyObject {
   func present(
@@ -127,6 +160,13 @@ public final class RoutingCoordinator {
   public func cancelCurrent() {
     guard currentRequest != nil, launchingRequestID == nil else { return }
     finishCurrentRequest()
+  }
+
+  public func refreshCurrentPresentation() {
+    guard let request = currentRequest, launchingRequestID == nil else { return }
+    let snapshot = targetProvider.availableSnapshot()
+    currentSnapshot = snapshot
+    present(request: request, snapshot: snapshot, error: currentError)
   }
 
   public func launchFailed(_ failure: LaunchFailure) {

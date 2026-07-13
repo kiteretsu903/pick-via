@@ -38,17 +38,52 @@ struct ProfileParserTests {
     #expect(
       profiles == [
         DiscoveredProfile(
-          identifier: "Personal",
+          identifier: "/Users/example/Firefox/Profiles/personal.default-release",
           displayName: "Personal",
           directoryURL: baseDirectory.appending(
-            path: "Profiles/personal.default-release", directoryHint: .isDirectory)
+            path: "Profiles/personal.default-release", directoryHint: .isDirectory),
+          launchIdentifier: "Personal"
         ),
         DiscoveredProfile(
-          identifier: "Work",
+          identifier: "/Users/example/Firefox/Profiles/work",
           displayName: "Work",
           directoryURL: URL(
-            fileURLWithPath: "/Users/example/Firefox/Profiles/work", isDirectory: true)
+            fileURLWithPath: "/Users/example/Firefox/Profiles/work", isDirectory: true),
+          launchIdentifier: "Work"
         ),
+      ])
+  }
+
+  @Test func firefoxAcceptsOnlyNumericProfileSectionsAndExactRelativeFlags() throws {
+    let text = """
+      [Profile0]
+      Name=Valid
+      IsRelative=1
+      Path=Profiles/../Profiles/valid
+      [ProfileWork]
+      Name=Wrong Section
+      IsRelative=1
+      Path=Profiles/wrong
+      [Profile1]
+      Name=Wrong Flag
+      IsRelative=true
+      Path=Profiles/wrong-flag
+      [Profile2]
+      Name=Absolute
+      IsRelative=0
+      Path=/Users/example/Firefox/Profiles/absolute
+      """
+
+    let profiles = try FirefoxProfileParser.parse(
+      text: text,
+      baseDirectory: URL(fileURLWithPath: "/Users/example/Firefox", isDirectory: true)
+    )
+
+    #expect(profiles.map(\.displayName) == ["Absolute", "Valid"])
+    #expect(
+      profiles.map(\.identifier) == [
+        "/Users/example/Firefox/Profiles/absolute",
+        "/Users/example/Firefox/Profiles/valid",
       ])
   }
 }

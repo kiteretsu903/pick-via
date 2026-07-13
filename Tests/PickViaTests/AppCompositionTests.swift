@@ -6,6 +6,33 @@ import XCTest
 
 @MainActor
 final class AppCompositionTests: XCTestCase {
+  func testRoutingUsesAuthoritativeStartupSnapshotWithoutReloadingDisk() throws {
+    let chooser = CompositionChooserSpy()
+    let stale = PickViaConfig(
+      schemaVersion: 1,
+      browsers: CompositionFixtures.config.browsers,
+      targets: [CompositionFixtures.copyTarget(isEnabled: false)]
+    )
+    let store = CompositionConfigStore(config: stale)
+    let model = AppComposition.makeModel(
+      configStore: store,
+      browserCatalog: CompositionCatalogStub(
+        scanResult: BrowserScanResult(browsers: [], warnings: [], isAuthoritative: true),
+        reconciled: CompositionFixtures.config
+      ),
+      preferences: CompositionPreferencesStub(),
+      defaultBrowser: CompositionDefaultBrowserStub(),
+      loginItem: CompositionLoginItemStub(),
+      chooser: chooser,
+      launcher: CompositionLauncherSpy()
+    )
+
+    try model.load()
+    model.accept(url: URL(string: "https://example.com/current")!)
+
+    XCTAssertEqual(store.loadCallCount, 1)
+    XCTAssertEqual(chooser.presentedTargetIDs.last, [CompositionFixtures.target.id])
+  }
   func testPreviewDoesNotReplaceActiveLiveRoutingPresentation() throws {
     let chooser = CompositionChooserSpy()
     let model = AppComposition.makeModel(
@@ -117,19 +144,36 @@ final class AppCompositionTests: XCTestCase {
 
 private final class CompositionConfigStore: ConfigStoring, @unchecked Sendable {
   let config: PickViaConfig
+  private(set) var loadCallCount = 0
 
   init(config: PickViaConfig) {
     self.config = config
   }
 
-  func load() throws -> PickViaConfig { config }
+  func load() throws -> PickViaConfig {
+    loadCallCount += 1
+    return config
+  }
   func save(_ config: PickViaConfig) throws {}
 }
 
 private struct CompositionCatalogStub: BrowserDiscovering {
+  let configuredScanResult: BrowserScanResult
+  let reconciled: PickViaConfig?
+
+  init(
+    scanResult: BrowserScanResult = BrowserScanResult(
+      browsers: [], warnings: [], isAuthoritative: false),
+    reconciled: PickViaConfig? = nil
+  ) {
+    self.configuredScanResult = scanResult
+    self.reconciled = reconciled
+  }
+
   func scan() throws -> [DiscoveredBrowser] { [] }
+  func scanResult() -> BrowserScanResult { configuredScanResult }
   func reconcile(discovered: [DiscoveredBrowser], with config: PickViaConfig) -> PickViaConfig {
-    config
+    reconciled ?? config
   }
 }
 
@@ -159,6 +203,7 @@ private final class CompositionLoginItemStub: LoginItemServicing {
 private final class CompositionChooserSpy: ChooserPresenting {
   private(set) var presentedRequests: [RoutingRequest] = []
   private(set) var dismissCallCount = 0
+  private(set) var presentedTargetIDs: [[BrowserTarget.ID]] = []
   private var onSelection: ((BrowserTarget.ID) -> Void)?
   private var onCancel: (() -> Void)?
 
@@ -171,6 +216,7 @@ private final class CompositionChooserSpy: ChooserPresenting {
     onCancel: @escaping () -> Void
   ) {
     presentedRequests.append(request)
+    presentedTargetIDs.append(targets.map(\.id))
     self.onSelection = onSelection
     self.onCancel = onCancel
   }
@@ -230,4 +276,19 @@ private enum CompositionFixtures {
     browsers: [browser],
     targets: [target]
   )
+
+  static func copyTarget(isEnabled: Bool) -> BrowserTarget {
+    BrowserTarget(
+      id: target.id,
+      browserID: target.browserID,
+      label: target.label,
+      profileIdentifier: target.profileIdentifier,
+      profileDisplayName: target.profileDisplayName,
+      mode: target.mode,
+      isEnabled: isEnabled,
+      sortOrder: target.sortOrder,
+      origin: target.origin,
+      availability: target.availability
+    )
+  }
 }

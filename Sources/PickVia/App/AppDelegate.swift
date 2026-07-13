@@ -42,6 +42,16 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     }
   }
 
+  public func applicationDidFinishLaunching(_ notification: Notification) {
+    guard model.configurationRecovery != .none else { return }
+    navigation.destination = .browsers
+    openSettings()
+  }
+
+  public func applicationDidBecomeActive(_ notification: Notification) {
+    model.refreshDefaultStatus()
+  }
+
   public func applicationShouldHandleReopen(
     _ sender: NSApplication,
     hasVisibleWindows flag: Bool
@@ -85,9 +95,6 @@ extension AppModel {
     )
 
     try? model.load()
-    if model.browsers.isEmpty {
-      try? model.rescan()
-    }
     return model
   }
 }
@@ -103,7 +110,7 @@ enum AppComposition {
     chooser: any ChooserPresenting,
     launcher: any BrowserLaunching
   ) -> AppModel {
-    let targetProvider = ConfigTargetProvider(configStore: configStore)
+    let targetProvider = MutableTargetSnapshot()
     let coordinator = RoutingCoordinator(
       targetProvider: targetProvider,
       chooser: chooser,
@@ -126,7 +133,8 @@ enum AppComposition {
       preferences: preferences,
       defaultBrowser: defaultBrowser,
       loginItem: loginItem,
-      routing: routing
+      routing: routing,
+      targetSnapshot: targetProvider
     )
   }
 }
@@ -157,34 +165,6 @@ private final class PreviewPresenter {
       error: nil,
       onSelection: { [weak self] _ in self?.chooser.dismiss() },
       onCancel: { [weak self] in self?.chooser.dismiss() }
-    )
-  }
-}
-
-private struct ConfigTargetProvider: TargetProviding, Sendable {
-  let configStore: any ConfigStoring
-
-  func availableSnapshot() -> RoutingTargetSnapshot {
-    guard let config = try? configStore.load() else {
-      return RoutingTargetSnapshot(applications: [], targets: [])
-    }
-
-    let applications = config.browsers.filter(\.isAvailable)
-    let applicationIDs = Set(applications.map(\.id))
-    let targets = config.targets
-      .filter {
-        $0.isEnabled
-          && $0.availability == .available
-          && applicationIDs.contains($0.browserID)
-      }
-      .sorted {
-        if $0.sortOrder != $1.sortOrder { return $0.sortOrder < $1.sortOrder }
-        return $0.id < $1.id
-      }
-    let targetBrowserIDs = Set(targets.map(\.browserID))
-    return RoutingTargetSnapshot(
-      applications: applications.filter { targetBrowserIDs.contains($0.id) },
-      targets: targets
     )
   }
 }

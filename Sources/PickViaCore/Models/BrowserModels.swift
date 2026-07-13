@@ -39,6 +39,34 @@ public struct BrowserApplication: Codable, Equatable, Identifiable, Sendable {
     self.executableURL = executableURL
     self.isAvailable = isAvailable
   }
+
+  private enum CodingKeys: String, CodingKey {
+    case id
+    case family
+    case displayName
+    case bundleIdentifier
+    case isAvailable
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decode(ID.self, forKey: .id)
+    family = try container.decode(BrowserFamily.self, forKey: .family)
+    displayName = try container.decode(String.self, forKey: .displayName)
+    bundleIdentifier = try container.decode(String.self, forKey: .bundleIdentifier)
+    isAvailable = try container.decode(Bool.self, forKey: .isAvailable)
+    applicationURL = URL(fileURLWithPath: "/", isDirectory: true)
+    executableURL = nil
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(id, forKey: .id)
+    try container.encode(family, forKey: .family)
+    try container.encode(displayName, forKey: .displayName)
+    try container.encode(bundleIdentifier, forKey: .bundleIdentifier)
+    try container.encode(isAvailable, forKey: .isAvailable)
+  }
 }
 
 public enum BrowserTargetOrigin: String, Codable, Sendable {
@@ -59,6 +87,7 @@ public struct BrowserTarget: Codable, Equatable, Identifiable, Sendable {
   public let label: String
   public let profileIdentifier: String?
   public let profileDisplayName: String?
+  public let profileIdentity: String?
   public let mode: BrowserMode
   public let isEnabled: Bool
   public let sortOrder: Int
@@ -72,6 +101,7 @@ public struct BrowserTarget: Codable, Equatable, Identifiable, Sendable {
     label: String,
     profileIdentifier: String?,
     profileDisplayName: String?,
+    profileIdentity: String? = nil,
     mode: BrowserMode,
     isEnabled: Bool,
     sortOrder: Int,
@@ -84,6 +114,7 @@ public struct BrowserTarget: Codable, Equatable, Identifiable, Sendable {
     self.label = label
     self.profileIdentifier = profileIdentifier
     self.profileDisplayName = profileDisplayName
+    self.profileIdentity = profileIdentity
     self.mode = mode
     self.isEnabled = isEnabled
     self.sortOrder = sortOrder

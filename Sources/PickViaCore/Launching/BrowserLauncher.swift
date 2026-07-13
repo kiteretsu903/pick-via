@@ -18,6 +18,10 @@ public protocol ExecutableValidating: Sendable {
   func isExecutableFile(at url: URL) -> Bool
 }
 
+public protocol TrustedBrowserResolving: Sendable {
+  func applicationURL(forBundleIdentifier bundleIdentifier: String) -> URL?
+}
+
 public struct FoundationExecutableValidator: ExecutableValidating {
   public init() {}
 
@@ -67,12 +71,15 @@ public struct BrowserLauncher: BrowserLaunching, Sendable {
   private let processRunner: any ProcessRunning
   private let workspace: any WorkspaceOpening
   private let executableValidator: any ExecutableValidating
+  private let trustedBrowserResolver: any TrustedBrowserResolving
 
   public init(
+    trustedBrowserResolver: any TrustedBrowserResolving = WorkspaceApplicationLocator(),
     processRunner: any ProcessRunning = SystemProcessRunner(),
     workspace: any WorkspaceOpening = SystemWorkspace(),
     executableValidator: any ExecutableValidating = FoundationExecutableValidator()
   ) {
+    self.trustedBrowserResolver = trustedBrowserResolver
     self.processRunner = processRunner
     self.workspace = workspace
     self.executableValidator = executableValidator
@@ -86,8 +93,11 @@ public struct BrowserLauncher: BrowserLaunching, Sendable {
     guard
       application.id == target.browserID,
       application.id == application.bundleIdentifier,
-      BrowserDescriptor.family(forBundleIdentifier: application.bundleIdentifier)
-        == application.family,
+      let descriptor = BrowserDescriptor.descriptor(
+        forBundleIdentifier: application.bundleIdentifier),
+      descriptor.family == application.family,
+      let trustedApplicationURL = trustedBrowserResolver.applicationURL(
+        forBundleIdentifier: application.bundleIdentifier),
       application.isAvailable,
       target.availability == .available
     else {
@@ -99,11 +109,14 @@ public struct BrowserLauncher: BrowserLaunching, Sendable {
       guard target.profileIdentifier == nil, target.mode == .normal else {
         throw Self.launchFailure
       }
-      return .workspace(application: application.applicationURL, url: url)
+      return .workspace(application: trustedApplicationURL, url: url)
 
     case .chromium:
       guard
-        let executable = application.executableURL,
+        let relativeExecutable = descriptor.executableRelativePath,
+        let executable = trustedExecutable(
+          applicationURL: trustedApplicationURL,
+          relativePath: relativeExecutable),
         executableValidator.isExecutableFile(at: executable)
       else {
         throw Self.launchFailure
@@ -120,7 +133,10 @@ public struct BrowserLauncher: BrowserLaunching, Sendable {
 
     case .firefox:
       guard
-        let executable = application.executableURL,
+        let relativeExecutable = descriptor.executableRelativePath,
+        let executable = trustedExecutable(
+          applicationURL: trustedApplicationURL,
+          relativePath: relativeExecutable),
         executableValidator.isExecutableFile(at: executable)
       else {
         throw Self.launchFailure
@@ -133,6 +149,15 @@ public struct BrowserLauncher: BrowserLaunching, Sendable {
       arguments.append(url.absoluteString)
       return .executable(application: executable, arguments: arguments)
     }
+  }
+
+  private func trustedExecutable(applicationURL: URL, relativePath: String) -> URL? {
+    let application = applicationURL.standardizedFileURL
+    guard application.isFileURL, application.pathExtension == "app" else { return nil }
+    let executable = application.appending(path: relativePath).standardizedFileURL
+    let bundlePrefix = application.path.hasSuffix("/") ? application.path : application.path + "/"
+    guard executable.path.hasPrefix(bundlePrefix) else { return nil }
+    return executable
   }
 
   public func execute(_ plan: LaunchPlan) async throws {

@@ -42,7 +42,38 @@ public struct FoundationFileSystem: FileSystem, Sendable {
 
 public protocol ConfigStoring: Sendable {
   func load() throws -> PickViaConfig
+  func loadOutcome() -> ConfigLoadOutcome
   func save(_ config: PickViaConfig) throws
+}
+
+public enum ConfigLoadFailure: Error, Equatable, Sendable {
+  case directoryUnavailable
+  case readFailed
+  case recoveryFailed
+}
+
+public enum ConfigLoadOutcome: Equatable, Sendable {
+  case missing(PickViaConfig)
+  case loaded(PickViaConfig)
+  case recoveredCorruption(PickViaConfig)
+  case failure(ConfigLoadFailure)
+
+  public var config: PickViaConfig? {
+    switch self {
+    case .missing(let config), .loaded(let config), .recoveredCorruption(let config): config
+    case .failure: nil
+    }
+  }
+}
+
+extension ConfigStoring {
+  public func loadOutcome() -> ConfigLoadOutcome {
+    do {
+      return .loaded(try load())
+    } catch {
+      return .failure(.readFailed)
+    }
+  }
 }
 
 public struct JSONConfigStore: ConfigStoring, Sendable {
@@ -65,24 +96,49 @@ public struct JSONConfigStore: ConfigStoring, Sendable {
   }
 
   public func load() throws -> PickViaConfig {
-    try fileSystem.createDirectory(at: directory)
+    switch loadOutcome() {
+    case .missing(let config), .loaded(let config), .recoveredCorruption(let config):
+      return config
+    case .failure(let failure):
+      throw failure
+    }
+  }
+
+  public func loadOutcome() -> ConfigLoadOutcome {
+    do {
+      try fileSystem.createDirectory(at: directory)
+    } catch {
+      return .failure(.directoryUnavailable)
+    }
     guard fileSystem.fileExists(at: fileURL) else {
-      return .initial
+      return .missing(.initial)
     }
 
-    let data = try fileSystem.read(from: fileURL)
+    let data: Data
     do {
-      return try JSONDecoder().decode(PickViaConfig.self, from: data)
+      data = try fileSystem.read(from: fileURL)
+    } catch {
+      return .failure(.readFailed)
+    }
+
+    do {
+      let decoded = try JSONDecoder().decode(PickViaConfig.self, from: data)
+      return .loaded(try decoded.validatedAndMigrated())
     } catch {
       let quarantine = directory.appending(
         path: "PickViaConfig.json.corrupt-\(Int(now().timeIntervalSince1970))"
       )
-      try fileSystem.moveItem(at: fileURL, to: quarantine)
-      return .initial
+      do {
+        try fileSystem.moveItem(at: fileURL, to: quarantine)
+        return .recoveredCorruption(.initial)
+      } catch {
+        return .failure(.recoveryFailed)
+      }
     }
   }
 
   public func save(_ config: PickViaConfig) throws {
+    let config = try config.validatedAndMigrated()
     try fileSystem.createDirectory(at: directory)
     let temporary = directory.appending(path: "PickViaConfig.json.tmp")
     let encoder = JSONEncoder()

@@ -14,6 +14,9 @@ public struct GeneralSettingsView: View {
           Task { await model.requestDefaultBrowser() }
         }
         .disabled(!model.canRequestDefaultBrowser)
+        Button("Refresh Status") {
+          model.refreshDefaultStatus()
+        }
       }
 
       Section("Behavior") {

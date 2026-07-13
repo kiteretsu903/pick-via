@@ -34,6 +34,10 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
   private var onSelection: ((BrowserTarget.ID) -> Void)?
   private var onCancel: (() -> Void)?
   private var isDismissing = false
+  private var suppressesResignCancellation = false
+
+  var hasActivePresentation: Bool { presentation != nil }
+  var isKeyboardMonitorInstalled: Bool { keyMonitor != nil }
 
   public init(
     clipboard: any ClipboardWriting = SystemClipboardWriter(),
@@ -93,6 +97,7 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     self.onSelection = onSelection
     self.onCancel = onCancel
     isDismissing = false
+    suppressesResignCancellation = false
 
     render()
     installKeyMonitor()
@@ -111,12 +116,13 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     onSelection = nil
     onCancel = nil
     presentation = nil
+    suppressesResignCancellation = false
     isDismissing = false
   }
 
   public func windowDidResignKey(_ notification: Notification) {
     guard notification.object as? NSPanel === panel, !isDismissing else { return }
-    cancelAndDismiss()
+    handleResignKey()
   }
 
   func copyURL(_ url: URL) {
@@ -124,7 +130,14 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
   }
 
   func showBrowserSettings() {
+    suppressesResignCancellation = true
+    removeKeyMonitor()
+    panel?.orderOut(nil)
     openBrowserSettings()
+  }
+
+  func resignKeyForTesting() {
+    handleResignKey()
   }
 
   private func render() {
@@ -204,14 +217,10 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     case 36, 76: key = .returnKey
     case 53: key = .escape
     default:
-      if let character = event.charactersIgnoringModifiers?.first,
-        let number = character.wholeNumberValue,
-        (1...9).contains(number)
-      {
-        key = .number(number)
-      } else {
-        key = nil
-      }
+      key = Self.numberShortcut(
+        character: event.charactersIgnoringModifiers?.first,
+        modifiers: event.modifierFlags
+      )
     }
 
     guard let key else { return false }
@@ -251,6 +260,23 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     let callback = onCancel
     dismiss()
     callback?()
+  }
+
+  private func handleResignKey() {
+    guard !suppressesResignCancellation else { return }
+    cancelAndDismiss()
+  }
+
+  static func numberShortcut(
+    character: Character?,
+    modifiers: NSEvent.ModifierFlags
+  ) -> ChooserKey? {
+    let disallowed: NSEvent.ModifierFlags = [.command, .option, .control]
+    guard modifiers.intersection(disallowed).isEmpty,
+      let number = character?.wholeNumberValue,
+      (1...9).contains(number)
+    else { return nil }
+    return .number(number)
   }
 }
 

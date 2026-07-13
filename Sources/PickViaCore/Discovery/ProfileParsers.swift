@@ -4,11 +4,18 @@ public struct DiscoveredProfile: Equatable, Sendable {
   public let identifier: String
   public let displayName: String
   public let directoryURL: URL?
+  public let launchIdentifier: String
 
-  public init(identifier: String, displayName: String, directoryURL: URL?) {
+  public init(
+    identifier: String,
+    displayName: String,
+    directoryURL: URL?,
+    launchIdentifier: String? = nil
+  ) {
     self.identifier = identifier
     self.displayName = displayName
     self.directoryURL = directoryURL
+    self.launchIdentifier = launchIdentifier ?? identifier
   }
 }
 
@@ -49,7 +56,12 @@ public enum FirefoxProfileParser {
     var currentValues: [String: String] = [:]
 
     func appendCurrentSection() {
-      guard currentSectionName?.hasPrefix("Profile") == true else { return }
+      guard
+        let name = currentSectionName,
+        name.hasPrefix("Profile"),
+        !name.dropFirst("Profile".count).isEmpty,
+        name.dropFirst("Profile".count).allSatisfy(\.isNumber)
+      else { return }
       sections.append(currentValues)
     }
 
@@ -84,7 +96,10 @@ public enum FirefoxProfileParser {
       }
 
       let directoryURL: URL
-      if values["IsRelative"] == "1" {
+      guard let isRelative = values["IsRelative"], isRelative == "0" || isRelative == "1" else {
+        return nil
+      }
+      if isRelative == "1" {
         directoryURL = baseDirectory.appending(path: path, directoryHint: .isDirectory)
       } else if (path as NSString).isAbsolutePath {
         directoryURL = URL(fileURLWithPath: path, isDirectory: true)
@@ -92,10 +107,12 @@ public enum FirefoxProfileParser {
         return nil
       }
 
+      let normalizedURL = directoryURL.standardizedFileURL
       return DiscoveredProfile(
-        identifier: name,
+        identifier: normalizedURL.path,
         displayName: name,
-        directoryURL: directoryURL
+        directoryURL: normalizedURL,
+        launchIdentifier: name
       )
     }
     .sorted { $0.identifier < $1.identifier }

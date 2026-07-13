@@ -150,6 +150,11 @@ public final class UserDefaultsPreferences: PreferencesStoring {
 public protocol AppRouting: AnyObject {
   func accept(_ url: URL)
   func preview(_ url: URL)
+  func refreshCurrent()
+}
+
+extension AppRouting {
+  public func refreshCurrent() {}
 }
 
 @MainActor
@@ -171,5 +176,9 @@ public final class RoutingCoordinatorAdapter: AppRouting {
 
   public func preview(_ url: URL) {
     previewAction(url)
+  }
+
+  public func refreshCurrent() {
+    coordinator.refreshCurrentPresentation()
   }
 }

@@ -9,6 +9,7 @@ public final class AppModel {
   public private(set) var defaultStatus: DefaultBrowserStatus = .unknown
   public private(set) var launchesAtLogin = false
   public private(set) var errorMessage: String?
+  public private(set) var configurationRecovery: ConfigurationRecoveryState = .none
 
   public var showsURLInChooser: Bool {
     didSet {
@@ -47,6 +48,7 @@ public final class AppModel {
   private let defaultBrowser: any DefaultBrowserServicing
   private let loginItem: any LoginItemServicing
   private let routing: any AppRouting
+  private let targetSnapshot: MutableTargetSnapshot?
   private var isLoaded = false
 
   public init(
@@ -55,7 +57,8 @@ public final class AppModel {
     preferences: any PreferencesStoring,
     defaultBrowser: any DefaultBrowserServicing,
     loginItem: any LoginItemServicing,
-    routing: any AppRouting
+    routing: any AppRouting,
+    targetSnapshot: MutableTargetSnapshot? = nil
   ) {
     self.configStore = configStore
     self.browserCatalog = browserCatalog
@@ -63,6 +66,7 @@ public final class AppModel {
     self.defaultBrowser = defaultBrowser
     self.loginItem = loginItem
     self.routing = routing
+    self.targetSnapshot = targetSnapshot
     showsURLInChooser = true
     onboardingStep = 1
   }
@@ -70,7 +74,45 @@ public final class AppModel {
   public func load() throws {
     guard !isLoaded else { return }
 
-    config = try configStore.load()
+    let loadOutcome = configStore.loadOutcome()
+    let loadedConfig: PickViaConfig
+    switch loadOutcome {
+    case .missing(let loaded), .loaded(let loaded):
+      loadedConfig = loaded
+    case .recoveredCorruption(let recovered):
+      loadedConfig = recovered
+      configurationRecovery = .recoveredCorruption
+      errorMessage =
+        "PickVia recovered a corrupt configuration. Review Browser settings before continuing."
+    case .failure:
+      loadedConfig = .initial
+      configurationRecovery = .loadFailed
+      errorMessage =
+        "PickVia could not read its configuration. The existing file was left unchanged."
+    }
+    config = loadedConfig
+    targetSnapshot?.publish(config)
+
+    if configurationRecovery != .loadFailed {
+      let scan = browserCatalog.scanResult()
+      if scan.isAuthoritative {
+        let reconciled = browserCatalog.reconcile(discovered: scan.browsers, with: loadedConfig)
+        config = reconciled
+        targetSnapshot?.publish(config)
+        do {
+          try configStore.save(reconciled)
+        } catch {
+          errorMessage =
+            "Browser discovery succeeded, but the refreshed configuration could not be saved."
+        }
+        if !scan.warnings.isEmpty, configurationRecovery == .none, errorMessage == nil {
+          errorMessage =
+            "Some browser profile metadata could not be read. Existing targets were preserved."
+        }
+      } else if configurationRecovery == .none {
+        errorMessage = "Browser discovery could not be completed. Existing targets were preserved."
+      }
+    }
     showsURLInChooser = preferences.bool(forKey: PreferenceKey.showsURLInChooser) ?? true
     launchesAtLogin = loginItem.isEnabled
     defaultStatus = defaultBrowser.status()
@@ -95,11 +137,24 @@ public final class AppModel {
   }
 
   public func rescan() throws {
-    let discovered = try browserCatalog.scan()
-    let reconciled = browserCatalog.reconcile(discovered: discovered, with: config)
+    let scan = browserCatalog.scanResult()
+    guard scan.isAuthoritative else {
+      errorMessage = "Browser discovery could not be completed. Existing targets were preserved."
+      return
+    }
+    let reconciled = browserCatalog.reconcile(discovered: scan.browsers, with: config)
     try configStore.save(reconciled)
     config = reconciled
-    errorMessage = nil
+    targetSnapshot?.publish(config)
+    routing.refreshCurrent()
+    errorMessage =
+      scan.warnings.isEmpty
+      ? nil
+      : "Some browser profile metadata could not be read. Existing targets were preserved."
+  }
+
+  public func refreshDefaultStatus() {
+    defaultStatus = defaultBrowser.status()
   }
 
   public func accept(url: URL) {
@@ -190,7 +245,20 @@ public final class AppModel {
       }
       if browser.family == .safari {
         guard profileIdentifier == nil else { throw TargetEditingError.invalidProfileIdentity }
-        return copy(target, profileIdentifier: nil, profileDisplayName: nil)
+        return copy(
+          target,
+          profileIdentifier: nil,
+          profileDisplayName: nil,
+          profileIdentity: nil
+        )
+      }
+      if profileIdentifier == nil {
+        return copy(
+          target,
+          profileIdentifier: nil,
+          profileDisplayName: nil,
+          profileIdentity: nil
+        )
       }
       guard
         let profileIdentifier,
@@ -204,7 +272,8 @@ public final class AppModel {
       return copy(
         target,
         profileIdentifier: candidate.profileIdentifier,
-        profileDisplayName: candidate.profileDisplayName
+        profileDisplayName: candidate.profileDisplayName,
+        profileIdentity: candidate.profileIdentity
       )
     }
   }
@@ -250,6 +319,8 @@ public final class AppModel {
     if browser.family == .safari {
       guard profileIdentifier == nil else { throw TargetEditingError.invalidProfileIdentity }
       profileDisplayName = nil
+    } else if profileIdentifier == nil {
+      profileDisplayName = nil
     } else {
       guard
         let profileIdentifier,
@@ -270,6 +341,13 @@ public final class AppModel {
       label: label,
       profileIdentifier: profileIdentifier,
       profileDisplayName: profileDisplayName,
+      profileIdentity: profileIdentifier.flatMap { identity in
+        detectedProfileTarget(
+          browserID: browserID,
+          profileIdentifier: identity,
+          in: config
+        )?.profileIdentity
+      },
       mode: mode,
       isEnabled: true,
       sortOrder: (config.targets.map(\.sortOrder).max() ?? -1) + 1,
@@ -308,6 +386,8 @@ public final class AppModel {
     )
     try configStore.save(updated)
     config = updated
+    targetSnapshot?.publish(config)
+    routing.refreshCurrent()
     errorMessage = nil
   }
 
@@ -339,6 +419,12 @@ public enum TargetEditingError: Error, Equatable {
   case invalidMove
 }
 
+public enum ConfigurationRecoveryState: Equatable {
+  case none
+  case recoveredCorruption
+  case loadFailed
+}
+
 private func copy(
   _ target: BrowserTarget,
   label: String? = nil,
@@ -352,6 +438,7 @@ private func copy(
     label: label ?? target.label,
     profileIdentifier: target.profileIdentifier,
     profileDisplayName: target.profileDisplayName,
+    profileIdentity: target.profileIdentity,
     mode: mode ?? target.mode,
     isEnabled: isEnabled ?? target.isEnabled,
     sortOrder: sortOrder ?? target.sortOrder,
@@ -364,7 +451,8 @@ private func copy(
 private func copy(
   _ target: BrowserTarget,
   profileIdentifier: String?,
-  profileDisplayName: String?
+  profileDisplayName: String?,
+  profileIdentity: String?
 ) -> BrowserTarget {
   BrowserTarget(
     id: target.id,
@@ -372,6 +460,7 @@ private func copy(
     label: target.label,
     profileIdentifier: profileIdentifier,
     profileDisplayName: profileDisplayName,
+    profileIdentity: profileIdentity,
     mode: target.mode,
     isEnabled: target.isEnabled,
     sortOrder: target.sortOrder,
@@ -400,7 +489,8 @@ private func detectedProfileTarget(
 ) -> BrowserTarget? {
   config.targets.first {
     $0.browserID == browserID
-      && $0.profileIdentifier == profileIdentifier
+      && ($0.profileIdentifier == profileIdentifier
+        || ($0.profileIdentity ?? $0.profileIdentifier) == profileIdentifier)
       && $0.origin == .detected
       && $0.availability == .available
   }

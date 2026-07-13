@@ -218,6 +218,31 @@ final class RoutingCoordinatorTests: XCTestCase {
   }
 
   @MainActor
+  func testRefreshRePresentsQueuedRequestWithUpdatedAuthoritativeSnapshot() {
+    let provider = MutableTargetSnapshot()
+    let chooser = ChooserSpy()
+    let coordinator = RoutingCoordinator(
+      targetProvider: provider,
+      chooser: chooser,
+      launcher: LauncherStub()
+    )
+    coordinator.enqueue(URL(string: "https://one.example")!)
+    provider.publish(
+      PickViaConfig(
+        schemaVersion: 1,
+        browsers: TargetStub.one.snapshot.applications,
+        targets: TargetStub.one.snapshot.targets
+      )
+    )
+
+    coordinator.refreshCurrentPresentation()
+
+    XCTAssertEqual(chooser.presentedHosts, ["one.example", "one.example"])
+    XCTAssertEqual(chooser.presentedTargetCounts, [0, 1])
+    XCTAssertEqual(coordinator.currentRequest?.url.host, "one.example")
+  }
+
+  @MainActor
   private func makeCoordinator(
     chooser: ChooserSpy,
     launcher: LauncherStub = LauncherStub()

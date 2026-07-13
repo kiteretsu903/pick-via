@@ -158,6 +158,74 @@ final class ChooserModelsTests: XCTestCase {
 
 @MainActor
 final class ChooserPanelControllerTests: XCTestCase {
+  func testOpeningBrowserSettingsSuppressesResignCancellationAndRetainsPresentation() {
+    var cancelCount = 0
+    let controller = ChooserPanelController(openBrowserSettings: {})
+    controller.present(
+      request: Fixtures.request,
+      applications: [],
+      targets: [],
+      error: nil,
+      onSelection: { _ in },
+      onCancel: { cancelCount += 1 }
+    )
+
+    controller.showBrowserSettings()
+    controller.resignKeyForTesting()
+
+    XCTAssertEqual(cancelCount, 0)
+    XCTAssertTrue(controller.hasActivePresentation)
+    controller.dismiss()
+  }
+
+  func testOrdinaryResignKeyCancelsCurrentPresentation() {
+    var cancelCount = 0
+    let controller = ChooserPanelController()
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work],
+      error: nil,
+      onSelection: { _ in },
+      onCancel: { cancelCount += 1 }
+    )
+
+    controller.resignKeyForTesting()
+
+    XCTAssertEqual(cancelCount, 1)
+    XCTAssertFalse(controller.hasActivePresentation)
+  }
+
+  func testRepeatedPresentDismissRemovesKeyboardMonitor() {
+    let controller = ChooserPanelController()
+
+    for _ in 0..<2 {
+      controller.present(
+        request: Fixtures.request,
+        applications: [Fixtures.chrome],
+        targets: [Fixtures.work],
+        error: nil,
+        onSelection: { _ in },
+        onCancel: {}
+      )
+      XCTAssertTrue(controller.isKeyboardMonitorInstalled)
+      controller.dismiss()
+      XCTAssertFalse(controller.isKeyboardMonitorInstalled)
+    }
+  }
+
+  func testModifiedNumberShortcutsRejectCommandOptionAndControl() {
+    XCTAssertEqual(
+      ChooserPanelController.numberShortcut(character: "1", modifiers: []),
+      .number(1)
+    )
+    for modifier in [NSEvent.ModifierFlags.command, .option, .control] {
+      XCTAssertNil(
+        ChooserPanelController.numberShortcut(character: "1", modifiers: modifier)
+      )
+    }
+  }
+
   func testRecoveryActionsUseInjectedDependenciesWithoutPresentingWindow() {
     let clipboard = ClipboardSpy()
     var settingsCallCount = 0

@@ -7,6 +7,44 @@ import XCTest
 
 @MainActor
 final class AppDelegateTests: XCTestCase {
+  func testBecomingActiveRefreshesDefaultHandlerStatus() throws {
+    let defaults = AppDelegateDefaultBrowserStub()
+    let model = makeModel(defaultBrowser: defaults)
+    try model.load()
+    let delegate = AppDelegate(model: model, openSettings: {})
+
+    delegate.applicationDidBecomeActive(
+      Notification(name: NSApplication.didBecomeActiveNotification))
+
+    XCTAssertEqual(defaults.statusCallCount, 2)
+  }
+
+  func testRecoveredConfigurationOpensBrowserSettingsAfterLaunch() throws {
+    let model = AppModel(
+      configStore: AppDelegateConfigStoreStub(
+        outcome: .recoveredCorruption(.initial)
+      ),
+      browserCatalog: AppDelegateCatalogStub(),
+      preferences: AppDelegatePreferencesStub(),
+      defaultBrowser: AppDelegateDefaultBrowserStub(),
+      loginItem: AppDelegateLoginItemStub(),
+      routing: AppDelegateRoutingSpy()
+    )
+    try model.load()
+    let navigation = SettingsNavigation()
+    var destinationWhenOpened: SettingsDestination?
+    let delegate = AppDelegate(
+      model: model,
+      navigation: navigation,
+      openSettings: { destinationWhenOpened = navigation.destination }
+    )
+
+    delegate.applicationDidFinishLaunching(
+      Notification(name: NSApplication.didFinishLaunchingNotification)
+    )
+
+    XCTAssertEqual(destinationWhenOpened, .browsers)
+  }
   func testOpenURLsPassesEachURLThroughModelValidation() throws {
     let routing = AppDelegateRoutingSpy()
     let model = makeModel(routing: routing)
@@ -43,12 +81,15 @@ final class AppDelegateTests: XCTestCase {
     XCTAssertEqual(destinationWhenOpened, .general)
   }
 
-  private func makeModel(routing: AppDelegateRoutingSpy = AppDelegateRoutingSpy()) -> AppModel {
+  private func makeModel(
+    routing: AppDelegateRoutingSpy = AppDelegateRoutingSpy(),
+    defaultBrowser: AppDelegateDefaultBrowserStub = AppDelegateDefaultBrowserStub()
+  ) -> AppModel {
     AppModel(
       configStore: AppDelegateConfigStoreStub(),
       browserCatalog: AppDelegateCatalogStub(),
       preferences: AppDelegatePreferencesStub(),
-      defaultBrowser: AppDelegateDefaultBrowserStub(),
+      defaultBrowser: defaultBrowser,
       loginItem: AppDelegateLoginItemStub(),
       routing: routing
     )
@@ -56,7 +97,14 @@ final class AppDelegateTests: XCTestCase {
 }
 
 private struct AppDelegateConfigStoreStub: ConfigStoring {
+  let outcome: ConfigLoadOutcome
+
+  init(outcome: ConfigLoadOutcome = .loaded(.initial)) {
+    self.outcome = outcome
+  }
+
   func load() throws -> PickViaConfig { .initial }
+  func loadOutcome() -> ConfigLoadOutcome { outcome }
   func save(_ config: PickViaConfig) throws {}
 }
 
@@ -77,7 +125,11 @@ private final class AppDelegatePreferencesStub: PreferencesStoring {
 
 @MainActor
 private final class AppDelegateDefaultBrowserStub: DefaultBrowserServicing {
-  func status() -> DefaultBrowserStatus { .unknown }
+  private(set) var statusCallCount = 0
+  func status() -> DefaultBrowserStatus {
+    statusCallCount += 1
+    return .unknown
+  }
   func requestDefault(for schemes: [String]) async throws {}
 }
 

@@ -46,10 +46,243 @@ struct BrowserCatalogTests {
         "com.google.Chrome", "org.mozilla.firefox",
       ])
     #expect(discovered[0].profiles.map(\.identifier) == ["Default", "Profile 1"])
-    #expect(discovered[1].profiles.map(\.identifier) == ["Personal", "Work"])
+    #expect(
+      discovered[1].profiles.map(\.identifier) == [
+        "/Users/example/Firefox/Profiles/work",
+        "/home/Library/Application Support/Firefox/Profiles/personal.default-release",
+      ])
     #expect(
       locator.requestedBundleIdentifiers == BrowserDescriptor.supported.map(\.bundleIdentifier))
     #expect(fileSystem.readURLs == [localStateURL, profilesURL])
+  }
+
+  @Test func scanIsolatesUnreadableMetadataAndReturnsMixedSuccessWarnings() throws {
+    let chromeURL = URL(fileURLWithPath: "/Applications/Google Chrome.app", isDirectory: true)
+    let firefoxURL = URL(fileURLWithPath: "/Applications/Firefox.app", isDirectory: true)
+    let localStateURL = URL(
+      fileURLWithPath: "/home/Library/Application Support/Google/Chrome/Local State")
+    let profilesURL = URL(fileURLWithPath: "/home/Library/Application Support/Firefox/profiles.ini")
+    let fileSystem = DiscoveryFileSystem(
+      files: [localStateURL: try fixtureData("chromium-local-state.json")],
+      readErrors: [profilesURL: CocoaError(.fileReadNoPermission)]
+    )
+    let catalog = BrowserCatalog(
+      applicationLocator: StubApplicationLocator(applications: [
+        "com.google.Chrome": chromeURL,
+        "org.mozilla.firefox": firefoxURL,
+      ]),
+      fileSystem: fileSystem,
+      homeDirectory: URL(fileURLWithPath: "/home", isDirectory: true)
+    )
+
+    let result = catalog.scanResult()
+
+    #expect(result.browsers.count == 2)
+    #expect(result.browsers[0].profiles.count == 2)
+    #expect(result.browsers[1].metadataStatus == .unreadable)
+    #expect(result.warnings == [.metadataUnreadable(bundleIdentifier: "org.mozilla.firefox")])
+  }
+
+  @Test func malformedChromiumMetadataDoesNotAbortFirefoxDiscovery() throws {
+    let localStateURL = URL(
+      fileURLWithPath: "/home/Library/Application Support/Google/Chrome/Local State")
+    let profilesURL = URL(fileURLWithPath: "/home/Library/Application Support/Firefox/profiles.ini")
+    let catalog = BrowserCatalog(
+      applicationLocator: StubApplicationLocator(applications: [
+        "com.google.Chrome": URL(fileURLWithPath: "/Applications/Google Chrome.app"),
+        "org.mozilla.firefox": URL(fileURLWithPath: "/Applications/Firefox.app"),
+      ]),
+      fileSystem: DiscoveryFileSystem(files: [
+        localStateURL: Data("not json".utf8),
+        profilesURL: try fixtureData("firefox-profiles.ini"),
+      ]),
+      homeDirectory: URL(fileURLWithPath: "/home", isDirectory: true)
+    )
+
+    let result = catalog.scanResult()
+
+    #expect(result.browsers.count == 2)
+    #expect(result.browsers[0].metadataStatus == .unreadable)
+    #expect(result.browsers[1].profiles.count == 2)
+    #expect(result.warnings == [.metadataUnreadable(bundleIdentifier: "com.google.Chrome")])
+  }
+
+  @Test func emptyProfileMetadataCreatesUnprofiledNormalAndPrivateFallbacks() {
+    let result = BrowserCatalog.reconcile(
+      discovered: [chrome(profiles: [], metadataStatus: .absent)],
+      with: .initial
+    )
+
+    #expect(result.targets.count == 2)
+    #expect(result.targets.map(\.profileIdentifier) == [nil, nil])
+    #expect(result.targets.map(\.mode) == [.normal, .private])
+    #expect(result.targets.map(\.isEnabled) == [true, false])
+  }
+
+  @Test func transientUnreadableMetadataPreservesExistingProfileAvailability() throws {
+    let existingTarget = target(
+      bundleID: "com.google.Chrome",
+      profileID: "Profile 1",
+      label: "Work",
+      enabled: true,
+      order: 0
+    )
+    let existing = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [chrome(profileID: "Profile 1", profileName: "Work").application],
+      targets: [existingTarget]
+    )
+
+    let result = BrowserCatalog.reconcile(
+      discovered: [chrome(profiles: [], metadataStatus: .unreadable)],
+      with: existing
+    )
+
+    #expect(result.targets.first { $0.id == existingTarget.id }?.availability == .available)
+  }
+
+  @Test func firefoxRenameReconcilesByNormalizedProfilePath() throws {
+    let path = URL(fileURLWithPath: "/Users/example/Firefox/Profiles/work", isDirectory: true)
+    let original = firefox(profilePath: path, profileName: "Work")
+    let initial = BrowserCatalog.reconcile(discovered: [original], with: .initial)
+    let normal = try #require(initial.targets.first { $0.mode == .normal })
+    let customized = PickViaConfig(
+      schemaVersion: 1,
+      browsers: initial.browsers,
+      targets: initial.targets.map {
+        $0.id == normal.id ? copy($0, label: "Client", enabled: false) : $0
+      }
+    )
+
+    let renamed = BrowserCatalog.reconcile(
+      discovered: [firefox(profilePath: path, profileName: "Renamed")],
+      with: customized
+    )
+    let reconciled = try #require(renamed.targets.first { $0.id == normal.id })
+
+    #expect(reconciled.label == "Client")
+    #expect(!reconciled.isEnabled)
+    #expect(reconciled.profileIdentifier == "Renamed")
+    #expect(reconciled.profileIdentity == path.standardizedFileURL.path)
+  }
+
+  @Test func legacyFirefoxNameIdentityMigratesWithoutLeavingDuplicateTarget() throws {
+    let legacy = BrowserTarget(
+      id: BrowserCatalog.targetID(
+        bundleIdentifier: "org.mozilla.firefox",
+        profileIdentifier: "Work",
+        mode: .normal
+      ),
+      browserID: "org.mozilla.firefox",
+      label: "Client Work",
+      profileIdentifier: "Work",
+      profileDisplayName: "Work",
+      mode: .normal,
+      isEnabled: false,
+      sortOrder: 4,
+      origin: .detected,
+      availability: .available
+    )
+    let path = URL(fileURLWithPath: "/profiles/work", isDirectory: true)
+    let existing = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [firefox(profilePath: path, profileName: "Work").application],
+      targets: [legacy]
+    )
+
+    let result = BrowserCatalog.reconcile(
+      discovered: [firefox(profilePath: path, profileName: "Work")],
+      with: existing
+    )
+
+    #expect(result.targets.count == 2)
+    #expect(result.targets.filter { $0.mode == .normal }.map(\.label) == ["Client Work"])
+    #expect(!result.targets.contains { $0.id == legacy.id })
+  }
+
+  @Test func firefoxDuplicateNamesRemainDistinctByPathAcrossModes() {
+    let browser = firefox(
+      profiles: [
+        firefoxProfile(path: "/profiles/one", name: "Same"),
+        firefoxProfile(path: "/profiles/two", name: "Same"),
+      ])
+
+    let result = BrowserCatalog.reconcile(discovered: [browser], with: .initial)
+
+    #expect(result.targets.count == 4)
+    #expect(Set(result.targets.map(\.id)).count == 4)
+    #expect(Set(result.targets.compactMap(\.profileIdentity)).count == 2)
+  }
+
+  @Test func firefoxDisappearanceMarksNormalPrivateAndManualTargetsUnavailable() throws {
+    let path = URL(fileURLWithPath: "/profiles/work", isDirectory: true).standardizedFileURL
+    let initial = BrowserCatalog.reconcile(
+      discovered: [firefox(profilePath: path, profileName: "Work")],
+      with: .initial
+    )
+    let manual = BrowserTarget(
+      id: "manual-firefox",
+      browserID: "org.mozilla.firefox",
+      label: "Pinned",
+      profileIdentifier: "Work",
+      profileDisplayName: "Work",
+      profileIdentity: path.path,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 20,
+      origin: .manual,
+      availability: .available
+    )
+    let existing = PickViaConfig(
+      schemaVersion: 1,
+      browsers: initial.browsers,
+      targets: initial.targets + [manual]
+    )
+
+    let result = BrowserCatalog.reconcile(
+      discovered: [firefox(profiles: [])],
+      with: existing
+    )
+
+    #expect(
+      result.targets.filter { $0.profileIdentity == path.path }.allSatisfy {
+        $0.availability == .unavailable
+      })
+    #expect(result.targets.contains { $0.mode == .normal && $0.origin == .detected })
+    #expect(result.targets.contains { $0.mode == .private && $0.origin == .detected })
+  }
+
+  @Test func firefoxManualTargetUpdatesLaunchSelectorAfterProfileRename() throws {
+    let path = URL(fileURLWithPath: "/profiles/work", isDirectory: true).standardizedFileURL
+    let manual = BrowserTarget(
+      id: "manual-firefox",
+      browserID: "org.mozilla.firefox",
+      label: "Pinned",
+      profileIdentifier: "Old Name",
+      profileDisplayName: "Old Name",
+      profileIdentity: path.path,
+      mode: .private,
+      isEnabled: false,
+      sortOrder: 20,
+      origin: .manual,
+      availability: .available
+    )
+    let existing = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [firefox(profilePath: path, profileName: "Old Name").application],
+      targets: [manual]
+    )
+
+    let result = BrowserCatalog.reconcile(
+      discovered: [firefox(profilePath: path, profileName: "New Name")],
+      with: existing
+    )
+    let updated = try #require(result.targets.first { $0.id == manual.id })
+
+    #expect(updated.profileIdentifier == "New Name")
+    #expect(updated.profileDisplayName == "New Name")
+    #expect(updated.label == "Pinned")
+    #expect(!updated.isEnabled)
   }
 
   @Test func reconcilePreservesUserCustomizationForStableProfileIdentity() {
@@ -169,6 +402,16 @@ struct BrowserCatalogTests {
 }
 
 private func chrome(profileID: String, profileName: String) -> DiscoveredBrowser {
+  chrome(
+    profiles: [
+      DiscoveredProfile(identifier: profileID, displayName: profileName, directoryURL: nil)
+    ])
+}
+
+private func chrome(
+  profiles: [DiscoveredProfile],
+  metadataStatus: ProfileMetadataStatus = .loaded
+) -> DiscoveredBrowser {
   DiscoveredBrowser(
     application: BrowserApplication(
       id: "com.google.Chrome",
@@ -180,9 +423,53 @@ private func chrome(profileID: String, profileName: String) -> DiscoveredBrowser
         fileURLWithPath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
       isAvailable: true
     ),
-    profiles: [
-      DiscoveredProfile(identifier: profileID, displayName: profileName, directoryURL: nil)
-    ]
+    profiles: profiles,
+    metadataStatus: metadataStatus
+  )
+}
+
+private func firefox(profilePath: URL, profileName: String) -> DiscoveredBrowser {
+  firefox(profiles: [firefoxProfile(path: profilePath.path, name: profileName)])
+}
+
+private func firefox(profiles: [DiscoveredProfile]) -> DiscoveredBrowser {
+  DiscoveredBrowser(
+    application: BrowserApplication(
+      id: "org.mozilla.firefox",
+      family: .firefox,
+      displayName: "Firefox",
+      bundleIdentifier: "org.mozilla.firefox",
+      applicationURL: URL(fileURLWithPath: "/Applications/Firefox.app"),
+      executableURL: URL(fileURLWithPath: "/Applications/Firefox.app/Contents/MacOS/firefox"),
+      isAvailable: true
+    ),
+    profiles: profiles
+  )
+}
+
+private func firefoxProfile(path: String, name: String) -> DiscoveredProfile {
+  let url = URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
+  return DiscoveredProfile(
+    identifier: url.path,
+    displayName: name,
+    directoryURL: url,
+    launchIdentifier: name
+  )
+}
+
+private func copy(_ target: BrowserTarget, label: String, enabled: Bool) -> BrowserTarget {
+  BrowserTarget(
+    id: target.id,
+    browserID: target.browserID,
+    label: label,
+    profileIdentifier: target.profileIdentifier,
+    profileDisplayName: target.profileDisplayName,
+    profileIdentity: target.profileIdentity,
+    mode: target.mode,
+    isEnabled: enabled,
+    sortOrder: target.sortOrder,
+    origin: target.origin,
+    availability: target.availability
   )
 }
 
@@ -242,16 +529,19 @@ private final class StubApplicationLocator: ApplicationLocating, @unchecked Send
 
 private final class DiscoveryFileSystem: FileSystem, @unchecked Sendable {
   private let files: [URL: Data]
+  private let readErrors: [URL: any Error]
   private(set) var readURLs: [URL] = []
 
-  init(files: [URL: Data]) {
+  init(files: [URL: Data], readErrors: [URL: any Error] = [:]) {
     self.files = files
+    self.readErrors = readErrors
   }
 
-  func fileExists(at url: URL) -> Bool { files[url] != nil }
+  func fileExists(at url: URL) -> Bool { files[url] != nil || readErrors[url] != nil }
 
   func read(from url: URL) throws -> Data {
     readURLs.append(url)
+    if let error = readErrors[url] { throw error }
     guard let data = files[url] else { throw CocoaError(.fileNoSuchFile) }
     return data
   }

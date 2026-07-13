@@ -36,6 +36,66 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(defaults.statusCallCount, 1)
   }
 
+  func testStartupRescansLoadedConfigurationAndPreservesCustomization() throws {
+    let store = ConfigStoreStub(config: Fixtures.editableConfig)
+    let reconciled = PickViaConfig(
+      schemaVersion: 1,
+      browsers: Fixtures.editableConfig.browsers,
+      targets: Fixtures.editableConfig.targets.map {
+        $0.id == "work" ? Fixtures.copy($0, label: "Client Work") : $0
+      }
+    )
+    let catalog = BrowserCatalogStub(
+      discovered: [Fixtures.discoveredChrome], reconciled: reconciled)
+    let model = makeModel(store: store, catalog: catalog)
+
+    try model.load()
+
+    XCTAssertEqual(model.config, reconciled)
+    XCTAssertEqual(catalog.reconcileInputs, [Fixtures.editableConfig])
+    XCTAssertEqual(store.saved, [reconciled])
+  }
+
+  func testRecoveredCorruptionPublishesVisibleRecoveryState() throws {
+    let store = ConfigStoreStub(
+      config: .initial,
+      loadOutcome: .recoveredCorruption(.initial)
+    )
+    let model = makeModel(store: store)
+
+    try model.load()
+
+    XCTAssertEqual(model.configurationRecovery, .recoveredCorruption)
+    XCTAssertNotNil(model.errorMessage)
+  }
+
+  func testConfigurationReadFailureDoesNotPublishOrOverwriteDefaults() throws {
+    let store = ConfigStoreStub(config: Fixtures.editableConfig, loadOutcome: .failure(.readFailed))
+    let catalog = BrowserCatalogStub(discovered: [Fixtures.discoveredChrome])
+    let model = makeModel(store: store, catalog: catalog)
+
+    try model.load()
+
+    XCTAssertEqual(model.config, .initial)
+    XCTAssertEqual(model.configurationRecovery, .loadFailed)
+    XCTAssertTrue(catalog.reconcileInputs.isEmpty)
+    XCTAssertTrue(store.saved.isEmpty)
+  }
+
+  func testTransientDiscoveryFailurePreservesCurrentAvailability() throws {
+    let store = ConfigStoreStub(config: Fixtures.editableConfig)
+    let catalog = BrowserCatalogStub(
+      scanResult: BrowserScanResult(browsers: [], warnings: [], isAuthoritative: false)
+    )
+    let model = makeModel(store: store, catalog: catalog)
+
+    try model.load()
+
+    XCTAssertEqual(model.config, Fixtures.editableConfig)
+    XCTAssertTrue(store.saved.isEmpty)
+    XCTAssertNotNil(model.errorMessage)
+  }
+
   func testRescanReconcilesAndPersistsConfiguration() throws {
     let store = ConfigStoreStub(config: Fixtures.config)
     let reconciled = PickViaConfig(
@@ -46,11 +106,13 @@ final class AppModelTests: XCTestCase {
     let catalog = BrowserCatalogStub(discovered: [], reconciled: reconciled)
     let model = makeModel(store: store, catalog: catalog)
     try model.load()
+    store.resetSaved()
+    catalog.resetReconcileInputs()
 
     try model.rescan()
 
     XCTAssertEqual(model.config, reconciled)
-    XCTAssertEqual(catalog.reconcileInputs, [Fixtures.config])
+    XCTAssertEqual(catalog.reconcileInputs, [reconciled])
     XCTAssertEqual(store.saved, [reconciled])
   }
 
@@ -264,6 +326,19 @@ final class AppModelTests: XCTestCase {
 
     XCTAssertEqual(model.targets.map(\.label), ["Work", "Work"])
     XCTAssertEqual(store.saved.last, model.config)
+  }
+
+  func testTargetEditRefreshesRetainedRoutingRequest() throws {
+    let routing = RoutingSpy()
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.editableConfig),
+      routing: routing
+    )
+    try model.load()
+
+    try model.renameTarget(id: "work", label: "Client Work")
+
+    XCTAssertEqual(routing.refreshCallCount, 1)
   }
 
   func testBlankLabelIsRejectedWithoutMutatingConfig() throws {
@@ -544,6 +619,54 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(store.saved.count, 2)
   }
 
+  func testUnprofiledManualTargetCanBeAddedForSupportedChromiumBrowser() throws {
+    let store = ConfigStoreStub(config: Fixtures.editableConfig)
+    let model = makeModel(store: store)
+    try model.load()
+
+    let id = try model.addManualTarget(
+      browserID: Fixtures.chrome.id,
+      profileIdentifier: nil,
+      label: "Chrome Default",
+      mode: .private
+    )
+
+    let added = try XCTUnwrap(model.targets.first { $0.id == id })
+    XCTAssertNil(added.profileIdentifier)
+    XCTAssertNil(added.profileIdentity)
+    XCTAssertEqual(added.mode, .private)
+    XCTAssertEqual(added.availability, .available)
+  }
+
+  func testManualTargetCanSwitchToUnprofiledBrowserLevelTarget() throws {
+    let manual = BrowserTarget(
+      id: "manual-unprofile",
+      browserID: Fixtures.chrome.id,
+      label: "Manual",
+      profileIdentifier: "Profile 1",
+      profileDisplayName: "Work",
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 50,
+      origin: .manual,
+      availability: .available
+    )
+    let config = PickViaConfig(
+      schemaVersion: 1,
+      browsers: Fixtures.editableConfig.browsers,
+      targets: Fixtures.editableConfig.targets + [manual]
+    )
+    let model = makeModel(store: ConfigStoreStub(config: config))
+    try model.load()
+
+    try model.setTargetProfile(id: manual.id, profileIdentifier: nil)
+
+    let updated = try XCTUnwrap(model.targets.first { $0.id == manual.id })
+    XCTAssertNil(updated.profileIdentifier)
+    XCTAssertNil(updated.profileDisplayName)
+    XCTAssertNil(updated.profileIdentity)
+  }
+
   func testRemovingDetectedTargetIsRejectedWithoutMutation() throws {
     let store = ConfigStoreStub(config: Fixtures.editableConfig)
     let model = makeModel(store: store)
@@ -716,6 +839,22 @@ private enum Fixtures {
         availability: .available)
     ]
   )
+
+  static func copy(_ target: BrowserTarget, label: String) -> BrowserTarget {
+    BrowserTarget(
+      id: target.id,
+      browserID: target.browserID,
+      label: label,
+      profileIdentifier: target.profileIdentifier,
+      profileDisplayName: target.profileDisplayName,
+      profileIdentity: target.profileIdentity,
+      mode: target.mode,
+      isEnabled: target.isEnabled,
+      sortOrder: target.sortOrder,
+      origin: target.origin,
+      availability: target.availability
+    )
+  }
 }
 
 private final class ConfigStoreStub: ConfigStoring, @unchecked Sendable {
@@ -723,10 +862,20 @@ private final class ConfigStoreStub: ConfigStoring, @unchecked Sendable {
   private(set) var loadCallCount = 0
   private(set) var saved: [PickViaConfig] = []
   let saveError: Error?
+  let configuredLoadOutcome: ConfigLoadOutcome?
 
-  init(config: PickViaConfig, saveError: Error? = nil) {
+  init(
+    config: PickViaConfig,
+    saveError: Error? = nil,
+    loadOutcome: ConfigLoadOutcome? = nil
+  ) {
     self.config = config
     self.saveError = saveError
+    self.configuredLoadOutcome = loadOutcome
+  }
+  func loadOutcome() -> ConfigLoadOutcome {
+    loadCallCount += 1
+    return configuredLoadOutcome ?? .loaded(config)
   }
   func load() throws -> PickViaConfig {
     loadCallCount += 1
@@ -736,6 +885,7 @@ private final class ConfigStoreStub: ConfigStoring, @unchecked Sendable {
     if let saveError { throw saveError }
     saved.append(config)
   }
+  func resetSaved() { saved.removeAll() }
 }
 
 private final class BrowserCatalogStub: BrowserDiscovering, @unchecked Sendable {
@@ -743,22 +893,34 @@ private final class BrowserCatalogStub: BrowserDiscovering, @unchecked Sendable 
   var reconciled: PickViaConfig
   private(set) var reconcileInputs: [PickViaConfig] = []
   private let reconciler: ((PickViaConfig) -> PickViaConfig)?
+  private let configuredScanResult: BrowserScanResult?
 
   init(
     discovered: [DiscoveredBrowser] = [],
     reconciled: PickViaConfig = .initial,
+    scanResult: BrowserScanResult? = nil,
     reconciler: ((PickViaConfig) -> PickViaConfig)? = nil
   ) {
     self.discovered = discovered
     self.reconciled = reconciled
     self.reconciler = reconciler
+    self.configuredScanResult = scanResult
   }
 
   func scan() throws -> [DiscoveredBrowser] { discovered }
+  func scanResult() -> BrowserScanResult {
+    configuredScanResult
+      ?? BrowserScanResult(
+        browsers: discovered,
+        warnings: [],
+        isAuthoritative: !discovered.isEmpty || reconciled != .initial
+      )
+  }
   func reconcile(discovered: [DiscoveredBrowser], with config: PickViaConfig) -> PickViaConfig {
     reconcileInputs.append(config)
     return reconciler?(config) ?? reconciled
   }
+  func resetReconcileInputs() { reconcileInputs.removeAll() }
 }
 
 @MainActor
@@ -839,7 +1001,9 @@ private final class LoginItemStub: LoginItemServicing {
 private final class RoutingSpy: AppRouting {
   private(set) var acceptedURLs: [URL] = []
   private(set) var previewedURLs: [URL] = []
+  private(set) var refreshCallCount = 0
 
   func accept(_ url: URL) { acceptedURLs.append(url) }
   func preview(_ url: URL) { previewedURLs.append(url) }
+  func refreshCurrent() { refreshCallCount += 1 }
 }
