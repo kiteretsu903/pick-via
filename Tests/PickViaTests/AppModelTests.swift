@@ -114,7 +114,95 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(defaults.statusCallCount, 2)
         defaults.requestError = nil
         await model.requestDefaultBrowser()
+        XCTAssertNotNil(model.errorMessage)
+    }
+
+    func testNonthrowingDefaultRequestThatRemainsNotDefaultDoesNotCompleteOnboarding() async throws {
+        let incomplete = DefaultBrowserStatus(http: .notDefault, https: .notDefault)
+        let preferences = PreferencesStub(integers: ["onboardingStep": 3])
+        let defaults = DefaultBrowserSpy(statuses: [incomplete, incomplete])
+        let model = makeModel(
+            store: ConfigStoreStub(config: Fixtures.config),
+            preferences: preferences,
+            defaultBrowser: defaults
+        )
+        try model.load()
+
+        await model.requestDefaultBrowser()
+
+        XCTAssertEqual(model.onboardingStep, 3)
+        XCTAssertFalse(model.isOnboardingComplete)
+        XCTAssertNotNil(model.errorMessage)
+    }
+
+    func testPartialDefaultStatusDoesNotCompleteOnboarding() async throws {
+        let incomplete = DefaultBrowserStatus(http: .notDefault, https: .notDefault)
+        let partial = DefaultBrowserStatus(http: .isDefault, https: .notDefault)
+        let preferences = PreferencesStub(integers: ["onboardingStep": 3])
+        let defaults = DefaultBrowserSpy(statuses: [incomplete, partial])
+        let model = makeModel(
+            store: ConfigStoreStub(config: Fixtures.config),
+            preferences: preferences,
+            defaultBrowser: defaults
+        )
+        try model.load()
+
+        await model.requestDefaultBrowser()
+
+        XCTAssertEqual(model.defaultStatus, partial)
+        XCTAssertEqual(model.onboardingStep, 3)
+        XCTAssertFalse(model.isOnboardingComplete)
+        XCTAssertNotNil(model.errorMessage)
+    }
+
+    func testDualSchemeDefaultStatusCompletesOnboarding() async throws {
+        let incomplete = DefaultBrowserStatus(http: .notDefault, https: .notDefault)
+        let complete = DefaultBrowserStatus(http: .isDefault, https: .isDefault)
+        let preferences = PreferencesStub(integers: ["onboardingStep": 3])
+        let defaults = DefaultBrowserSpy(statuses: [incomplete, complete])
+        let model = makeModel(
+            store: ConfigStoreStub(config: Fixtures.config),
+            preferences: preferences,
+            defaultBrowser: defaults
+        )
+        try model.load()
+
+        await model.requestDefaultBrowser()
+
+        XCTAssertEqual(model.defaultStatus, complete)
+        XCTAssertEqual(model.onboardingStep, 4)
+        XCTAssertTrue(model.isOnboardingComplete)
         XCTAssertNil(model.errorMessage)
+        XCTAssertEqual(preferences.setIntegers["onboardingStep"], 4)
+    }
+
+    func testPersistedCompletionIsClampedWhenDefaultStatusIsIncomplete() throws {
+        let preferences = PreferencesStub(integers: ["onboardingStep": 4])
+        let defaults = DefaultBrowserSpy(
+            status: .init(http: .isDefault, https: .notDefault)
+        )
+        let model = makeModel(
+            store: ConfigStoreStub(config: Fixtures.config),
+            preferences: preferences,
+            defaultBrowser: defaults
+        )
+
+        try model.load()
+
+        XCTAssertEqual(model.onboardingStep, 3)
+        XCTAssertFalse(model.isOnboardingComplete)
+        XCTAssertEqual(preferences.setIntegers["onboardingStep"], 3)
+    }
+
+    func testAdvanceOnboardingAllowsOrdinaryEarlierStepProgression() throws {
+        let preferences = PreferencesStub(integers: ["onboardingStep": 1])
+        let model = makeModel(preferences: preferences)
+        try model.load()
+
+        model.advanceOnboarding()
+
+        XCTAssertEqual(model.onboardingStep, 2)
+        XCTAssertEqual(preferences.setIntegers["onboardingStep"], 2)
     }
 
     func testLoginToggleRollsBackWhenServiceThrows() throws {
@@ -273,7 +361,7 @@ private final class PreferencesStub: PreferencesStoring {
 
 @MainActor
 private final class DefaultBrowserSpy: DefaultBrowserServicing {
-    var currentStatus: DefaultBrowserStatus
+    var statuses: [DefaultBrowserStatus]
     var requestError: Error?
     private(set) var statusCallCount = 0
     private(set) var requestedSchemes: [String] = []
@@ -282,11 +370,21 @@ private final class DefaultBrowserSpy: DefaultBrowserServicing {
         status: DefaultBrowserStatus = .unknown,
         requestError: Error? = nil
     ) {
-        currentStatus = status
+        statuses = [status]
         self.requestError = requestError
     }
 
-    func status() -> DefaultBrowserStatus { statusCallCount += 1; return currentStatus }
+    init(statuses: [DefaultBrowserStatus], requestError: Error? = nil) {
+        precondition(!statuses.isEmpty)
+        self.statuses = statuses
+        self.requestError = requestError
+    }
+
+    func status() -> DefaultBrowserStatus {
+        let index = min(statusCallCount, statuses.count - 1)
+        statusCallCount += 1
+        return statuses[index]
+    }
     func requestDefault(for schemes: [String]) async throws {
         requestedSchemes.append(contentsOf: schemes)
         if let requestError { throw requestError }

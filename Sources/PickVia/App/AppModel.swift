@@ -17,7 +17,7 @@ public final class AppModel {
         }
     }
 
-    public var onboardingStep: Int {
+    public private(set) var onboardingStep: Int {
         didSet {
             guard isLoaded else { return }
             preferences.set(onboardingStep, forKey: PreferenceKey.onboardingStep)
@@ -26,6 +26,9 @@ public final class AppModel {
 
     public var browsers: [BrowserApplication] { config.browsers }
     public var targets: [BrowserTarget] { config.targets }
+    public var isOnboardingComplete: Bool {
+        onboardingStep == Onboarding.completedStep && hasConfirmedDefaultStatus
+    }
 
     public var canRequestDefaultBrowser: Bool {
         config.targets.contains { target in
@@ -69,10 +72,25 @@ public final class AppModel {
 
         config = try configStore.load()
         showsURLInChooser = preferences.bool(forKey: PreferenceKey.showsURLInChooser) ?? true
-        onboardingStep = preferences.integer(forKey: PreferenceKey.onboardingStep) ?? 1
         launchesAtLogin = loginItem.isEnabled
         defaultStatus = defaultBrowser.status()
+        let persistedStep = preferences.integer(forKey: PreferenceKey.onboardingStep) ?? Onboarding.firstStep
+        onboardingStep = normalizedOnboardingStep(persistedStep)
+        if onboardingStep != persistedStep {
+            preferences.set(onboardingStep, forKey: PreferenceKey.onboardingStep)
+        }
         isLoaded = true
+    }
+
+    public func advanceOnboarding() {
+        switch onboardingStep {
+        case Onboarding.firstStep:
+            onboardingStep = 2
+        case 2 where canRequestDefaultBrowser:
+            onboardingStep = Onboarding.defaultBrowserStep
+        default:
+            break
+        }
     }
 
     public func rescan() throws {
@@ -100,13 +118,19 @@ public final class AppModel {
     public func requestDefaultBrowser() async {
         guard canRequestDefaultBrowser else { return }
 
-        errorMessage = nil
-        do {
-            try await defaultBrowser.requestDefault(for: ["http", "https"])
-        } catch {
-            errorMessage = "PickVia was not made the default browser. You can try again."
-        }
+        // Status is authoritative; refresh it even when the consent API throws.
+        _ = try? await defaultBrowser.requestDefault(for: ["http", "https"])
         defaultStatus = defaultBrowser.status()
+
+        if hasConfirmedDefaultStatus {
+            onboardingStep = Onboarding.completedStep
+            errorMessage = nil
+        } else {
+            if onboardingStep >= Onboarding.completedStep {
+                onboardingStep = Onboarding.defaultBrowserStep
+            }
+            errorMessage = "PickVia was not made the default browser for HTTP and HTTPS. You can try again."
+        }
     }
 
     public func setLaunchAtLogin(_ enabled: Bool) {
@@ -121,9 +145,30 @@ public final class AppModel {
             errorMessage = "The launch-at-login setting could not be changed."
         }
     }
+
+    private var hasConfirmedDefaultStatus: Bool {
+        defaultStatus.http == .isDefault && defaultStatus.https == .isDefault
+    }
+
+    private func normalizedOnboardingStep(_ persistedStep: Int) -> Int {
+        let bounded = min(
+            max(persistedStep, Onboarding.firstStep),
+            Onboarding.completedStep
+        )
+        if bounded == Onboarding.completedStep && !hasConfirmedDefaultStatus {
+            return Onboarding.defaultBrowserStep
+        }
+        return bounded
+    }
 }
 
 private enum PreferenceKey {
     static let showsURLInChooser = "showsURLInChooser"
     static let onboardingStep = "onboardingStep"
+}
+
+private enum Onboarding {
+    static let firstStep = 1
+    static let defaultBrowserStep = 3
+    static let completedStep = 4
 }
