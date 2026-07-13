@@ -45,6 +45,10 @@ public final class AppModel {
   }
 
   public var canRequestDefaultBrowser: Bool {
+    canContinueOnboardingReview && !hasUnresolvedAutomaticProfileAccess
+  }
+
+  public var canContinueOnboardingReview: Bool {
     config.targets.contains { target in
       guard
         target.isEnabled,
@@ -52,6 +56,17 @@ public final class AppModel {
         let browser = config.browsers.first(where: { $0.id == target.browserID })
       else { return false }
       return browser.isAvailable
+    }
+  }
+
+  public var hasUnresolvedAutomaticProfileAccess: Bool {
+    switch profileAccessPresentation {
+    case .automaticPending:
+      true
+    case .presented:
+      isAutomaticProfileAccessFlowPresented
+    case .idle, .manualPending, .suppressedForProcess:
+      false
     }
   }
 
@@ -84,6 +99,7 @@ public final class AppModel {
   private var isLoaded = false
   private var latestAuthoritativeBrowserScan: BrowserScanResult?
   private var targetedProfileAccessOverlays: [String: TargetedProfileAccessOverlay] = [:]
+  private var isAutomaticProfileAccessFlowPresented = false
 
   public init(
     configStore: any ConfigStoring,
@@ -169,7 +185,7 @@ public final class AppModel {
     switch onboardingStep {
     case Onboarding.firstStep:
       onboardingStep = 2
-    case 2 where canRequestDefaultBrowser:
+    case 2 where canContinueOnboardingReview:
       onboardingStep = Onboarding.defaultBrowserStep
     default:
       break
@@ -199,11 +215,13 @@ public final class AppModel {
   }
 
   public func openProfileAccessManager() {
+    isAutomaticProfileAccessFlowPresented = false
     profileAccessRows = manualProfileAccessRows(from: latestAuthoritativeBrowserScan)
     profileAccessPresentation = .manualPending
   }
 
   public func userRequestedRescan() throws {
+    isAutomaticProfileAccessFlowPresented = false
     profileAccessPresentation = .idle
     try rescan()
   }
@@ -296,6 +314,7 @@ public final class AppModel {
       throw error
     }
     profileAccessRows = manualProfileAccessRows(from: scan)
+    isAutomaticProfileAccessFlowPresented = false
     profileAccessPresentation = .idle
     errorMessage =
       scan.warnings.isEmpty
@@ -304,16 +323,22 @@ public final class AppModel {
   }
 
   public func skipProfileAccess() {
+    isAutomaticProfileAccessFlowPresented = false
     profileAccessPresentation = .suppressedForProcess
   }
 
   public func closeProfileAccess() {
+    isAutomaticProfileAccessFlowPresented = false
     profileAccessPresentation = .suppressedForProcess
   }
 
   public func profileAccessDidPresent() {
     switch profileAccessPresentation {
-    case .automaticPending, .manualPending:
+    case .automaticPending:
+      isAutomaticProfileAccessFlowPresented = true
+      profileAccessPresentation = .presented
+    case .manualPending:
+      isAutomaticProfileAccessFlowPresented = false
       profileAccessPresentation = .presented
     case .idle, .presented, .suppressedForProcess:
       break
@@ -605,6 +630,7 @@ public final class AppModel {
   }
 
   private func updateAutomaticProfileAccessRows(from scan: BrowserScanResult) {
+    isAutomaticProfileAccessFlowPresented = false
     let wasSuppressed = profileAccessPresentation == .suppressedForProcess
     let issueByBundleIdentifier = Dictionary(
       uniqueKeysWithValues: scan.profileAccessIssues.compactMap { issue in

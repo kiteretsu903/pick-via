@@ -97,7 +97,7 @@ public struct WelcomeView: View {
           )
         }
         .buttonStyle(.borderedProminent)
-        .disabled(!model.canRequestDefaultBrowser)
+        .disabled(!model.canContinueOnboardingReview)
       }
     }
   }

@@ -10,6 +10,7 @@ public protocol ProfileAccessPresenting: AnyObject, Sendable {
 
 @MainActor
 protocol ProfileAccessPanelDriving: AnyObject {
+  var environmentDidChangeHandler: (@MainActor () -> Void)? { get set }
   var canPresent: Bool { get }
   func hideCompetingPickViaWindows()
   func present(model: AppModel, onClose: @escaping @MainActor () -> Void)
@@ -24,6 +25,9 @@ public final class ProfileAccessPanelController: ProfileAccessPresenting {
 
   init(driver: any ProfileAccessPanelDriving) {
     self.driver = driver
+    driver.environmentDidChangeHandler = { [weak self] in
+      self?.environmentDidChange()
+    }
   }
 
   public func request(model: AppModel) {
@@ -99,9 +103,33 @@ extension EnvironmentValues {
 final class AppKitProfileAccessPanelDriver: NSObject, ProfileAccessPanelDriving, NSWindowDelegate {
   typealias WizardViewFactory = @MainActor (AppModel) -> AnyView
 
+  var environmentDidChangeHandler: (@MainActor () -> Void)?
+
+  private let notificationCenter: NotificationCenter
   private var wizardViewFactory: WizardViewFactory?
   private var onClose: (@MainActor () -> Void)?
   private var hiddenWindows: [NSWindow] = []
+  nonisolated(unsafe) private var sheetEndObserver: NSObjectProtocol?
+
+  init(notificationCenter: NotificationCenter = .default) {
+    self.notificationCenter = notificationCenter
+    super.init()
+    sheetEndObserver = notificationCenter.addObserver(
+      forName: NSWindow.didEndSheetNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      Task { @MainActor [weak self] in
+        self?.environmentDidChangeHandler?()
+      }
+    }
+  }
+
+  deinit {
+    if let sheetEndObserver {
+      notificationCenter.removeObserver(sheetEndObserver)
+    }
+  }
 
   private lazy var panel: NSPanel = {
     let panel = NSPanel(

@@ -159,14 +159,36 @@ final class ProfileAccessWizardTests: XCTestCase {
     XCTAssertTrue(presenter.lastModel === model)
   }
 
+  func testReviewContinueKeepsDefaultRequestDisabledWhileWizardIsQueued() throws {
+    let driver = QueuedProfileAccessPanelDriver()
+    let presenter = ProfileAccessPanelController(driver: driver)
+    let model = makeOnboardingModel(step: 2, profileAccessRequired: true)
+    try model.load()
+
+    advanceOnboardingAndPresentProfileAccess(
+      model: model,
+      profileAccessPresenter: presenter
+    )
+
+    XCTAssertEqual(model.onboardingStep, 3)
+    XCTAssertEqual(model.profileAccessPresentation, .automaticPending)
+    XCTAssertFalse(model.canRequestDefaultBrowser)
+    XCTAssertEqual(driver.presentCallCount, 0)
+  }
+
   private func source(_ path: String) throws -> String {
     try String(contentsOf: repositoryRoot.appending(path: path), encoding: .utf8)
   }
 
-  private func makeOnboardingModel(step: Int) -> AppModel {
+  private func makeOnboardingModel(
+    step: Int,
+    profileAccessRequired: Bool = false
+  ) -> AppModel {
     AppModel(
       configStore: ProfileAccessWizardConfigStoreStub(),
-      browserCatalog: ProfileAccessWizardCatalogStub(),
+      browserCatalog: ProfileAccessWizardCatalogStub(
+        profileAccessRequired: profileAccessRequired
+      ),
       preferences: ProfileAccessWizardPreferencesStub(step: step),
       defaultBrowser: ProfileAccessWizardDefaultBrowserStub(),
       loginItem: ProfileAccessWizardLoginItemStub(),
@@ -198,6 +220,19 @@ final class ProfileAccessWizardTests: XCTestCase {
 }
 
 @MainActor
+private final class QueuedProfileAccessPanelDriver: ProfileAccessPanelDriving {
+  var environmentDidChangeHandler: (@MainActor () -> Void)?
+  var canPresent = false
+  private(set) var presentCallCount = 0
+
+  func hideCompetingPickViaWindows() {}
+  func present(model: AppModel, onClose: @escaping @MainActor () -> Void) {
+    presentCallCount += 1
+  }
+  func dismissAndRestoreWindows() {}
+}
+
+@MainActor
 private final class ProfileAccessWizardPresenterSpy: ProfileAccessPresenting {
   private(set) var requestIfPendingCallCount = 0
   private(set) weak var lastModel: AppModel?
@@ -217,7 +252,28 @@ private struct ProfileAccessWizardConfigStoreStub: ConfigStoring {
 }
 
 private struct ProfileAccessWizardCatalogStub: BrowserDiscovering {
-  func scan() throws -> [DiscoveredBrowser] { [ProfileAccessWizardFixtures.chrome] }
+  let profileAccessRequired: Bool
+
+  init(profileAccessRequired: Bool = false) {
+    self.profileAccessRequired = profileAccessRequired
+  }
+
+  func scan() throws -> [DiscoveredBrowser] { scanResult().browsers }
+  func scanResult() -> BrowserScanResult {
+    if profileAccessRequired {
+      return BrowserScanResult(
+        browsers: [ProfileAccessWizardFixtures.blockedChrome],
+        profileAccessIssues: [
+          .accessRequired(
+            bundleIdentifier: ProfileAccessWizardFixtures.application.bundleIdentifier)
+        ]
+      )
+    }
+    return BrowserScanResult(
+      browsers: [ProfileAccessWizardFixtures.chrome],
+      profileAccessIssues: []
+    )
+  }
   func reconcile(discovered: [DiscoveredBrowser], with config: PickViaConfig) -> PickViaConfig {
     PickViaConfig(
       schemaVersion: 1,
@@ -281,5 +337,10 @@ private enum ProfileAccessWizardFixtures {
     application: application,
     profiles: [],
     metadataStatus: .loaded
+  )
+  static let blockedChrome = DiscoveredBrowser(
+    application: application,
+    profiles: [],
+    metadataStatus: .accessRequired
   )
 }

@@ -1102,6 +1102,88 @@ final class AppModelTests: XCTestCase {
     XCTAssertFalse(model.canRequestDefaultBrowser)
   }
 
+  func testAutomaticProfileAccessAllowsReviewAdvanceButBlocksDefaultRequestWhileQueued()
+    async throws
+  {
+    let defaults = DefaultBrowserSpy()
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.config),
+      catalog: BrowserCatalogStub(
+        reconciled: Fixtures.config,
+        scanResult: automaticProfileAccessScan
+      ),
+      preferences: PreferencesStub(integers: ["onboardingStep": 2]),
+      defaultBrowser: defaults
+    )
+    try model.load()
+
+    XCTAssertTrue(model.canContinueOnboardingReview)
+    XCTAssertTrue(model.hasUnresolvedAutomaticProfileAccess)
+    XCTAssertFalse(model.canRequestDefaultBrowser)
+
+    model.advanceOnboarding()
+    await model.requestDefaultBrowser()
+
+    XCTAssertEqual(model.onboardingStep, 3)
+    XCTAssertTrue(defaults.requestedSchemes.isEmpty)
+  }
+
+  func testPresentedAutomaticProfileAccessBlocksDefaultRequestUntilSkipped() async throws {
+    let defaults = DefaultBrowserSpy()
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.config),
+      catalog: BrowserCatalogStub(
+        reconciled: Fixtures.config,
+        scanResult: automaticProfileAccessScan
+      ),
+      preferences: PreferencesStub(integers: ["onboardingStep": 3]),
+      defaultBrowser: defaults
+    )
+    try model.load()
+    model.profileAccessDidPresent()
+
+    XCTAssertTrue(model.hasUnresolvedAutomaticProfileAccess)
+    XCTAssertFalse(model.canRequestDefaultBrowser)
+    await model.requestDefaultBrowser()
+    XCTAssertTrue(defaults.requestedSchemes.isEmpty)
+
+    model.skipProfileAccess()
+
+    XCTAssertFalse(model.hasUnresolvedAutomaticProfileAccess)
+    XCTAssertTrue(model.canRequestDefaultBrowser)
+    await model.requestDefaultBrowser()
+    XCTAssertEqual(defaults.requestedSchemes, ["http", "https"])
+  }
+
+  func testManualProfileAccessManagerDoesNotBlockDefaultRequest() async throws {
+    let defaults = DefaultBrowserSpy()
+    let scan = BrowserScanResult(
+      browsers: [
+        Fixtures.installedBrowser(
+          "com.google.Chrome",
+          status: .loaded,
+          profiles: Fixtures.discoveredChrome.profiles
+        )
+      ],
+      profileAccessIssues: []
+    )
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.config),
+      catalog: BrowserCatalogStub(reconciled: Fixtures.config, scanResult: scan),
+      preferences: PreferencesStub(integers: ["onboardingStep": 3]),
+      defaultBrowser: defaults
+    )
+    try model.load()
+    model.openProfileAccessManager()
+    model.profileAccessDidPresent()
+
+    XCTAssertFalse(model.hasUnresolvedAutomaticProfileAccess)
+    XCTAssertTrue(model.canRequestDefaultBrowser)
+    await model.requestDefaultBrowser()
+
+    XCTAssertEqual(defaults.requestedSchemes, ["http", "https"])
+  }
+
   func testDefaultRequestCoversHTTPAndHTTPSOnlyWhenTargetExists() async throws {
     let defaults = DefaultBrowserSpy(status: .init(http: .notDefault, https: .notDefault))
     let model = makeModel(
@@ -1794,6 +1876,13 @@ final class AppModelTests: XCTestCase {
       targetSnapshot: targetSnapshot,
       profileAccess: access,
       profileRootValidator: profileRootValidator
+    )
+  }
+
+  private var automaticProfileAccessScan: BrowserScanResult {
+    BrowserScanResult(
+      browsers: [Fixtures.installedBrowser("com.google.Chrome", status: .accessRequired)],
+      profileAccessIssues: [.accessRequired(bundleIdentifier: "com.google.Chrome")]
     )
   }
 

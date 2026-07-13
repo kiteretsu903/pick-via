@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import PickViaCore
 import XCTest
@@ -6,6 +7,34 @@ import XCTest
 
 @MainActor
 final class ProfileAccessPresentationTests: XCTestCase {
+  func testEarlySheetRetryRemainsQueuedUntilPostDetachSignalThenPresentsOnce() throws {
+    let driver = ProfileAccessPanelDriverSpy(canPresent: false)
+    let presenter = ProfileAccessPanelController(driver: driver)
+    let model = try ProfileAccessModelFixture.automaticPending()
+    presenter.requestIfPending(model: model)
+
+    presenter.environmentDidChange()
+    XCTAssertEqual(driver.presentCallCount, 0)
+
+    driver.canPresent = true
+    driver.signalEnvironmentDidChange()
+    driver.signalEnvironmentDidChange()
+
+    XCTAssertEqual(driver.presentCallCount, 1)
+    XCTAssertEqual(model.profileAccessPresentation, .presented)
+  }
+
+  func testAppKitDriverSignalsEnvironmentChangeAfterSheetEndNotification() async {
+    let notificationCenter = NotificationCenter()
+    let driver = AppKitProfileAccessPanelDriver(notificationCenter: notificationCenter)
+    let signal = expectation(description: "post-detachment environment signal")
+    driver.environmentDidChangeHandler = { signal.fulfill() }
+
+    notificationCenter.post(name: NSWindow.didEndSheetNotification, object: nil)
+
+    await fulfillment(of: [signal], timeout: 1)
+  }
+
   func testAutomaticRequestWaitsUntilOnboardingReviewCompletes() throws {
     let driver = ProfileAccessPanelDriverSpy(canPresent: true)
     let presenter = ProfileAccessPanelController(driver: driver)
@@ -106,6 +135,7 @@ final class ProfileAccessPresentationTests: XCTestCase {
 
 @MainActor
 private final class ProfileAccessPanelDriverSpy: ProfileAccessPanelDriving {
+  var environmentDidChangeHandler: (@MainActor () -> Void)?
   var canPresent: Bool
   private(set) var presentCallCount = 0
   private(set) var hideCompetingWindowsCallCount = 0
@@ -132,6 +162,10 @@ private final class ProfileAccessPanelDriverSpy: ProfileAccessPanelDriving {
 
   func closePresentedPanel() {
     onClose?()
+  }
+
+  func signalEnvironmentDidChange() {
+    environmentDidChangeHandler?()
   }
 }
 
