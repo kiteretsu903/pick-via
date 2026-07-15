@@ -120,9 +120,10 @@ struct ProfileAccessCoordinatorTests {
 
     #expect(persistence == .persistent)
     #expect(harness.codec.madeRoots == [root])
-    #expect(harness.store.saved == [
-      StoredBookmark(bundleIdentifier: chromeBundleIdentifier, bookmark: Data("persistent".utf8))
-    ])
+    #expect(
+      harness.store.saved == [
+        StoredBookmark(bundleIdentifier: chromeBundleIdentifier, bookmark: Data("persistent".utf8))
+      ])
     #expect(harness.coordinator.persistence(for: chromeBundleIdentifier) == .persistent)
   }
 
@@ -304,7 +305,11 @@ private final class CoordinatorHarness {
     self.store = store
     self.codec = codec
     self.scope = scope
-    coordinator = ProfileAccessCoordinator(store: store, bookmarkCodec: codec, resourceAccess: scope)
+    coordinator = ProfileAccessCoordinator(
+      store: store,
+      bookmarkCodec: codec,
+      resourceAccess: scope
+    )
   }
 
   static func missing() -> CoordinatorHarness {
@@ -437,7 +442,9 @@ private final class CoordinatorErrorRecorder: @unchecked Sendable {
   }
 }
 
-private final class SecurityScopedResourceSpy: SecurityScopedResourceAccessing, @unchecked Sendable {
+private final class SecurityScopedResourceSpy: SecurityScopedResourceAccessing,
+  @unchecked Sendable
+{
   private let lock = NSLock()
   private var recordedStarted: [URL] = []
   private var recordedStopped: [URL] = []
