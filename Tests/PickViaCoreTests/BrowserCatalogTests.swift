@@ -1219,6 +1219,62 @@ struct BrowserCatalogTests {
     #expect(reconciled.profileIdentifier == "Profile 2")
     #expect(reconciled.label == manual.label)
   }
+
+  @Test func runtimeSanitizedFallbackRetriesDeterministicallyUntilTargetIDIsUnique() throws {
+    let firefoxID = "org.mozilla.firefox"
+    let chromiumID = "com.google.Chrome"
+    let sensitiveTargetID = "/Users/private/Firefox/Profile"
+    let sanitizedID =
+      "firefox-runtime-target|\(FirefoxProfileIdentity.identifier(forLegacyValue: sensitiveTargetID))"
+    let firstFallbackID =
+      "firefox-runtime-target|\(FirefoxProfileIdentity.identifier(forLegacyValue: "\(sensitiveTargetID)#2"))"
+    let secondFallbackID =
+      "firefox-runtime-target|\(FirefoxProfileIdentity.identifier(forLegacyValue: "\(sensitiveTargetID)#2#1"))"
+
+    func blockingTarget(id: String, order: Int) -> BrowserTarget {
+      BrowserTarget(
+        id: id,
+        browserID: chromiumID,
+        label: "Occupied \(order)",
+        profileIdentifier: nil,
+        profileDisplayName: nil,
+        mode: .normal,
+        isEnabled: true,
+        sortOrder: order,
+        origin: .manual,
+        availability: .available
+      )
+    }
+
+    let firefoxTarget = BrowserTarget(
+      id: sensitiveTargetID,
+      browserID: firefoxID,
+      label: "Legacy Firefox",
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 2,
+      origin: .manual,
+      availability: .available
+    )
+    let config = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [chrome(profiles: []).application, firefox(profiles: []).application],
+      targets: [
+        blockingTarget(id: sanitizedID, order: 0),
+        blockingTarget(id: firstFallbackID, order: 1),
+        firefoxTarget,
+      ]
+    )
+
+    let first = BrowserCatalog.runtimeSanitizedFallback(config)
+    let second = BrowserCatalog.runtimeSanitizedFallback(config)
+
+    #expect(Set(first.targets.map(\.id)).count == first.targets.count)
+    #expect(first.targets[2].id == secondFallbackID)
+    #expect(first.targets.map(\.id) == second.targets.map(\.id))
+  }
 }
 
 private func chrome(profileID: String, profileName: String) -> DiscoveredBrowser {

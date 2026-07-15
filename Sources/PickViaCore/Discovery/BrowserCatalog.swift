@@ -335,12 +335,19 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
 
       var sanitized = runtimeSanitizedFirefoxTarget(target)
       if !usedTargetIDs.insert(sanitized.id).inserted {
-        sanitized = copying(
-          sanitized,
-          id:
-            "firefox-runtime-target|\(FirefoxProfileIdentity.identifier(forLegacyValue: "\(target.id)#\(index)"))"
-        )
-        usedTargetIDs.insert(sanitized.id)
+        var attempt = 0
+        while true {
+          let seed =
+            attempt == 0
+            ? "\(target.id)#\(index)"
+            : "\(target.id)#\(index)#\(attempt)"
+          let candidate =
+            "firefox-runtime-target|\(FirefoxProfileIdentity.identifier(forLegacyValue: seed))"
+          attempt += 1
+          guard usedTargetIDs.insert(candidate).inserted else { continue }
+          sanitized = copying(sanitized, id: candidate)
+          break
+        }
       }
       return sanitized
     }
