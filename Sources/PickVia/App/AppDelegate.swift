@@ -10,6 +10,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
   public let profileAccessPresenter: any ProfileAccessPresenting
 
   private let openSettings: @MainActor () -> Void
+  private let showAbout: @MainActor () -> Void
 
   var settingsNavigationAction: SettingsNavigationAction {
     SettingsNavigationAction(
@@ -19,11 +20,19 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     )
   }
 
+  var aboutAction: AboutAction {
+    AboutAction(model: model, showAboutPanel: showAbout)
+  }
+
   public override convenience init() {
     let navigation = SettingsNavigation()
     let openSettings: @MainActor () -> Void = {
       NSApp.activate(ignoringOtherApps: true)
       _ = NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+    }
+    let showAbout: @MainActor () -> Void = {
+      NSApp.activate(ignoringOtherApps: true)
+      NSApp.orderFrontStandardAboutPanel(nil)
     }
     let production = AppModel.production(
       navigation: navigation,
@@ -33,7 +42,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
       model: production.model,
       navigation: navigation,
       profileAccessPresenter: production.profileAccessPresenter,
-      openSettings: openSettings
+      openSettings: openSettings,
+      showAbout: showAbout
     )
   }
 
@@ -42,12 +52,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     navigation: SettingsNavigation = SettingsNavigation(),
     profileAccessPresenter: any ProfileAccessPresenting = InactiveAppDelegateProfileAccessPresenter
       .shared,
-    openSettings: @escaping @MainActor () -> Void
+    openSettings: @escaping @MainActor () -> Void,
+    showAbout: @escaping @MainActor () -> Void = {
+      NSApp.activate(ignoringOtherApps: true)
+      NSApp.orderFrontStandardAboutPanel(nil)
+    }
   ) {
     self.model = model
     self.navigation = navigation
     self.profileAccessPresenter = profileAccessPresenter
     self.openSettings = openSettings
+    self.showAbout = showAbout
     super.init()
   }
 

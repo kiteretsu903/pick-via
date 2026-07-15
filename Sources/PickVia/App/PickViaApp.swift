@@ -26,6 +26,13 @@ struct PickViaApp: App {
         .keyboardShortcut(",", modifiers: .command)
         .disabled(!delegate.settingsNavigationAction.isEnabled)
       }
+
+      CommandGroup(replacing: .appInfo) {
+        Button("About PickVia") {
+          delegate.aboutAction.show()
+        }
+        .disabled(!delegate.aboutAction.isEnabled)
+      }
     }
 
     Window("Welcome to PickVia", id: "welcome") {

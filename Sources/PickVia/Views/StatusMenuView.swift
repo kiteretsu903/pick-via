@@ -20,6 +20,16 @@ public struct StatusMenuView: View {
     )
   }
 
+  private var aboutAction: AboutAction {
+    AboutAction(
+      model: model,
+      showAboutPanel: {
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.orderFrontStandardAboutPanel(nil)
+      }
+    )
+  }
+
   public var body: some View {
     Button("Open Settings…") {
       settingsNavigationAction.open(.general)
@@ -41,12 +51,9 @@ public struct StatusMenuView: View {
     Divider()
 
     Button("About PickVia") {
-      showAboutIfAllowed(model: model) {
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.orderFrontStandardAboutPanel(nil)
-      }
+      aboutAction.show()
     }
-    .disabled(!model.canPresentOrdinaryAppSurface)
+    .disabled(!aboutAction.isEnabled)
 
     Divider()
 
@@ -55,13 +62,4 @@ public struct StatusMenuView: View {
     }
     .keyboardShortcut("q", modifiers: .command)
   }
-}
-
-@MainActor
-func showAboutIfAllowed(
-  model: AppModel,
-  showAbout: @MainActor () -> Void
-) {
-  guard model.canPresentOrdinaryAppSurface else { return }
-  showAbout()
 }

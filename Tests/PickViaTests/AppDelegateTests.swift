@@ -247,15 +247,23 @@ final class AppDelegateTests: XCTestCase {
     )
     try model.load()
     model.profileAccessDidPresent()
+    let delegate = AppDelegate(
+      model: model,
+      openSettings: {},
+      showAbout: { aboutCallCount += 1 }
+    )
 
-    showAboutIfAllowed(model: model) { aboutCallCount += 1 }
-    model.skipProfileAccess()
-    showAboutIfAllowed(model: model) { aboutCallCount += 1 }
+    XCTAssertFalse(delegate.aboutAction.isEnabled)
+    XCTAssertFalse(delegate.aboutAction.show())
+    model.closeProfileAccess()
+    XCTAssertFalse(delegate.aboutAction.isEnabled)
+    XCTAssertFalse(delegate.aboutAction.show())
 
     XCTAssertEqual(aboutCallCount, 0)
 
     model.profileAccessDidDismiss()
-    showAboutIfAllowed(model: model) { aboutCallCount += 1 }
+    XCTAssertTrue(delegate.aboutAction.isEnabled)
+    XCTAssertTrue(delegate.aboutAction.show())
 
     XCTAssertEqual(aboutCallCount, 1)
   }

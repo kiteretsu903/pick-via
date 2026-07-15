@@ -30,6 +30,23 @@ struct SettingsNavigationAction {
 }
 
 @MainActor
+struct AboutAction {
+  let model: AppModel
+  let showAboutPanel: @MainActor () -> Void
+
+  var isEnabled: Bool {
+    model.canPresentOrdinaryAppSurface
+  }
+
+  @discardableResult
+  func show() -> Bool {
+    guard isEnabled else { return false }
+    showAboutPanel()
+    return true
+  }
+}
+
+@MainActor
 struct BrowserSettingsRecovery {
   let navigation: SettingsNavigation
   let openSettings: @MainActor () -> Void

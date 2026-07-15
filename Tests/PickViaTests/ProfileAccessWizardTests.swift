@@ -150,15 +150,17 @@ final class ProfileAccessWizardTests: XCTestCase {
     XCTAssertEqual(
       statusMenu.components(separatedBy: ".disabled(!model.canPresentOrdinaryAppSurface)").count
         - 1,
-      3
+      2
     )
     XCTAssertEqual(
       statusMenu.components(separatedBy: ".disabled(!settingsNavigationAction.isEnabled)").count
         - 1,
       1
     )
-    XCTAssertTrue(statusMenu.contains("guard model.canPresentOrdinaryAppSurface else { return }"))
-    XCTAssertTrue(statusMenu.contains("showAboutIfAllowed(model: model)"))
+    XCTAssertTrue(statusMenu.contains("private var aboutAction: AboutAction"))
+    XCTAssertTrue(statusMenu.contains("aboutAction.show()"))
+    XCTAssertTrue(statusMenu.contains(".disabled(!aboutAction.isEnabled)"))
+    XCTAssertFalse(statusMenu.contains("showAboutIfAllowed"))
 
     for sources in [settings, welcome, statusMenu] {
       XCTAssertTrue(sources.contains("model.userRequestedRescan()"))
@@ -183,6 +185,25 @@ final class ProfileAccessWizardTests: XCTestCase {
     XCTAssertTrue(app.contains("delegate.settingsNavigationAction.open(.general)"))
     XCTAssertTrue(app.contains(".disabled(!delegate.settingsNavigationAction.isEnabled)"))
     XCTAssertTrue(app.contains(".keyboardShortcut(\",\", modifiers: .command)"))
+  }
+
+  func testAppExplicitlyReplacesAutomaticAboutCommandWithSharedGuardedAction() throws {
+    let app = try source("Sources/PickVia/App/PickViaApp.swift")
+    let statusMenu = try source("Sources/PickVia/Views/StatusMenuView.swift")
+
+    XCTAssertEqual(
+      app.components(separatedBy: "CommandGroup(replacing: .appInfo)").count - 1,
+      1
+    )
+    XCTAssertEqual(app.components(separatedBy: "Button(\"About PickVia\")").count - 1, 1)
+    XCTAssertTrue(app.contains("delegate.aboutAction.show()"))
+    XCTAssertTrue(app.contains(".disabled(!delegate.aboutAction.isEnabled)"))
+    XCTAssertFalse(app.contains("orderFrontStandardAboutPanel"))
+
+    XCTAssertEqual(statusMenu.components(separatedBy: "Button(\"About PickVia\")").count - 1, 1)
+    XCTAssertTrue(statusMenu.contains("AboutAction("))
+    XCTAssertTrue(statusMenu.contains("aboutAction.show()"))
+    XCTAssertTrue(statusMenu.contains(".disabled(!aboutAction.isEnabled)"))
   }
 
   func testReviewContinueRequestsPendingWizardAfterAdvancingToDefaultStep() throws {
