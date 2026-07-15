@@ -11,6 +11,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
   private let openSettings: @MainActor () -> Void
 
+  var settingsNavigationAction: SettingsNavigationAction {
+    SettingsNavigationAction(
+      model: model,
+      navigation: navigation,
+      openSettings: openSettings
+    )
+  }
+
   public override convenience init() {
     let navigation = SettingsNavigation()
     let openSettings: @MainActor () -> Void = {
@@ -68,10 +76,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     _ sender: NSApplication,
     hasVisibleWindows flag: Bool
   ) -> Bool {
-    guard model.canPresentOrdinaryAppSurface else { return false }
-    navigation.destination = .general
-    openSettings()
-    return true
+    settingsNavigationAction.open(.general)
   }
 }
 

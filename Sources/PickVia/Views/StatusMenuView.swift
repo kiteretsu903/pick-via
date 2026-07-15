@@ -9,15 +9,23 @@ public struct StatusMenuView: View {
 
   public init() {}
 
+  private var settingsNavigationAction: SettingsNavigationAction {
+    SettingsNavigationAction(
+      model: model,
+      navigation: navigation,
+      openSettings: {
+        NSApp.activate(ignoringOtherApps: true)
+        openSettings()
+      }
+    )
+  }
+
   public var body: some View {
     Button("Open Settings…") {
-      guard model.canPresentOrdinaryAppSurface else { return }
-      navigation.destination = .general
-      NSApp.activate(ignoringOtherApps: true)
-      openSettings()
+      settingsNavigationAction.open(.general)
     }
     .keyboardShortcut(",", modifiers: .command)
-    .disabled(!model.canPresentOrdinaryAppSurface)
+    .disabled(!settingsNavigationAction.isEnabled)
 
     Button("Test Browser Chooser…") {
       model.previewChooser()

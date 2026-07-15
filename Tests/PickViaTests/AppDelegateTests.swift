@@ -201,6 +201,43 @@ final class AppDelegateTests: XCTestCase {
     XCTAssertEqual(openSettingsCallCount, 1)
   }
 
+  func testAppSettingsCommandWaitsForExactProfileAccessDismissal() throws {
+    var openSettingsCallCount = 0
+    let navigation = SettingsNavigation(destination: .browsers)
+    var destinationWhenOpened: SettingsDestination?
+    let model = makeModel(
+      catalog: AppDelegateCatalogStub(
+        scanResult: AppDelegateFixtures.profileAccessRequiredScan
+      )
+    )
+    try model.load()
+    model.profileAccessDidPresent()
+    let delegate = AppDelegate(
+      model: model,
+      navigation: navigation,
+      openSettings: {
+        openSettingsCallCount += 1
+        destinationWhenOpened = navigation.destination
+      }
+    )
+
+    XCTAssertFalse(delegate.settingsNavigationAction.isEnabled)
+    XCTAssertFalse(delegate.settingsNavigationAction.open(.general))
+    XCTAssertEqual(openSettingsCallCount, 0)
+    XCTAssertEqual(navigation.destination, .browsers)
+
+    model.closeProfileAccess()
+    XCTAssertFalse(delegate.settingsNavigationAction.isEnabled)
+    XCTAssertFalse(delegate.settingsNavigationAction.open(.general))
+    XCTAssertEqual(openSettingsCallCount, 0)
+
+    model.profileAccessDidDismiss()
+    XCTAssertTrue(delegate.settingsNavigationAction.isEnabled)
+    XCTAssertTrue(delegate.settingsNavigationAction.open(.general))
+    XCTAssertEqual(openSettingsCallCount, 1)
+    XCTAssertEqual(destinationWhenOpened, .general)
+  }
+
   func testAboutCommandWaitsForExactProfileAccessDismissal() throws {
     var aboutCallCount = 0
     let model = makeModel(

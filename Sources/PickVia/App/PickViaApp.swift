@@ -18,6 +18,15 @@ struct PickViaApp: App {
         .environment(delegate.navigation)
         .environment(\.profileAccessPresenter, delegate.profileAccessPresenter)
     }
+    .commands {
+      CommandGroup(replacing: .appSettings) {
+        Button("Settings…") {
+          delegate.settingsNavigationAction.open(.general)
+        }
+        .keyboardShortcut(",", modifiers: .command)
+        .disabled(!delegate.settingsNavigationAction.isEnabled)
+      }
+    }
 
     Window("Welcome to PickVia", id: "welcome") {
       WelcomeView()
