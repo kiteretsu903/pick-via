@@ -225,10 +225,10 @@ public final class AppModel {
 
   public func openProfileAccessManager() {
     guard canPresentOrdinaryAppSurface else { return }
-    profileAccessRows = manualProfileAccessRows(from: latestAuthoritativeBrowserScan)
     guard profileAccessPresentation != .automaticPending,
       !isAutomaticProfileAccessFlowPresented
     else { return }
+    profileAccessRows = manualProfileAccessRows(from: latestAuthoritativeBrowserScan)
     isAutomaticProfileAccessFlowPresented = false
     profileAccessPresentation = .manualPending
   }

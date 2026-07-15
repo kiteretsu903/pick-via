@@ -284,7 +284,7 @@ final class AppModelTests: XCTestCase {
   func testFinishEligibilityRequiresAtLeastOneGrantedRow() throws {
     let scan = BrowserScanResult(
       browsers: [
-        Fixtures.installedBrowser("com.google.Chrome", status: .accessRequired),
+        Fixtures.installedBrowser("com.google.Chrome", status: .loaded),
         Fixtures.installedBrowser(
           "org.mozilla.firefox",
           status: .loaded,
@@ -293,7 +293,7 @@ final class AppModelTests: XCTestCase {
           ]
         ),
       ],
-      profileAccessIssues: [.accessRequired(bundleIdentifier: "com.google.Chrome")],
+      profileAccessIssues: [],
       isAuthoritative: true
     )
     let access = ProfileAccessManagerSpy(
@@ -1224,21 +1224,31 @@ final class AppModelTests: XCTestCase {
     async throws
   {
     let defaults = DefaultBrowserSpy()
+    let scan = BrowserScanResult(
+      browsers: [
+        Fixtures.installedBrowser("com.google.Chrome", status: .accessRequired),
+        Fixtures.installedBrowser("org.mozilla.firefox", status: .loaded),
+      ],
+      profileAccessIssues: [.accessRequired(bundleIdentifier: "com.google.Chrome")]
+    )
     let model = makeModel(
       store: ConfigStoreStub(config: Fixtures.config),
       catalog: BrowserCatalogStub(
         reconciled: Fixtures.config,
-        scanResult: automaticProfileAccessScan
+        scanResult: scan
       ),
       preferences: PreferencesStub(integers: ["onboardingStep": 3]),
       defaultBrowser: defaults
     )
     try model.load()
+    let automaticRows = model.profileAccessRows
 
     model.openProfileAccessManager()
     await model.requestDefaultBrowser()
 
     XCTAssertEqual(model.profileAccessPresentation, .automaticPending)
+    XCTAssertEqual(model.profileAccessRows, automaticRows)
+    XCTAssertEqual(model.profileAccessRows.map(\.bundleIdentifier), ["com.google.Chrome"])
     XCTAssertTrue(model.hasUnresolvedAutomaticProfileAccess)
     XCTAssertFalse(model.canRequestDefaultBrowser)
     XCTAssertTrue(defaults.requestedSchemes.isEmpty)
