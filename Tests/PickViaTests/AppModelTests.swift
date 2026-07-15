@@ -1823,7 +1823,7 @@ final class AppModelTests: XCTestCase {
     let discovered = Fixtures.discoveredFirefox(
       profiles: [
         DiscoveredProfile(
-          identifier: path.path,
+          identifier: FirefoxProfileIdentity.identifier(for: path),
           displayName: "Same Name",
           directoryURL: path,
           launchIdentifier: "Same Name"
@@ -1835,15 +1835,57 @@ final class AppModelTests: XCTestCase {
 
     let id = try model.addManualTarget(
       browserID: discovered.application.id,
-      profileIdentifier: path.path,
+      profileIdentifier: FirefoxProfileIdentity.identifier(for: path),
       label: "Pinned path",
       mode: .normal
     )
 
     let manual = try XCTUnwrap(model.targets.first { $0.id == id })
     XCTAssertEqual(manual.profileIdentifier, "Same Name")
-    XCTAssertEqual(manual.profileIdentity, path.path)
+    XCTAssertEqual(manual.profileIdentity, FirefoxProfileIdentity.identifier(for: path))
+    XCTAssertEqual(manual.profileLaunchPath, path.path)
     XCTAssertEqual(manual.profileDisplayName, "Same Name")
+  }
+
+  func testFirefoxManualTargetRetainsTransientLaunchPathThroughEditsAndSnapshotButJSONOmitsIt()
+    throws
+  {
+    let path = URL(
+      fileURLWithPath: "/Users/private-user/Library/Application Support/Firefox/Profiles/one",
+      isDirectory: true
+    ).standardizedFileURL
+    let discovered = Fixtures.discoveredFirefox(
+      profiles: [
+        DiscoveredProfile(
+          identifier: "firefox-profile-v1:0123456789abcdef",
+          displayName: "Work",
+          directoryURL: path,
+          launchIdentifier: "Work"
+        )
+      ])
+    let config = BrowserCatalog.reconcile(discovered: [discovered], with: .initial)
+    let store = ConfigStoreStub(config: config)
+    let snapshot = MutableTargetSnapshot()
+    let model = makeModel(store: store, targetSnapshot: snapshot)
+    try model.load()
+
+    let id = try model.addManualTarget(
+      browserID: discovered.application.id,
+      profileIdentifier: "firefox-profile-v1:0123456789abcdef",
+      label: "Pinned",
+      mode: .normal
+    )
+    try model.renameTarget(id: id, label: "Pinned Renamed")
+
+    let manual = try XCTUnwrap(model.targets.first { $0.id == id })
+    let runtime = try XCTUnwrap(snapshot.availableSnapshot().targets.first { $0.id == id })
+    let saved = try XCTUnwrap(store.saved.last)
+    let document = try XCTUnwrap(String(data: JSONEncoder().encode(saved), encoding: .utf8))
+    XCTAssertEqual(manual.profileLaunchPath, path.path)
+    XCTAssertEqual(runtime.profileLaunchPath, path.path)
+    XCTAssertFalse(document.contains(path.path))
+    XCTAssertFalse(document.contains("private-user"))
+    XCTAssertFalse(document.contains("profileLaunchPath"))
   }
 
   func testUnprofiledManualTargetsSurviveRescanAndRemainRoutableForBothFamilies() throws {
@@ -1853,7 +1895,7 @@ final class AppModelTests: XCTestCase {
       Fixtures.discoveredFirefox(
         profiles: [
           DiscoveredProfile(
-            identifier: firefoxPath.path,
+            identifier: FirefoxProfileIdentity.identifier(for: firefoxPath),
             displayName: "Work",
             directoryURL: firefoxPath,
             launchIdentifier: "Work"
@@ -2179,6 +2221,7 @@ private enum Fixtures {
       profileIdentifier: target.profileIdentifier,
       profileDisplayName: target.profileDisplayName,
       profileIdentity: target.profileIdentity,
+      profileLaunchPath: target.profileLaunchPath,
       mode: target.mode,
       isEnabled: target.isEnabled,
       sortOrder: target.sortOrder,

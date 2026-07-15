@@ -123,7 +123,7 @@ struct BrowserLauncherTests {
     let plan = try launcher.makePlan(
       url: url,
       application: application(family: .firefox),
-      target: target(family: .firefox, profile: "work")
+      target: target(family: .firefox, profile: "work", origin: .manual)
     )
 
     guard case .executable(_, let arguments) = plan else {
@@ -133,7 +133,19 @@ struct BrowserLauncherTests {
     #expect(arguments == ["-P", "work", "-new-tab", "https://example.com"])
   }
 
-  @Test func firefoxDurableIdentityUsesPathSelectorInsteadOfDuplicateProfileName() throws {
+  @Test func firefoxRejectsAvailableDetectedNameOnlyLegacyProfile() throws {
+    let launcher = testLauncher()
+
+    #expect(throws: LaunchFailure.self) {
+      try launcher.makePlan(
+        url: url,
+        application: application(family: .firefox),
+        target: target(family: .firefox, profile: "Same Name", origin: .detected)
+      )
+    }
+  }
+
+  @Test func firefoxTransientLaunchPathSelectsExactProfileWithoutUsingPersistedIdentity() throws {
     let launcher = testLauncher()
     let profilePath = "/profiles/one.default-release"
 
@@ -143,7 +155,8 @@ struct BrowserLauncherTests {
       target: target(
         family: .firefox,
         profile: "Same Name",
-        profileIdentity: profilePath
+        profileIdentity: "firefox-profile-v1:0123456789abcdef",
+        profileLaunchPath: profilePath
       )
     )
 
@@ -154,13 +167,31 @@ struct BrowserLauncherTests {
     #expect(arguments == ["-profile", profilePath, "-new-tab", url.absoluteString])
   }
 
+  @Test func firefoxRejectsOpaqueProfileWhenTransientLaunchPathIsUnavailable() throws {
+    let launcher = testLauncher()
+
+    #expect(throws: LaunchFailure.self) {
+      try launcher.makePlan(
+        url: url,
+        application: application(family: .firefox),
+        target: target(
+          family: .firefox,
+          profile: "Same Name",
+          profileIdentity: FirefoxProfileIdentity.identifier(
+            for: URL(fileURLWithPath: "/profiles/one", isDirectory: true)
+          )
+        )
+      )
+    }
+  }
+
   @Test func firefoxPrivatePlanUsesExactProfilePrivateWindowAndURLTokens() throws {
     let launcher = testLauncher()
 
     let plan = try launcher.makePlan(
       url: url,
       application: application(family: .firefox),
-      target: target(family: .firefox, profile: "work", mode: .private)
+      target: target(family: .firefox, profile: "work", mode: .private, origin: .manual)
     )
 
     guard case .executable(_, let arguments) = plan else {
@@ -334,7 +365,7 @@ struct BrowserLauncherTests {
     let plan = try launcher.makePlan(
       url: unicodeURL,
       application: application(family: .firefox),
-      target: target(family: .firefox, profile: profile)
+      target: target(family: .firefox, profile: profile, origin: .manual)
     )
 
     guard case .executable(_, let arguments) = plan else {
@@ -466,8 +497,10 @@ private func target(
   browserID: BrowserApplication.ID? = nil,
   profile: String?,
   profileIdentity: String? = nil,
+  profileLaunchPath: String? = nil,
   mode: BrowserMode = .normal,
-  availability: BrowserTargetAvailability = .available
+  availability: BrowserTargetAvailability = .available,
+  origin: BrowserTargetOrigin = .detected
 ) -> BrowserTarget {
   let browserID = browserID ?? bundleID(for: family ?? .chromium)
   return BrowserTarget(
@@ -477,10 +510,11 @@ private func target(
     profileIdentifier: profile,
     profileDisplayName: profile,
     profileIdentity: profileIdentity,
+    profileLaunchPath: profileLaunchPath,
     mode: mode,
     isEnabled: true,
     sortOrder: 0,
-    origin: .detected,
+    origin: origin,
     availability: availability
   )
 }

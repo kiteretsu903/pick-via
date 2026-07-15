@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 public struct DiscoveredProfile: Equatable, Sendable {
@@ -109,12 +110,34 @@ public enum FirefoxProfileParser {
 
       let normalizedURL = directoryURL.standardizedFileURL
       return DiscoveredProfile(
-        identifier: normalizedURL.path,
+        identifier: FirefoxProfileIdentity.identifier(for: normalizedURL),
         displayName: name,
         directoryURL: normalizedURL,
         launchIdentifier: name
       )
     }
     .sorted { $0.identifier < $1.identifier }
+  }
+}
+
+public enum FirefoxProfileIdentity {
+  public static let prefix = "firefox-profile-v1:"
+
+  public static func identifier(for directoryURL: URL) -> String {
+    identifier(forNormalizedPath: directoryURL.standardizedFileURL.path)
+  }
+
+  public static func isOpaqueIdentifier(_ value: String) -> Bool {
+    guard value.hasPrefix(prefix) else { return false }
+    let digest = value.dropFirst(prefix.count)
+    let lowercaseHex = Set("0123456789abcdef")
+    return digest.count == SHA256.byteCount * 2
+      && digest.allSatisfy(lowercaseHex.contains)
+  }
+
+  static func identifier(forNormalizedPath path: String) -> String {
+    let digest = SHA256.hash(data: Data(path.utf8))
+    let hexadecimal = digest.map { String(format: "%02x", $0) }.joined()
+    return prefix + hexadecimal
   }
 }

@@ -38,14 +38,20 @@ struct ProfileParserTests {
     #expect(
       profiles == [
         DiscoveredProfile(
-          identifier: "/Users/example/Firefox/Profiles/personal.default-release",
+          identifier: FirefoxProfileIdentity.identifier(
+            for: baseDirectory.appending(
+              path: "Profiles/personal.default-release", directoryHint: .isDirectory)
+          ),
           displayName: "Personal",
           directoryURL: baseDirectory.appending(
             path: "Profiles/personal.default-release", directoryHint: .isDirectory),
           launchIdentifier: "Personal"
         ),
         DiscoveredProfile(
-          identifier: "/Users/example/Firefox/Profiles/work",
+          identifier: FirefoxProfileIdentity.identifier(
+            for: URL(
+              fileURLWithPath: "/Users/example/Firefox/Profiles/work", isDirectory: true)
+          ),
           displayName: "Work",
           directoryURL: URL(
             fileURLWithPath: "/Users/example/Firefox/Profiles/work", isDirectory: true),
@@ -80,11 +86,88 @@ struct ProfileParserTests {
     )
 
     #expect(profiles.map(\.displayName) == ["Absolute", "Valid"])
+    #expect(profiles.map(\.identifier).allSatisfy { $0.hasPrefix("firefox-profile-v1:") })
     #expect(
-      profiles.map(\.identifier) == [
+      profiles.compactMap(\.directoryURL?.path) == [
         "/Users/example/Firefox/Profiles/absolute",
         "/Users/example/Firefox/Profiles/valid",
       ])
+  }
+
+  @Test func firefoxIdentifiersAreOpaqueDeterministicAndIndependentOfMutableName() throws {
+    let root = URL(
+      fileURLWithPath: "/Users/private-user/Library/Application Support/Firefox",
+      isDirectory: true
+    )
+    let original = try FirefoxProfileParser.parse(
+      text: """
+        [Profile0]
+        Name=Original Name
+        IsRelative=1
+        Path=Profiles/work.default-release
+        """,
+      baseDirectory: root
+    )
+    let renamed = try FirefoxProfileParser.parse(
+      text: """
+        [Profile0]
+        Name=Renamed Profile
+        IsRelative=1
+        Path=Profiles/work.default-release
+        """,
+      baseDirectory: root
+    )
+
+    let originalProfile = try #require(original.first)
+    let renamedProfile = try #require(renamed.first)
+    #expect(originalProfile.identifier == renamedProfile.identifier)
+    #expect(originalProfile.identifier.hasPrefix("firefox-profile-v1:"))
+    #expect(!originalProfile.identifier.contains("/Users"))
+    #expect(!originalProfile.identifier.contains("private-user"))
+    #expect(!originalProfile.identifier.contains(root.path))
+    #expect(!originalProfile.identifier.contains("work.default-release"))
+    #expect(
+      originalProfile.directoryURL?.path
+        == "/Users/private-user/Library/Application Support/Firefox/Profiles/work.default-release"
+    )
+  }
+
+  @Test func firefoxDuplicateNamesRemainDistinctWithoutLeakingEitherPath() throws {
+    let root = URL(fileURLWithPath: "/Users/private-user/Firefox", isDirectory: true)
+    let profiles = try FirefoxProfileParser.parse(
+      text: """
+        [Profile0]
+        Name=Same Name
+        IsRelative=1
+        Path=Profiles/one
+        [Profile1]
+        Name=Same Name
+        IsRelative=1
+        Path=Profiles/two
+        """,
+      baseDirectory: root
+    )
+
+    #expect(profiles.count == 2)
+    #expect(Set(profiles.map(\.identifier)).count == 2)
+    #expect(profiles.allSatisfy { $0.identifier.hasPrefix("firefox-profile-v1:") })
+    #expect(profiles.allSatisfy { !$0.identifier.contains(root.path) })
+  }
+
+  @Test func firefoxOpaqueIdentityValidationAcceptsOnlyLowercaseSHA256Hex() {
+    let valid = FirefoxProfileIdentity.identifier(
+      for: URL(fileURLWithPath: "/profiles/work", isDirectory: true)
+    )
+
+    #expect(FirefoxProfileIdentity.isOpaqueIdentifier(valid))
+    #expect(
+      !FirefoxProfileIdentity.isOpaqueIdentifier(
+        FirefoxProfileIdentity.prefix + String(repeating: "٠", count: 64)
+      ))
+    #expect(
+      !FirefoxProfileIdentity.isOpaqueIdentifier(
+        FirefoxProfileIdentity.prefix + String(repeating: "A", count: 64)
+      ))
   }
 }
 

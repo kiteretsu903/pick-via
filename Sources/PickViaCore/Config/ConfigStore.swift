@@ -139,6 +139,45 @@ public struct JSONConfigStore: ConfigStoring, Sendable {
 
   public func save(_ config: PickViaConfig) throws {
     let config = try config.validatedAndMigrated()
+    let familyByBrowserID = Dictionary(
+      uniqueKeysWithValues: config.browsers.map { ($0.id, $0.family) }
+    )
+    guard
+      config.targets.allSatisfy({ target in
+        guard familyByBrowserID[target.browserID] == .firefox else { return true }
+        guard !Self.isPathShapedTargetID(target.id) else { return false }
+        if let profileIdentity = target.profileIdentity {
+          guard FirefoxProfileIdentity.isOpaqueIdentifier(profileIdentity) else {
+            return false
+          }
+          guard target.origin == .detected else { return true }
+          return target.id
+            == BrowserCatalog.targetID(
+              bundleIdentifier: target.browserID,
+              profileIdentifier: profileIdentity,
+              mode: target.mode
+            )
+        }
+        guard target.origin == .detected else { return true }
+        if let profileIdentifier = target.profileIdentifier {
+          return target.availability == .unavailable
+            && target.id
+              == BrowserCatalog.targetID(
+                bundleIdentifier: target.browserID,
+                profileIdentifier: profileIdentifier,
+                mode: target.mode
+              )
+        }
+        return target.id
+          == BrowserCatalog.targetID(
+            bundleIdentifier: target.browserID,
+            profileIdentifier: nil,
+            mode: target.mode
+          )
+      })
+    else {
+      throw ConfigDocumentError.invalidTarget
+    }
     try fileSystem.createDirectory(at: directory)
     let temporary = directory.appending(path: "PickViaConfig.json.tmp")
     let encoder = JSONEncoder()
@@ -151,5 +190,12 @@ public struct JSONConfigStore: ConfigStoring, Sendable {
     } else {
       try fileSystem.moveItem(at: temporary, to: fileURL)
     }
+  }
+
+  private static func isPathShapedTargetID(_ id: BrowserTarget.ID) -> Bool {
+    let decoded = id.removingPercentEncoding ?? id
+    let lowercase = decoded.lowercased()
+    return decoded.contains("/") || decoded.contains("\\") || decoded.contains("~")
+      || lowercase.contains("file:")
   }
 }

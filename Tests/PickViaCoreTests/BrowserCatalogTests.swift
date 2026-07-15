@@ -47,9 +47,17 @@ struct BrowserCatalogTests {
       ])
     #expect(discovered[0].profiles.map(\.identifier) == ["Default", "Profile 1"])
     #expect(
-      discovered[1].profiles.map(\.identifier) == [
-        "/Users/example/Firefox/Profiles/work",
-        "/home/Library/Application Support/Firefox/Profiles/personal.default-release",
+      Set(discovered[1].profiles.map(\.identifier)) == [
+        FirefoxProfileIdentity.identifier(
+          for: URL(fileURLWithPath: "/Users/example/Firefox/Profiles/work", isDirectory: true)
+        ),
+        FirefoxProfileIdentity.identifier(
+          for: URL(
+            fileURLWithPath:
+              "/home/Library/Application Support/Firefox/Profiles/personal.default-release",
+            isDirectory: true
+          )
+        ),
       ])
     #expect(
       locator.requestedBundleIdentifiers == BrowserDescriptor.supported.map(\.bundleIdentifier))
@@ -358,7 +366,8 @@ struct BrowserCatalogTests {
     #expect(reconciled.label == "Client")
     #expect(!reconciled.isEnabled)
     #expect(reconciled.profileIdentifier == "Renamed")
-    #expect(reconciled.profileIdentity == path.standardizedFileURL.path)
+    #expect(reconciled.profileIdentity == FirefoxProfileIdentity.identifier(for: path))
+    #expect(reconciled.profileLaunchPath == path.standardizedFileURL.path)
   }
 
   @Test func legacyFirefoxNameIdentityMigratesWithoutLeavingDuplicateTarget() throws {
@@ -395,6 +404,88 @@ struct BrowserCatalogTests {
     #expect(!result.targets.contains { $0.id == legacy.id })
   }
 
+  @Test func nameOnlyLegacyFirefoxTargetWaitsSafelyThenMigratesAfterUniqueDiscovery() throws {
+    let legacy = BrowserTarget(
+      id: BrowserCatalog.targetID(
+        bundleIdentifier: "org.mozilla.firefox",
+        profileIdentifier: "Same Name",
+        mode: .normal
+      ),
+      browserID: "org.mozilla.firefox",
+      label: "Client Work",
+      profileIdentifier: "Same Name",
+      profileDisplayName: "Same Name",
+      profileIdentity: nil,
+      mode: .normal,
+      isEnabled: false,
+      sortOrder: 7,
+      origin: .detected,
+      availability: .available
+    )
+    let application = firefox(profiles: []).application
+    let existing = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [application],
+      targets: [legacy]
+    )
+
+    for status in [ProfileMetadataStatus.metadataDamaged, .accessRequired, .accessRevoked] {
+      let waiting = BrowserCatalog.reconcile(
+        discovered: [firefox(profiles: [], metadataStatus: status)],
+        with: existing
+      )
+      let preserved = try #require(waiting.targets.first { $0.id == legacy.id })
+      let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+      defer { try? FileManager.default.removeItem(at: directory) }
+
+      #expect(preserved.availability == .unavailable)
+      #expect(preserved.profileIdentity == nil)
+      #expect(preserved.profileLaunchPath == nil)
+      #expect(preserved.label == "Client Work")
+      try JSONConfigStore(directory: directory).save(waiting)
+      let document = try #require(
+        String(
+          data: Data(contentsOf: directory.appending(path: "PickViaConfig.json")),
+          encoding: .utf8
+        )
+      )
+      #expect(!document.contains("/Users"))
+      #expect(!document.contains("private-user"))
+    }
+
+    let ambiguous = BrowserCatalog.reconcile(
+      discovered: [
+        firefox(
+          profiles: [
+            firefoxProfile(path: "/profiles/one", name: "Same Name"),
+            firefoxProfile(path: "/profiles/two", name: "Same Name"),
+          ]
+        )
+      ],
+      with: existing
+    )
+    let stillWaiting = try #require(ambiguous.targets.first { $0.id == legacy.id })
+    #expect(stillWaiting.availability == .unavailable)
+    #expect(stillWaiting.profileIdentity == nil)
+    #expect(stillWaiting.profileLaunchPath == nil)
+
+    let path = URL(fileURLWithPath: "/profiles/unique", isDirectory: true).standardizedFileURL
+    let migrated = BrowserCatalog.reconcile(
+      discovered: [firefox(profilePath: path, profileName: "Same Name")],
+      with: ambiguous
+    )
+    let canonical = try #require(migrated.targets.first { $0.mode == .normal })
+    #expect(canonical.id != legacy.id)
+    #expect(canonical.profileIdentity == FirefoxProfileIdentity.identifier(for: path))
+    #expect(canonical.profileLaunchPath == path.path)
+    #expect(canonical.availability == .available)
+    #expect(canonical.label == "Client Work")
+    #expect(canonical.isEnabled == false)
+    #expect(canonical.sortOrder == 7)
+    #expect(!migrated.targets.contains { $0.id == legacy.id })
+  }
+
   @Test func firefoxDuplicateNamesRemainDistinctByPathAcrossModes() {
     let browser = firefox(
       profiles: [
@@ -420,7 +511,10 @@ struct BrowserCatalogTests {
 
     #expect(result.targets.count == 2)
     #expect(Set(result.targets.map(\.id)).count == 2)
-    #expect(Set(result.targets.compactMap(\.profileIdentity)) == ["/profiles/same"])
+    #expect(
+      Set(result.targets.compactMap(\.profileIdentity))
+        == [FirefoxProfileIdentity.identifier(for: URL(fileURLWithPath: "/profiles/same"))]
+    )
   }
 
   @Test func duplicateFirefoxNamesDoNotReuseLegacyDetectedCustomization() {
@@ -484,7 +578,8 @@ struct BrowserCatalogTests {
     let migrated = try #require(result.targets.first { $0.id == manual.id })
 
     #expect(migrated.profileIdentifier == "Unique Name")
-    #expect(migrated.profileIdentity == path.path)
+    #expect(migrated.profileIdentity == FirefoxProfileIdentity.identifier(for: path))
+    #expect(migrated.profileLaunchPath == path.path)
     #expect(migrated.availability == .available)
   }
 
@@ -513,7 +608,8 @@ struct BrowserCatalogTests {
     let result = BrowserCatalog.reconcile(discovered: [browser], with: existing)
     let migrated = try #require(result.targets.first { $0.id == manual.id })
 
-    #expect(migrated.profileIdentity == path.path)
+    #expect(migrated.profileIdentity == FirefoxProfileIdentity.identifier(for: path))
+    #expect(migrated.profileLaunchPath == path.path)
     #expect(migrated.availability == .available)
   }
 
@@ -606,10 +702,10 @@ struct BrowserCatalogTests {
       with: existing
     )
 
-    #expect(
-      result.targets.filter { $0.profileIdentity == path.path }.allSatisfy {
-        $0.availability == .unavailable
-      })
+    let profileIdentity = FirefoxProfileIdentity.identifier(for: path)
+    let profiledTargets = result.targets.filter { $0.profileIdentity == profileIdentity }
+    #expect(profiledTargets.count == 3)
+    #expect(profiledTargets.allSatisfy { $0.availability == .unavailable })
     #expect(result.targets.contains { $0.mode == .normal && $0.origin == .detected })
     #expect(result.targets.contains { $0.mode == .private && $0.origin == .detected })
   }
@@ -643,8 +739,284 @@ struct BrowserCatalogTests {
 
     #expect(updated.profileIdentifier == "New Name")
     #expect(updated.profileDisplayName == "New Name")
+    #expect(updated.profileIdentity == FirefoxProfileIdentity.identifier(for: path))
+    #expect(updated.profileLaunchPath == path.path)
     #expect(updated.label == "Pinned")
     #expect(!updated.isEnabled)
+  }
+
+  @Test func legacyAbsolutePathDetectedTargetsMigrateToOpaqueIdentityWithoutDuplicate() throws {
+    let path = URL(
+      fileURLWithPath: "/Users/private-user/Library/Application Support/Firefox/Profiles/work",
+      isDirectory: true
+    ).standardizedFileURL
+    let legacy = BrowserTarget(
+      id: BrowserCatalog.targetID(
+        bundleIdentifier: "org.mozilla.firefox",
+        profileIdentifier: path.path,
+        mode: .normal
+      ),
+      browserID: "org.mozilla.firefox",
+      label: "Client Work",
+      profileIdentifier: "Old Name",
+      profileDisplayName: "Old Name",
+      profileIdentity: path.path,
+      mode: .normal,
+      isEnabled: false,
+      sortOrder: 21,
+      origin: .detected,
+      availability: .available
+    )
+    let browser = firefox(profilePath: path, profileName: "Renamed")
+    let existing = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [browser.application],
+      targets: [legacy]
+    )
+
+    let result = BrowserCatalog.reconcile(discovered: [browser], with: existing)
+    let migrated = try #require(result.targets.first { $0.mode == .normal })
+    let document = try #require(String(data: JSONEncoder().encode(result), encoding: .utf8))
+
+    #expect(result.targets.count == 2)
+    #expect(Set(result.targets.map(\.id)).count == 2)
+    #expect(migrated.id != legacy.id)
+    #expect(migrated.id.hasPrefix("org.mozilla.firefox|firefox-profile-v1:"))
+    #expect(migrated.profileIdentity?.hasPrefix("firefox-profile-v1:") == true)
+    #expect(migrated.profileLaunchPath == path.path)
+    #expect(migrated.profileIdentifier == "Renamed")
+    #expect(migrated.label == "Client Work")
+    #expect(!migrated.isEnabled)
+    #expect(migrated.sortOrder == 21)
+    #expect(migrated.origin == .detected)
+    #expect(!document.contains("/Users"))
+    #expect(!document.contains("private-user"))
+    #expect(!document.contains(path.path))
+  }
+
+  @Test func canonicalFirefoxTargetConsumesEquivalentLegacyPathTarget() throws {
+    let path = URL(
+      fileURLWithPath: "/Users/private-user/Library/Application Support/Firefox/Profiles/work",
+      isDirectory: true
+    ).standardizedFileURL
+    let identity = FirefoxProfileIdentity.identifier(for: path)
+    let browser = firefox(profilePath: path, profileName: "Renamed")
+
+    for mode in [BrowserMode.normal, .private] {
+      let canonical = BrowserTarget(
+        id: BrowserCatalog.targetID(
+          bundleIdentifier: "org.mozilla.firefox",
+          profileIdentifier: identity,
+          mode: mode
+        ),
+        browserID: "org.mozilla.firefox",
+        label: "Canonical Customization",
+        profileIdentifier: "Work",
+        profileDisplayName: "Work",
+        profileIdentity: identity,
+        mode: mode,
+        isEnabled: false,
+        sortOrder: 3,
+        origin: .detected,
+        availability: .available
+      )
+      let legacy = BrowserTarget(
+        id: BrowserCatalog.targetID(
+          bundleIdentifier: "org.mozilla.firefox",
+          profileIdentifier: path.path,
+          mode: mode
+        ),
+        browserID: "org.mozilla.firefox",
+        label: "Stale Legacy Customization",
+        profileIdentifier: "Work",
+        profileDisplayName: "Work",
+        profileIdentity: path.path,
+        mode: mode,
+        isEnabled: true,
+        sortOrder: 9,
+        origin: .detected,
+        availability: .available
+      )
+      let existing = PickViaConfig(
+        schemaVersion: 1,
+        browsers: [browser.application],
+        targets: [canonical, legacy]
+      )
+
+      let result = BrowserCatalog.reconcile(discovered: [browser], with: existing)
+      let matchingMode = result.targets.filter { $0.mode == mode }
+
+      #expect(result.targets.count == 2)
+      #expect(matchingMode.count == 1)
+      #expect(matchingMode.first?.id == canonical.id)
+      #expect(matchingMode.first?.label == "Canonical Customization")
+      #expect(matchingMode.first?.isEnabled == false)
+      #expect(!result.targets.contains { $0.id == legacy.id })
+      #expect(Set(result.targets.map(\.id)).count == result.targets.count)
+    }
+  }
+
+  @Test func equivalentLegacyFirefoxTargetsChooseEarliestCustomizationAndDeduplicate() throws {
+    let path = URL(fileURLWithPath: "/profiles/work", isDirectory: true).standardizedFileURL
+    let browser = firefox(profilePath: path, profileName: "Renamed")
+    func legacy(id: String, label: String, order: Int) -> BrowserTarget {
+      BrowserTarget(
+        id: id,
+        browserID: browser.application.id,
+        label: label,
+        profileIdentifier: "Old Name",
+        profileDisplayName: "Old Name",
+        profileIdentity: path.path,
+        mode: .normal,
+        isEnabled: false,
+        sortOrder: order,
+        origin: .detected,
+        availability: .available
+      )
+    }
+    let existing = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [browser.application],
+      targets: [
+        legacy(id: "legacy-later", label: "Later", order: 12),
+        legacy(id: "legacy-winner", label: "Winner", order: 4),
+      ]
+    )
+
+    let result = BrowserCatalog.reconcile(discovered: [browser], with: existing)
+    let normal = try #require(result.targets.first { $0.mode == .normal })
+
+    #expect(result.targets.count == 2)
+    #expect(normal.label == "Winner")
+    #expect(normal.sortOrder == 4)
+    #expect(normal.id.hasPrefix("org.mozilla.firefox|firefox-profile-v1:"))
+    #expect(Set(result.targets.map(\.id)).count == result.targets.count)
+  }
+
+  @Test func firefoxProfileTargetsBecomeUnavailableWithoutAuthoritativeLaunchPaths() throws {
+    let browser = firefox(
+      profiles: [
+        firefoxProfile(path: "/profiles/one", name: "Same Name"),
+        firefoxProfile(path: "/profiles/two", name: "Same Name"),
+      ]
+    )
+    let initial = BrowserCatalog.reconcile(discovered: [browser], with: .initial)
+    let detectedNormal = try #require(initial.targets.first { $0.mode == .normal })
+    let manual = BrowserTarget(
+      id: "manual-firefox-uuid",
+      browserID: detectedNormal.browserID,
+      label: "Pinned",
+      profileIdentifier: detectedNormal.profileIdentifier,
+      profileDisplayName: detectedNormal.profileDisplayName,
+      profileIdentity: detectedNormal.profileIdentity,
+      profileLaunchPath: detectedNormal.profileLaunchPath,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 50,
+      origin: .manual,
+      availability: .available
+    )
+    let persisted = PickViaConfig(
+      schemaVersion: 1,
+      browsers: initial.browsers,
+      targets: initial.targets + [manual]
+    )
+    let decoded = try JSONDecoder().decode(
+      PickViaConfig.self,
+      from: JSONEncoder().encode(persisted)
+    )
+
+    for status in [ProfileMetadataStatus.metadataDamaged, .accessRequired, .accessRevoked] {
+      let unavailable = BrowserCatalog.reconcile(
+        discovered: [firefox(profiles: [], metadataStatus: status)],
+        with: decoded
+      )
+      let profiled = unavailable.targets.filter { $0.profileIdentity != nil }
+
+      #expect(profiled.count == 5)
+      #expect(profiled.allSatisfy { $0.availability == .unavailable })
+      #expect(profiled.allSatisfy { $0.profileLaunchPath == nil })
+      #expect(profiled.first { $0.id == manual.id }?.origin == .manual)
+    }
+  }
+
+  @Test func legacyAbsolutePathManualTargetMigratesInMemoryAndPreservesCustomization() throws {
+    let path = URL(
+      fileURLWithPath: "/Users/private-user/Library/Application Support/Firefox/Profiles/manual",
+      isDirectory: true
+    ).standardizedFileURL
+    let manual = BrowserTarget(
+      id: "manual-firefox",
+      browserID: "org.mozilla.firefox",
+      label: "Pinned",
+      profileIdentifier: "Old Name",
+      profileDisplayName: "Old Name",
+      profileIdentity: path.path,
+      mode: .private,
+      isEnabled: false,
+      sortOrder: 42,
+      origin: .manual,
+      availability: .available
+    )
+    let browser = firefox(profilePath: path, profileName: "New Name")
+    let existing = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [browser.application],
+      targets: [manual]
+    )
+
+    let result = BrowserCatalog.reconcile(discovered: [browser], with: existing)
+    let migrated = try #require(result.targets.first { $0.id == manual.id })
+    let document = try #require(String(data: JSONEncoder().encode(result), encoding: .utf8))
+
+    #expect(migrated.label == "Pinned")
+    #expect(migrated.profileIdentifier == "New Name")
+    #expect(migrated.profileDisplayName == "New Name")
+    #expect(migrated.profileIdentity?.hasPrefix("firefox-profile-v1:") == true)
+    #expect(migrated.profileLaunchPath == path.path)
+    #expect(migrated.mode == .private)
+    #expect(!migrated.isEnabled)
+    #expect(migrated.sortOrder == 42)
+    #expect(migrated.origin == .manual)
+    #expect(!document.contains(path.path))
+  }
+
+  @Test func unavailableLegacyFirefoxTargetIsScrubbedWithoutAuthoritativePathMatch() throws {
+    let path = "/Users/private-user/Library/Application Support/Firefox/Profiles/missing"
+    let browser = firefox(profiles: [])
+    let legacy = BrowserTarget(
+      id: BrowserCatalog.targetID(
+        bundleIdentifier: browser.application.id,
+        profileIdentifier: path,
+        mode: .normal
+      ),
+      browserID: browser.application.id,
+      label: "Missing Profile",
+      profileIdentifier: "Missing",
+      profileDisplayName: "Missing",
+      profileIdentity: path,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 9,
+      origin: .detected,
+      availability: .available
+    )
+    let existing = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [browser.application],
+      targets: [legacy]
+    )
+
+    let result = BrowserCatalog.reconcile(discovered: [], with: existing)
+    let migrated = try #require(result.targets.first)
+    let document = try #require(String(data: JSONEncoder().encode(result), encoding: .utf8))
+
+    #expect(migrated.profileIdentity?.hasPrefix("firefox-profile-v1:") == true)
+    #expect(migrated.id.hasPrefix("org.mozilla.firefox|firefox-profile-v1:"))
+    #expect(migrated.profileLaunchPath == nil)
+    #expect(migrated.availability == .unavailable)
+    #expect(!document.contains(path))
+    #expect(!document.contains("private-user"))
   }
 
   @Test func reconcilePreservesUserCustomizationForStableProfileIdentity() {
@@ -802,7 +1174,10 @@ private func firefox(profilePath: URL, profileName: String) -> DiscoveredBrowser
   firefox(profiles: [firefoxProfile(path: profilePath.path, name: profileName)])
 }
 
-private func firefox(profiles: [DiscoveredProfile]) -> DiscoveredBrowser {
+private func firefox(
+  profiles: [DiscoveredProfile],
+  metadataStatus: ProfileMetadataStatus = .loaded
+) -> DiscoveredBrowser {
   DiscoveredBrowser(
     application: BrowserApplication(
       id: "org.mozilla.firefox",
@@ -813,14 +1188,15 @@ private func firefox(profiles: [DiscoveredProfile]) -> DiscoveredBrowser {
       executableURL: URL(fileURLWithPath: "/Applications/Firefox.app/Contents/MacOS/firefox"),
       isAvailable: true
     ),
-    profiles: profiles
+    profiles: profiles,
+    metadataStatus: metadataStatus
   )
 }
 
 private func firefoxProfile(path: String, name: String) -> DiscoveredProfile {
   let url = URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
   return DiscoveredProfile(
-    identifier: url.path,
+    identifier: FirefoxProfileIdentity.identifier(for: url),
     displayName: name,
     directoryURL: url,
     launchIdentifier: name
@@ -835,6 +1211,7 @@ private func copy(_ target: BrowserTarget, label: String, enabled: Bool) -> Brow
     profileIdentifier: target.profileIdentifier,
     profileDisplayName: target.profileDisplayName,
     profileIdentity: target.profileIdentity,
+    profileLaunchPath: target.profileLaunchPath,
     mode: target.mode,
     isEnabled: enabled,
     sortOrder: target.sortOrder,

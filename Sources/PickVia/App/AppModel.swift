@@ -483,7 +483,8 @@ public final class AppModel {
           target,
           profileIdentifier: nil,
           profileDisplayName: nil,
-          profileIdentity: nil
+          profileIdentity: nil,
+          profileLaunchPath: nil
         )
       }
       if profileIdentifier == nil {
@@ -491,7 +492,8 @@ public final class AppModel {
           target,
           profileIdentifier: nil,
           profileDisplayName: nil,
-          profileIdentity: nil
+          profileIdentity: nil,
+          profileLaunchPath: nil
         )
       }
       guard
@@ -507,7 +509,8 @@ public final class AppModel {
         target,
         profileIdentifier: candidate.profileIdentifier,
         profileDisplayName: candidate.profileDisplayName,
-        profileIdentity: candidate.profileIdentity
+        profileIdentity: candidate.profileIdentity,
+        profileLaunchPath: candidate.profileLaunchPath
       )
     }
   }
@@ -576,6 +579,7 @@ public final class AppModel {
       profileIdentifier: selectedProfile?.profileIdentifier,
       profileDisplayName: selectedProfile?.profileDisplayName,
       profileIdentity: selectedProfile?.profileIdentity,
+      profileLaunchPath: selectedProfile?.profileLaunchPath,
       mode: mode,
       isEnabled: true,
       sortOrder: (config.targets.map(\.sortOrder).max() ?? -1) + 1,
@@ -800,6 +804,7 @@ private func copy(
     profileIdentifier: target.profileIdentifier,
     profileDisplayName: target.profileDisplayName,
     profileIdentity: target.profileIdentity,
+    profileLaunchPath: target.profileLaunchPath,
     mode: mode ?? target.mode,
     isEnabled: isEnabled ?? target.isEnabled,
     sortOrder: sortOrder ?? target.sortOrder,
@@ -813,7 +818,8 @@ private func copy(
   _ target: BrowserTarget,
   profileIdentifier: String?,
   profileDisplayName: String?,
-  profileIdentity: String?
+  profileIdentity: String?,
+  profileLaunchPath: String?
 ) -> BrowserTarget {
   BrowserTarget(
     id: target.id,
@@ -822,6 +828,7 @@ private func copy(
     profileIdentifier: profileIdentifier,
     profileDisplayName: profileDisplayName,
     profileIdentity: profileIdentity,
+    profileLaunchPath: profileLaunchPath,
     mode: target.mode,
     isEnabled: target.isEnabled,
     sortOrder: target.sortOrder,

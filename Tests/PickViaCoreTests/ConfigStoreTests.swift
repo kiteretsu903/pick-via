@@ -133,6 +133,119 @@ final class ConfigStoreTests: XCTestCase {
     XCTAssertFalse(document.contains("executableURL"))
   }
 
+  func testTargetCodableOmitsTransientFirefoxLaunchPathAndDecodeClearsIt() throws {
+    let launchPath = "/Users/private-user/Library/Application Support/Firefox/Profiles/work"
+    let profileIdentity = FirefoxProfileIdentity.identifier(
+      for: URL(fileURLWithPath: launchPath, isDirectory: true)
+    )
+    let target = BrowserTarget(
+      id: "org.mozilla.firefox|\(profileIdentity)|normal",
+      browserID: "org.mozilla.firefox",
+      label: "Work",
+      profileIdentifier: "Work",
+      profileDisplayName: "Work",
+      profileIdentity: profileIdentity,
+      profileLaunchPath: launchPath,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .detected,
+      availability: .available
+    )
+
+    let data = try JSONEncoder().encode(target)
+    let document = try XCTUnwrap(String(data: data, encoding: .utf8))
+    XCTAssertFalse(document.contains(launchPath))
+    XCTAssertFalse(document.contains("private-user"))
+    XCTAssertFalse(document.contains("profileLaunchPath"))
+
+    let decoded = try JSONDecoder().decode(BrowserTarget.self, from: data)
+    XCTAssertEqual(decoded.profileIdentity, target.profileIdentity)
+    XCTAssertNil(decoded.profileLaunchPath)
+  }
+
+  func testSavedFirefoxConfigurationContainsNoSelectedRootUsernameOrAbsoluteProfilePath() throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let selectedRoot = "/Users/private-user/Library/Application Support/Firefox"
+    let launchPath = selectedRoot + "/Profiles/work.default-release"
+    let profileIdentity = FirefoxProfileIdentity.identifier(
+      for: URL(fileURLWithPath: launchPath, isDirectory: true)
+    )
+    let firefox = BrowserApplication(
+      id: "org.mozilla.firefox",
+      family: .firefox,
+      displayName: "Firefox",
+      bundleIdentifier: "org.mozilla.firefox",
+      applicationURL: URL(fileURLWithPath: "/Applications/Firefox.app"),
+      executableURL: URL(fileURLWithPath: "/Applications/Firefox.app/Contents/MacOS/firefox"),
+      isAvailable: true
+    )
+    let target = BrowserTarget(
+      id: "org.mozilla.firefox|\(profileIdentity)|normal",
+      browserID: firefox.id,
+      label: "Work",
+      profileIdentifier: "Work",
+      profileDisplayName: "Work",
+      profileIdentity: profileIdentity,
+      profileLaunchPath: launchPath,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .detected,
+      availability: .available
+    )
+
+    try JSONConfigStore(directory: directory).save(
+      PickViaConfig(schemaVersion: 1, browsers: [firefox], targets: [target])
+    )
+
+    let data = try Data(contentsOf: directory.appending(path: "PickViaConfig.json"))
+    let document = try XCTUnwrap(String(data: data, encoding: .utf8))
+    XCTAssertFalse(document.contains("/Users"))
+    XCTAssertFalse(document.contains("private-user"))
+    XCTAssertFalse(document.contains(selectedRoot))
+    XCTAssertFalse(document.contains(launchPath))
+  }
+
+  func testStoreRefusesToPersistLegacyAbsoluteFirefoxIdentityBeforeReconciliation() throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let path = "/Users/private-user/Library/Application Support/Firefox/Profiles/legacy"
+    let firefox = BrowserApplication(
+      id: "org.mozilla.firefox",
+      family: .firefox,
+      displayName: "Firefox",
+      bundleIdentifier: "org.mozilla.firefox",
+      applicationURL: URL(fileURLWithPath: "/Applications/Firefox.app"),
+      executableURL: URL(fileURLWithPath: "/Applications/Firefox.app/Contents/MacOS/firefox"),
+      isAvailable: true
+    )
+    let legacy = BrowserTarget(
+      id: "org.mozilla.firefox|\(path)|normal",
+      browserID: firefox.id,
+      label: "Legacy",
+      profileIdentifier: "Legacy",
+      profileDisplayName: "Legacy",
+      profileIdentity: path,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .detected,
+      availability: .available
+    )
+    let store = JSONConfigStore(directory: directory)
+
+    XCTAssertThrowsError(
+      try store.save(
+        PickViaConfig(schemaVersion: 1, browsers: [firefox], targets: [legacy])
+      ))
+    XCTAssertFalse(
+      FileManager.default.fileExists(
+        atPath: directory.appending(path: "PickViaConfig.json").path
+      ))
+  }
+
   func testLegacySubstitutedPathsAreIgnoredWhenDecodingPersistedBrowser() throws {
     let data = Data(
       """
@@ -174,6 +287,160 @@ final class ConfigStoreTests: XCTestCase {
           .path
       )
     )
+  }
+
+  func testStoreRefusesPathBearingOrNoncanonicalDetectedFirefoxTargetIDs() throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let path = "/Users/private-user/Library/Application Support/Firefox/Profiles/legacy"
+    let identity = FirefoxProfileIdentity.identifier(
+      for: URL(fileURLWithPath: path, isDirectory: true)
+    )
+    let firefox = BrowserApplication(
+      id: "org.mozilla.firefox",
+      family: .firefox,
+      displayName: "Firefox",
+      bundleIdentifier: "org.mozilla.firefox",
+      applicationURL: URL(fileURLWithPath: "/Applications/Firefox.app"),
+      executableURL: URL(fileURLWithPath: "/Applications/Firefox.app/Contents/MacOS/firefox"),
+      isAvailable: true
+    )
+    let invalidIDs = [
+      "org.mozilla.firefox|\(path)|normal",
+      "file:///Users/private-user/legacy-target",
+      "org.mozilla.firefox|wrong-opaque-value|normal",
+    ]
+
+    for (index, invalidID) in invalidIDs.enumerated() {
+      let target = BrowserTarget(
+        id: invalidID,
+        browserID: firefox.id,
+        label: "Legacy",
+        profileIdentifier: "Legacy",
+        profileDisplayName: "Legacy",
+        profileIdentity: identity,
+        mode: .normal,
+        isEnabled: true,
+        sortOrder: index,
+        origin: .detected,
+        availability: .available
+      )
+      let store = JSONConfigStore(directory: directory.appending(path: "case-\(index)"))
+
+      XCTAssertThrowsError(
+        try store.save(
+          PickViaConfig(schemaVersion: 1, browsers: [firefox], targets: [target])
+        ))
+      XCTAssertFalse(
+        FileManager.default.fileExists(
+          atPath: store.directory.appending(path: "PickViaConfig.json").path
+        ))
+    }
+  }
+
+  func testStoreAcceptsOpaqueFirefoxIdentityWithManualUUIDTargetID() throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let path = "/Users/private-user/Library/Application Support/Firefox/Profiles/manual"
+    let identity = FirefoxProfileIdentity.identifier(
+      for: URL(fileURLWithPath: path, isDirectory: true)
+    )
+    let firefox = BrowserApplication(
+      id: "org.mozilla.firefox",
+      family: .firefox,
+      displayName: "Firefox",
+      bundleIdentifier: "org.mozilla.firefox",
+      applicationURL: URL(fileURLWithPath: "/Applications/Firefox.app"),
+      executableURL: URL(fileURLWithPath: "/Applications/Firefox.app/Contents/MacOS/firefox"),
+      isAvailable: true
+    )
+    let manual = BrowserTarget(
+      id: "774bb7ed-d61c-4be7-89f1-6c16daf287be",
+      browserID: firefox.id,
+      label: "Pinned",
+      profileIdentifier: "Work",
+      profileDisplayName: "Work",
+      profileIdentity: identity,
+      profileLaunchPath: path,
+      mode: .private,
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .manual,
+      availability: .available
+    )
+    let store = JSONConfigStore(directory: directory)
+
+    try store.save(
+      PickViaConfig(schemaVersion: 1, browsers: [firefox], targets: [manual])
+    )
+
+    let document = try XCTUnwrap(
+      String(
+        data: Data(contentsOf: directory.appending(path: "PickViaConfig.json")),
+        encoding: .utf8
+      )
+    )
+    XCTAssertTrue(document.contains(manual.id))
+    XCTAssertFalse(document.contains(path))
+  }
+
+  func testStoreAcceptsOnlyUnavailablePathFreeNameOnlyDetectedFirefoxMigration() throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let firefox = BrowserApplication(
+      id: "org.mozilla.firefox",
+      family: .firefox,
+      displayName: "Firefox",
+      bundleIdentifier: "org.mozilla.firefox",
+      applicationURL: URL(fileURLWithPath: "/Applications/Firefox.app"),
+      executableURL: URL(fileURLWithPath: "/Applications/Firefox.app/Contents/MacOS/firefox"),
+      isAvailable: true
+    )
+    func legacy(
+      profileName: String,
+      availability: BrowserTargetAvailability
+    ) -> BrowserTarget {
+      BrowserTarget(
+        id: BrowserCatalog.targetID(
+          bundleIdentifier: firefox.id,
+          profileIdentifier: profileName,
+          mode: .normal
+        ),
+        browserID: firefox.id,
+        label: "Legacy",
+        profileIdentifier: profileName,
+        profileDisplayName: profileName,
+        profileIdentity: nil,
+        mode: .normal,
+        isEnabled: true,
+        sortOrder: 0,
+        origin: .detected,
+        availability: availability
+      )
+    }
+
+    let migratable = legacy(profileName: "Work Profile", availability: .unavailable)
+    try JSONConfigStore(directory: directory.appending(path: "valid")).save(
+      PickViaConfig(schemaVersion: 1, browsers: [firefox], targets: [migratable])
+    )
+
+    let invalid = [
+      legacy(profileName: "Work Profile", availability: .available),
+      legacy(profileName: "%2FUsers%2Fprivate-user", availability: .unavailable),
+      legacy(profileName: "~%2FLibrary", availability: .unavailable),
+      legacy(profileName: "file:%2F%2FUsers%2Fprivate-user", availability: .unavailable),
+    ]
+    for (index, target) in invalid.enumerated() {
+      let caseDirectory = directory.appending(path: "invalid-\(index)")
+      XCTAssertThrowsError(
+        try JSONConfigStore(directory: caseDirectory).save(
+          PickViaConfig(schemaVersion: 1, browsers: [firefox], targets: [target])
+        ))
+      XCTAssertFalse(
+        FileManager.default.fileExists(
+          atPath: caseDirectory.appending(path: "PickViaConfig.json").path
+        ))
+    }
   }
 
   func testReadFailureIsPropagatedWithoutQuarantiningConfiguration() {
