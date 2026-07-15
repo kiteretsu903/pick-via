@@ -68,7 +68,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     _ sender: NSApplication,
     hasVisibleWindows flag: Bool
   ) -> Bool {
-    guard model.canPresentOrdinaryAppSurface else { return true }
+    guard model.canPresentOrdinaryAppSurface else { return false }
     navigation.destination = .general
     openSettings()
     return true

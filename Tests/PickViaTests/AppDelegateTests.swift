@@ -177,24 +177,27 @@ final class AppDelegateTests: XCTestCase {
       openSettings: { openSettingsCallCount += 1 }
     )
 
-    _ = delegate.applicationShouldHandleReopen(
+    let activeResult = delegate.applicationShouldHandleReopen(
       NSApplication.shared,
       hasVisibleWindows: false
     )
+    XCTAssertFalse(activeResult)
     XCTAssertEqual(openSettingsCallCount, 0)
 
     model.closeProfileAccess()
-    _ = delegate.applicationShouldHandleReopen(
+    let closingResult = delegate.applicationShouldHandleReopen(
       NSApplication.shared,
       hasVisibleWindows: false
     )
+    XCTAssertFalse(closingResult)
     XCTAssertEqual(openSettingsCallCount, 0)
 
     model.profileAccessDidDismiss()
-    _ = delegate.applicationShouldHandleReopen(
+    let dismissedResult = delegate.applicationShouldHandleReopen(
       NSApplication.shared,
       hasVisibleWindows: false
     )
+    XCTAssertTrue(dismissedResult)
     XCTAssertEqual(openSettingsCallCount, 1)
   }
 
