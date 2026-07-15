@@ -147,15 +147,12 @@ public struct BrowserLauncher: BrowserLaunching, Sendable {
         throw Self.launchFailure
       }
       var arguments: [String] = []
+      let isProfiled = BrowserCatalog.isProfileBearingFirefoxTarget(target)
       if let profilePath = target.profileLaunchPath {
+        guard (profilePath as NSString).isAbsolutePath else { throw Self.launchFailure }
         arguments.append(contentsOf: ["-profile", profilePath])
-      } else if let profileIdentity = target.profileIdentity,
-        FirefoxProfileIdentity.isOpaqueIdentifier(profileIdentity)
-      {
+      } else if isProfiled {
         throw Self.launchFailure
-      } else if let profile = target.profileIdentifier {
-        guard target.origin == .manual else { throw Self.launchFailure }
-        arguments.append(contentsOf: ["-P", profile])
       }
       arguments.append(target.mode == .private ? "-private-window" : "-new-tab")
       arguments.append(url.absoluteString)

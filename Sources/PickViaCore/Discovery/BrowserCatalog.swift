@@ -320,6 +320,53 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       .joined(separator: "|")
   }
 
+  public static func runtimeSanitizedFallback(_ config: PickViaConfig) -> PickViaConfig {
+    let familyByBrowserID = Dictionary(
+      uniqueKeysWithValues: config.browsers.map { ($0.id, $0.family) }
+    )
+    var usedTargetIDs = Set(
+      config.targets.compactMap { target in
+        familyByBrowserID[target.browserID] == .firefox ? nil : target.id
+      })
+    let targets = config.targets.enumerated().map { index, target in
+      guard familyByBrowserID[target.browserID] == .firefox else {
+        return target
+      }
+
+      var sanitized = runtimeSanitizedFirefoxTarget(target)
+      if !usedTargetIDs.insert(sanitized.id).inserted {
+        sanitized = copying(
+          sanitized,
+          id:
+            "firefox-runtime-target|\(FirefoxProfileIdentity.identifier(forLegacyValue: "\(target.id)#\(index)"))"
+        )
+        usedTargetIDs.insert(sanitized.id)
+      }
+      return sanitized
+    }
+    return PickViaConfig(
+      schemaVersion: config.schemaVersion,
+      browsers: config.browsers,
+      targets: targets
+    )
+  }
+
+  static func isProfileBearingFirefoxTarget(_ target: BrowserTarget) -> Bool {
+    if target.profileIdentifier != nil || target.profileDisplayName != nil
+      || target.profileIdentity != nil || target.profileLaunchPath != nil
+      || isSensitivePathShaped(target.id)
+    {
+      return true
+    }
+    guard target.origin == .detected else { return false }
+    return target.id
+      != targetID(
+        bundleIdentifier: target.browserID,
+        profileIdentifier: nil,
+        mode: target.mode
+      )
+  }
+
   private func discover(
     _ descriptor: BrowserDescriptor
   ) -> (browser: DiscoveredBrowser, issue: BrowserProfileAccessIssue?)? {
@@ -397,8 +444,10 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       switch ProfileMetadataReadError(error) {
       case .absent:
         return ([], usesSavedGrant ? .accessRevoked : .metadataAbsent)
-      case .accessDenied, .other:
+      case .accessDenied:
         return ([], usesSavedGrant ? .accessRevoked : .accessRequired)
+      case .other:
+        return ([], .metadataDamaged)
       }
     }
 
@@ -785,5 +834,94 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     }
     var seen = Set<String>()
     return sorted.filter { seen.insert($0.identifier).inserted }
+  }
+
+  private static func runtimeSanitizedFirefoxTarget(_ target: BrowserTarget) -> BrowserTarget {
+    let wasProfiled = isProfileBearingFirefoxTarget(target)
+    let sanitizedIdentity: String?
+    if let identity = target.profileIdentity,
+      FirefoxProfileIdentity.isOpaqueIdentifier(identity)
+    {
+      sanitizedIdentity = identity
+    } else if let identity = target.profileIdentity,
+      isSensitivePathShaped(identity)
+    {
+      let decoded = identity.removingPercentEncoding ?? identity
+      sanitizedIdentity =
+        (decoded as NSString).isAbsolutePath
+        ? FirefoxProfileIdentity.identifier(
+          for: URL(fileURLWithPath: decoded, isDirectory: true)
+        )
+        : FirefoxProfileIdentity.identifier(forLegacyValue: decoded)
+    } else {
+      sanitizedIdentity = nil
+    }
+
+    let profileIdentifier = target.profileIdentifier.flatMap {
+      isSensitivePathShaped($0) ? nil : $0
+    }
+    let profileDisplayName = target.profileDisplayName.flatMap {
+      isSensitivePathShaped($0) ? nil : $0
+    }
+    let sanitizedID: BrowserTarget.ID
+    if target.origin == .detected, wasProfiled {
+      let identityForID =
+        sanitizedIdentity ?? profileIdentifier
+        ?? FirefoxProfileIdentity.identifier(forLegacyValue: target.id)
+      sanitizedID = targetID(
+        bundleIdentifier: target.browserID,
+        profileIdentifier: identityForID,
+        mode: target.mode
+      )
+    } else if isSensitivePathShaped(target.id) {
+      sanitizedID =
+        "firefox-runtime-target|\(FirefoxProfileIdentity.identifier(forLegacyValue: target.id))"
+    } else {
+      sanitizedID = target.id
+    }
+
+    return BrowserTarget(
+      id: sanitizedID,
+      browserID: target.browserID,
+      label: target.label,
+      profileIdentifier: profileIdentifier,
+      profileDisplayName: profileDisplayName,
+      profileIdentity: sanitizedIdentity,
+      profileLaunchPath: nil,
+      mode: target.mode,
+      isEnabled: target.isEnabled,
+      sortOrder: target.sortOrder,
+      origin: target.origin,
+      availability: wasProfiled ? .unavailable : target.availability,
+      validationError: nil
+    )
+  }
+
+  private static func copying(
+    _ target: BrowserTarget,
+    id: BrowserTarget.ID
+  ) -> BrowserTarget {
+    BrowserTarget(
+      id: id,
+      browserID: target.browserID,
+      label: target.label,
+      profileIdentifier: target.profileIdentifier,
+      profileDisplayName: target.profileDisplayName,
+      profileIdentity: target.profileIdentity,
+      profileLaunchPath: target.profileLaunchPath,
+      mode: target.mode,
+      isEnabled: target.isEnabled,
+      sortOrder: target.sortOrder,
+      origin: target.origin,
+      availability: target.availability,
+      validationError: target.validationError
+    )
+  }
+
+  private static func isSensitivePathShaped(_ value: String) -> Bool {
+    let decoded = value.removingPercentEncoding ?? value
+    let lowercase = decoded.lowercased()
+    return decoded.contains("/") || decoded.contains("\\") || decoded.contains("~")
+      || lowercase.contains("file:")
   }
 }

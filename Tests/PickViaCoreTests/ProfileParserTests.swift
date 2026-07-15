@@ -28,7 +28,7 @@ struct ProfileParserTests {
     }
   }
 
-  @Test func firefoxResolvesRelativeAndAbsolutePathsAndSkipsMalformedSections() throws {
+  @Test func firefoxResolvesRelativeAndAbsolutePaths() throws {
     let baseDirectory = URL(fileURLWithPath: "/Users/example/Firefox", isDirectory: true)
     let profiles = try FirefoxProfileParser.parse(
       text: fixtureText("firefox-profiles.ini"),
@@ -60,7 +60,7 @@ struct ProfileParserTests {
       ])
   }
 
-  @Test func firefoxAcceptsOnlyNumericProfileSectionsAndExactRelativeFlags() throws {
+  @Test func firefoxIgnoresNonProfileSectionsAndAcceptsExactRelativeFlags() throws {
     let text = """
       [Profile0]
       Name=Valid
@@ -70,10 +70,6 @@ struct ProfileParserTests {
       Name=Wrong Section
       IsRelative=1
       Path=Profiles/wrong
-      [Profile1]
-      Name=Wrong Flag
-      IsRelative=true
-      Path=Profiles/wrong-flag
       [Profile2]
       Name=Absolute
       IsRelative=0
@@ -92,6 +88,68 @@ struct ProfileParserTests {
         "/Users/example/Firefox/Profiles/absolute",
         "/Users/example/Firefox/Profiles/valid",
       ])
+  }
+
+  @Test(
+    arguments: [
+      """
+      [Profile0]
+      IsRelative=1
+      Path=Profiles/missing-name
+      """,
+      """
+      [Profile0]
+      Name=Missing Path
+      IsRelative=1
+      """,
+      """
+      [Profile0]
+      Name=Missing Relative Flag
+      Path=Profiles/missing-flag
+      """,
+      """
+      [Profile0]
+      Name=Invalid Relative Flag
+      IsRelative=true
+      Path=Profiles/invalid-flag
+      """,
+      """
+      [Profile0]
+      Name=Invalid Absolute Path
+      IsRelative=0
+      Path=Profiles/not-absolute
+      """,
+    ]
+  )
+  func firefoxRejectsEveryStructurallyMalformedNumericProfileSection(_ text: String) {
+    do {
+      _ = try FirefoxProfileParser.parse(
+        text: text,
+        baseDirectory: URL(fileURLWithPath: "/Users/private-user/Firefox", isDirectory: true)
+      )
+      Issue.record("Expected a sanitized malformed-profile parser error")
+    } catch {
+      #expect(error as? FirefoxProfileParserError == .malformedProfileSection)
+      let description = String(describing: error)
+      #expect(!description.contains("private-user"))
+      #expect(!description.contains("Profiles/"))
+    }
+  }
+
+  @Test func firefoxLegitimatelyEmptyProfilesDocumentIsValid() throws {
+    let profiles = try FirefoxProfileParser.parse(
+      text: """
+        [General]
+        StartWithLastProfile=1
+
+        [Install308046B0AF4A39CB]
+        Default=Profiles/default-release
+        Locked=1
+        """,
+      baseDirectory: URL(fileURLWithPath: "/Users/example/Firefox", isDirectory: true)
+    )
+
+    #expect(profiles.isEmpty)
   }
 
   @Test func firefoxIdentifiersAreOpaqueDeterministicAndIndependentOfMutableName() throws {

@@ -88,7 +88,16 @@ struct BrowserLauncherTests {
     let firefoxPrivate = try launcher.makePlan(
       url: url,
       application: application(family: .firefox),
-      target: target(family: .firefox, profile: nil, mode: .private)
+      target: target(
+        id: BrowserCatalog.targetID(
+          bundleIdentifier: "org.mozilla.firefox",
+          profileIdentifier: nil,
+          mode: .private
+        ),
+        family: .firefox,
+        profile: nil,
+        mode: .private
+      )
     )
 
     guard case .executable(_, let chromiumArguments) = chromium,
@@ -99,6 +108,56 @@ struct BrowserLauncherTests {
     }
     #expect(chromiumArguments == [url.absoluteString])
     #expect(firefoxArguments == ["-private-window", url.absoluteString])
+  }
+
+  @Test func unprofiledManualFirefoxUUIDTargetRemainsBrowserLevelRoutable() throws {
+    let plan = try testLauncher().makePlan(
+      url: url,
+      application: application(family: .firefox),
+      target: target(
+        id: "774bb7ed-d61c-4be7-89f1-6c16daf287be",
+        family: .firefox,
+        profile: nil,
+        origin: .manual
+      )
+    )
+
+    guard case .executable(_, let arguments) = plan else {
+      Issue.record("Expected executable launch plan")
+      return
+    }
+    #expect(arguments == ["-new-tab", url.absoluteString])
+  }
+
+  @Test(
+    arguments: [
+      "org.mozilla.firefox|/Users/private-user/Firefox/Profiles/id-only|normal",
+      "org.mozilla.firefox|Legacy Name Only|normal",
+    ]
+  )
+  func firefoxRejectsDetectedIDOnlyLegacyProfileWithoutExactPath(_ id: String) {
+    #expect(throws: LaunchFailure.self) {
+      try testLauncher().makePlan(
+        url: url,
+        application: application(family: .firefox),
+        target: target(id: id, family: .firefox, profile: nil)
+      )
+    }
+  }
+
+  @Test func firefoxRejectsPathShapedManualIDOnlyLegacyProfileWithoutExactPath() {
+    #expect(throws: LaunchFailure.self) {
+      try testLauncher().makePlan(
+        url: url,
+        application: application(family: .firefox),
+        target: target(
+          id: "manual|/Users/private-user/Firefox/Profiles/id-only",
+          family: .firefox,
+          profile: nil,
+          origin: .manual
+        )
+      )
+    }
   }
 
   @Test func chromiumPrivatePlanUsesExactProfileIncognitoAndURLTokens() throws {
@@ -117,20 +176,33 @@ struct BrowserLauncherTests {
     #expect(arguments == ["--profile-directory=Profile 1", "--incognito", "https://example.com"])
   }
 
-  @Test func firefoxNormalPlanUsesExactProfileNewTabAndURLTokens() throws {
+  @Test func firefoxRejectsNameOnlyManualProfileWithoutExactLaunchPath() throws {
     let launcher = testLauncher()
 
-    let plan = try launcher.makePlan(
-      url: url,
-      application: application(family: .firefox),
-      target: target(family: .firefox, profile: "work", origin: .manual)
-    )
-
-    guard case .executable(_, let arguments) = plan else {
-      Issue.record("Expected executable launch plan")
-      return
+    #expect(throws: LaunchFailure.self) {
+      try launcher.makePlan(
+        url: url,
+        application: application(family: .firefox),
+        target: target(family: .firefox, profile: "Same Name", origin: .manual)
+      )
     }
-    #expect(arguments == ["-P", "work", "-new-tab", "https://example.com"])
+  }
+
+  @Test func firefoxRejectsRawIdentityManualProfileWithoutExactLaunchPath() throws {
+    let launcher = testLauncher()
+
+    #expect(throws: LaunchFailure.self) {
+      try launcher.makePlan(
+        url: url,
+        application: application(family: .firefox),
+        target: target(
+          family: .firefox,
+          profile: "Same Name",
+          profileIdentity: "/Users/private-user/Firefox/Profiles/legacy",
+          origin: .manual
+        )
+      )
+    }
   }
 
   @Test func firefoxRejectsAvailableDetectedNameOnlyLegacyProfile() throws {
@@ -185,20 +257,16 @@ struct BrowserLauncherTests {
     }
   }
 
-  @Test func firefoxPrivatePlanUsesExactProfilePrivateWindowAndURLTokens() throws {
+  @Test func firefoxRejectsPrivateManualProfileWithoutExactLaunchPath() throws {
     let launcher = testLauncher()
 
-    let plan = try launcher.makePlan(
-      url: url,
-      application: application(family: .firefox),
-      target: target(family: .firefox, profile: "work", mode: .private, origin: .manual)
-    )
-
-    guard case .executable(_, let arguments) = plan else {
-      Issue.record("Expected executable launch plan")
-      return
+    #expect(throws: LaunchFailure.self) {
+      try launcher.makePlan(
+        url: url,
+        application: application(family: .firefox),
+        target: target(family: .firefox, profile: "Same Name", mode: .private, origin: .manual)
+      )
     }
-    #expect(arguments == ["-P", "work", "-private-window", "https://example.com"])
   }
 
   @Test func safariNormalPlanUsesWorkspaceOpening() throws {
@@ -359,21 +427,26 @@ struct BrowserLauncherTests {
 
   @Test func unicodeURLAndProfileRemainDistinctSingleTokens() throws {
     let unicodeURL = URL(string: "https://example.com/%E8%B7%AF%E5%BE%84?q=%F0%9F%8C%9F")!
-    let profile = "工作 👩🏽‍💻"
+    let profilePath = "/profiles/工作 👩🏽‍💻"
     let launcher = testLauncher()
 
     let plan = try launcher.makePlan(
       url: unicodeURL,
       application: application(family: .firefox),
-      target: target(family: .firefox, profile: profile, origin: .manual)
+      target: target(
+        family: .firefox,
+        profile: "工作 👩🏽‍💻",
+        profileLaunchPath: profilePath,
+        origin: .manual
+      )
     )
 
     guard case .executable(_, let arguments) = plan else {
       Issue.record("Expected executable launch plan")
       return
     }
-    #expect(arguments == ["-P", profile, "-new-tab", unicodeURL.absoluteString])
-    #expect(arguments[1] == profile)
+    #expect(arguments == ["-profile", profilePath, "-new-tab", unicodeURL.absoluteString])
+    #expect(arguments[1] == profilePath)
     #expect(arguments[3] == unicodeURL.absoluteString)
   }
 
@@ -493,6 +566,7 @@ private func application(
 }
 
 private func target(
+  id: BrowserTarget.ID? = nil,
   family: BrowserFamily? = nil,
   browserID: BrowserApplication.ID? = nil,
   profile: String?,
@@ -504,7 +578,7 @@ private func target(
 ) -> BrowserTarget {
   let browserID = browserID ?? bundleID(for: family ?? .chromium)
   return BrowserTarget(
-    id: "target-\(profile ?? "default")-\(mode.rawValue)",
+    id: id ?? "target-\(profile ?? "default")-\(mode.rawValue)",
     browserID: browserID,
     label: "Target",
     profileIdentifier: profile,

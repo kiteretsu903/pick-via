@@ -59,9 +59,7 @@ public enum FirefoxProfileParser {
     func appendCurrentSection() {
       guard
         let name = currentSectionName,
-        name.hasPrefix("Profile"),
-        !name.dropFirst("Profile".count).isEmpty,
-        name.dropFirst("Profile".count).allSatisfy(\.isNumber)
+        isNumericProfileSection(name)
       else { return }
       sections.append(currentValues)
     }
@@ -86,26 +84,28 @@ public enum FirefoxProfileParser {
     }
     appendCurrentSection()
 
-    return sections.compactMap { values in
+    return try sections.map { values in
       guard
         let name = values["Name"],
         !name.isEmpty,
         let path = values["Path"],
-        !path.isEmpty
+        !path.isEmpty,
+        let isRelative = values["IsRelative"],
+        isRelative == "0" || isRelative == "1"
       else {
-        return nil
+        throw FirefoxProfileParserError.malformedProfileSection
       }
 
       let directoryURL: URL
-      guard let isRelative = values["IsRelative"], isRelative == "0" || isRelative == "1" else {
-        return nil
-      }
       if isRelative == "1" {
+        guard !(path as NSString).isAbsolutePath else {
+          throw FirefoxProfileParserError.malformedProfileSection
+        }
         directoryURL = baseDirectory.appending(path: path, directoryHint: .isDirectory)
       } else if (path as NSString).isAbsolutePath {
         directoryURL = URL(fileURLWithPath: path, isDirectory: true)
       } else {
-        return nil
+        throw FirefoxProfileParserError.malformedProfileSection
       }
 
       let normalizedURL = directoryURL.standardizedFileURL
@@ -118,6 +118,17 @@ public enum FirefoxProfileParser {
     }
     .sorted { $0.identifier < $1.identifier }
   }
+
+  private static func isNumericProfileSection(_ name: String) -> Bool {
+    guard name.hasPrefix("Profile") else { return false }
+    let suffix = name.dropFirst("Profile".count)
+    return !suffix.isEmpty
+      && suffix.unicodeScalars.allSatisfy { (48...57).contains($0.value) }
+  }
+}
+
+public enum FirefoxProfileParserError: Error, Equatable, Sendable {
+  case malformedProfileSection
 }
 
 public enum FirefoxProfileIdentity {
@@ -139,5 +150,9 @@ public enum FirefoxProfileIdentity {
     let digest = SHA256.hash(data: Data(path.utf8))
     let hexadecimal = digest.map { String(format: "%02x", $0) }.joined()
     return prefix + hexadecimal
+  }
+
+  static func identifier(forLegacyValue value: String) -> String {
+    identifier(forNormalizedPath: value)
   }
 }

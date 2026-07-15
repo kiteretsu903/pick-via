@@ -110,6 +110,18 @@ final class AppModelTests: XCTestCase {
     XCTAssertNotNil(model.errorMessage)
   }
 
+  func testStartupReadOnlySaveFailurePublishesPathFreeUnavailableFirefoxFallback() throws {
+    try assertStartupFirefoxMigrationSaveFailure(
+      CocoaError(.fileWriteNoPermission)
+    )
+  }
+
+  func testStartupDiskFullSaveFailurePublishesPathFreeUnavailableFirefoxFallback() throws {
+    try assertStartupFirefoxMigrationSaveFailure(
+      CocoaError(.fileWriteOutOfSpace)
+    )
+  }
+
   func testConfigurationReadFailureDoesNotPublishOrOverwriteDefaults() throws {
     let store = ConfigStoreStub(config: Fixtures.editableConfig, loadOutcome: .failure(.readFailed))
     let catalog = BrowserCatalogStub(discovered: [Fixtures.discoveredChrome])
@@ -1830,7 +1842,14 @@ final class AppModelTests: XCTestCase {
         )
       ])
     let config = BrowserCatalog.reconcile(discovered: [discovered], with: .initial)
-    let model = makeModel(store: ConfigStoreStub(config: config))
+    let scan = BrowserScanResult(browsers: [discovered], profileAccessIssues: [])
+    let model = makeModel(
+      store: ConfigStoreStub(config: config),
+      catalog: BrowserCatalogStub(
+        scanResult: scan,
+        reconciler: { BrowserCatalog.reconcile(discovered: scan.browsers, with: $0) }
+      )
+    )
     try model.load()
 
     let id = try model.addManualTarget(
@@ -1854,10 +1873,11 @@ final class AppModelTests: XCTestCase {
       fileURLWithPath: "/Users/private-user/Library/Application Support/Firefox/Profiles/one",
       isDirectory: true
     ).standardizedFileURL
+    let identity = FirefoxProfileIdentity.identifier(for: path)
     let discovered = Fixtures.discoveredFirefox(
       profiles: [
         DiscoveredProfile(
-          identifier: "firefox-profile-v1:0123456789abcdef",
+          identifier: identity,
           displayName: "Work",
           directoryURL: path,
           launchIdentifier: "Work"
@@ -1866,12 +1886,20 @@ final class AppModelTests: XCTestCase {
     let config = BrowserCatalog.reconcile(discovered: [discovered], with: .initial)
     let store = ConfigStoreStub(config: config)
     let snapshot = MutableTargetSnapshot()
-    let model = makeModel(store: store, targetSnapshot: snapshot)
+    let scan = BrowserScanResult(browsers: [discovered], profileAccessIssues: [])
+    let model = makeModel(
+      store: store,
+      catalog: BrowserCatalogStub(
+        scanResult: scan,
+        reconciler: { BrowserCatalog.reconcile(discovered: scan.browsers, with: $0) }
+      ),
+      targetSnapshot: snapshot
+    )
     try model.load()
 
     let id = try model.addManualTarget(
       browserID: discovered.application.id,
-      profileIdentifier: "firefox-profile-v1:0123456789abcdef",
+      profileIdentifier: identity,
       label: "Pinned",
       mode: .normal
     )
@@ -2048,6 +2076,171 @@ final class AppModelTests: XCTestCase {
       profileAccess: access,
       profileRootValidator: profileRootValidator
     )
+  }
+
+  private func assertStartupFirefoxMigrationSaveFailure(_ saveError: any Error) throws {
+    let rawPath = "/Users/private-user/Library/Application Support/Firefox/Profiles/legacy-one"
+    let firefox = Fixtures.installedBrowser("org.mozilla.firefox", status: .loaded).application
+    let browserLevel = BrowserTarget(
+      id: BrowserCatalog.targetID(
+        bundleIdentifier: firefox.id,
+        profileIdentifier: nil,
+        mode: .normal
+      ),
+      browserID: firefox.id,
+      label: "Customized Firefox",
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      profileIdentity: nil,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 7,
+      origin: .detected,
+      availability: .available
+    )
+    let nameOnlyManual = BrowserTarget(
+      id: "manual-name-only",
+      browserID: firefox.id,
+      label: "Pinned Name Only",
+      profileIdentifier: "Duplicate Name",
+      profileDisplayName: "Duplicate Name",
+      profileIdentity: nil,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 11,
+      origin: .manual,
+      availability: .available
+    )
+    let manualBrowserLevel = BrowserTarget(
+      id: "774bb7ed-d61c-4be7-89f1-6c16daf287be",
+      browserID: firefox.id,
+      label: "Manual Browser Default",
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      profileIdentity: nil,
+      mode: .private,
+      isEnabled: true,
+      sortOrder: 9,
+      origin: .manual,
+      availability: .available
+    )
+    let rawIdentityManual = BrowserTarget(
+      id: "legacy-manual|\(rawPath)|private",
+      browserID: firefox.id,
+      label: "Pinned Raw Identity",
+      profileIdentifier: "Duplicate Name",
+      profileDisplayName: "Duplicate Name",
+      profileIdentity: rawPath,
+      mode: .private,
+      isEnabled: false,
+      sortOrder: 19,
+      origin: .manual,
+      availability: .available
+    )
+    let idOnlyLegacy = BrowserTarget(
+      id: BrowserCatalog.targetID(
+        bundleIdentifier: firefox.id,
+        profileIdentifier: "/Users/private-user/Firefox/Profiles/id-only",
+        mode: .normal
+      ),
+      browserID: firefox.id,
+      label: "ID-only Legacy Profile",
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      profileIdentity: nil,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 23,
+      origin: .detected,
+      availability: .available
+    )
+    let detectedNameIDOnly = BrowserTarget(
+      id: BrowserCatalog.targetID(
+        bundleIdentifier: firefox.id,
+        profileIdentifier: "Legacy Name Only",
+        mode: .private
+      ),
+      browserID: firefox.id,
+      label: "Detected Name-ID-only Profile",
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      profileIdentity: nil,
+      mode: .private,
+      isEnabled: true,
+      sortOrder: 29,
+      origin: .detected,
+      availability: .available
+    )
+    let loaded = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [firefox],
+      targets: [
+        browserLevel, manualBrowserLevel, nameOnlyManual, rawIdentityManual, idOnlyLegacy,
+        detectedNameIDOnly,
+      ]
+    )
+    let discovered = Fixtures.discoveredFirefox(profiles: [
+      DiscoveredProfile(
+        identifier: FirefoxProfileIdentity.identifier(
+          for: URL(fileURLWithPath: rawPath, isDirectory: true)
+        ),
+        displayName: "Duplicate Name",
+        directoryURL: URL(fileURLWithPath: rawPath, isDirectory: true),
+        launchIdentifier: "Duplicate Name"
+      ),
+      DiscoveredProfile(
+        identifier: FirefoxProfileIdentity.identifier(
+          for: URL(fileURLWithPath: "/Users/private-user/Firefox/Profiles/legacy-two")
+        ),
+        displayName: "Duplicate Name",
+        directoryURL: URL(fileURLWithPath: "/Users/private-user/Firefox/Profiles/legacy-two"),
+        launchIdentifier: "Duplicate Name"
+      ),
+    ])
+    let scan = BrowserScanResult(browsers: [discovered], profileAccessIssues: [])
+    let store = ConfigStoreStub(config: loaded, saveError: saveError)
+    let snapshot = MutableTargetSnapshot()
+    let catalog = BrowserCatalogStub(
+      scanResult: scan,
+      reconciler: { BrowserCatalog.reconcile(discovered: scan.browsers, with: $0) }
+    )
+    let model = makeModel(store: store, catalog: catalog, targetSnapshot: snapshot)
+
+    try model.load()
+
+    XCTAssertEqual(store.saveAttemptCount, 1)
+    XCTAssertTrue(store.saved.isEmpty)
+    XCTAssertEqual(store.config, loaded, "Failed startup save must leave disk state authoritative")
+    XCTAssertNotNil(model.errorMessage)
+    XCTAssertEqual(
+      model.targets.map(\.label),
+      [
+        "Customized Firefox", "Manual Browser Default", "Pinned Name Only",
+        "Pinned Raw Identity", "ID-only Legacy Profile", "Detected Name-ID-only Profile",
+      ]
+    )
+    XCTAssertEqual(model.targets.map(\.isEnabled), [true, true, true, false, true, true])
+    XCTAssertEqual(model.targets.map(\.sortOrder), [7, 9, 11, 19, 23, 29])
+    XCTAssertEqual(model.targets[0].availability, .available)
+    XCTAssertEqual(model.targets[1].availability, .available)
+    XCTAssertTrue(
+      model.targets.dropFirst(2).allSatisfy {
+        $0.availability == .unavailable && $0.profileLaunchPath == nil
+      })
+    XCTAssertNil(model.targets[2].profileIdentity)
+    XCTAssertTrue(
+      try XCTUnwrap(model.targets[3].profileIdentity).hasPrefix(FirefoxProfileIdentity.prefix)
+    )
+    XCTAssertFalse(model.targets[3].id.contains("/Users"))
+
+    XCTAssertEqual(snapshot.availableSnapshot().targets, Array(model.targets.prefix(2)))
+
+    let runtimeJSON = try XCTUnwrap(
+      String(data: JSONEncoder().encode(model.config), encoding: .utf8)
+    )
+    XCTAssertFalse(runtimeJSON.contains(rawPath))
+    XCTAssertFalse(runtimeJSON.contains("private-user"))
+    XCTAssertFalse(String(describing: model.config).contains(rawPath))
   }
 
   private var automaticProfileAccessScan: BrowserScanResult {
@@ -2235,6 +2428,7 @@ private final class ConfigStoreStub: ConfigStoring, @unchecked Sendable {
   var config: PickViaConfig
   private(set) var loadCallCount = 0
   private(set) var saved: [PickViaConfig] = []
+  private(set) var saveAttemptCount = 0
   var saveError: Error?
   let configuredLoadOutcome: ConfigLoadOutcome?
 
@@ -2256,6 +2450,7 @@ private final class ConfigStoreStub: ConfigStoring, @unchecked Sendable {
     return config
   }
   func save(_ config: PickViaConfig) throws {
+    saveAttemptCount += 1
     if let saveError { throw saveError }
     saved.append(config)
   }

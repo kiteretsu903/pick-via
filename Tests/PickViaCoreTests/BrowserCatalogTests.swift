@@ -95,6 +95,92 @@ struct BrowserCatalogTests {
     #expect(result.warnings == result.profileAccessIssues)
   }
 
+  @Test func conventionalMarkerIOFailureIsDamagedAndNeverRequestsAccess() {
+    let marker = URL(
+      fileURLWithPath: "/home/Library/Application Support/Firefox/profiles.ini")
+    let catalog = BrowserCatalog(
+      descriptors: [firefoxDescriptor],
+      applicationLocator: StubApplicationLocator(applications: [
+        "org.mozilla.firefox": URL(fileURLWithPath: "/Applications/Firefox.app")
+      ]),
+      fileSystem: DiscoveryFileSystem(
+        files: [:],
+        readErrors: [marker: POSIXError(.EIO)]
+      ),
+      homeDirectory: URL(fileURLWithPath: "/home", isDirectory: true)
+    )
+
+    let result = catalog.scanResult()
+
+    #expect(result.browsers.first?.metadataStatus == .metadataDamaged)
+    #expect(
+      result.profileAccessIssues == [
+        .metadataDamaged(bundleIdentifier: "org.mozilla.firefox")
+      ])
+    #expect(
+      !result.profileAccessIssues.contains {
+        if case .accessRequired = $0 { return true }
+        if case .accessRevoked = $0 { return true }
+        return false
+      })
+  }
+
+  @Test func grantedMarkerTypeFailureIsDamagedAndNeverRequestsReplacement() {
+    let grantedRoot = URL(fileURLWithPath: "/Granted/Firefox", isDirectory: true)
+    let marker = grantedRoot.appending(path: "profiles.ini")
+    let access = StubProfileRootAccess(grantedRoots: ["org.mozilla.firefox": grantedRoot])
+    let catalog = BrowserCatalog(
+      descriptors: [firefoxDescriptor],
+      applicationLocator: StubApplicationLocator(applications: [
+        "org.mozilla.firefox": URL(fileURLWithPath: "/Applications/Firefox.app")
+      ]),
+      fileSystem: DiscoveryFileSystem(
+        files: [:],
+        readErrors: [marker: CocoaError(.fileReadInapplicableStringEncoding)]
+      ),
+      profileRootAccess: access,
+      homeDirectory: URL(fileURLWithPath: "/home", isDirectory: true)
+    )
+
+    let result = catalog.scanResult()
+
+    #expect(result.browsers.first?.metadataStatus == .metadataDamaged)
+    #expect(
+      result.profileAccessIssues == [
+        .metadataDamaged(bundleIdentifier: "org.mozilla.firefox")
+      ])
+    #expect(access.endedBundleIdentifiers == ["org.mozilla.firefox"])
+  }
+
+  @Test func malformedFirefoxNumericProfileSectionIsMetadataDamaged() {
+    let marker = URL(
+      fileURLWithPath: "/home/Library/Application Support/Firefox/profiles.ini")
+    let catalog = BrowserCatalog(
+      descriptors: [firefoxDescriptor],
+      applicationLocator: StubApplicationLocator(applications: [
+        "org.mozilla.firefox": URL(fileURLWithPath: "/Applications/Firefox.app")
+      ]),
+      fileSystem: DiscoveryFileSystem(files: [
+        marker: Data(
+          """
+          [Profile0]
+          Name=Duplicate Name
+          IsRelative=1
+          """.utf8)
+      ]),
+      homeDirectory: URL(fileURLWithPath: "/home", isDirectory: true)
+    )
+
+    let result = catalog.scanResult()
+
+    #expect(result.browsers.first?.metadataStatus == .metadataDamaged)
+    #expect(result.browsers.first?.profiles.isEmpty == true)
+    #expect(
+      result.profileAccessIssues == [
+        .metadataDamaged(bundleIdentifier: "org.mozilla.firefox")
+      ])
+  }
+
   @Test func malformedChromiumMetadataDoesNotAbortFirefoxDiscovery() throws {
     let localStateURL = URL(
       fileURLWithPath: "/home/Library/Application Support/Google/Chrome/Local State")

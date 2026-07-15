@@ -150,6 +150,7 @@ public final class AppModel {
     }
 
     let shouldPublishSnapshot = configurationRecovery != .loadFailed
+    let runtimeFallback = BrowserCatalog.runtimeSanitizedFallback(loadedConfig)
     var didCommitAuthoritativeScan = false
 
     if configurationRecovery != .loadFailed {
@@ -172,9 +173,9 @@ public final class AppModel {
       updateAutomaticProfileAccessRows(from: scan)
     }
     if !didCommitAuthoritativeScan {
-      config = loadedConfig
+      config = runtimeFallback
       if shouldPublishSnapshot {
-        targetSnapshot?.publish(loadedConfig)
+        targetSnapshot?.publish(runtimeFallback)
       }
     }
     showsURLInChooser = preferences.bool(forKey: PreferenceKey.showsURLInChooser) ?? true
