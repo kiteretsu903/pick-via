@@ -66,14 +66,24 @@ func profileAccessGuidanceText(
 public struct ProfileAccessWizardView: View {
   @Environment(AppModel.self) private var model
 
-  let folderSelector: any ProfileAccessFolderSelecting
+  let selectionCoordinator: ProfileAccessWizardSelectionCoordinator
   let dismissWizard: @MainActor () -> Void
 
   public init(
     folderSelector: any ProfileAccessFolderSelecting,
     dismissWizard: @escaping @MainActor () -> Void
   ) {
-    self.folderSelector = folderSelector
+    selectionCoordinator = ProfileAccessWizardSelectionCoordinator(
+      folderSelector: folderSelector
+    )
+    self.dismissWizard = dismissWizard
+  }
+
+  init(
+    selectionCoordinator: ProfileAccessWizardSelectionCoordinator,
+    dismissWizard: @escaping @MainActor () -> Void
+  ) {
+    self.selectionCoordinator = selectionCoordinator
     self.dismissWizard = dismissWizard
   }
 
@@ -84,8 +94,9 @@ public struct ProfileAccessWizardView: View {
       Text("Grant read-only access to each browser data folder so PickVia can find its profiles.")
         .foregroundStyle(.secondary)
       List(model.profileAccessRows) { row in
-        ProfileAccessRowView(row: row, folderSelector: folderSelector)
+        ProfileAccessRowView(row: row, selectionCoordinator: selectionCoordinator)
       }
+      .disabled(selectionCoordinator.isSelectionInFlight)
       if let errorMessage = profileAccessWizardErrorText(model.errorMessage) {
         Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
           .font(.callout)
@@ -93,24 +104,38 @@ public struct ProfileAccessWizardView: View {
       }
       HStack {
         Button("Skip for Now") {
-          model.skipProfileAccess()
+          selectionCoordinator.performSkip {
+            model.skipProfileAccess()
+          }
           dismissWizard()
         }
+        .disabled(selectionCoordinator.isSelectionInFlight)
         Spacer()
         Button("Finish & Rescan") {
           do {
-            try model.finishProfileAccessAndRescan()
+            try selectionCoordinator.performFinish {
+              try model.finishProfileAccessAndRescan()
+            }
             dismissWizard()
           } catch {
             model.reportProfileAccessCommitFailure()
           }
         }
         .buttonStyle(.borderedProminent)
-        .disabled(!profileAccessCanFinish(rows: model.profileAccessRows))
+        .disabled(
+          selectionCoordinator.isSelectionInFlight
+            || !profileAccessCanFinish(rows: model.profileAccessRows)
+        )
       }
     }
     .padding(24)
     .frame(width: 620, height: 440)
+    .onAppear {
+      selectionCoordinator.beginPresentation()
+    }
+    .onDisappear {
+      selectionCoordinator.endPresentation()
+    }
   }
 }
 
@@ -118,7 +143,7 @@ private struct ProfileAccessRowView: View {
   @Environment(AppModel.self) private var model
 
   let row: BrowserProfileAccessRow
-  let folderSelector: any ProfileAccessFolderSelecting
+  let selectionCoordinator: ProfileAccessWizardSelectionCoordinator
 
   @State private var showsRemoveConfirmation = false
   @State private var localErrorMessage: String?
@@ -152,7 +177,7 @@ private struct ProfileAccessRowView: View {
           hasStoredGrant: row.hasStoredGrant
         ) {
           Button(action) {
-            Task { await selectFolder() }
+            selectFolder()
           }
         }
         if row.hasStoredGrant {
@@ -198,7 +223,7 @@ private struct ProfileAccessRowView: View {
     }
   }
 
-  private func selectFolder() async {
+  private func selectFolder() {
     guard
       let descriptor = BrowserDescriptor.descriptor(
         forBundleIdentifier: row.bundleIdentifier
@@ -207,12 +232,13 @@ private struct ProfileAccessRowView: View {
       localErrorMessage = "This browser is not supported for profile access."
       return
     }
-    guard let root = await folderSelector.selectRoot(for: descriptor) else { return }
-    do {
-      try model.grantProfileAccess(for: row.bundleIdentifier, root: root)
-      localErrorMessage = nil
-    } catch {
-      localErrorMessage = "PickVia could not save access to the selected browser folder."
+    selectionCoordinator.selectRoot(for: descriptor) { root in
+      do {
+        try model.grantProfileAccess(for: row.bundleIdentifier, root: root)
+        localErrorMessage = nil
+      } catch {
+        localErrorMessage = "PickVia could not save access to the selected browser folder."
+      }
     }
   }
 

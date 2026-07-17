@@ -8,6 +8,38 @@ import XCTest
 
 @MainActor
 final class ProfileAccessPresentationTests: XCTestCase {
+  func testPanelDismissalCancelsOutstandingFolderSelectionAndIgnoresLateResult() async throws {
+    let selector = PresentationFolderSelectorSpy()
+    let selectionCoordinator = ProfileAccessWizardSelectionCoordinator(folderSelector: selector)
+    let driver = ProfileAccessPanelDriverSpy(canPresent: true)
+    let presenter = ProfileAccessPanelController(
+      driver: driver,
+      selectionCoordinator: selectionCoordinator
+    )
+    let model = try ProfileAccessModelFixture.automaticPending()
+    let chrome = try XCTUnwrap(
+      BrowserDescriptor.descriptor(forBundleIdentifier: "com.google.Chrome")
+    )
+    var selectedRoots: [URL] = []
+    presenter.requestIfPending(model: model)
+    XCTAssertTrue(
+      selectionCoordinator.selectRoot(for: chrome) { root in
+        selectedRoots.append(root)
+      }
+    )
+    await selector.waitUntilSelectionBegins()
+
+    presenter.dismiss()
+
+    XCTAssertEqual(selector.cancelCallCount, 1)
+    selector.resolveSelection(with: URL(fileURLWithPath: "/chosen/Chrome"))
+    for _ in 0..<100 where selectionCoordinator.isSelectionInFlight {
+      await Task.yield()
+    }
+    XCTAssertFalse(selectionCoordinator.isSelectionInFlight)
+    XCTAssertTrue(selectedRoots.isEmpty)
+  }
+
   func testEarlySheetRetryRemainsQueuedUntilPostDetachSignalThenPresentsOnce() throws {
     let driver = ProfileAccessPanelDriverSpy(canPresent: false)
     let presenter = ProfileAccessPanelController(driver: driver)
@@ -463,6 +495,36 @@ private final class ProfileAccessPanelDriverSpy: ProfileAccessPanelDriving {
 @MainActor
 private final class ProfileAccessLifecycleRelay {
   var handler: (@MainActor () -> Void)?
+}
+
+@MainActor
+private final class PresentationFolderSelectorSpy: ProfileAccessFolderSelecting {
+  private(set) var selectCallCount = 0
+  private(set) var cancelCallCount = 0
+  private var continuation: CheckedContinuation<URL?, Never>?
+
+  func selectRoot(for descriptor: BrowserDescriptor) async -> URL? {
+    selectCallCount += 1
+    return await withCheckedContinuation { continuation in
+      self.continuation = continuation
+    }
+  }
+
+  func cancelSelection() {
+    cancelCallCount += 1
+  }
+
+  func waitUntilSelectionBegins() async {
+    while selectCallCount == 0 {
+      await Task.yield()
+    }
+  }
+
+  func resolveSelection(with result: URL?) {
+    let pendingContinuation = continuation
+    continuation = nil
+    pendingContinuation?.resume(returning: result)
+  }
 }
 
 @MainActor

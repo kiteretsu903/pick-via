@@ -6,6 +6,100 @@ import XCTest
 
 @MainActor
 final class ProfileAccessWizardTests: XCTestCase {
+  func testSkipEndsPresentationCancelsOutstandingSelectionAndIgnoresLateGrant() async throws {
+    let selector = SuspendingProfileAccessFolderSelectorSpy()
+    let coordinator = ProfileAccessWizardSelectionCoordinator(folderSelector: selector)
+    let chrome = try XCTUnwrap(
+      BrowserDescriptor.descriptor(forBundleIdentifier: "com.google.Chrome")
+    )
+    var grantedRoots: [URL] = []
+    var skipCallCount = 0
+    coordinator.beginPresentation()
+    XCTAssertTrue(
+      coordinator.selectRoot(for: chrome) { root in
+        grantedRoots.append(root)
+      }
+    )
+    await selector.waitUntilSelectionBegins()
+
+    coordinator.performSkip {
+      skipCallCount += 1
+    }
+    XCTAssertEqual(selector.cancelCallCount, 1)
+    XCTAssertEqual(skipCallCount, 1)
+
+    selector.resolveSelection(with: URL(fileURLWithPath: "/chosen/Chrome"))
+    await waitUntilSelectionCompletes(coordinator)
+    XCTAssertTrue(grantedRoots.isEmpty)
+  }
+
+  func testFinishCancelsOutstandingSelectionAndIgnoresLateGrant() async throws {
+    let selector = SuspendingProfileAccessFolderSelectorSpy()
+    let coordinator = ProfileAccessWizardSelectionCoordinator(folderSelector: selector)
+    let chrome = try XCTUnwrap(
+      BrowserDescriptor.descriptor(forBundleIdentifier: "com.google.Chrome")
+    )
+    var grantedRoots: [URL] = []
+    var finishCallCount = 0
+    coordinator.beginPresentation()
+    XCTAssertTrue(
+      coordinator.selectRoot(for: chrome) { root in
+        grantedRoots.append(root)
+      }
+    )
+    await selector.waitUntilSelectionBegins()
+
+    coordinator.performFinish {
+      finishCallCount += 1
+    }
+    XCTAssertEqual(selector.cancelCallCount, 1)
+    XCTAssertEqual(finishCallCount, 1)
+
+    selector.resolveSelection(with: URL(fileURLWithPath: "/chosen/Chrome"))
+    await waitUntilSelectionCompletes(coordinator)
+    XCTAssertTrue(grantedRoots.isEmpty)
+  }
+
+  func testWizardCoordinatorRejectsConcurrentSelectionAcrossRows() async throws {
+    let selector = SuspendingProfileAccessFolderSelectorSpy()
+    let coordinator = ProfileAccessWizardSelectionCoordinator(folderSelector: selector)
+    let chrome = try XCTUnwrap(
+      BrowserDescriptor.descriptor(forBundleIdentifier: "com.google.Chrome")
+    )
+    let edge = try XCTUnwrap(
+      BrowserDescriptor.descriptor(forBundleIdentifier: "com.microsoft.edgemac")
+    )
+    coordinator.beginPresentation()
+
+    XCTAssertTrue(coordinator.selectRoot(for: chrome) { _ in })
+    await selector.waitUntilSelectionBegins()
+    XCTAssertFalse(coordinator.selectRoot(for: edge) { _ in })
+    XCTAssertEqual(selector.selectCallCount, 1)
+
+    selector.resolveSelection(with: nil)
+    await waitUntilSelectionCompletes(coordinator)
+  }
+
+  func testPresentationEndingBeforeSelectionTaskStartsNeverInvokesSelector() async throws {
+    let selector = SuspendingProfileAccessFolderSelectorSpy()
+    let coordinator = ProfileAccessWizardSelectionCoordinator(folderSelector: selector)
+    let chrome = try XCTUnwrap(
+      BrowserDescriptor.descriptor(forBundleIdentifier: "com.google.Chrome")
+    )
+    coordinator.beginPresentation()
+
+    XCTAssertTrue(coordinator.selectRoot(for: chrome) { _ in })
+    coordinator.performSkip {}
+
+    for _ in 0..<10 {
+      await Task.yield()
+    }
+    XCTAssertEqual(selector.selectCallCount, 0)
+    if selector.selectCallCount > 0 {
+      selector.resolveSelection(with: nil)
+    }
+  }
+
   func testApprovedStatusText() {
     XCTAssertEqual(profileAccessStatusText(for: .accessNeeded), "Access needed")
     XCTAssertEqual(
@@ -273,11 +367,50 @@ final class ProfileAccessWizardTests: XCTestCase {
     )
   }
 
+  private func waitUntilSelectionCompletes(
+    _ coordinator: ProfileAccessWizardSelectionCoordinator
+  ) async {
+    for _ in 0..<100 where coordinator.isSelectionInFlight {
+      await Task.yield()
+    }
+    XCTAssertFalse(coordinator.isSelectionInFlight)
+  }
+
   private var repositoryRoot: URL {
     URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()
       .deletingLastPathComponent()
       .deletingLastPathComponent()
+  }
+}
+
+@MainActor
+private final class SuspendingProfileAccessFolderSelectorSpy: ProfileAccessFolderSelecting {
+  private(set) var selectCallCount = 0
+  private(set) var cancelCallCount = 0
+  private var continuation: CheckedContinuation<URL?, Never>?
+
+  func selectRoot(for descriptor: BrowserDescriptor) async -> URL? {
+    selectCallCount += 1
+    return await withCheckedContinuation { continuation in
+      self.continuation = continuation
+    }
+  }
+
+  func cancelSelection() {
+    cancelCallCount += 1
+  }
+
+  func waitUntilSelectionBegins() async {
+    while selectCallCount == 0 {
+      await Task.yield()
+    }
+  }
+
+  func resolveSelection(with result: URL?) {
+    let pendingContinuation = continuation
+    continuation = nil
+    pendingContinuation?.resume(returning: result)
   }
 }
 

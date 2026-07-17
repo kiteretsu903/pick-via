@@ -119,11 +119,17 @@ extension AppModel {
     let profileAccessCoordinator = ProfileAccessCoordinator(store: profileAccessStore)
     let profileRootValidator = BrowserProfileRootValidator()
     let profileAccessFolderSelector = ProfileAccessFolderSelector()
+    let profileAccessSelectionCoordinator = ProfileAccessWizardSelectionCoordinator(
+      folderSelector: profileAccessFolderSelector
+    )
     let chooserActivity = ChooserPresentationActivity()
     let profileAccessPanelDriver = AppKitProfileAccessPanelDriver(
       isChooserActive: { chooserActivity.chooser?.hasActivePresentation == true }
     )
-    let profileAccessPresenter = ProfileAccessPanelController(driver: profileAccessPanelDriver)
+    let profileAccessPresenter = ProfileAccessPanelController(
+      driver: profileAccessPanelDriver,
+      selectionCoordinator: profileAccessSelectionCoordinator
+    )
     let preferences = UserDefaultsPreferences()
     let recovery = BrowserSettingsRecovery(
       navigation: navigation,
@@ -154,7 +160,7 @@ extension AppModel {
     profileAccessPanelDriver.attachWizardViewFactory { [weak profileAccessPresenter] model in
       AnyView(
         ProfileAccessWizardView(
-          folderSelector: profileAccessFolderSelector,
+          selectionCoordinator: profileAccessSelectionCoordinator,
           dismissWizard: { profileAccessPresenter?.dismiss() }
         )
         .environment(model)

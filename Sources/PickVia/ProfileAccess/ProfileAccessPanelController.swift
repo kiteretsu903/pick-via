@@ -20,12 +20,17 @@ protocol ProfileAccessPanelDriving: AnyObject {
 @MainActor
 public final class ProfileAccessPanelController: ProfileAccessPresenting {
   private let driver: any ProfileAccessPanelDriving
+  private let selectionCoordinator: ProfileAccessWizardSelectionCoordinator?
   private weak var pendingModel: AppModel?
   private weak var presentedModel: AppModel?
   private var isPresented = false
 
-  init(driver: any ProfileAccessPanelDriving) {
+  init(
+    driver: any ProfileAccessPanelDriving,
+    selectionCoordinator: ProfileAccessWizardSelectionCoordinator? = nil
+  ) {
     self.driver = driver
+    self.selectionCoordinator = selectionCoordinator
     driver.environmentDidChangeHandler = { [weak self] in
       self?.environmentDidChange()
     }
@@ -63,6 +68,7 @@ public final class ProfileAccessPanelController: ProfileAccessPresenting {
   private func cleanupPresentation() {
     guard isPresented else { return }
     isPresented = false
+    selectionCoordinator?.endPresentation()
     driver.dismissAndRestoreWindows()
     let model = presentedModel
     presentedModel = nil
@@ -82,6 +88,7 @@ public final class ProfileAccessPanelController: ProfileAccessPresenting {
     pendingModel = nil
     isPresented = true
     presentedModel = model
+    selectionCoordinator?.beginPresentation()
     driver.hideCompetingPickViaWindows()
     driver.present(model: model) { [weak self, weak model] in
       model?.closeProfileAccess()
