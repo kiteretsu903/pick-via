@@ -112,6 +112,13 @@ extension EnvironmentValues {
   }
 }
 
+func profileAccessPanelOrigin(panelSize: NSSize, visibleFrame: NSRect) -> NSPoint {
+  NSPoint(
+    x: visibleFrame.midX - panelSize.width / 2,
+    y: visibleFrame.midY - panelSize.height / 2
+  )
+}
+
 @MainActor
 final class AppKitProfileAccessPanelDriver: NSObject, ProfileAccessPanelDriving, NSWindowDelegate {
   typealias WizardViewFactory = @MainActor (AppModel) -> AnyView
@@ -163,6 +170,7 @@ final class AppKitProfileAccessPanelDriver: NSObject, ProfileAccessPanelDriving,
     )
     panel.title = "Browser Profile Access"
     panel.isReleasedWhenClosed = false
+    panel.collectionBehavior = [.moveToActiveSpace]
     panel.delegate = self
     return panel
   }()
@@ -195,13 +203,34 @@ final class AppKitProfileAccessPanelDriver: NSObject, ProfileAccessPanelDriving,
     }
   }
 
+  private func position(_ panel: NSPanel) {
+    let pointer = NSEvent.mouseLocation
+    let screen =
+      NSScreen.screens.first { screen in
+        NSMouseInRect(pointer, screen.frame, false)
+      } ?? NSScreen.main
+
+    guard let visibleFrame = screen?.visibleFrame else {
+      panel.center()
+      return
+    }
+
+    panel.setFrameOrigin(
+      profileAccessPanelOrigin(
+        panelSize: panel.frame.size,
+        visibleFrame: visibleFrame
+      )
+    )
+  }
+
   func present(model: AppModel, onClose: @escaping @MainActor () -> Void) {
     guard let wizardViewFactory else { return }
     self.onClose = onClose
     panel.contentViewController = NSHostingController(rootView: wizardViewFactory(model))
-    panel.center()
+    position(panel)
     NSApp.activate(ignoringOtherApps: true)
-    panel.makeKeyAndOrderFront(nil)
+    panel.orderFrontRegardless()
+    panel.makeKey()
   }
 
   func dismissAndRestoreWindows() {

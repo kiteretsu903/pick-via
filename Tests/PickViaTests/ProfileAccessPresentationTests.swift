@@ -54,6 +54,31 @@ final class ProfileAccessPresentationTests: XCTestCase {
     XCTAssertFalse(driver.canPresent)
   }
 
+  func testAppKitDriverPresentsPanelOnActiveSpace() throws {
+    let driver = AppKitProfileAccessPanelDriver()
+    driver.attachWizardViewFactory { _ in AnyView(EmptyView()) }
+    let model = try ProfileAccessModelFixture.automaticPending()
+
+    driver.present(model: model, onClose: {})
+    defer { driver.dismissAndRestoreWindows() }
+
+    let panel = try XCTUnwrap(
+      NSApp.windows.first(where: { $0.title == "Browser Profile Access" }) as? NSPanel
+    )
+    XCTAssertTrue(panel.collectionBehavior.contains(.moveToActiveSpace))
+    XCTAssertTrue(panel.isVisible)
+  }
+
+  func testProfileAccessPanelOriginCentersPanelInVisibleFrame() {
+    let origin = profileAccessPanelOrigin(
+      panelSize: NSSize(width: 620, height: 440),
+      visibleFrame: NSRect(x: 100, y: 50, width: 1_200, height: 800)
+    )
+
+    XCTAssertEqual(origin.x, 390)
+    XCTAssertEqual(origin.y, 230)
+  }
+
   func testAutomaticRequestWaitsUntilOnboardingReviewCompletes() throws {
     let driver = ProfileAccessPanelDriverSpy(canPresent: true)
     let presenter = ProfileAccessPanelController(driver: driver)
