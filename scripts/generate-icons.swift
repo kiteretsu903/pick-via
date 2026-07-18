@@ -173,25 +173,25 @@ func drawMenuTemplate() throws -> Data {
     context.setLineCap(.round)
     context.setLineJoin(.round)
 
-    context.addEllipse(in: CGRect(x: 3, y: 3, width: 18, height: 18))
+    context.addEllipse(in: CGRect(x: 2, y: 2, width: 18, height: 18))
     context.setLineWidth(1.8)
     context.strokePath()
     let route = CGMutablePath()
-    route.move(to: CGPoint(x: 12, y: 19))
-    route.addLine(to: CGPoint(x: 12, y: 13))
-    route.addLine(to: CGPoint(x: 7.3, y: 7.5))
-    route.move(to: CGPoint(x: 12, y: 13))
-    route.addLine(to: CGPoint(x: 16.7, y: 7.5))
+    route.move(to: CGPoint(x: 11, y: 18))
+    route.addLine(to: CGPoint(x: 11, y: 12))
+    route.addLine(to: CGPoint(x: 6.3, y: 6.5))
+    route.move(to: CGPoint(x: 11, y: 12))
+    route.addLine(to: CGPoint(x: 15.7, y: 6.5))
     context.addPath(route)
     context.setLineWidth(2)
     context.strokePath()
-    for point in [CGPoint(x: 7.3, y: 7.5), CGPoint(x: 16.7, y: 7.5)] {
+    for point in [CGPoint(x: 6.3, y: 6.5), CGPoint(x: 15.7, y: 6.5)] {
       context.addEllipse(in: CGRect(x: point.x - 1.4, y: point.y - 1.4, width: 2.8, height: 2.8))
       context.fillPath()
     }
-    context.addEllipse(in: CGRect(x: 10.6, y: 17.6, width: 2.8, height: 2.8))
+    context.addEllipse(in: CGRect(x: 9.6, y: 16.6, width: 2.8, height: 2.8))
     context.fillPath()
-    context.addEllipse(in: CGRect(x: 11, y: 12, width: 2, height: 2))
+    context.addEllipse(in: CGRect(x: 10, y: 11, width: 2, height: 2))
     context.fillPath()
   }
   return try pngData(representation, size: 44)
@@ -218,49 +218,70 @@ func validateMenuTemplate(at url: URL) throws {
   }
 }
 
-func argumentValue(after flag: String) -> String? {
-  guard let index = CommandLine.arguments.firstIndex(of: flag),
-    CommandLine.arguments.indices.contains(index + 1)
-  else { return nil }
-  return CommandLine.arguments[index + 1]
+func outputDirectory(from arguments: [String], repositoryRoot: URL) throws -> URL {
+  let commandArguments = Array(arguments.dropFirst())
+  if commandArguments.isEmpty {
+    return repositoryRoot.appending(path: "Support/Icons", directoryHint: .isDirectory)
+  }
+  guard
+    commandArguments.count == 2,
+    commandArguments[0] == "--output-dir",
+    !commandArguments[1].isEmpty,
+    !commandArguments[1].hasPrefix("-")
+  else {
+    throw IconGenerationError.invalidArguments
+  }
+  return URL(fileURLWithPath: commandArguments[1], isDirectory: true)
 }
 
-let repositoryRoot = URL(fileURLWithPath: #filePath)
-  .deletingLastPathComponent()
-  .deletingLastPathComponent()
-let outputDirectory =
-  argumentValue(after: "--output-dir").map {
-    URL(fileURLWithPath: $0, isDirectory: true)
-  } ?? repositoryRoot.appending(path: "Support/Icons", directoryHint: .isDirectory)
-let temporary = FileManager.default.temporaryDirectory
-  .appending(path: "pickvia-icons-\(UUID().uuidString)", directoryHint: .isDirectory)
-let iconset = temporary.appending(path: "PickVia.iconset", directoryHint: .isDirectory)
-defer { try? FileManager.default.removeItem(at: temporary) }
-try FileManager.default.createDirectory(at: iconset, withIntermediateDirectories: true)
+func main() throws {
+  let repositoryRoot = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+  let outputDirectory = try outputDirectory(
+    from: CommandLine.arguments,
+    repositoryRoot: repositoryRoot
+  )
+  let temporary = FileManager.default.temporaryDirectory
+    .appending(path: "pickvia-icons-\(UUID().uuidString)", directoryHint: .isDirectory)
+  let iconset = temporary.appending(path: "PickVia.iconset", directoryHint: .isDirectory)
+  defer { try? FileManager.default.removeItem(at: temporary) }
+  try FileManager.default.createDirectory(at: iconset, withIntermediateDirectories: true)
 
-for representation in iconRepresentations {
-  let data = try drawApplicationIcon(size: representation.pixels)
-  try data.write(to: iconset.appending(path: representation.filename), options: .atomic)
+  for representation in iconRepresentations {
+    let data = try drawApplicationIcon(size: representation.pixels)
+    try data.write(to: iconset.appending(path: representation.filename), options: .atomic)
+  }
+  let menuData = try drawMenuTemplate()
+  let stagedMenu = temporary.appending(path: "PickViaMenuBarTemplate.png")
+  try menuData.write(to: stagedMenu, options: .atomic)
+
+  let stagedICNS = temporary.appending(path: "PickVia.icns")
+  let iconutil = Process()
+  iconutil.executableURL = URL(fileURLWithPath: "/usr/bin/iconutil")
+  iconutil.arguments = ["-c", "icns", "-o", stagedICNS.path, iconset.path]
+  try iconutil.run()
+  iconutil.waitUntilExit()
+  guard iconutil.terminationStatus == 0 else {
+    throw IconGenerationError.iconutilFailed(iconutil.terminationStatus)
+  }
+
+  try validateMenuTemplate(at: stagedMenu)
+  try validateApplicationIcon(at: stagedICNS)
+  try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+  for (source, name) in [(stagedICNS, "PickVia.icns"), (stagedMenu, "PickViaMenuBarTemplate.png")] {
+    let data = try Data(contentsOf: source)
+    guard !data.isEmpty else { throw IconGenerationError.pngEncodingFailed(0) }
+    try data.write(to: outputDirectory.appending(path: name), options: .atomic)
+  }
 }
-let menuData = try drawMenuTemplate()
-let stagedMenu = temporary.appending(path: "PickViaMenuBarTemplate.png")
-try menuData.write(to: stagedMenu, options: .atomic)
 
-let stagedICNS = temporary.appending(path: "PickVia.icns")
-let iconutil = Process()
-iconutil.executableURL = URL(fileURLWithPath: "/usr/bin/iconutil")
-iconutil.arguments = ["-c", "icns", "-o", stagedICNS.path, iconset.path]
-try iconutil.run()
-iconutil.waitUntilExit()
-guard iconutil.terminationStatus == 0 else {
-  throw IconGenerationError.iconutilFailed(iconutil.terminationStatus)
-}
-
-try validateMenuTemplate(at: stagedMenu)
-try validateApplicationIcon(at: stagedICNS)
-try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
-for (source, name) in [(stagedICNS, "PickVia.icns"), (stagedMenu, "PickViaMenuBarTemplate.png")] {
-  let data = try Data(contentsOf: source)
-  guard !data.isEmpty else { throw IconGenerationError.pngEncodingFailed(0) }
-  try data.write(to: outputDirectory.appending(path: name), options: .atomic)
+do {
+  try main()
+} catch IconGenerationError.invalidArguments {
+  fputs("invalidArguments\n", stderr)
+  exit(64)
+} catch {
+  fputs("\(error)\n", stderr)
+  exit(1)
 }
