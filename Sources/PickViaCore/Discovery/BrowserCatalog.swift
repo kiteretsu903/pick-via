@@ -496,31 +496,25 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
 
   private static func targetCandidates(for browser: DiscoveredBrowser) -> [BrowserTarget] {
     if browser.application.family == .safari {
-      return [
-        candidate(
-          browser: browser.application,
-          profile: nil,
-          mode: .normal
-        )
-      ]
+      return [candidate(browser: browser.application, profile: nil, mode: .normal)]
     }
+
+    let defaults = [
+      candidate(browser: browser.application, profile: nil, mode: .normal),
+      candidate(browser: browser.application, profile: nil, mode: .private),
+    ]
+    let explicitProfiles: [DiscoveredProfile]
     switch browser.metadataStatus {
-    case .metadataDamaged:
-      return []
-    case .accessRequired, .accessRevoked:
-      return [
-        candidate(browser: browser.application, profile: nil, mode: .normal),
-        candidate(browser: browser.application, profile: nil, mode: .private),
-      ]
     case .notApplicable, .metadataAbsent, .loaded:
-      break
+      let profiles = uniqueProfiles(browser.profiles)
+      let markedDefaults = profiles.filter(\.isDefault)
+      let absorbedID = markedDefaults.count == 1 ? markedDefaults[0].identifier : nil
+      explicitProfiles = profiles.filter { $0.identifier != absorbedID }
+    case .accessRequired, .accessRevoked, .metadataDamaged:
+      explicitProfiles = []
     }
-    let uniqueProfiles = uniqueProfiles(browser.profiles)
-    let profiles: [DiscoveredProfile?] =
-      uniqueProfiles.isEmpty
-      ? [nil]
-      : uniqueProfiles.map(Optional.some)
-    return profiles.flatMap { profile in
+
+    return defaults + explicitProfiles.flatMap { profile in
       [
         candidate(browser: browser.application, profile: profile, mode: .normal),
         candidate(browser: browser.application, profile: profile, mode: .private),

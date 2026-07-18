@@ -6,17 +6,20 @@ public struct DiscoveredProfile: Equatable, Sendable {
   public let displayName: String
   public let directoryURL: URL?
   public let launchIdentifier: String
+  public let isDefault: Bool
 
   public init(
     identifier: String,
     displayName: String,
     directoryURL: URL?,
-    launchIdentifier: String? = nil
+    launchIdentifier: String? = nil,
+    isDefault: Bool = false
   ) {
     self.identifier = identifier
     self.displayName = displayName
     self.directoryURL = directoryURL
     self.launchIdentifier = launchIdentifier ?? identifier
+    self.isDefault = isDefault
   }
 }
 
@@ -43,7 +46,8 @@ public enum ChromiumProfileParser {
       return DiscoveredProfile(
         identifier: identifier,
         displayName: displayName,
-        directoryURL: nil
+        directoryURL: nil,
+        isDefault: identifier == "Default"
       )
     }
     .sorted { $0.identifier < $1.identifier }
@@ -113,7 +117,8 @@ public enum FirefoxProfileParser {
         identifier: FirefoxProfileIdentity.identifier(for: normalizedURL),
         displayName: name,
         directoryURL: normalizedURL,
-        launchIdentifier: name
+        launchIdentifier: name,
+        isDefault: values["Default"] == "1"
       )
     }
     .sorted { $0.identifier < $1.identifier }

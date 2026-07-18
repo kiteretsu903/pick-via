@@ -363,7 +363,71 @@ struct BrowserCatalogTests {
     )
 
     #expect(result.targets.first { $0.id == existingTarget.id }?.availability == .available)
-    #expect(!result.targets.contains { $0.profileIdentifier == nil })
+    #expect(result.targets.contains { $0.profileIdentifier == nil && $0.mode == .normal })
+    #expect(result.targets.contains { $0.profileIdentifier == nil && $0.mode == .private })
+  }
+
+  @Test func chromiumAlwaysCreatesBrowserDefaultAndAbsorbsCanonicalDirectory() {
+    let discovered = chrome(profiles: [
+      DiscoveredProfile(
+        identifier: "Default",
+        displayName: "Personal",
+        directoryURL: nil,
+        isDefault: true
+      ),
+      DiscoveredProfile(identifier: "Profile 1", displayName: "Work", directoryURL: nil),
+    ])
+
+    let result = BrowserCatalog.reconcile(discovered: [discovered], with: .initial)
+    let chromeTargets = result.targets.filter { $0.browserID == discovered.application.id }
+
+    #expect(chromeTargets.map(\.profileIdentifier) == [nil, nil, "Profile 1", "Profile 1"])
+    #expect(chromeTargets.filter { $0.profileIdentity == "Default" }.isEmpty)
+    #expect(chromeTargets[0].mode == .normal)
+    #expect(chromeTargets[0].isEnabled)
+    #expect(chromeTargets[1].mode == .private)
+    #expect(!chromeTargets[1].isEnabled)
+  }
+
+  @Test func firefoxAbsorbsDefaultOnlyWhenTheFlagIsUnique() {
+    let root = URL(fileURLWithPath: "/Users/example/Firefox/Profiles", isDirectory: true)
+    let first = DiscoveredProfile(
+      identifier: "first", displayName: "First", directoryURL: root.appending(path: "first"),
+      launchIdentifier: "First", isDefault: true)
+    let second = DiscoveredProfile(
+      identifier: "second", displayName: "Second", directoryURL: root.appending(path: "second"),
+      launchIdentifier: "Second", isDefault: true)
+
+    let unique = BrowserCatalog.reconcile(
+      discovered: [firefox(profiles: [first, DiscoveredProfile(
+        identifier: "work", displayName: "Work", directoryURL: root.appending(path: "work"),
+        launchIdentifier: "Work")])],
+      with: .initial
+    )
+    #expect(unique.targets.filter { $0.profileIdentity == "first" }.isEmpty)
+
+    let ambiguous = BrowserCatalog.reconcile(
+      discovered: [firefox(profiles: [first, second])],
+      with: .initial
+    )
+    #expect(ambiguous.targets.contains { $0.profileIdentity == "first" })
+    #expect(ambiguous.targets.contains { $0.profileIdentity == "second" })
+    #expect(ambiguous.targets.contains {
+      $0.profileIdentifier == nil && $0.profileIdentity == nil && $0.mode == .normal
+    })
+  }
+
+  @Test func damagedOrInaccessibleMetadataStillCreatesBrowserDefaultPair() {
+    for status in [
+      ProfileMetadataStatus.metadataDamaged,
+      .accessRequired,
+      .accessRevoked,
+    ] {
+      let browser = chrome(profiles: [], metadataStatus: status)
+      let result = BrowserCatalog.reconcile(discovered: [browser], with: .initial)
+      #expect(result.targets.map(\.profileIdentifier) == [nil, nil])
+      #expect(result.targets.allSatisfy { $0.availability == .available })
+    }
   }
 
   @Test func protectedMetadataAddsFallbackAndPreservesCustomizedProfileAsUnavailable() throws {
@@ -434,7 +498,9 @@ struct BrowserCatalogTests {
     let path = URL(fileURLWithPath: "/Users/example/Firefox/Profiles/work", isDirectory: true)
     let original = firefox(profilePath: path, profileName: "Work")
     let initial = BrowserCatalog.reconcile(discovered: [original], with: .initial)
-    let normal = try #require(initial.targets.first { $0.mode == .normal })
+    let normal = try #require(initial.targets.first {
+      $0.profileIdentity == FirefoxProfileIdentity.identifier(for: path) && $0.mode == .normal
+    })
     let customized = PickViaConfig(
       schemaVersion: 1,
       browsers: initial.browsers,
@@ -485,8 +551,10 @@ struct BrowserCatalogTests {
       with: existing
     )
 
-    #expect(result.targets.count == 2)
-    #expect(result.targets.filter { $0.mode == .normal }.map(\.label) == ["Client Work"])
+    #expect(result.targets.count == 4)
+    #expect(
+      result.targets.filter { $0.profileIdentity != nil && $0.mode == .normal }.map(\.label)
+        == ["Client Work"])
     #expect(!result.targets.contains { $0.id == legacy.id })
   }
 
@@ -561,7 +629,9 @@ struct BrowserCatalogTests {
       discovered: [firefox(profilePath: path, profileName: "Same Name")],
       with: ambiguous
     )
-    let canonical = try #require(migrated.targets.first { $0.mode == .normal })
+    let canonical = try #require(migrated.targets.first {
+      $0.profileIdentity == FirefoxProfileIdentity.identifier(for: path) && $0.mode == .normal
+    })
     #expect(canonical.id != legacy.id)
     #expect(canonical.profileIdentity == FirefoxProfileIdentity.identifier(for: path))
     #expect(canonical.profileLaunchPath == path.path)
@@ -581,8 +651,8 @@ struct BrowserCatalogTests {
 
     let result = BrowserCatalog.reconcile(discovered: [browser], with: .initial)
 
-    #expect(result.targets.count == 4)
-    #expect(Set(result.targets.map(\.id)).count == 4)
+    #expect(result.targets.count == 6)
+    #expect(Set(result.targets.map(\.id)).count == 6)
     #expect(Set(result.targets.compactMap(\.profileIdentity)).count == 2)
   }
 
@@ -595,8 +665,8 @@ struct BrowserCatalogTests {
 
     let result = BrowserCatalog.reconcile(discovered: [browser], with: .initial)
 
-    #expect(result.targets.count == 2)
-    #expect(Set(result.targets.map(\.id)).count == 2)
+    #expect(result.targets.count == 4)
+    #expect(Set(result.targets.map(\.id)).count == 4)
     #expect(
       Set(result.targets.compactMap(\.profileIdentity))
         == [FirefoxProfileIdentity.identifier(for: URL(fileURLWithPath: "/profiles/same"))]
@@ -861,11 +931,13 @@ struct BrowserCatalogTests {
     )
 
     let result = BrowserCatalog.reconcile(discovered: [browser], with: existing)
-    let migrated = try #require(result.targets.first { $0.mode == .normal })
+    let migrated = try #require(result.targets.first {
+      $0.profileIdentity == FirefoxProfileIdentity.identifier(for: path) && $0.mode == .normal
+    })
     let document = try #require(String(data: JSONEncoder().encode(result), encoding: .utf8))
 
-    #expect(result.targets.count == 2)
-    #expect(Set(result.targets.map(\.id)).count == 2)
+    #expect(result.targets.count == 4)
+    #expect(Set(result.targets.map(\.id)).count == 4)
     #expect(migrated.id != legacy.id)
     #expect(migrated.id.hasPrefix("org.mozilla.firefox|firefox-profile-v1:"))
     #expect(migrated.profileIdentity?.hasPrefix("firefox-profile-v1:") == true)
@@ -930,9 +1002,11 @@ struct BrowserCatalogTests {
       )
 
       let result = BrowserCatalog.reconcile(discovered: [browser], with: existing)
-      let matchingMode = result.targets.filter { $0.mode == mode }
+      let matchingMode = result.targets.filter {
+        $0.profileIdentity == identity && $0.mode == mode
+      }
 
-      #expect(result.targets.count == 2)
+      #expect(result.targets.count == 4)
       #expect(matchingMode.count == 1)
       #expect(matchingMode.first?.id == canonical.id)
       #expect(matchingMode.first?.label == "Canonical Customization")
@@ -970,9 +1044,11 @@ struct BrowserCatalogTests {
     )
 
     let result = BrowserCatalog.reconcile(discovered: [browser], with: existing)
-    let normal = try #require(result.targets.first { $0.mode == .normal })
+    let normal = try #require(result.targets.first {
+      $0.profileIdentity == FirefoxProfileIdentity.identifier(for: path) && $0.mode == .normal
+    })
 
-    #expect(result.targets.count == 2)
+    #expect(result.targets.count == 4)
     #expect(normal.label == "Winner")
     #expect(normal.sortOrder == 4)
     #expect(normal.id.hasPrefix("org.mozilla.firefox|firefox-profile-v1:"))
@@ -987,7 +1063,9 @@ struct BrowserCatalogTests {
       ]
     )
     let initial = BrowserCatalog.reconcile(discovered: [browser], with: .initial)
-    let detectedNormal = try #require(initial.targets.first { $0.mode == .normal })
+    let detectedNormal = try #require(initial.targets.first {
+      $0.profileIdentity != nil && $0.mode == .normal
+    })
     let manual = BrowserTarget(
       id: "manual-firefox-uuid",
       browserID: detectedNormal.browserID,
@@ -1123,14 +1201,14 @@ struct BrowserCatalogTests {
 
     let result = BrowserCatalog.reconcile(discovered: discovered, with: existing)
 
-    #expect(result.targets.count == 2)
-    let normal = result.targets.first { $0.mode == .normal }
+    #expect(result.targets.count == 4)
+    let normal = result.targets.first { $0.profileIdentity == "Profile 1" && $0.mode == .normal }
     #expect(normal?.label == "Client Work")
     #expect(normal?.isEnabled == false)
     #expect(normal?.sortOrder == 7)
     #expect(normal?.profileDisplayName == "Work")
     #expect(normal?.availability == .available)
-    #expect(result.targets.first { $0.mode == .private }?.isEnabled == false)
+    #expect(result.targets.first { $0.profileIdentity == "Profile 1" && $0.mode == .private }?.isEnabled == false)
   }
 
   @Test func reconcileMarksDisappearedProfileUnavailableWithoutSubstitution() {

@@ -12,7 +12,8 @@ struct ProfileParserTests {
         DiscoveredProfile(
           identifier: "Default",
           displayName: "Personal",
-          directoryURL: nil
+          directoryURL: nil,
+          isDefault: true
         ),
         DiscoveredProfile(
           identifier: "Profile 1",
@@ -26,6 +27,13 @@ struct ProfileParserTests {
     #expect(throws: (any Error).self) {
       try ChromiumProfileParser.parse(data: Data("not json".utf8))
     }
+  }
+
+  @Test func chromiumMarksOnlyTheCanonicalDefaultDirectoryAsDefault() throws {
+    let profiles = try ChromiumProfileParser.parse(data: fixtureData("chromium-local-state.json"))
+
+    #expect(profiles.first { $0.identifier == "Default" }?.isDefault == true)
+    #expect(profiles.first { $0.identifier == "Profile 1" }?.isDefault == false)
   }
 
   @Test func firefoxResolvesRelativeAndAbsolutePaths() throws {
@@ -58,6 +66,27 @@ struct ProfileParserTests {
           launchIdentifier: "Work"
         ),
       ])
+  }
+
+  @Test func firefoxParsesTheExactDefaultFlagWithoutGuessingFromNames() throws {
+    let root = URL(fileURLWithPath: "/Users/example/Firefox", isDirectory: true)
+    let profiles = try FirefoxProfileParser.parse(
+      text: """
+        [Profile0]
+        Name=Default-looking Name
+        IsRelative=1
+        Path=Profiles/ordinary
+        [Profile1]
+        Name=Work
+        IsRelative=1
+        Path=Profiles/work
+        Default=1
+        """,
+      baseDirectory: root
+    )
+
+    #expect(profiles.first { $0.displayName == "Default-looking Name" }?.isDefault == false)
+    #expect(profiles.first { $0.displayName == "Work" }?.isDefault == true)
   }
 
   @Test func firefoxIgnoresNonProfileSectionsAndAcceptsExactRelativeFlags() throws {
