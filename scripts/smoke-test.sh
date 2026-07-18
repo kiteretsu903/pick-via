@@ -16,4 +16,11 @@ scheme0="$(plutil -extract CFBundleURLTypes.0.CFBundleURLSchemes.0 raw -o - "$pl
 scheme1="$(plutil -extract CFBundleURLTypes.0.CFBundleURLSchemes.1 raw -o - "$plist")"
 test "$scheme0:$scheme1" = "http:https" || test "$scheme0:$scheme1" = "https:http"
 
+resources="$app/Contents/Resources"
+test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$plist")" = "PickVia"
+test -s "$resources/PickVia.icns"
+test -s "$resources/PickViaMenuBarTemplate.png"
+test "$(sips -g pixelWidth "$resources/PickViaMenuBarTemplate.png" | awk '/pixelWidth/ {print $2}')" = "44"
+test "$(sips -g pixelHeight "$resources/PickViaMenuBarTemplate.png" | awk '/pixelHeight/ {print $2}')" = "44"
+
 /usr/bin/codesign --verify --deep --strict "$app"
