@@ -248,6 +248,10 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
 
     let existingByID = Dictionary(
       config.targets.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    let generatedDefaultSortOrders = generatedDefaultSortOrders(
+      discovered: discovered,
+      config: config
+    )
     var nextSortOrder = (config.targets.map(\.sortOrder).max() ?? -1) + 1
     var reconciled: [BrowserTarget] = []
     var consumedExistingIDs = Set<BrowserTarget.ID>()
@@ -264,9 +268,20 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
           for: candidate,
           in: config.targets
         )
+        let canonicalExisting = existingByID[candidate.id]
+        let legacyCanonicalWinner = canonicalDefaultMatches.min(by: stableCustomizationOrder)
+        let preferredCanonical = canonicalExisting.flatMap { existing in
+          isUntouchedGeneratedDefault(
+            existing,
+            candidate: candidate,
+            expectedSortOrder: generatedDefaultSortOrders[candidate.id]
+          ) && legacyCanonicalWinner != nil
+            ? nil : existing
+        }
         let existing =
-          existingByID[candidate.id]
-          ?? canonicalDefaultMatches.min(by: stableCustomizationOrder)
+          preferredCanonical
+          ?? legacyCanonicalWinner
+          ?? canonicalExisting
           ?? legacyAbsolutePathMatches.min(by: stableCustomizationOrder)
           ?? ((browser.application.family == .safari || !isBrowserLevelTarget(candidate))
             && hasUniqueMutableProfileName(candidate, among: candidates)
@@ -779,6 +794,45 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   ) -> Bool {
     if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder < rhs.sortOrder }
     return lhs.id < rhs.id
+  }
+
+  private static func generatedDefaultSortOrders(
+    discovered: [DiscoveredBrowser],
+    config: PickViaConfig
+  ) -> [BrowserTarget.ID: Int] {
+    let canonicalDefaults = discovered.flatMap(targetCandidates(for:)).filter(
+      isBrowserLevelTarget)
+    let canonicalIDs = Set(canonicalDefaults.map(\.id))
+    let lastRetainedOrder =
+      config.targets
+      .filter { !canonicalIDs.contains($0.id) }
+      .map(\.sortOrder)
+      .max() ?? -1
+    return Dictionary(
+      uniqueKeysWithValues: canonicalDefaults.enumerated().map { offset, candidate in
+        (candidate.id, lastRetainedOrder + offset + 1)
+      }
+    )
+  }
+
+  private static func isUntouchedGeneratedDefault(
+    _ existing: BrowserTarget,
+    candidate: BrowserTarget,
+    expectedSortOrder: Int?
+  ) -> Bool {
+    existing.id == candidate.id
+      && existing.browserID == candidate.browserID
+      && existing.label == candidate.label
+      && existing.profileIdentifier == nil
+      && existing.profileDisplayName == nil
+      && existing.profileIdentity == nil
+      && existing.profileLaunchPath == nil
+      && existing.mode == candidate.mode
+      && existing.isEnabled == candidate.isEnabled
+      && existing.sortOrder == expectedSortOrder
+      && existing.origin == .detected
+      && existing.availability == .available
+      && existing.validationError == nil
   }
 
   private static func migratedProfileIdentity(

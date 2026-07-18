@@ -1256,6 +1256,130 @@ struct BrowserCatalogTests {
     #expect(!result.targets.contains { $0.profileLaunchPath == legacyDefaultPath })
   }
 
+  @Test func accessFirstDefaultMigrationRetainsLegacyCustomizationAfterMetadataLoads() throws {
+    let inaccessible = chrome(profiles: [], metadataStatus: .accessRequired)
+    let loaded = chrome(profiles: [
+      DiscoveredProfile(
+        identifier: "Default",
+        displayName: "Personal",
+        directoryURL: nil,
+        isDefault: true
+      )
+    ])
+    let legacyNormal = catalogTarget(
+      browser: inaccessible.application,
+      label: "My Chrome",
+      profileIdentifier: "Default",
+      profileDisplayName: "Personal",
+      profileIdentity: "Default",
+      mode: .normal,
+      isEnabled: false,
+      sortOrder: 17
+    )
+    let legacyPrivate = catalogTarget(
+      browser: inaccessible.application,
+      label: "Secret Chrome",
+      profileIdentifier: "Default",
+      profileDisplayName: "Personal",
+      profileIdentity: "Default",
+      mode: .private,
+      isEnabled: true,
+      sortOrder: 18
+    )
+    let legacy = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [inaccessible.application],
+      targets: [legacyNormal, legacyPrivate]
+    )
+
+    let waiting = BrowserCatalog.reconcile(discovered: [inaccessible], with: legacy)
+    let result = BrowserCatalog.reconcile(discovered: [loaded], with: waiting)
+    let defaults = result.targets.filter {
+      $0.browserID == loaded.application.id
+        && $0.profileIdentifier == nil
+        && $0.profileIdentity == nil
+    }
+
+    #expect(defaults.map(\.label) == ["My Chrome", "Secret Chrome"])
+    #expect(defaults.map(\.isEnabled) == [false, true])
+    #expect(defaults.map(\.sortOrder) == [17, 18])
+    #expect(!result.targets.contains { $0.profileIdentity == "Default" })
+  }
+
+  @Test func editedInterimCanonicalDefaultWinsWhileUntouchedPeerMigratesLegacyCustomization()
+    throws
+  {
+    let inaccessible = chrome(profiles: [], metadataStatus: .accessRevoked)
+    let loaded = chrome(profiles: [
+      DiscoveredProfile(
+        identifier: "Default",
+        displayName: "Personal",
+        directoryURL: nil,
+        isDefault: true
+      )
+    ])
+    let legacyNormal = catalogTarget(
+      browser: inaccessible.application,
+      label: "Legacy Normal",
+      profileIdentifier: "Default",
+      profileDisplayName: "Personal",
+      profileIdentity: "Default",
+      mode: .normal,
+      isEnabled: false,
+      sortOrder: 10
+    )
+    let legacyPrivate = catalogTarget(
+      browser: inaccessible.application,
+      label: "Legacy Private",
+      profileIdentifier: "Default",
+      profileDisplayName: "Personal",
+      profileIdentity: "Default",
+      mode: .private,
+      isEnabled: true,
+      sortOrder: 11
+    )
+    let waiting = BrowserCatalog.reconcile(
+      discovered: [inaccessible],
+      with: PickViaConfig(
+        schemaVersion: 1,
+        browsers: [inaccessible.application],
+        targets: [legacyNormal, legacyPrivate]
+      )
+    )
+    let canonicalNormalID = BrowserCatalog.targetID(
+      bundleIdentifier: inaccessible.application.bundleIdentifier,
+      profileIdentifier: nil,
+      mode: .normal
+    )
+    let editedTargets = waiting.targets.map { target in
+      target.id == canonicalNormalID
+        ? copy(target, label: target.label, enabled: target.isEnabled, sortOrder: 2)
+        : target
+    }
+    let editedWaiting = PickViaConfig(
+      schemaVersion: waiting.schemaVersion,
+      browsers: waiting.browsers,
+      targets: editedTargets
+    )
+
+    let result = BrowserCatalog.reconcile(discovered: [loaded], with: editedWaiting)
+    let normal = try #require(result.targets.first { $0.id == canonicalNormalID })
+    let privateID = BrowserCatalog.targetID(
+      bundleIdentifier: inaccessible.application.bundleIdentifier,
+      profileIdentifier: nil,
+      mode: .private
+    )
+    let privateTarget = try #require(result.targets.first { $0.id == privateID })
+
+    #expect(normal.label == "Google Chrome")
+    #expect(normal.isEnabled)
+    #expect(normal.sortOrder == 2)
+    #expect(privateTarget.label == "Legacy Private")
+    #expect(privateTarget.isEnabled)
+    #expect(privateTarget.sortOrder == 11)
+    #expect(!result.targets.contains { $0.profileIdentity == "Default" })
+  }
+
   @Test func existingBrowserDefaultWinsButConsumesLegacyDefaultDuplicate() {
     let browser = chrome(profiles: [
       DiscoveredProfile(
@@ -1841,7 +1965,12 @@ private func firefoxProfile(path: String, name: String) -> DiscoveredProfile {
   )
 }
 
-private func copy(_ target: BrowserTarget, label: String, enabled: Bool) -> BrowserTarget {
+private func copy(
+  _ target: BrowserTarget,
+  label: String,
+  enabled: Bool,
+  sortOrder: Int? = nil
+) -> BrowserTarget {
   BrowserTarget(
     id: target.id,
     browserID: target.browserID,
@@ -1852,7 +1981,7 @@ private func copy(_ target: BrowserTarget, label: String, enabled: Bool) -> Brow
     profileLaunchPath: target.profileLaunchPath,
     mode: target.mode,
     isEnabled: enabled,
-    sortOrder: target.sortOrder,
+    sortOrder: sortOrder ?? target.sortOrder,
     origin: target.origin,
     availability: target.availability
   )
