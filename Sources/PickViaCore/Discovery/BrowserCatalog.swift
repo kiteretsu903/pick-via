@@ -255,15 +255,22 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     for browser in discovered {
       let candidates = targetCandidates(for: browser)
       for candidate in candidates {
+        let canonicalDefaultMatches = legacyCanonicalDefaultMatches(
+          for: candidate,
+          browser: browser,
+          in: config.targets
+        )
         let legacyAbsolutePathMatches = legacyAbsolutePathProfileMatches(
           for: candidate,
           in: config.targets
         )
         let existing =
           existingByID[candidate.id]
+          ?? canonicalDefaultMatches.min(by: stableCustomizationOrder)
           ?? legacyAbsolutePathMatches.min(by: stableCustomizationOrder)
           ?? (hasUniqueMutableProfileName(candidate, among: candidates)
             ? legacyProfileMatch(for: candidate, in: config.targets) : nil)
+        consumedExistingIDs.formUnion(canonicalDefaultMatches.map(\.id))
         if let existing {
           consumedExistingIDs.insert(existing.id)
           consumedExistingIDs.formUnion(legacyAbsolutePathMatches.map(\.id))
@@ -613,9 +620,11 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
             ? .available
             : .unavailable
         case .chromium, .firefox:
-          if target.profileIdentifier == nil {
-            availability =
-              target.origin == .manual || profiles.isEmpty ? .available : .unavailable
+          if target.profileIdentifier == nil,
+            target.profileIdentity == nil,
+            target.profileLaunchPath == nil
+          {
+            availability = .available
           } else {
             if let profileIdentity = target.profileIdentity {
               if browser.application.family == .firefox,
@@ -692,6 +701,39 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
         && $0.origin == .detected
         && $0.profileIdentity == nil
         && $0.profileIdentifier == candidate.profileIdentifier
+    }
+  }
+
+  private static func legacyCanonicalDefaultMatches(
+    for candidate: BrowserTarget,
+    browser: DiscoveredBrowser,
+    in targets: [BrowserTarget]
+  ) -> [BrowserTarget] {
+    guard
+      browser.metadataStatus == .loaded || browser.metadataStatus == .metadataAbsent
+    else { return [] }
+    guard
+      candidate.profileIdentifier == nil,
+      candidate.profileIdentity == nil,
+      candidate.profileLaunchPath == nil
+    else { return [] }
+    let marked = uniqueProfiles(browser.profiles).filter(\.isDefault)
+    guard marked.count == 1 else { return [] }
+    let profile = marked[0]
+    let normalizedPath = profile.directoryURL?.standardizedFileURL.path
+
+    return targets.filter { target in
+      guard
+        target.browserID == candidate.browserID,
+        target.mode == candidate.mode,
+        target.origin == .detected
+      else { return false }
+      return target.profileIdentity == profile.identifier
+        || (target.profileIdentity == nil
+          && (target.profileIdentifier == profile.identifier
+            || target.profileIdentifier == profile.launchIdentifier))
+        || (normalizedPath != nil
+          && target.profileLaunchPath == normalizedPath)
     }
   }
 

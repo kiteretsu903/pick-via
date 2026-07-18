@@ -80,34 +80,34 @@ struct BrowserLauncherTests {
   @Test func unprofiledChromiumAndFirefoxPlansUseBrowserLevelArguments() throws {
     let launcher = testLauncher()
 
-    let chromium = try launcher.makePlan(
-      url: url,
-      application: application(family: .chromium),
-      target: target(family: .chromium, profile: nil)
-    )
-    let firefoxPrivate = try launcher.makePlan(
-      url: url,
-      application: application(family: .firefox),
-      target: target(
-        id: BrowserCatalog.targetID(
-          bundleIdentifier: "org.mozilla.firefox",
-          profileIdentifier: nil,
-          mode: .private
-        ),
-        family: .firefox,
-        profile: nil,
-        mode: .private
+    func arguments(for family: BrowserFamily, mode: BrowserMode) throws -> [String] {
+      let plan = try launcher.makePlan(
+        url: url,
+        application: application(family: family),
+        target: target(
+          id: BrowserCatalog.targetID(
+            bundleIdentifier: bundleID(for: family),
+            profileIdentifier: nil,
+            mode: mode
+          ),
+          family: family,
+          profile: nil,
+          mode: mode
+        )
       )
-    )
-
-    guard case .executable(_, let chromiumArguments) = chromium,
-      case .executable(_, let firefoxArguments) = firefoxPrivate
-    else {
-      Issue.record("Expected executable plans")
-      return
+      guard case .executable(_, let arguments) = plan else {
+        Issue.record("Expected executable plan")
+        return []
+      }
+      return arguments
     }
-    #expect(chromiumArguments == [url.absoluteString])
-    #expect(firefoxArguments == ["-private-window", url.absoluteString])
+
+    #expect(try arguments(for: .chromium, mode: .normal) == [url.absoluteString])
+    #expect(
+      try arguments(for: .chromium, mode: .private) == ["--incognito", url.absoluteString])
+    #expect(try arguments(for: .firefox, mode: .normal) == ["-new-tab", url.absoluteString])
+    #expect(
+      try arguments(for: .firefox, mode: .private) == ["-private-window", url.absoluteString])
   }
 
   @Test func unprofiledManualFirefoxUUIDTargetRemainsBrowserLevelRoutable() throws {

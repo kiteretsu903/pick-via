@@ -1183,6 +1183,129 @@ struct BrowserCatalogTests {
     #expect(!document.contains("private-user"))
   }
 
+  @Test func legacyDefaultPairMigratesWithoutLosingCustomization() throws {
+    let browser = chrome(profiles: [
+      DiscoveredProfile(
+        identifier: "Default", displayName: "Personal", directoryURL: nil,
+        isDefault: true),
+      DiscoveredProfile(identifier: "Profile 1", displayName: "Work", directoryURL: nil),
+    ])
+    let legacyNormal = catalogTarget(
+      id: BrowserCatalog.targetID(
+        bundleIdentifier: browser.application.id,
+        profileIdentifier: "Default",
+        mode: .normal),
+      browser: browser.application,
+      label: "My Chrome",
+      profileIdentifier: "Default",
+      profileDisplayName: "Personal",
+      profileIdentity: "Default",
+      mode: .normal,
+      isEnabled: false,
+      sortOrder: 17
+    )
+    let legacyPrivate = catalogTarget(
+      id: BrowserCatalog.targetID(
+        bundleIdentifier: browser.application.id,
+        profileIdentifier: "Default",
+        mode: .private),
+      browser: browser.application,
+      label: "Secret Chrome",
+      profileIdentifier: "Default",
+      profileDisplayName: "Personal",
+      profileIdentity: "Default",
+      mode: .private,
+      isEnabled: true,
+      sortOrder: 18
+    )
+    let config = PickViaConfig(
+      schemaVersion: 1, browsers: [browser.application], targets: [legacyNormal, legacyPrivate])
+
+    let result = BrowserCatalog.reconcile(discovered: [browser], with: config)
+    let migrated = result.targets.filter {
+      $0.browserID == browser.application.id && $0.profileIdentifier == nil
+    }
+
+    #expect(migrated.map(\.label) == ["My Chrome", "Secret Chrome"])
+    #expect(migrated.map(\.isEnabled) == [false, true])
+    #expect(migrated.map(\.sortOrder) == [17, 18])
+    #expect(migrated.allSatisfy {
+      $0.profileDisplayName == nil && $0.profileIdentity == nil && $0.profileLaunchPath == nil
+    })
+    #expect(!result.targets.contains { $0.profileIdentity == "Default" })
+  }
+
+  @Test func existingBrowserDefaultWinsButConsumesLegacyDefaultDuplicate() {
+    let browser = chrome(profiles: [
+      DiscoveredProfile(
+        identifier: "Default", displayName: "Personal", directoryURL: nil,
+        isDefault: true)
+    ])
+    let existing = catalogTarget(
+      browser: browser.application, label: "Keep Me", profileIdentifier: nil,
+      mode: .normal, isEnabled: false, sortOrder: 4)
+    let legacy = catalogTarget(
+      browser: browser.application, label: "Discard Me", profileIdentifier: "Default",
+      profileDisplayName: "Personal", profileIdentity: "Default",
+      mode: .normal, isEnabled: true, sortOrder: 9)
+    let config = PickViaConfig(
+      schemaVersion: 1, browsers: [browser.application], targets: [existing, legacy])
+
+    let result = BrowserCatalog.reconcile(discovered: [browser], with: config)
+
+    #expect(result.targets.filter { $0.mode == .normal }.map(\.label) == ["Keep Me"])
+    #expect(!result.targets.contains { $0.id == legacy.id })
+  }
+
+  @Test func browserDefaultRemainsAvailableWhenNamedProfilesExist() throws {
+    let browser = chrome(profiles: [
+      DiscoveredProfile(identifier: "Profile 1", displayName: "Work", directoryURL: nil)
+    ])
+    let existing = catalogTarget(
+      browser: browser.application, label: "Default", profileIdentifier: nil,
+      mode: .normal, isEnabled: true, sortOrder: 0, availability: .unavailable)
+    let config = PickViaConfig(
+      schemaVersion: 1, browsers: [browser.application], targets: [existing])
+
+    let result = BrowserCatalog.reconcile(discovered: [browser], with: config)
+    let defaultTarget = try #require(result.targets.first { $0.profileIdentifier == nil })
+
+    #expect(defaultTarget.availability == .available)
+  }
+
+  @Test func nonAuthoritativeProfilesDoNotTriggerLegacyDefaultMigration() throws {
+    let browser = chrome(
+      profiles: [
+        DiscoveredProfile(
+          identifier: "Default", displayName: "Stale Personal", directoryURL: nil,
+          isDefault: true)
+      ],
+      metadataStatus: .accessRequired
+    )
+    let legacy = catalogTarget(
+      browser: browser.application,
+      label: "Stale Customization",
+      profileIdentifier: "Default",
+      profileDisplayName: "Stale Personal",
+      profileIdentity: "Default",
+      mode: .normal,
+      isEnabled: false,
+      sortOrder: 7
+    )
+    let config = PickViaConfig(
+      schemaVersion: 1, browsers: [browser.application], targets: [legacy])
+
+    let result = BrowserCatalog.reconcile(discovered: [browser], with: config)
+    let browserDefault = try #require(result.targets.first {
+      $0.profileIdentifier == nil && $0.mode == .normal
+    })
+    let preservedLegacy = try #require(result.targets.first { $0.id == legacy.id })
+
+    #expect(browserDefault.label == "Google Chrome")
+    #expect(preservedLegacy.label == "Stale Customization")
+    #expect(preservedLegacy.availability == .unavailable)
+  }
+
   @Test func reconcilePreservesUserCustomizationForStableProfileIdentity() {
     let existing = PickViaConfig(
       schemaVersion: 1,
@@ -1437,6 +1560,39 @@ private func copy(_ target: BrowserTarget, label: String, enabled: Bool) -> Brow
     sortOrder: target.sortOrder,
     origin: target.origin,
     availability: target.availability
+  )
+}
+
+private func catalogTarget(
+  id: BrowserTarget.ID? = nil,
+  browser: BrowserApplication,
+  label: String,
+  profileIdentifier: String?,
+  profileDisplayName: String? = nil,
+  profileIdentity: String? = nil,
+  profileLaunchPath: String? = nil,
+  mode: BrowserMode,
+  isEnabled: Bool,
+  sortOrder: Int,
+  availability: BrowserTargetAvailability = .available
+) -> BrowserTarget {
+  BrowserTarget(
+    id: id ?? BrowserCatalog.targetID(
+      bundleIdentifier: browser.bundleIdentifier,
+      profileIdentifier: profileIdentity ?? profileIdentifier,
+      mode: mode
+    ),
+    browserID: browser.id,
+    label: label,
+    profileIdentifier: profileIdentifier,
+    profileDisplayName: profileDisplayName,
+    profileIdentity: profileIdentity,
+    profileLaunchPath: profileLaunchPath,
+    mode: mode,
+    isEnabled: isEnabled,
+    sortOrder: sortOrder,
+    origin: .detected,
+    availability: availability
   )
 }
 
