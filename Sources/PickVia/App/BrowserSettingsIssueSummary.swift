@@ -50,6 +50,7 @@ public struct BrowserSettingsIssueSummary: Equatable, Sendable {
 func makeBrowserSettingsIssueSummary(
   authoritativeScan: BrowserScanResult?,
   metadataOverrides: [String: ProfileMetadataStatus],
+  targetedDiscoveries: [String: DiscoveredBrowser] = [:],
   config: PickViaConfig
 ) -> BrowserSettingsIssueSummary {
   guard let authoritativeScan else {
@@ -66,6 +67,22 @@ func makeBrowserSettingsIssueSummary(
   let installedByID = Dictionary(
     uniqueKeysWithValues: config.browsers.map { ($0.id, $0) }
   )
+  let targetedBundleIDs = Set(targetedDiscoveries.keys)
+  let targetedTargetsByID: [BrowserTarget.ID: BrowserTarget]
+  if targetedDiscoveries.isEmpty {
+    targetedTargetsByID = [:]
+  } else {
+    let reconciliation = BrowserCatalog.reconcile(
+      discovered: targetedDiscoveries.values.sorted {
+        $0.application.bundleIdentifier < $1.application.bundleIdentifier
+      },
+      with: config
+    )
+    targetedTargetsByID = Dictionary(
+      reconciliation.targets.map { ($0.id, $0) },
+      uniquingKeysWith: { first, _ in first }
+    )
+  }
 
   let accessIDs = Set(
     config.browsers.compactMap { browser -> String? in
@@ -86,10 +103,17 @@ func makeBrowserSettingsIssueSummary(
       ) != nil,
       !accessIDs.contains(browser.id)
     else { return false }
-    return target.profileIdentifier != nil
+    let isProfileSpecific =
+      target.profileIdentifier != nil
       || target.profileDisplayName != nil
       || target.profileIdentity != nil
       || target.profileLaunchPath != nil
+    guard isProfileSpecific else { return false }
+    guard targetedBundleIDs.contains(browser.bundleIdentifier) else { return true }
+    guard let targetedTarget = targetedTargetsByID[target.id] else {
+      return false
+    }
+    return targetedTarget.availability == .unavailable
   }.count
 
   return .init(

@@ -47,9 +47,17 @@ public final class AppModel {
     ) { result, entry in
       result[entry.key] = entry.value.browser?.metadataStatus ?? .accessRevoked
     }
+    let targetedDiscoveries = targetedProfileAccessOverlays.reduce(
+      into: [String: DiscoveredBrowser]()
+    ) { result, entry in
+      if let browser = entry.value.browser {
+        result[entry.key] = browser
+      }
+    }
     return makeBrowserSettingsIssueSummary(
       authoritativeScan: latestAuthoritativeBrowserScan,
       metadataOverrides: overrides,
+      targetedDiscoveries: targetedDiscoveries,
       config: config
     )
   }

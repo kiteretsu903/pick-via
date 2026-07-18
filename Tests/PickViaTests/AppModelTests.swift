@@ -209,6 +209,160 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(model.browserSettingsIssueSummary.accessIssueBrowserCount, 0)
   }
 
+  func testTargetedGrantKeepsPresentProfileOutOfMissingWarningUntilFinishRescan() throws {
+    let required = Fixtures.installedBrowser(
+      "com.google.Chrome", status: .accessRequired)
+    let unavailableWork = BrowserTarget(
+      id: "work",
+      browserID: required.application.id,
+      label: "Work",
+      profileIdentifier: "Profile 1",
+      profileDisplayName: "Work",
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .detected,
+      availability: .unavailable
+    )
+    let config = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [required.application],
+      targets: [unavailableWork]
+    )
+    let store = ConfigStoreStub(config: config)
+    let catalog = BrowserCatalogStub(
+      reconciled: config,
+      scanResult: BrowserScanResult(
+        browsers: [required],
+        profileAccessIssues: [.accessRequired(bundleIdentifier: "com.google.Chrome")]
+      ),
+      targeted: ["com.google.Chrome": Fixtures.discoveredChrome]
+    )
+    let model = makeModel(
+      store: store,
+      catalog: catalog,
+      profileRootValidator: profileRootValidator(validRoots: ["/Chrome"])
+    )
+    try model.load()
+    store.resetSaved()
+
+    try model.grantProfileAccess(
+      for: "com.google.Chrome",
+      root: URL(fileURLWithPath: "/Chrome")
+    )
+
+    XCTAssertEqual(
+      model.browserSettingsIssueSummary,
+      .init(accessIssueBrowserCount: 0, missingEnabledProfileCount: 0)
+    )
+    model.closeProfileAccess()
+
+    XCTAssertEqual(
+      model.browserSettingsIssueSummary,
+      .init(accessIssueBrowserCount: 0, missingEnabledProfileCount: 0)
+    )
+    XCTAssertTrue(store.saved.isEmpty)
+    XCTAssertEqual(model.config, config)
+  }
+
+  func testTargetedGrantMarksOnlyGenuinelyAbsentProfileMissingBeforeFinishRescan() throws {
+    let required = Fixtures.installedBrowser(
+      "com.google.Chrome", status: .accessRequired)
+    let unavailableWork = BrowserTarget(
+      id: "work",
+      browserID: required.application.id,
+      label: "Work",
+      profileIdentifier: "Profile 1",
+      profileDisplayName: "Work",
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .detected,
+      availability: .unavailable
+    )
+    let config = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [required.application],
+      targets: [unavailableWork]
+    )
+    let targetedWithoutWork = DiscoveredBrowser(
+      application: required.application,
+      profiles: [
+        DiscoveredProfile(identifier: "Profile 2", displayName: "Personal", directoryURL: nil)
+      ],
+      metadataStatus: .loaded
+    )
+    let catalog = BrowserCatalogStub(
+      reconciled: config,
+      scanResult: BrowserScanResult(
+        browsers: [required],
+        profileAccessIssues: [.accessRequired(bundleIdentifier: "com.google.Chrome")]
+      ),
+      targeted: ["com.google.Chrome": targetedWithoutWork]
+    )
+    let model = makeModel(
+      store: ConfigStoreStub(config: config),
+      catalog: catalog,
+      profileRootValidator: profileRootValidator(validRoots: ["/Chrome"])
+    )
+    try model.load()
+
+    try model.grantProfileAccess(
+      for: "com.google.Chrome",
+      root: URL(fileURLWithPath: "/Chrome")
+    )
+
+    XCTAssertEqual(
+      model.browserSettingsIssueSummary,
+      .init(accessIssueBrowserCount: 0, missingEnabledProfileCount: 1)
+    )
+  }
+
+  func testTargetedGrantAccessFailureStaysAccessOnlyWithoutMissingDoubleCount() throws {
+    let required = Fixtures.installedBrowser(
+      "com.google.Chrome", status: .accessRequired)
+    let unavailableWork = BrowserTarget(
+      id: "work",
+      browserID: required.application.id,
+      label: "Work",
+      profileIdentifier: "Profile 1",
+      profileDisplayName: "Work",
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .detected,
+      availability: .unavailable
+    )
+    let config = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [required.application],
+      targets: [unavailableWork]
+    )
+    let catalog = BrowserCatalogStub(
+      reconciled: config,
+      scanResult: BrowserScanResult(
+        browsers: [required],
+        profileAccessIssues: [.accessRequired(bundleIdentifier: "com.google.Chrome")]
+      )
+    )
+    let model = makeModel(
+      store: ConfigStoreStub(config: config),
+      catalog: catalog,
+      profileRootValidator: profileRootValidator(validRoots: ["/Chrome"])
+    )
+    try model.load()
+
+    try model.grantProfileAccess(
+      for: "com.google.Chrome",
+      root: URL(fileURLWithPath: "/Chrome")
+    )
+
+    XCTAssertEqual(
+      model.browserSettingsIssueSummary,
+      .init(accessIssueBrowserCount: 1, missingEnabledProfileCount: 0)
+    )
+  }
+
   func testRescanReconcilesAndPersistsConfiguration() throws {
     let store = ConfigStoreStub(config: Fixtures.editableConfig)
     let reconciled = PickViaConfig(

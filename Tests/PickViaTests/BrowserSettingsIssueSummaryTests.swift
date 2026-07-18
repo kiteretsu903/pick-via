@@ -209,6 +209,71 @@ final class BrowserSettingsIssueSummaryTests: XCTestCase {
     )
   }
 
+  func testTargetedLoadedDiscoverySuppressesOnlyProfilesThatAreActuallyPresent() {
+    let chrome = issueBrowser(id: "com.google.Chrome", family: .chromium, available: true)
+    let scan = BrowserScanResult(
+      browsers: [
+        DiscoveredBrowser(application: chrome, profiles: [], metadataStatus: .accessRequired)
+      ],
+      profileAccessIssues: [.accessRequired(bundleIdentifier: chrome.id)]
+    )
+    let config = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [chrome],
+      targets: [
+        issueTarget(id: "work", browserID: chrome.id, profileIdentifier: "Profile 1"),
+        issueTarget(id: "missing", browserID: chrome.id, profileIdentifier: "Profile 2"),
+      ]
+    )
+    let targeted = DiscoveredBrowser(
+      application: chrome,
+      profiles: [
+        DiscoveredProfile(identifier: "Profile 1", displayName: "Work", directoryURL: nil)
+      ],
+      metadataStatus: .loaded
+    )
+
+    let summary = makeBrowserSettingsIssueSummary(
+      authoritativeScan: scan,
+      metadataOverrides: [chrome.id: .loaded],
+      targetedDiscoveries: [chrome.id: targeted],
+      config: config
+    )
+
+    XCTAssertEqual(summary.accessIssueBrowserCount, 0)
+    XCTAssertEqual(summary.missingEnabledProfileCount, 1)
+  }
+
+  func testTargetedAccessFailureNeverDoubleCountsUnavailableProfilesAsMissing() {
+    let chrome = issueBrowser(id: "com.google.Chrome", family: .chromium, available: true)
+    let scan = BrowserScanResult(
+      browsers: [
+        DiscoveredBrowser(application: chrome, profiles: [], metadataStatus: .accessRequired)
+      ],
+      profileAccessIssues: [.accessRequired(bundleIdentifier: chrome.id)]
+    )
+    let config = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [chrome],
+      targets: [issueTarget(id: "work", browserID: chrome.id, profileIdentifier: "Profile 1")]
+    )
+    let revoked = DiscoveredBrowser(
+      application: chrome,
+      profiles: [],
+      metadataStatus: .accessRevoked
+    )
+
+    let summary = makeBrowserSettingsIssueSummary(
+      authoritativeScan: scan,
+      metadataOverrides: [chrome.id: .accessRevoked],
+      targetedDiscoveries: [chrome.id: revoked],
+      config: config
+    )
+
+    XCTAssertEqual(summary.accessIssueBrowserCount, 1)
+    XCTAssertEqual(summary.missingEnabledProfileCount, 0)
+  }
+
   func testSegmentsUseApprovedSingularAndPluralCopy() {
     XCTAssertEqual(
       BrowserSettingsIssueSegment(kind: .access, count: 1).text,
