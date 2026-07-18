@@ -80,14 +80,52 @@ final class ProfileAccessPresentationTests: XCTestCase {
   }
 
   func testAppKitDriverCannotPresentWhileLogicalChooserPresentationIsActive() {
-    let driver = AppKitProfileAccessPanelDriver(isChooserActive: { true })
+    let driver = AppKitProfileAccessPanelDriver(
+      isApplicationActive: { true },
+      isChooserActive: { true }
+    )
     driver.attachWizardViewFactory { _ in AnyView(EmptyView()) }
 
     XCTAssertFalse(driver.canPresent)
   }
 
+  func testInactiveAppKeepsAutomaticRequestQueuedUntilActivation() throws {
+    var isApplicationActive = false
+    let driver = AppKitProfileAccessPanelDriver(
+      isApplicationActive: { isApplicationActive }
+    )
+    driver.attachWizardViewFactory { _ in AnyView(EmptyView()) }
+    let presenter = ProfileAccessPanelController(driver: driver)
+    let model = try ProfileAccessModelFixture.automaticPending()
+    defer { presenter.dismiss() }
+
+    presenter.requestIfPending(model: model)
+
+    XCTAssertEqual(model.profileAccessPresentation, .automaticPending)
+    XCTAssertTrue(model.canPresentOrdinaryAppSurface)
+    XCTAssertFalse(
+      NSApp.windows.contains { $0.title == "Browser Profile Access" && $0.isVisible }
+    )
+
+    isApplicationActive = true
+    presenter.environmentDidChange()
+
+    XCTAssertEqual(model.profileAccessPresentation, .presented)
+    XCTAssertFalse(model.canPresentOrdinaryAppSurface)
+    XCTAssertEqual(
+      NSApp.windows.filter { $0.title == "Browser Profile Access" && $0.isVisible }.count,
+      1
+    )
+
+    presenter.environmentDidChange()
+    XCTAssertEqual(
+      NSApp.windows.filter { $0.title == "Browser Profile Access" && $0.isVisible }.count,
+      1
+    )
+  }
+
   func testAppKitDriverPresentsPanelOnActiveSpace() throws {
-    let driver = AppKitProfileAccessPanelDriver()
+    let driver = AppKitProfileAccessPanelDriver(isApplicationActive: { true })
     driver.attachWizardViewFactory { _ in AnyView(EmptyView()) }
     let model = try ProfileAccessModelFixture.automaticPending()
 

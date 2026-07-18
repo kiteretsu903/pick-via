@@ -133,6 +133,7 @@ final class AppKitProfileAccessPanelDriver: NSObject, ProfileAccessPanelDriving,
   var environmentDidChangeHandler: (@MainActor () -> Void)?
 
   private let notificationCenter: NotificationCenter
+  private let isApplicationActive: @MainActor () -> Bool
   private let isChooserActive: @MainActor () -> Bool
   private var wizardViewFactory: WizardViewFactory?
   private var onClose: (@MainActor () -> Void)?
@@ -141,9 +142,11 @@ final class AppKitProfileAccessPanelDriver: NSObject, ProfileAccessPanelDriving,
 
   init(
     notificationCenter: NotificationCenter = .default,
+    isApplicationActive: @escaping @MainActor () -> Bool = { NSApp.isActive },
     isChooserActive: @escaping @MainActor () -> Bool = { false }
   ) {
     self.notificationCenter = notificationCenter
+    self.isApplicationActive = isApplicationActive
     self.isChooserActive = isChooserActive
     super.init()
     lifecycleObservers = [
@@ -183,7 +186,8 @@ final class AppKitProfileAccessPanelDriver: NSObject, ProfileAccessPanelDriving,
   }()
 
   var canPresent: Bool {
-    !isChooserActive()
+    isApplicationActive()
+      && !isChooserActive()
       && wizardViewFactory != nil
       && !panel.isVisible
       && NSApp.modalWindow == nil
