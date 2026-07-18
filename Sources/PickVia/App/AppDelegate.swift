@@ -8,6 +8,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
   public let model: AppModel
   public let navigation: SettingsNavigation
   public let profileAccessPresenter: any ProfileAccessPresenting
+  let settingsSceneOpener: SettingsSceneOpener
 
   private let openSettings: @MainActor () -> Void
   private let showAbout: @MainActor () -> Void
@@ -26,9 +27,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
   public override convenience init() {
     let navigation = SettingsNavigation()
+    let settingsSceneOpener = SettingsSceneOpener()
     let openSettings: @MainActor () -> Void = {
       NSApp.activate(ignoringOtherApps: true)
-      _ = NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+      settingsSceneOpener.open()
     }
     let showAbout: @MainActor () -> Void = {
       NSApp.activate(ignoringOtherApps: true)
@@ -42,6 +44,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
       model: production.model,
       navigation: navigation,
       profileAccessPresenter: production.profileAccessPresenter,
+      settingsSceneOpener: settingsSceneOpener,
       openSettings: openSettings,
       showAbout: showAbout
     )
@@ -52,6 +55,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     navigation: SettingsNavigation = SettingsNavigation(),
     profileAccessPresenter: any ProfileAccessPresenting = InactiveAppDelegateProfileAccessPresenter
       .shared,
+    settingsSceneOpener: SettingsSceneOpener = SettingsSceneOpener(),
     openSettings: @escaping @MainActor () -> Void,
     showAbout: @escaping @MainActor () -> Void = {
       NSApp.activate(ignoringOtherApps: true)
@@ -61,6 +65,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     self.model = model
     self.navigation = navigation
     self.profileAccessPresenter = profileAccessPresenter
+    self.settingsSceneOpener = settingsSceneOpener
     self.openSettings = openSettings
     self.showAbout = showAbout
     super.init()

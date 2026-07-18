@@ -12,6 +12,9 @@ struct PickViaApp: App {
         .environment(\.profileAccessPresenter, delegate.profileAccessPresenter)
     } label: {
       PickViaMenuBarLabel()
+        .background {
+          SettingsActionInstaller(opener: delegate.settingsSceneOpener)
+        }
     }
 
     Settings {
