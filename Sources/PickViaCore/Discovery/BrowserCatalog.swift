@@ -268,7 +268,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
           existingByID[candidate.id]
           ?? canonicalDefaultMatches.min(by: stableCustomizationOrder)
           ?? legacyAbsolutePathMatches.min(by: stableCustomizationOrder)
-          ?? (!isBrowserLevelTarget(candidate)
+          ?? ((browser.application.family == .safari || !isBrowserLevelTarget(candidate))
             && hasUniqueMutableProfileName(candidate, among: candidates)
             ? legacyProfileMatch(for: candidate, in: config.targets) : nil)
         consumedExistingIDs.formUnion(canonicalDefaultMatches.map(\.id))

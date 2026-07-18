@@ -1354,6 +1354,55 @@ struct BrowserCatalogTests {
         == .unavailable)
   }
 
+  @Test func legacyDetectedSafariTargetMigratesWithoutDuplicate() throws {
+    let application = BrowserApplication(
+      id: "com.apple.Safari",
+      family: .safari,
+      displayName: "Safari",
+      bundleIdentifier: "com.apple.Safari",
+      applicationURL: URL(fileURLWithPath: "/Applications/Safari.app"),
+      executableURL: nil,
+      isAvailable: true
+    )
+    let browser = DiscoveredBrowser(
+      application: application,
+      profiles: [],
+      metadataStatus: .notApplicable
+    )
+    let legacy = catalogTarget(
+      id: "legacy-safari-normal",
+      browser: application,
+      label: "My Safari",
+      profileIdentifier: nil,
+      mode: .normal,
+      isEnabled: false,
+      sortOrder: 7,
+      availability: .unavailable
+    )
+    let config = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [application],
+      targets: [legacy]
+    )
+
+    let result = BrowserCatalog.reconcile(discovered: [browser], with: config)
+    let target = try #require(result.targets.first)
+
+    #expect(result.targets.count == 1)
+    #expect(
+      target.id
+        == BrowserCatalog.targetID(
+          bundleIdentifier: application.bundleIdentifier,
+          profileIdentifier: nil,
+          mode: .normal
+        ))
+    #expect(target.label == "My Safari")
+    #expect(!target.isEnabled)
+    #expect(target.sortOrder == 7)
+    #expect(target.availability == .available)
+    #expect(!result.targets.contains { $0.id == legacy.id })
+  }
+
   @Test func structuralBrowserLevelTargetRemainsAvailableAcrossMetadataStatuses() throws {
     let statuses: [ProfileMetadataStatus] = [
       .metadataAbsent, .loaded, .accessRequired, .accessRevoked, .metadataDamaged,
