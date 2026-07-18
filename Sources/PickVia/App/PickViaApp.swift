@@ -5,11 +5,13 @@ struct PickViaApp: App {
   @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
   var body: some Scene {
-    MenuBarExtra("PickVia", systemImage: "arrow.triangle.branch") {
+    MenuBarExtra {
       StatusMenuView()
         .environment(delegate.model)
         .environment(delegate.navigation)
         .environment(\.profileAccessPresenter, delegate.profileAccessPresenter)
+    } label: {
+      PickViaMenuBarLabel()
     }
 
     Settings {
