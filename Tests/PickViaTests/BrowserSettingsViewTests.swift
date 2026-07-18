@@ -32,6 +32,29 @@ final class BrowserSettingsViewTests: XCTestCase {
     XCTAssertTrue(source.contains(".lineLimit(1)"))
   }
 
+  func testChooserTargetLabelAndDetailUseOneLineTailTruncation() throws {
+    let source = try projectSource("Sources/PickVia/Chooser/ChooserView.swift")
+    let rowStart = try XCTUnwrap(source.range(of: "private func rowView"))
+    let rowEnd = try XCTUnwrap(
+      source.range(of: "private func applicationIcon", range: rowStart.upperBound..<source.endIndex)
+    )
+    let row = String(source[rowStart.lowerBound..<rowEnd.lowerBound])
+    let labelStart = try XCTUnwrap(row.range(of: "Text(target.label)"))
+    let detailStart = try XCTUnwrap(
+      row.range(of: "Text(detail(for:", range: labelStart.upperBound..<row.endIndex)
+    )
+    let spacer = try XCTUnwrap(
+      row.range(of: "Spacer()", range: detailStart.upperBound..<row.endIndex)
+    )
+    let label = String(row[labelStart.lowerBound..<detailStart.lowerBound])
+    let detail = String(row[detailStart.lowerBound..<spacer.lowerBound])
+
+    XCTAssertTrue(label.contains(".lineLimit(1)"))
+    XCTAssertTrue(label.contains(".truncationMode(.tail)"))
+    XCTAssertTrue(detail.contains(".lineLimit(1)"))
+    XCTAssertTrue(detail.contains(".truncationMode(.tail)"))
+  }
+
   private func fixedActionStrip(in source: String) throws -> String {
     let body = try XCTUnwrap(source.range(of: "public var body: some View {"))
     let dividerAndList = try XCTUnwrap(

@@ -69,4 +69,26 @@ final class ChooserPanelLayoutTests: XCTestCase {
       CGPoint(x: 112, y: 212)
     )
   }
+
+  func testPointerOutsideEveryScreenChoosesCenteredFallback() {
+    let screens = [
+      CGRect(x: 0, y: 0, width: 1000, height: 800),
+      CGRect(x: 1000, y: -200, width: 1200, height: 900),
+    ]
+
+    XCTAssertEqual(
+      ChooserPanelLayout.placement(
+        pointer: CGPoint(x: -500, y: 2000),
+        screenFrames: screens
+      ),
+      .centered
+    )
+    XCTAssertEqual(
+      ChooserPanelLayout.placement(
+        pointer: CGPoint(x: 1500, y: 200),
+        screenFrames: screens
+      ),
+      .pointerAnchored(screenIndex: 1)
+    )
+  }
 }

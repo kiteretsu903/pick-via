@@ -148,9 +148,13 @@ public struct ChooserView: View {
           VStack(alignment: .leading, spacing: 1) {
             Text(target.label)
               .fontWeight(.medium)
+              .lineLimit(1)
+              .truncationMode(.tail)
             Text(detail(for: target, application: application, indented: indented))
               .font(.caption)
               .foregroundStyle(.secondary)
+              .lineLimit(1)
+              .truncationMode(.tail)
           }
           Spacer()
           if let shortcut = row.shortcut {

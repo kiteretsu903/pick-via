@@ -121,17 +121,28 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     isDismissing = false
     suppressesResignCancellation = false
 
-    let screen =
-      pointerAnchor.flatMap { pointer in
-        NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) }
-      } ?? NSScreen.main
-    let maximumHeight = screen.map { ChooserPanelLayout.maximumPanelHeight(in: $0.visibleFrame) }
+    let screens = NSScreen.screens
+    let placement = ChooserPanelLayout.placement(
+      pointer: pointerAnchor,
+      screenFrames: screens.map(\.frame)
+    )
+    let containingScreen: NSScreen? =
+      switch placement {
+      case .pointerAnchored(let screenIndex) where screens.indices.contains(screenIndex):
+        screens[screenIndex]
+      case .pointerAnchored, .centered:
+        nil
+      }
+    let heightFallbackScreen = containingScreen ?? NSScreen.main
+    let maximumHeight = heightFallbackScreen.map {
+      ChooserPanelLayout.maximumPanelHeight(in: $0.visibleFrame)
+    }
     maximumContentHeightForCurrentPresentation = maximumHeight
     render(maximumContentHeight: maximumHeight)
     installKeyMonitor()
 
     guard let panel else { return }
-    if let pointerAnchor, let visibleFrame = screen?.visibleFrame {
+    if let pointerAnchor, let visibleFrame = containingScreen?.visibleFrame {
       panel.setFrameOrigin(
         ChooserPanelLayout.origin(
           pointer: pointerAnchor,
