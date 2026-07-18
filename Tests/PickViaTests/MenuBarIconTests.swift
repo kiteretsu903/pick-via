@@ -24,18 +24,6 @@ final class MenuBarIconTests: XCTestCase {
     XCTAssertFalse(source.contains("MenuBarExtra(\"PickVia\", systemImage:"))
   }
 
-  func testAppCompositionInstallsSupportedSettingsSceneAction() throws {
-    let appSource = try String(
-      contentsOf: repositoryRoot.appending(path: "Sources/PickVia/App/PickViaApp.swift"))
-    let delegateSource = try String(
-      contentsOf: repositoryRoot.appending(path: "Sources/PickVia/App/AppDelegate.swift"))
-
-    XCTAssertTrue(appSource.contains("SettingsActionInstaller"))
-    XCTAssertTrue(appSource.contains("delegate.settingsSceneOpener"))
-    XCTAssertTrue(delegateSource.contains("SettingsSceneOpener"))
-    XCTAssertFalse(delegateSource.contains("showSettingsWindow:"))
-  }
-
   private var menuAssetURL: URL {
     repositoryRoot.appending(path: "Support/Icons/PickViaMenuBarTemplate.png")
   }

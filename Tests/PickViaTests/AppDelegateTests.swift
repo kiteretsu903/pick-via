@@ -163,6 +163,25 @@ final class AppDelegateTests: XCTestCase {
     XCTAssertEqual(destinationWhenOpened, .general)
   }
 
+  func testSettingsNavigationActionUsesInstalledSceneOpenerForBrowsers() {
+    let navigation = SettingsNavigation()
+    let opener = SettingsSceneOpener()
+    var openCount = 0
+    opener.install { openCount += 1 }
+    let delegate = AppDelegate(
+      model: makeModel(),
+      navigation: navigation,
+      settingsSceneOpener: opener,
+      openSettings: { opener.open() }
+    )
+
+    let handled = delegate.settingsNavigationAction.open(.browsers)
+
+    XCTAssertTrue(handled)
+    XCTAssertEqual(navigation.destination, .browsers)
+    XCTAssertEqual(openCount, 1)
+  }
+
   func testReopenCannotOpenSettingsWhileProfileAccessPanelIsPresented() throws {
     var openSettingsCallCount = 0
     let model = makeModel(
