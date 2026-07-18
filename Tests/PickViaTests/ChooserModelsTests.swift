@@ -158,6 +158,63 @@ final class ChooserModelsTests: XCTestCase {
 
 @MainActor
 final class ChooserPanelControllerTests: XCTestCase {
+  func testPresentationCapturesPointerOnceAndKeepsItAcrossRerender() {
+    var points = [NSPoint(x: 100, y: 700), NSPoint(x: 900, y: 100)]
+    let controller = ChooserPanelController(pointerLocationProvider: { points.removeFirst() })
+
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work, Fixtures.personal],
+      error: nil,
+      onSelection: { _ in },
+      onCancel: {}
+    )
+    XCTAssertEqual(controller.pointerAnchorForCurrentPresentation, NSPoint(x: 100, y: 700))
+
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work, Fixtures.personal],
+      error: LaunchFailure(message: "Safe launch error"),
+      onSelection: { _ in },
+      onCancel: {}
+    )
+
+    XCTAssertEqual(controller.pointerAnchorForCurrentPresentation, NSPoint(x: 100, y: 700))
+    XCTAssertEqual(points.count, 1)
+    XCTAssertEqual(controller.panelContentSizeForTesting.width, 360)
+    controller.dismiss()
+    XCTAssertNil(controller.pointerAnchorForCurrentPresentation)
+  }
+
+  func testNewRequestCapturesANewPointerAnchor() {
+    var points = [NSPoint(x: 100, y: 700), NSPoint(x: 900, y: 100)]
+    let controller = ChooserPanelController(pointerLocationProvider: { points.removeFirst() })
+
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work],
+      error: nil,
+      onSelection: { _ in },
+      onCancel: {}
+    )
+    let nextRequest = RoutingRequest(url: URL(string: "https://example.com/next")!)
+    controller.present(
+      request: nextRequest,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work],
+      error: nil,
+      onSelection: { _ in },
+      onCancel: {}
+    )
+
+    XCTAssertEqual(controller.pointerAnchorForCurrentPresentation, NSPoint(x: 900, y: 100))
+    XCTAssertTrue(points.isEmpty)
+    controller.dismiss()
+  }
+
   func testQueuedRoutingRequestCoalescesChooserLifecycleBeforeWizardRetry() async throws {
     let wizardPresented = expectation(description: "wizard retry presents")
     let retryObserver = ProfileAccessRetryObserver(

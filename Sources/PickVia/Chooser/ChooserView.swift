@@ -5,6 +5,7 @@ import SwiftUI
 public struct ChooserView: View {
   public let presentation: ChooserPresentation
   public let showsURL: Bool
+  public let maximumContentHeight: CGFloat?
   public let onSelection: (BrowserTarget.ID) -> Void
   public let onCopyURL: () -> Void
   public let onOpenBrowserSettings: () -> Void
@@ -13,6 +14,7 @@ public struct ChooserView: View {
   public init(
     presentation: ChooserPresentation,
     showsURL: Bool = true,
+    maximumContentHeight: CGFloat? = nil,
     onSelection: @escaping (BrowserTarget.ID) -> Void,
     onCopyURL: @escaping () -> Void,
     onOpenBrowserSettings: @escaping () -> Void,
@@ -20,6 +22,7 @@ public struct ChooserView: View {
   ) {
     self.presentation = presentation
     self.showsURL = showsURL
+    self.maximumContentHeight = maximumContentHeight
     self.onSelection = onSelection
     self.onCopyURL = onCopyURL
     self.onOpenBrowserSettings = onOpenBrowserSettings
@@ -27,15 +30,16 @@ public struct ChooserView: View {
   }
 
   public var body: some View {
-    VStack(alignment: .leading, spacing: 14) {
+    VStack(alignment: .leading, spacing: 10) {
       Text("Open link with")
         .font(.title2.weight(.semibold))
 
       if showsURL {
         Text(presentation.displayURL)
-          .font(.callout.monospaced())
+          .font(.caption.monospaced())
           .foregroundStyle(.secondary)
-          .lineLimit(2)
+          .lineLimit(1)
+          .truncationMode(.middle)
           .textSelection(.enabled)
       }
 
@@ -51,9 +55,17 @@ public struct ChooserView: View {
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
       } else {
-        VStack(spacing: 6) {
-          ForEach(presentation.groups) { group in
-            groupView(group)
+        ViewThatFits(in: .vertical) {
+          groupStack.fixedSize(horizontal: false, vertical: true)
+          ScrollViewReader { proxy in
+            ScrollView(.vertical) {
+              groupStack
+            }
+            .task(id: selectedTargetID) {
+              if let selectedTargetID {
+                proxy.scrollTo(selectedTargetID, anchor: .center)
+              }
+            }
           }
         }
       }
@@ -61,17 +73,33 @@ public struct ChooserView: View {
       Divider()
 
       HStack {
-        Button("Copy URL", action: onCopyURL)
-        Button("Open Browser Settings", action: onOpenBrowserSettings)
+        Button("Copy", systemImage: "doc.on.doc", action: onCopyURL)
+        Button("Settings", systemImage: "gearshape", action: onOpenBrowserSettings)
         Spacer()
         Button("Cancel", action: onCancel)
           .keyboardShortcut(.cancelAction)
       }
       .controlSize(.small)
     }
-    .padding(20)
-    .frame(width: 480)
+    .padding(14)
+    .frame(width: ChooserPanelLayout.contentWidth)
+    .frame(maxHeight: maximumContentHeight)
     .background(.regularMaterial)
+  }
+
+  private var selectedTargetID: BrowserTarget.ID? {
+    guard let selectedIndex = presentation.selectedIndex,
+      presentation.rows.indices.contains(selectedIndex)
+    else { return nil }
+    return presentation.rows[selectedIndex].targetID
+  }
+
+  private var groupStack: some View {
+    VStack(spacing: 6) {
+      ForEach(presentation.groups) { group in
+        groupView(group)
+      }
+    }
   }
 
   @ViewBuilder
@@ -79,6 +107,7 @@ public struct ChooserView: View {
     switch group {
     case .direct(_, let row):
       rowView(row, indented: false)
+        .id(row.targetID)
     case .group(let browserID, let rows):
       if let application = presentation.application(for: browserID) {
         HStack(spacing: 8) {
@@ -88,10 +117,11 @@ public struct ChooserView: View {
           Spacer()
         }
         .padding(.horizontal, 10)
-        .padding(.top, 4)
+        .padding(.top, 2)
       }
       ForEach(rows) { row in
         rowView(row, indented: true)
+          .id(row.targetID)
       }
     }
   }
@@ -134,7 +164,7 @@ public struct ChooserView: View {
         }
         .contentShape(Rectangle())
         .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.vertical, 5)
         .background(
           selected ? Color.accentColor.opacity(0.2) : Color.clear,
           in: RoundedRectangle(cornerRadius: 8)

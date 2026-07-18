@@ -22,6 +22,16 @@ final class BrowserSettingsViewTests: XCTestCase {
     XCTAssertFalse(source.contains("ToolbarItem"))
   }
 
+  func testChooserUsesAdaptiveTargetScrollingAndCompactWidth() throws {
+    let source = try projectSource("Sources/PickVia/Chooser/ChooserView.swift")
+
+    XCTAssertTrue(source.contains("ViewThatFits(in: .vertical)"))
+    XCTAssertTrue(source.contains("ScrollViewReader"))
+    XCTAssertTrue(source.contains("scrollTo(selectedTargetID"))
+    XCTAssertTrue(source.contains("ChooserPanelLayout.contentWidth"))
+    XCTAssertTrue(source.contains(".lineLimit(1)"))
+  }
+
   private func fixedActionStrip(in source: String) throws -> String {
     let body = try XCTUnwrap(source.range(of: "public var body: some View {"))
     let dividerAndList = try XCTUnwrap(

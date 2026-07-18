@@ -42,4 +42,30 @@ final class ChooserPanelLayoutTests: XCTestCase {
       CGPoint(x: 625, y: 15)
     )
   }
+
+  func testUsesAbsoluteCoordinatesForNonzeroScreenOrigin() {
+    let offsetVisibleFrame = CGRect(x: 1440, y: -200, width: 1200, height: 900)
+
+    XCTAssertEqual(
+      ChooserPanelLayout.origin(
+        pointer: CGPoint(x: 1600, y: 500),
+        panelSize: panel,
+        visibleFrame: offsetVisibleFrame
+      ),
+      CGPoint(x: 1610, y: 190)
+    )
+  }
+
+  func testOversizedPanelClampsToAvailableScreenMargins() {
+    let smallVisibleFrame = CGRect(x: 100, y: 200, width: 300, height: 220)
+
+    XCTAssertEqual(
+      ChooserPanelLayout.origin(
+        pointer: CGPoint(x: 250, y: 310),
+        panelSize: CGSize(width: 360, height: 300),
+        visibleFrame: smallVisibleFrame
+      ),
+      CGPoint(x: 112, y: 212)
+    )
+  }
 }

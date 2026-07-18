@@ -23,11 +23,14 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
   private let openBrowserSettings: @MainActor () -> Void
   private let showsURLProvider: @MainActor () -> Bool
   private let onPresentationChange: @MainActor (Bool) -> Void
+  private let pointerLocationProvider: @MainActor () -> NSPoint
 
   private(set) var showsURLForCurrentPresentation = true
 
   private var panel: NSPanel?
   private var hostingView: NSHostingView<ChooserView>?
+  private var pointerAnchor: NSPoint?
+  private var maximumContentHeightForCurrentPresentation: CGFloat?
   // NSEvent monitor tokens are opaque and non-Sendable. The controller owns the
   // token exclusively; this escape hatch lets nonisolated deinit remove it too.
   nonisolated(unsafe) private var keyMonitor: Any?
@@ -41,17 +44,23 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
 
   var hasActivePresentation: Bool { presentation != nil }
   var isKeyboardMonitorInstalled: Bool { keyMonitor != nil }
+  var pointerAnchorForCurrentPresentation: NSPoint? { pointerAnchor }
+  var panelContentSizeForTesting: NSSize {
+    panel.map { $0.contentRect(forFrameRect: $0.frame).size } ?? .zero
+  }
 
   public init(
     clipboard: any ClipboardWriting = SystemClipboardWriter(),
     showsURL: Bool = true,
     openBrowserSettings: @escaping @MainActor () -> Void = {},
-    onPresentationChange: @escaping @MainActor (Bool) -> Void = { _ in }
+    onPresentationChange: @escaping @MainActor (Bool) -> Void = { _ in },
+    pointerLocationProvider: @escaping @MainActor () -> NSPoint = { NSEvent.mouseLocation }
   ) {
     self.clipboard = clipboard
     self.showsURLProvider = { showsURL }
     self.openBrowserSettings = openBrowserSettings
     self.onPresentationChange = onPresentationChange
+    self.pointerLocationProvider = pointerLocationProvider
     super.init()
   }
 
@@ -59,12 +68,14 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     showsURLProvider: @escaping @MainActor () -> Bool,
     clipboard: any ClipboardWriting = SystemClipboardWriter(),
     openBrowserSettings: @escaping @MainActor () -> Void = {},
-    onPresentationChange: @escaping @MainActor (Bool) -> Void = { _ in }
+    onPresentationChange: @escaping @MainActor (Bool) -> Void = { _ in },
+    pointerLocationProvider: @escaping @MainActor () -> NSPoint = { NSEvent.mouseLocation }
   ) {
     self.clipboard = clipboard
     self.showsURLProvider = showsURLProvider
     self.openBrowserSettings = openBrowserSettings
     self.onPresentationChange = onPresentationChange
+    self.pointerLocationProvider = pointerLocationProvider
     super.init()
   }
 
@@ -82,6 +93,10 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     onSelection: @escaping (BrowserTarget.ID) -> Void,
     onCancel: @escaping () -> Void
   ) {
+    let isNewRequest = presentation?.request.id != request.id
+    if isNewRequest || pointerAnchor == nil {
+      pointerAnchor = pointerLocationProvider()
+    }
     showsURLForCurrentPresentation = showsURLProvider()
     let preservedTargetID: BrowserTarget.ID?
     if presentation?.request.id == request.id,
@@ -106,11 +121,26 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     isDismissing = false
     suppressesResignCancellation = false
 
-    render()
+    let screen = pointerAnchor.flatMap { pointer in
+      NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) }
+    } ?? NSScreen.main
+    let maximumHeight = screen.map { ChooserPanelLayout.maximumPanelHeight(in: $0.visibleFrame) }
+    maximumContentHeightForCurrentPresentation = maximumHeight
+    render(maximumContentHeight: maximumHeight)
     installKeyMonitor()
 
     guard let panel else { return }
-    position(panel)
+    if let pointerAnchor, let visibleFrame = screen?.visibleFrame {
+      panel.setFrameOrigin(
+        ChooserPanelLayout.origin(
+          pointer: pointerAnchor,
+          panelSize: panel.frame.size,
+          visibleFrame: visibleFrame
+        )
+      )
+    } else {
+      panel.center()
+    }
     NSApp.activate(ignoringOtherApps: true)
     panel.makeKeyAndOrderFront(nil)
     if !hasReportedPresentation {
@@ -127,6 +157,8 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     onSelection = nil
     onCancel = nil
     presentation = nil
+    pointerAnchor = nil
+    maximumContentHeightForCurrentPresentation = nil
     suppressesResignCancellation = false
     isDismissing = false
     schedulePresentationEndReport()
@@ -156,11 +188,12 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     handleResignKey()
   }
 
-  private func render() {
+  private func render(maximumContentHeight: CGFloat?) {
     guard let presentation else { return }
     let view = ChooserView(
       presentation: presentation,
       showsURL: showsURLForCurrentPresentation,
+      maximumContentHeight: maximumContentHeight,
       onSelection: { [weak self] targetID in self?.select(targetID) },
       onCopyURL: { [weak self] in self?.copyCurrentURL() },
       onOpenBrowserSettings: { [weak self] in self?.showBrowserSettings() },
@@ -173,7 +206,12 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
       let hostingView = NSHostingView(rootView: view)
       self.hostingView = hostingView
       let panel = ChooserPanel(
-        contentRect: NSRect(x: 0, y: 0, width: 480, height: 300),
+        contentRect: NSRect(
+          x: 0,
+          y: 0,
+          width: ChooserPanelLayout.contentWidth,
+          height: 300
+        ),
         styleMask: [.borderless],
         backing: .buffered,
         defer: false
@@ -193,22 +231,13 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     guard let hostingView, let panel else { return }
     hostingView.layoutSubtreeIfNeeded()
     let fittingSize = hostingView.fittingSize
-    panel.setContentSize(NSSize(width: 480, height: max(180, fittingSize.height)))
-  }
-
-  private func position(_ panel: NSPanel) {
-    let pointer = NSEvent.mouseLocation
-    let screen = NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) } ?? NSScreen.main
-    guard let visibleFrame = screen?.visibleFrame else {
-      panel.center()
-      return
-    }
-    let frame = panel.frame
-    panel.setFrameOrigin(
-      NSPoint(
-        x: visibleFrame.midX - frame.width / 2,
-        y: visibleFrame.midY - frame.height / 2
-      ))
+    let fittedHeight = maximumContentHeight.map { min($0, fittingSize.height) } ?? fittingSize.height
+    panel.setContentSize(
+      NSSize(
+        width: ChooserPanelLayout.contentWidth,
+        height: max(1, fittedHeight)
+      )
+    )
   }
 
   private func installKeyMonitor() {
@@ -243,10 +272,10 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     switch key {
     case .up:
       presentation?.moveSelection(.up)
-      render()
+      render(maximumContentHeight: maximumContentHeightForCurrentPresentation)
     case .down:
       presentation?.moveSelection(.down)
-      render()
+      render(maximumContentHeight: maximumContentHeightForCurrentPresentation)
     default:
       guard let action = presentation?.handle(key) else { return false }
       perform(action)
