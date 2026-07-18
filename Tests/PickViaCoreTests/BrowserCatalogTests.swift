@@ -469,7 +469,13 @@ struct BrowserCatalogTests {
       #expect(preserved.sortOrder == 7)
       #expect(result.targets.contains { $0.profileIdentity == nil && $0.mode == .normal })
       #expect(result.targets.contains { $0.profileIdentity == nil && $0.mode == .private })
-      #expect(try #require(result.targets.first { $0.id == manual.id }) == manual)
+      let manualDefault = try #require(result.targets.first { $0.id == manual.id })
+      #expect(manualDefault.label == manual.label)
+      #expect(manualDefault.profileIdentifier == nil)
+      #expect(manualDefault.profileDisplayName == nil)
+      #expect(manualDefault.profileIdentity == nil)
+      #expect(manualDefault.profileLaunchPath == nil)
+      #expect(manualDefault.availability == .available)
     }
   }
 
@@ -1184,6 +1190,7 @@ struct BrowserCatalogTests {
   }
 
   @Test func legacyDefaultPairMigratesWithoutLosingCustomization() throws {
+    let legacyDefaultPath = "/profiles/chromium-default"
     let browser = chrome(profiles: [
       DiscoveredProfile(
         identifier: "Default", displayName: "Personal", directoryURL: nil,
@@ -1200,6 +1207,7 @@ struct BrowserCatalogTests {
       profileIdentifier: "Default",
       profileDisplayName: "Personal",
       profileIdentity: "Default",
+      profileLaunchPath: legacyDefaultPath,
       mode: .normal,
       isEnabled: false,
       sortOrder: 17
@@ -1233,6 +1241,7 @@ struct BrowserCatalogTests {
       $0.profileDisplayName == nil && $0.profileIdentity == nil && $0.profileLaunchPath == nil
     })
     #expect(!result.targets.contains { $0.profileIdentity == "Default" })
+    #expect(!result.targets.contains { $0.profileLaunchPath == legacyDefaultPath })
   }
 
   @Test func existingBrowserDefaultWinsButConsumesLegacyDefaultDuplicate() {
@@ -1271,6 +1280,154 @@ struct BrowserCatalogTests {
     let defaultTarget = try #require(result.targets.first { $0.profileIdentifier == nil })
 
     #expect(defaultTarget.availability == .available)
+  }
+
+  @Test func structuralBrowserLevelTargetRemainsAvailableAcrossMetadataStatuses() throws {
+    let statuses: [ProfileMetadataStatus] = [
+      .metadataAbsent, .loaded, .accessRequired, .accessRevoked, .metadataDamaged,
+    ]
+    for family in [BrowserFamily.chromium, .firefox] {
+      for status in statuses {
+        let browser =
+          family == .chromium
+          ? chrome(profiles: [], metadataStatus: status)
+          : firefox(profiles: [], metadataStatus: status)
+        let manual = unprofiledManualTarget(browserID: browser.application.id)
+        let config = PickViaConfig(
+          schemaVersion: 1, browsers: [browser.application], targets: [manual])
+
+        let result = BrowserCatalog.reconcile(discovered: [browser], with: config)
+        let reconciled = try #require(result.targets.first { $0.id == manual.id })
+
+        #expect(reconciled.availability == .available)
+      }
+    }
+  }
+
+  @Test func profileDisplayNameOnlyIsNeverTreatedAsBrowserLevel() throws {
+    let statuses: [ProfileMetadataStatus] = [
+      .metadataAbsent, .loaded, .accessRequired, .accessRevoked, .metadataDamaged,
+    ]
+    for family in [BrowserFamily.chromium, .firefox] {
+      for status in statuses {
+        let browser =
+          family == .chromium
+          ? chrome(profiles: [], metadataStatus: status)
+          : firefox(profiles: [], metadataStatus: status)
+        let stale = catalogTarget(
+          id: "stale-display-name-\(family)-\(status)",
+          browser: browser.application,
+          label: "Stale Profile",
+          profileIdentifier: nil,
+          profileDisplayName: "Stale Profile",
+          mode: .normal,
+          isEnabled: true,
+          sortOrder: 20,
+          availability: .available
+        )
+        let config = PickViaConfig(
+          schemaVersion: 1, browsers: [browser.application], targets: [stale])
+
+        let result = BrowserCatalog.reconcile(discovered: [browser], with: config)
+        let reconciled = try #require(result.targets.first { $0.id == stale.id })
+
+        #expect(reconciled.availability == .unavailable)
+      }
+    }
+  }
+
+  @Test func profileLaunchPathOnlyIsNeverTreatedAsBrowserLevel() throws {
+    let statuses: [ProfileMetadataStatus] = [
+      .metadataAbsent, .loaded, .accessRequired, .accessRevoked, .metadataDamaged,
+    ]
+    for family in [BrowserFamily.chromium, .firefox] {
+      for status in statuses {
+        let browser =
+          family == .chromium
+          ? chrome(profiles: [], metadataStatus: status)
+          : firefox(profiles: [], metadataStatus: status)
+        let stale = catalogTarget(
+          id: "stale-launch-path-\(family)-\(status)",
+          browser: browser.application,
+          label: "Stale Profile",
+          profileIdentifier: nil,
+          profileLaunchPath: "/profiles/stale",
+          mode: .normal,
+          isEnabled: true,
+          sortOrder: 20,
+          availability: .available
+        )
+        let config = PickViaConfig(
+          schemaVersion: 1, browsers: [browser.application], targets: [stale])
+
+        let result = BrowserCatalog.reconcile(discovered: [browser], with: config)
+        let reconciled = try #require(result.targets.first { $0.id == stale.id })
+
+        #expect(reconciled.availability == .unavailable)
+      }
+    }
+  }
+
+  @Test func multipleLegacyDefaultMatchesChooseStableCustomizationAndConsumeDuplicates() throws {
+    let path = URL(fileURLWithPath: "/profiles/default", isDirectory: true).standardizedFileURL
+    let browser = chrome(profiles: [
+      DiscoveredProfile(
+        identifier: "Default",
+        displayName: "Personal",
+        directoryURL: path,
+        isDefault: true
+      )
+    ])
+    let winner = catalogTarget(
+      id: "a-legacy-winner",
+      browser: browser.application,
+      label: "Winner",
+      profileIdentifier: "Default",
+      mode: .normal,
+      isEnabled: false,
+      sortOrder: 4
+    )
+    let tiedDuplicate = catalogTarget(
+      id: "z-legacy-tie",
+      browser: browser.application,
+      label: "Tie Loser",
+      profileIdentifier: "Other",
+      profileIdentity: "Default",
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 4
+    )
+    let laterDuplicate = catalogTarget(
+      id: "legacy-later",
+      browser: browser.application,
+      label: "Later",
+      profileIdentifier: "Other",
+      profileLaunchPath: path.path,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 12
+    )
+    let config = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [browser.application],
+      targets: [laterDuplicate, tiedDuplicate, winner]
+    )
+
+    let result = BrowserCatalog.reconcile(discovered: [browser], with: config)
+    let normal = try #require(result.targets.first {
+      $0.browserID == browser.application.id && $0.mode == .normal
+    })
+
+    #expect(normal.label == "Winner")
+    #expect(!normal.isEnabled)
+    #expect(normal.sortOrder == 4)
+    #expect(normal.profileIdentifier == nil)
+    #expect(normal.profileDisplayName == nil)
+    #expect(normal.profileIdentity == nil)
+    #expect(normal.profileLaunchPath == nil)
+    #expect(!result.targets.contains {
+      [winner.id, tiedDuplicate.id, laterDuplicate.id].contains($0.id)
+    })
   }
 
   @Test func nonAuthoritativeProfilesDoNotTriggerLegacyDefaultMigration() throws {

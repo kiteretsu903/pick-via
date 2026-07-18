@@ -268,7 +268,8 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
           existingByID[candidate.id]
           ?? canonicalDefaultMatches.min(by: stableCustomizationOrder)
           ?? legacyAbsolutePathMatches.min(by: stableCustomizationOrder)
-          ?? (hasUniqueMutableProfileName(candidate, among: candidates)
+          ?? (!isBrowserLevelTarget(candidate)
+            && hasUniqueMutableProfileName(candidate, among: candidates)
             ? legacyProfileMatch(for: candidate, in: config.targets) : nil)
         consumedExistingIDs.formUnion(canonicalDefaultMatches.map(\.id))
         if let existing {
@@ -379,6 +380,13 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
         profileIdentifier: nil,
         mode: target.mode
       )
+  }
+
+  private static func isBrowserLevelTarget(_ target: BrowserTarget) -> Bool {
+    target.profileIdentifier == nil
+      && target.profileDisplayName == nil
+      && target.profileIdentity == nil
+      && target.profileLaunchPath == nil
   }
 
   private func discover(
@@ -601,29 +609,27 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
           family: browser.application.family
         )
       case .accessRequired, .accessRevoked:
-        if target.origin == .manual {
+        if isBrowserLevelTarget(target) {
+          availability = .available
+        } else if target.origin == .manual {
           return preservingWithoutAuthoritativeMetadata(
             target,
             family: browser.application.family
           )
+        } else {
+          availability = .unavailable
         }
-        availability =
-          target.profileIdentity == nil && target.profileIdentifier == nil
-          ? .available : .unavailable
       case .notApplicable, .metadataAbsent, .loaded:
         let profiles = uniqueProfiles(browser.profiles)
         refreshesMutableLaunchSelector = browser.application.family == .firefox
         switch browser.application.family {
         case .safari:
           availability =
-            target.profileIdentifier == nil && target.mode == .normal
+            isBrowserLevelTarget(target) && target.mode == .normal
             ? .available
             : .unavailable
         case .chromium, .firefox:
-          if target.profileIdentifier == nil,
-            target.profileIdentity == nil,
-            target.profileLaunchPath == nil
-          {
+          if isBrowserLevelTarget(target) {
             availability = .available
           } else {
             if let profileIdentity = target.profileIdentity {
@@ -713,9 +719,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       browser.metadataStatus == .loaded || browser.metadataStatus == .metadataAbsent
     else { return [] }
     guard
-      candidate.profileIdentifier == nil,
-      candidate.profileIdentity == nil,
-      candidate.profileLaunchPath == nil
+      isBrowserLevelTarget(candidate)
     else { return [] }
     let marked = uniqueProfiles(browser.profiles).filter(\.isDefault)
     guard marked.count == 1 else { return [] }
@@ -837,25 +841,31 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     family: BrowserFamily
   ) -> BrowserTarget {
     let sanitized = sanitizingLegacyFirefoxIdentity(target, family: family)
-    guard
-      family == .firefox,
-      sanitized.profileIdentity != nil || sanitized.profileIdentifier != nil
-    else { return sanitized }
-    return BrowserTarget(
-      id: sanitized.id,
-      browserID: sanitized.browserID,
-      label: sanitized.label,
-      profileIdentifier: sanitized.profileIdentifier,
-      profileDisplayName: sanitized.profileDisplayName,
-      profileIdentity: sanitized.profileIdentity,
-      profileLaunchPath: nil,
-      mode: sanitized.mode,
-      isEnabled: sanitized.isEnabled,
-      sortOrder: sanitized.sortOrder,
-      origin: sanitized.origin,
-      availability: .unavailable,
-      validationError: sanitized.validationError
-    )
+    if isBrowserLevelTarget(sanitized) {
+      return copying(
+        sanitized,
+        availability: .available,
+        profileLaunchPath: sanitized.profileLaunchPath
+      )
+    }
+
+    switch family {
+    case .safari:
+      return copying(
+        sanitized,
+        availability: .unavailable,
+        profileLaunchPath: sanitized.profileLaunchPath
+      )
+    case .chromium:
+      guard sanitized.profileIdentifier == nil else { return sanitized }
+      return copying(
+        sanitized,
+        availability: .unavailable,
+        profileLaunchPath: sanitized.profileLaunchPath
+      )
+    case .firefox:
+      return copying(sanitized, availability: .unavailable, profileLaunchPath: nil)
+    }
   }
 
   private static func hasUniqueMutableProfileName(
@@ -957,6 +967,28 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       sortOrder: target.sortOrder,
       origin: target.origin,
       availability: target.availability,
+      validationError: target.validationError
+    )
+  }
+
+  private static func copying(
+    _ target: BrowserTarget,
+    availability: BrowserTargetAvailability,
+    profileLaunchPath: String?
+  ) -> BrowserTarget {
+    BrowserTarget(
+      id: target.id,
+      browserID: target.browserID,
+      label: target.label,
+      profileIdentifier: target.profileIdentifier,
+      profileDisplayName: target.profileDisplayName,
+      profileIdentity: target.profileIdentity,
+      profileLaunchPath: profileLaunchPath,
+      mode: target.mode,
+      isEnabled: target.isEnabled,
+      sortOrder: target.sortOrder,
+      origin: target.origin,
+      availability: availability,
       validationError: target.validationError
     )
   }
