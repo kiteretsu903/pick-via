@@ -6,6 +6,7 @@ enum IconGenerationError: Error {
   case bitmapAllocationFailed(Int)
   case pngEncodingFailed(Int)
   case iconutilFailed(Int32)
+  case invalidGeneratedAsset(String)
   case invalidArguments
 }
 
@@ -192,6 +193,27 @@ func drawMenuTemplate() throws -> Data {
   return try pngData(representation, size: 44)
 }
 
+func validateApplicationIcon(at url: URL) throws {
+  guard let image = NSImage(contentsOf: url) else {
+    throw IconGenerationError.invalidGeneratedAsset("PickVia.icns")
+  }
+  let widths = Set(image.representations.map(\.pixelsWide))
+  guard [16, 32, 64, 128, 256, 512, 1024].allSatisfy(widths.contains) else {
+    throw IconGenerationError.invalidGeneratedAsset("PickVia.icns")
+  }
+}
+
+func validateMenuTemplate(at url: URL) throws {
+  let data = try Data(contentsOf: url)
+  guard let bitmap = NSBitmapImageRep(data: data),
+    bitmap.pixelsWide == 44,
+    bitmap.pixelsHigh == 44,
+    bitmap.hasAlpha
+  else {
+    throw IconGenerationError.invalidGeneratedAsset("PickViaMenuBarTemplate.png")
+  }
+}
+
 func argumentValue(after flag: String) -> String? {
   guard let index = CommandLine.arguments.firstIndex(of: flag),
     CommandLine.arguments.indices.contains(index + 1)
@@ -229,6 +251,8 @@ guard iconutil.terminationStatus == 0 else {
   throw IconGenerationError.iconutilFailed(iconutil.terminationStatus)
 }
 
+try validateMenuTemplate(at: stagedMenu)
+try validateApplicationIcon(at: stagedICNS)
 try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
 for (source, name) in [(stagedICNS, "PickVia.icns"), (stagedMenu, "PickViaMenuBarTemplate.png")] {
   let data = try Data(contentsOf: source)

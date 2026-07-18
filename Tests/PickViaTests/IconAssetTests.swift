@@ -30,6 +30,45 @@ final class IconAssetTests: XCTestCase {
     XCTAssertFalse(source.contains("https://"))
   }
 
+  func testGeneratorValidatesBothStagedAssetsBeforeReplacingOutputs() throws {
+    let source = try String(contentsOf: repositoryRoot.appending(path: "scripts/generate-icons.swift"))
+    let menuValidation = try XCTUnwrap(source.range(of: "try validateMenuTemplate(at: stagedMenu)"))
+    let iconValidation = try XCTUnwrap(source.range(of: "try validateApplicationIcon(at: stagedICNS)"))
+    let outputReplacement = try XCTUnwrap(
+      source.range(of: "try FileManager.default.createDirectory(at: outputDirectory")
+    )
+
+    XCTAssertLessThan(menuValidation.lowerBound, outputReplacement.lowerBound)
+    XCTAssertLessThan(iconValidation.lowerBound, outputReplacement.lowerBound)
+  }
+
+  func testGeneratorReproducesBothValidatedAssetsInAlternateOutputDirectory() throws {
+    let outputDirectory = FileManager.default.temporaryDirectory
+      .appending(path: "pickvia-icon-asset-test-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: outputDirectory) }
+
+    let generator = Process()
+    generator.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    generator.arguments = [
+      "swift",
+      repositoryRoot.appending(path: "scripts/generate-icons.swift").path,
+      "--output-dir",
+      outputDirectory.path,
+    ]
+    try generator.run()
+    generator.waitUntilExit()
+
+    XCTAssertEqual(generator.terminationStatus, 0)
+    XCTAssertEqual(
+      try Data(contentsOf: outputDirectory.appending(path: "PickVia.icns")),
+      try Data(contentsOf: assetURL("PickVia.icns"))
+    )
+    XCTAssertEqual(
+      try Data(contentsOf: outputDirectory.appending(path: "PickViaMenuBarTemplate.png")),
+      try Data(contentsOf: assetURL("PickViaMenuBarTemplate.png"))
+    )
+  }
+
   private func assetURL(_ name: String) -> URL {
     repositoryRoot.appending(path: "Support/Icons/\(name)")
   }
