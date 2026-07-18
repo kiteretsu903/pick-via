@@ -91,4 +91,34 @@ final class ChooserPanelLayoutTests: XCTestCase {
       .pointerAnchored(screenIndex: 1)
     )
   }
+
+  func testCenteredOriginUsesMainVisibleFrameAbsoluteCoordinates() {
+    XCTAssertEqual(
+      ChooserPanelLayout.centeredOrigin(
+        panelSize: panel,
+        visibleFrame: CGRect(x: 1440, y: -200, width: 1200, height: 900)
+      ),
+      CGPoint(x: 1860, y: 100)
+    )
+  }
+
+  func testControllerFallbackUsesExplicitMainScreenOriginInsteadOfWindowCenter() throws {
+    let source = try projectSource("Sources/PickVia/Chooser/ChooserPanelController.swift")
+
+    XCTAssertTrue(source.contains("let mainVisibleFrame = NSScreen.main?.visibleFrame"))
+    XCTAssertTrue(source.contains("ChooserPanelLayout.centeredOrigin"))
+    XCTAssertTrue(source.contains("panel.setFrameOrigin"))
+    XCTAssertFalse(source.contains("panel.center()"))
+  }
+
+  private func projectSource(_ relativePath: String) throws -> String {
+    let repositoryRoot = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+    return try String(
+      contentsOf: repositoryRoot.appending(path: relativePath),
+      encoding: .utf8
+    )
+  }
 }

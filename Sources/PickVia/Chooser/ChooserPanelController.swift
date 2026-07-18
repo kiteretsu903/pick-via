@@ -48,6 +48,7 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
   var panelContentSizeForTesting: NSSize {
     panel.map { $0.contentRect(forFrameRect: $0.frame).size } ?? .zero
   }
+  var panelFrameForTesting: NSRect { panel?.frame ?? .zero }
 
   public init(
     clipboard: any ClipboardWriting = SystemClipboardWriter(),
@@ -133,9 +134,9 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
       case .pointerAnchored, .centered:
         nil
       }
-    let heightFallbackScreen = containingScreen ?? NSScreen.main
-    let maximumHeight = heightFallbackScreen.map {
-      ChooserPanelLayout.maximumPanelHeight(in: $0.visibleFrame)
+    let mainVisibleFrame = NSScreen.main?.visibleFrame
+    let maximumHeight = (containingScreen?.visibleFrame ?? mainVisibleFrame).map {
+      ChooserPanelLayout.maximumPanelHeight(in: $0)
     }
     maximumContentHeightForCurrentPresentation = maximumHeight
     render(maximumContentHeight: maximumHeight)
@@ -150,8 +151,13 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
           visibleFrame: visibleFrame
         )
       )
-    } else {
-      panel.center()
+    } else if let mainVisibleFrame {
+      panel.setFrameOrigin(
+        ChooserPanelLayout.centeredOrigin(
+          panelSize: panel.frame.size,
+          visibleFrame: mainVisibleFrame
+        )
+      )
     }
     NSApp.activate(ignoringOtherApps: true)
     panel.makeKeyAndOrderFront(nil)

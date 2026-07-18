@@ -158,6 +158,35 @@ final class ChooserModelsTests: XCTestCase {
 
 @MainActor
 final class ChooserPanelControllerTests: XCTestCase {
+  func testPointerOutsideScreensCentersPanelOnMainVisibleFrame() throws {
+    let mainScreen = try XCTUnwrap(NSScreen.main)
+    let frames = NSScreen.screens.map(\.frame)
+    let outside = NSPoint(
+      x: (frames.map(\.minX).min() ?? 0) - 10_000,
+      y: (frames.map(\.maxY).max() ?? 0) + 10_000
+    )
+    let controller = ChooserPanelController(pointerLocationProvider: { outside })
+
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work],
+      error: nil,
+      onSelection: { _ in },
+      onCancel: {}
+    )
+    let panelFrame = controller.panelFrameForTesting
+
+    XCTAssertEqual(
+      panelFrame.origin,
+      ChooserPanelLayout.centeredOrigin(
+        panelSize: panelFrame.size,
+        visibleFrame: mainScreen.visibleFrame
+      )
+    )
+    controller.dismiss()
+  }
+
   func testPresentationCapturesPointerOnceAndKeepsItAcrossRerender() {
     var points = [NSPoint(x: 100, y: 700), NSPoint(x: 900, y: 100)]
     let controller = ChooserPanelController(pointerLocationProvider: { points.removeFirst() })

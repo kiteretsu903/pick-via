@@ -49,4 +49,14 @@ enum ChooserPanelLayout {
       y: min(max(y, minimumY), maximumY)
     )
   }
+
+  static func centeredOrigin(
+    panelSize: CGSize,
+    visibleFrame: CGRect
+  ) -> CGPoint {
+    CGPoint(
+      x: visibleFrame.midX - panelSize.width / 2,
+      y: visibleFrame.midY - panelSize.height / 2
+    )
+  }
 }
