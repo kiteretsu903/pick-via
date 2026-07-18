@@ -149,6 +149,66 @@ final class AppModelTests: XCTestCase {
     XCTAssertNotNil(model.errorMessage)
   }
 
+  func testNonAuthoritativeRescanPreservesBrowserSettingsIssueSummary() throws {
+    let discovered = Fixtures.installedBrowser(
+      "com.google.Chrome", status: .accessRequired)
+    let config = PickViaConfig(
+      schemaVersion: 1,
+      browsers: [discovered.application],
+      targets: []
+    )
+    let catalog = BrowserCatalogStub(
+      reconciled: config,
+      scanResult: BrowserScanResult(
+        browsers: [discovered],
+        profileAccessIssues: [
+          .accessRequired(bundleIdentifier: discovered.application.bundleIdentifier)
+        ]
+      )
+    )
+    let model = makeModel(
+      store: ConfigStoreStub(config: config),
+      catalog: catalog
+    )
+    try model.load()
+    XCTAssertEqual(model.browserSettingsIssueSummary.accessIssueBrowserCount, 1)
+
+    catalog.setScanResult(
+      BrowserScanResult(
+        browsers: [], profileAccessIssues: [], isAuthoritative: false)
+    )
+    try model.rescan()
+
+    XCTAssertEqual(model.browserSettingsIssueSummary.accessIssueBrowserCount, 1)
+  }
+
+  func testTargetedGrantClearsAccessWarningBeforeFullRescan() throws {
+    let required = Fixtures.installedBrowser(
+      "com.google.Chrome", status: .accessRequired)
+    let catalog = BrowserCatalogStub(
+      reconciled: Fixtures.editableConfig,
+      scanResult: BrowserScanResult(
+        browsers: [required],
+        profileAccessIssues: [.accessRequired(bundleIdentifier: "com.google.Chrome")]
+      ),
+      targeted: ["com.google.Chrome": Fixtures.discoveredChromeWithProfiles]
+    )
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.editableConfig),
+      catalog: catalog,
+      profileRootValidator: profileRootValidator(validRoots: ["/Chrome"])
+    )
+    try model.load()
+    XCTAssertEqual(model.browserSettingsIssueSummary.accessIssueBrowserCount, 1)
+
+    try model.grantProfileAccess(
+      for: "com.google.Chrome",
+      root: URL(fileURLWithPath: "/Chrome")
+    )
+
+    XCTAssertEqual(model.browserSettingsIssueSummary.accessIssueBrowserCount, 0)
+  }
+
   func testRescanReconcilesAndPersistsConfiguration() throws {
     let store = ConfigStoreStub(config: Fixtures.editableConfig)
     let reconciled = PickViaConfig(

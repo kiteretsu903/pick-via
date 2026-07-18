@@ -9,58 +9,96 @@ public struct BrowserSettingsView: View {
   public init() {}
 
   public var body: some View {
-    List {
-      if let recoveryMessage = model.configurationRecoveryMessage {
-        Section {
-          Label(recoveryMessage, systemImage: "exclamationmark.triangle.fill")
-            .foregroundStyle(.red)
-        }
-      }
-      ForEach(model.browsers) { browser in
-        Section {
-          let targets = targets(for: browser)
-          if targets.isEmpty {
-            Text(browser.isAvailable ? "No profiles discovered" : "Browser is missing")
-              .foregroundStyle(.secondary)
-          } else {
-            ForEach(targets) { target in
-              TargetSettingsRow(
-                target: target,
-                browser: browser,
-                onRemove: target.origin == .manual
-                  ? { try? model.removeManualTarget(id: target.id) } : nil
-              )
-            }
-            .onMove { offsets, destination in
-              move(browserTargets: targets, from: offsets, to: destination)
-            }
+    VStack(spacing: 0) {
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(spacing: 10) {
+          Button { showsAddTarget = true } label: {
+            Label("Add Target", systemImage: "plus")
           }
-        } header: {
-          HStack {
-            Text(browser.displayName)
-            if !browser.isAvailable { Text("Missing").foregroundStyle(.red) }
-          }
-        }
-      }
+          .disabled(availableBrowsers.isEmpty)
 
-      if model.browsers.isEmpty {
-        ContentUnavailableView(
-          "No Supported Browsers", systemImage: "globe.badge.chevron.backward",
-          description: Text("Install a supported browser, then rescan."))
+          Button {
+            model.openProfileAccessManager()
+            profileAccessPresenter.request(model: model)
+          } label: {
+            HStack(spacing: 6) {
+              Label("Profile Access", systemImage: "folder.badge.key")
+              issueDots(model.browserSettingsIssueSummary)
+            }
+          }
+          .help(profileAccessAccessibilityText(model.browserSettingsIssueSummary))
+          .accessibilityLabel(profileAccessAccessibilityText(model.browserSettingsIssueSummary))
+
+          Button(action: rescan) {
+            Label("Rescan", systemImage: "arrow.clockwise")
+          }
+          Spacer()
+        }
+        .labelStyle(.titleAndIcon)
+        .controlSize(.regular)
+
+        let segments = model.browserSettingsIssueSummary.segments
+        if !segments.isEmpty {
+          HStack(spacing: 8) {
+            ForEach(Array(segments.enumerated()), id: \.element.id) { entry in
+              if entry.offset > 0 { Text("·").foregroundStyle(.secondary) }
+              let segment = entry.element
+              Label(segment.text, systemImage: issueSymbol(segment.kind))
+                .foregroundStyle(issueColor(segment.kind))
+            }
+            Spacer()
+          }
+          .font(.caption)
+          .accessibilityElement(children: .combine)
+        }
+      }
+      .padding(.horizontal, 16)
+      .padding(.vertical, 10)
+
+      Divider()
+
+      List {
+        if let recoveryMessage = model.configurationRecoveryMessage {
+          Section {
+            Label(recoveryMessage, systemImage: "exclamationmark.triangle.fill")
+              .foregroundStyle(.red)
+          }
+        }
+        ForEach(model.browsers) { browser in
+          Section {
+            let targets = targets(for: browser)
+            if targets.isEmpty {
+              Text(browser.isAvailable ? "No profiles discovered" : "Browser is missing")
+                .foregroundStyle(.secondary)
+            } else {
+              ForEach(targets) { target in
+                TargetSettingsRow(
+                  target: target,
+                  browser: browser,
+                  onRemove: target.origin == .manual
+                    ? { try? model.removeManualTarget(id: target.id) } : nil
+                )
+              }
+              .onMove { offsets, destination in
+                move(browserTargets: targets, from: offsets, to: destination)
+              }
+            }
+          } header: {
+            HStack {
+              Text(browser.displayName)
+              if !browser.isAvailable { Text("Missing").foregroundStyle(.red) }
+            }
+          }
+        }
+
+        if model.browsers.isEmpty {
+          ContentUnavailableView(
+            "No Supported Browsers", systemImage: "globe.badge.chevron.backward",
+            description: Text("Install a supported browser, then rescan."))
+        }
       }
     }
     .navigationTitle("Browsers")
-    .toolbar {
-      ToolbarItemGroup {
-        Button("Add Target", systemImage: "plus") { showsAddTarget = true }
-          .disabled(availableBrowsers.isEmpty)
-        Button("Manage Profile Access…", systemImage: "folder.badge.key") {
-          model.openProfileAccessManager()
-          profileAccessPresenter.request(model: model)
-        }
-        Button("Rescan", systemImage: "arrow.clockwise") { rescan() }
-      }
-    }
     .sheet(isPresented: $showsAddTarget) {
       AddTargetView(browsers: availableBrowsers)
         .environment(model)
@@ -70,6 +108,39 @@ public struct BrowserSettingsView: View {
         profileAccessPresenter.environmentDidChange()
       }
     }
+  }
+
+  @ViewBuilder
+  private func issueDots(_ summary: BrowserSettingsIssueSummary) -> some View {
+    HStack(spacing: 3) {
+      ForEach(summary.segments) { segment in
+        Circle()
+          .fill(issueColor(segment.kind))
+          .frame(width: 7, height: 7)
+          .accessibilityHidden(true)
+      }
+    }
+  }
+
+  private func issueSymbol(_ kind: BrowserSettingsIssueKind) -> String {
+    switch kind {
+    case .access: "exclamationmark.triangle.fill"
+    case .missingProfile: "circle.fill"
+    }
+  }
+
+  private func issueColor(_ kind: BrowserSettingsIssueKind) -> Color {
+    switch kind {
+    case .access: .orange
+    case .missingProfile: .red
+    }
+  }
+
+  private func profileAccessAccessibilityText(
+    _ summary: BrowserSettingsIssueSummary
+  ) -> String {
+    let details = summary.segments.map(\.text).joined(separator: ", ")
+    return details.isEmpty ? "Profile Access" : "Profile Access, \(details)"
   }
 
   private var availableBrowsers: [BrowserApplication] {

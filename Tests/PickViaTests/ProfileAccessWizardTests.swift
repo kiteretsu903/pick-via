@@ -236,7 +236,7 @@ final class ProfileAccessWizardTests: XCTestCase {
     let statusMenu = try source("Sources/PickVia/Views/StatusMenuView.swift")
     let app = try source("Sources/PickVia/App/PickViaApp.swift")
 
-    XCTAssertTrue(settings.contains("Manage Profile Access…"))
+    XCTAssertTrue(settings.contains("Label(\"Profile Access\", systemImage: \"folder.badge.key\")"))
     XCTAssertTrue(settings.contains("model.openProfileAccessManager()"))
     XCTAssertTrue(settings.contains("profileAccessPresenter.request(model: model)"))
     XCTAssertTrue(settings.contains("profileAccessPresenter.environmentDidChange()"))

@@ -41,6 +41,19 @@ public final class AppModel {
 
   public var browsers: [BrowserApplication] { config.browsers }
   public var targets: [BrowserTarget] { config.targets }
+  public var browserSettingsIssueSummary: BrowserSettingsIssueSummary {
+    let overrides = targetedProfileAccessOverlays.reduce(
+      into: [String: ProfileMetadataStatus]()
+    ) { result, entry in
+      result[entry.key] = entry.value.browser?.metadataStatus ?? .accessRevoked
+    }
+    return makeBrowserSettingsIssueSummary(
+      authoritativeScan: latestAuthoritativeBrowserScan,
+      metadataOverrides: overrides,
+      config: config
+    )
+  }
+
   public var isOnboardingComplete: Bool {
     onboardingStep == Onboarding.completedStep && hasConfirmedDefaultStatus
   }
