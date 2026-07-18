@@ -609,15 +609,28 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
           family: browser.application.family
         )
       case .accessRequired, .accessRevoked:
-        if isBrowserLevelTarget(target) {
-          availability = .available
-        } else if target.origin == .manual {
-          return preservingWithoutAuthoritativeMetadata(
-            target,
-            family: browser.application.family
-          )
-        } else {
-          availability = .unavailable
+        switch browser.application.family {
+        case .safari:
+          if target.origin == .manual {
+            return preservingWithoutAuthoritativeMetadata(
+              target,
+              family: browser.application.family
+            )
+          }
+          availability =
+            target.profileIdentity == nil && target.profileIdentifier == nil
+            ? .available : .unavailable
+        case .chromium, .firefox:
+          if isBrowserLevelTarget(target) {
+            availability = .available
+          } else if target.origin == .manual {
+            return preservingWithoutAuthoritativeMetadata(
+              target,
+              family: browser.application.family
+            )
+          } else {
+            availability = .unavailable
+          }
         }
       case .notApplicable, .metadataAbsent, .loaded:
         let profiles = uniqueProfiles(browser.profiles)
@@ -625,7 +638,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
         switch browser.application.family {
         case .safari:
           availability =
-            isBrowserLevelTarget(target) && target.mode == .normal
+            target.profileIdentifier == nil && target.mode == .normal
             ? .available
             : .unavailable
         case .chromium, .firefox:
@@ -841,19 +854,14 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     family: BrowserFamily
   ) -> BrowserTarget {
     let sanitized = sanitizingLegacyFirefoxIdentity(target, family: family)
-    if isBrowserLevelTarget(sanitized) {
+    switch family {
+    case .safari:
+      return sanitized
+    case .chromium where isBrowserLevelTarget(sanitized),
+      .firefox where isBrowserLevelTarget(sanitized):
       return copying(
         sanitized,
         availability: .available,
-        profileLaunchPath: sanitized.profileLaunchPath
-      )
-    }
-
-    switch family {
-    case .safari:
-      return copying(
-        sanitized,
-        availability: .unavailable,
         profileLaunchPath: sanitized.profileLaunchPath
       )
     case .chromium:

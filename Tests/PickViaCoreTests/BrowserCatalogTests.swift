@@ -1282,6 +1282,78 @@ struct BrowserCatalogTests {
     #expect(defaultTarget.availability == .available)
   }
 
+  @Test func legacyManualSafariAvailabilityRemainsFamilySpecific() throws {
+    let application = BrowserApplication(
+      id: "com.apple.Safari",
+      family: .safari,
+      displayName: "Safari",
+      bundleIdentifier: "com.apple.Safari",
+      applicationURL: URL(fileURLWithPath: "/Applications/Safari.app"),
+      executableURL: nil,
+      isAvailable: true
+    )
+    func safari(metadataStatus: ProfileMetadataStatus) -> DiscoveredBrowser {
+      DiscoveredBrowser(
+        application: application,
+        profiles: [],
+        metadataStatus: metadataStatus
+      )
+    }
+    func manualTarget(
+      id: String,
+      profileDisplayName: String?,
+      profileIdentity: String?,
+      profileLaunchPath: String?
+    ) -> BrowserTarget {
+      BrowserTarget(
+        id: id,
+        browserID: application.id,
+        label: "Legacy Safari",
+        profileIdentifier: nil,
+        profileDisplayName: profileDisplayName,
+        profileIdentity: profileIdentity,
+        profileLaunchPath: profileLaunchPath,
+        mode: .normal,
+        isEnabled: true,
+        sortOrder: 20,
+        origin: .manual,
+        availability: .unavailable
+      )
+    }
+
+    let legacy = manualTarget(
+      id: "manual-safari-legacy",
+      profileDisplayName: "Legacy Profile",
+      profileIdentity: "legacy-profile",
+      profileLaunchPath: "/legacy/safari/profile"
+    )
+    let loaded = BrowserCatalog.reconcile(
+      discovered: [safari(metadataStatus: .loaded)],
+      with: PickViaConfig(schemaVersion: 1, browsers: [application], targets: [legacy])
+    )
+
+    #expect(try #require(loaded.targets.first { $0.id == legacy.id }).availability == .available)
+
+    let canonicalManual = manualTarget(
+      id: "manual-safari-default",
+      profileDisplayName: nil,
+      profileIdentity: nil,
+      profileLaunchPath: nil
+    )
+    let damaged = BrowserCatalog.reconcile(
+      discovered: [safari(metadataStatus: .metadataDamaged)],
+      with: PickViaConfig(
+        schemaVersion: 1,
+        browsers: [application],
+        targets: [canonicalManual]
+      )
+    )
+
+    #expect(
+      try #require(damaged.targets.first { $0.id == canonicalManual.id }).availability
+        == .unavailable)
+  }
+
   @Test func structuralBrowserLevelTargetRemainsAvailableAcrossMetadataStatuses() throws {
     let statuses: [ProfileMetadataStatus] = [
       .metadataAbsent, .loaded, .accessRequired, .accessRevoked, .metadataDamaged,
