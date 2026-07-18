@@ -89,6 +89,20 @@ final class ChooserModelsTests: XCTestCase {
     )
   }
 
+  func testShortcutParserAcceptsOnlyASCIINumbersAndLetters() {
+    XCTAssertEqual(ChooserShortcut.parse("1"), .number(1))
+    XCTAssertEqual(ChooserShortcut.parse("9"), .number(9))
+    XCTAssertEqual(ChooserShortcut.parse("A"), .letter("A"))
+    XCTAssertEqual(ChooserShortcut.parse("Z"), .letter("Z"))
+    XCTAssertEqual(ChooserShortcut.parse("a"), .letter("A"))
+    XCTAssertEqual(ChooserShortcut.parse("z"), .letter("Z"))
+
+    for character: Character in ["١", "１", "ı", "0", "-"] {
+      XCTAssertNil(ChooserShortcut.parse(character), "Unexpected shortcut for \(character)")
+    }
+    XCTAssertNil(ChooserShortcut.parse(nil))
+  }
+
   func testFilteringOccursBeforeShortcutAssignmentWithoutGaps() {
     var targets = (0..<10).map {
       Fixtures.target(id: "target-\($0)", sortOrder: $0 + 1)

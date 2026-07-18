@@ -26,17 +26,19 @@ public enum ChooserShortcut: Equatable, Sendable {
   }
 
   public static func parse(_ character: Character?) -> ChooserShortcut? {
-    guard let character else { return nil }
-    if let number = character.wholeNumberValue, (1...9).contains(number) {
-      return .number(number)
-    }
+    guard let character, let asciiValue = character.asciiValue else { return nil }
 
-    let normalized = Array(String(character).uppercased())
-    guard normalized.count == 1,
-      let letter = normalized.first,
-      letters.contains(letter)
-    else { return nil }
-    return .letter(letter)
+    switch asciiValue {
+    case 49...57:
+      return .number(Int(asciiValue - 48))
+    case 65...90:
+      return .letter(character)
+    case 97...122:
+      let uppercase = UnicodeScalar(asciiValue - 32)
+      return .letter(Character(String(uppercase)))
+    default:
+      return nil
+    }
   }
 }
 
