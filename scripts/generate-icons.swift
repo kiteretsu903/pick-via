@@ -38,18 +38,20 @@ func color(_ hexadecimal: UInt32, alpha: CGFloat = 1) -> CGColor {
 }
 
 func bitmap(size: Int, drawing: (CGContext) -> Void) throws -> NSBitmapImageRep {
-  guard let representation = NSBitmapImageRep(
-    bitmapDataPlanes: nil,
-    pixelsWide: size,
-    pixelsHigh: size,
-    bitsPerSample: 8,
-    samplesPerPixel: 4,
-    hasAlpha: true,
-    isPlanar: false,
-    colorSpaceName: .deviceRGB,
-    bytesPerRow: 0,
-    bitsPerPixel: 0
-  ), let context = NSGraphicsContext(bitmapImageRep: representation)?.cgContext else {
+  guard
+    let representation = NSBitmapImageRep(
+      bitmapDataPlanes: nil,
+      pixelsWide: size,
+      pixelsHigh: size,
+      bitsPerSample: 8,
+      samplesPerPixel: 4,
+      hasAlpha: true,
+      isPlanar: false,
+      colorSpaceName: .deviceRGB,
+      bytesPerRow: 0,
+      bitsPerPixel: 0
+    ), let context = NSGraphicsContext(bitmapImageRep: representation)?.cgContext
+  else {
     throw IconGenerationError.bitmapAllocationFailed(size)
   }
   context.clear(CGRect(x: 0, y: 0, width: size, height: size))
@@ -137,22 +139,24 @@ func drawApplicationIcon(size: Int) throws -> Data {
       CGPoint(x: 686.08, y: 373.76),
       CGPoint(x: 512, y: 773.12),
     ] {
-      context.addEllipse(in: CGRect(
-        x: point.x - endpointRadius,
-        y: point.y - endpointRadius,
-        width: endpointRadius * 2,
-        height: endpointRadius * 2
-      ))
+      context.addEllipse(
+        in: CGRect(
+          x: point.x - endpointRadius,
+          y: point.y - endpointRadius,
+          width: endpointRadius * 2,
+          height: endpointRadius * 2
+        ))
       context.setFillColor(color(0xffffff))
       context.fillPath()
     }
     let decisionRadius: CGFloat = small ? 51.2 : 46.08
-    context.addEllipse(in: CGRect(
-      x: 512 - decisionRadius,
-      y: 573.44 - decisionRadius,
-      width: decisionRadius * 2,
-      height: decisionRadius * 2
-    ))
+    context.addEllipse(
+      in: CGRect(
+        x: 512 - decisionRadius,
+        y: 573.44 - decisionRadius,
+        width: decisionRadius * 2,
+        height: decisionRadius * 2
+      ))
     context.setFillColor(color(0xD4D7FF))
     context.fillPath()
   }
@@ -224,9 +228,10 @@ func argumentValue(after flag: String) -> String? {
 let repositoryRoot = URL(fileURLWithPath: #filePath)
   .deletingLastPathComponent()
   .deletingLastPathComponent()
-let outputDirectory = argumentValue(after: "--output-dir").map {
-  URL(fileURLWithPath: $0, isDirectory: true)
-} ?? repositoryRoot.appending(path: "Support/Icons", directoryHint: .isDirectory)
+let outputDirectory =
+  argumentValue(after: "--output-dir").map {
+    URL(fileURLWithPath: $0, isDirectory: true)
+  } ?? repositoryRoot.appending(path: "Support/Icons", directoryHint: .isDirectory)
 let temporary = FileManager.default.temporaryDirectory
   .appending(path: "pickvia-icons-\(UUID().uuidString)", directoryHint: .isDirectory)
 let iconset = temporary.appending(path: "PickVia.iconset", directoryHint: .isDirectory)

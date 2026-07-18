@@ -20,7 +20,8 @@ final class IconAssetTests: XCTestCase {
   }
 
   func testGeneratorContainsApprovedPaletteAndNativeToolingOnly() throws {
-    let source = try String(contentsOf: repositoryRoot.appending(path: "scripts/generate-icons.swift"))
+    let source = try String(
+      contentsOf: repositoryRoot.appending(path: "scripts/generate-icons.swift"))
 
     XCTAssertTrue(source.contains("0x8177F2"))
     XCTAssertTrue(source.contains("0x545DD3"))
@@ -31,9 +32,11 @@ final class IconAssetTests: XCTestCase {
   }
 
   func testGeneratorValidatesBothStagedAssetsBeforeReplacingOutputs() throws {
-    let source = try String(contentsOf: repositoryRoot.appending(path: "scripts/generate-icons.swift"))
+    let source = try String(
+      contentsOf: repositoryRoot.appending(path: "scripts/generate-icons.swift"))
     let menuValidation = try XCTUnwrap(source.range(of: "try validateMenuTemplate(at: stagedMenu)"))
-    let iconValidation = try XCTUnwrap(source.range(of: "try validateApplicationIcon(at: stagedICNS)"))
+    let iconValidation = try XCTUnwrap(
+      source.range(of: "try validateApplicationIcon(at: stagedICNS)"))
     let outputReplacement = try XCTUnwrap(
       source.range(of: "try FileManager.default.createDirectory(at: outputDirectory")
     )

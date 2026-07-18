@@ -17,7 +17,8 @@ final class MenuBarIconTests: XCTestCase {
   }
 
   func testAppCompositionUsesCustomMenuBarLabel() throws {
-    let source = try String(contentsOf: repositoryRoot.appending(path: "Sources/PickVia/App/PickViaApp.swift"))
+    let source = try String(
+      contentsOf: repositoryRoot.appending(path: "Sources/PickVia/App/PickViaApp.swift"))
 
     XCTAssertTrue(source.contains("PickViaMenuBarLabel()"))
     XCTAssertFalse(source.contains("MenuBarExtra(\"PickVia\", systemImage:"))
