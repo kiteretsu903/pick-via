@@ -529,12 +529,13 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       explicitProfiles = []
     }
 
-    return defaults + explicitProfiles.flatMap { profile in
-      [
-        candidate(browser: browser.application, profile: profile, mode: .normal),
-        candidate(browser: browser.application, profile: profile, mode: .private),
-      ]
-    }
+    return defaults
+      + explicitProfiles.flatMap { profile in
+        [
+          candidate(browser: browser.application, profile: profile, mode: .normal),
+          candidate(browser: browser.application, profile: profile, mode: .private),
+        ]
+      }
   }
 
   private static func candidate(

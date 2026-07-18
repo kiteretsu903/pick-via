@@ -121,9 +121,10 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     isDismissing = false
     suppressesResignCancellation = false
 
-    let screen = pointerAnchor.flatMap { pointer in
-      NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) }
-    } ?? NSScreen.main
+    let screen =
+      pointerAnchor.flatMap { pointer in
+        NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) }
+      } ?? NSScreen.main
     let maximumHeight = screen.map { ChooserPanelLayout.maximumPanelHeight(in: $0.visibleFrame) }
     maximumContentHeightForCurrentPresentation = maximumHeight
     render(maximumContentHeight: maximumHeight)
@@ -231,7 +232,8 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     guard let hostingView, let panel else { return }
     hostingView.layoutSubtreeIfNeeded()
     let fittingSize = hostingView.fittingSize
-    let fittedHeight = maximumContentHeight.map { min($0, fittingSize.height) } ?? fittingSize.height
+    let fittedHeight =
+      maximumContentHeight.map { min($0, fittingSize.height) } ?? fittingSize.height
     panel.setContentSize(
       NSSize(
         width: ChooserPanelLayout.contentWidth,

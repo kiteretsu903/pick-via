@@ -60,20 +60,23 @@ func makeBrowserSettingsIssueSummary(
       ($0.application.bundleIdentifier, $0.metadataStatus)
     }
   )
-  metadataOverrides.forEach { statusByBundleID[$0.key] = $0.value }
+  for (bundleIdentifier, status) in metadataOverrides {
+    statusByBundleID[bundleIdentifier] = status
+  }
   let installedByID = Dictionary(
     uniqueKeysWithValues: config.browsers.map { ($0.id, $0) }
   )
 
-  let accessIDs = Set(config.browsers.compactMap { browser -> String? in
-    guard browser.isAvailable, browser.family != .safari,
-      BrowserDescriptor.descriptor(forBundleIdentifier: browser.bundleIdentifier) != nil
-    else { return nil }
-    switch statusByBundleID[browser.bundleIdentifier] {
-    case .accessRequired?, .accessRevoked?: return browser.id
-    default: return nil
-    }
-  })
+  let accessIDs = Set(
+    config.browsers.compactMap { browser -> String? in
+      guard browser.isAvailable, browser.family != .safari,
+        BrowserDescriptor.descriptor(forBundleIdentifier: browser.bundleIdentifier) != nil
+      else { return nil }
+      switch statusByBundleID[browser.bundleIdentifier] {
+      case .accessRequired?, .accessRevoked?: return browser.id
+      default: return nil
+      }
+    })
 
   let missingCount = config.targets.filter { target in
     guard target.isEnabled, target.availability == .unavailable,

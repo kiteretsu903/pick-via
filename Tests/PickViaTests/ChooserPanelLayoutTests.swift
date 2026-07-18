@@ -1,5 +1,6 @@
 import AppKit
 import XCTest
+
 @testable import PickVia
 
 final class ChooserPanelLayoutTests: XCTestCase {

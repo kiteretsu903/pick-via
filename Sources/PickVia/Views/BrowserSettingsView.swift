@@ -12,7 +12,9 @@ public struct BrowserSettingsView: View {
     VStack(spacing: 0) {
       VStack(alignment: .leading, spacing: 8) {
         HStack(spacing: 10) {
-          Button { showsAddTarget = true } label: {
+          Button {
+            showsAddTarget = true
+          } label: {
             Label("Add Target", systemImage: "plus")
           }
           .disabled(availableBrowsers.isEmpty)

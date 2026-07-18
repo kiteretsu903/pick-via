@@ -26,7 +26,7 @@ final class BrowserSettingsIssueSummaryTests: XCTestCase {
           id: "chrome-work", browserID: chrome.id, profileIdentifier: "Work"),
         issueTarget(
           id: "firefox-personal", browserID: firefox.id,
-          profileIdentity: "firefox-personal")
+          profileIdentity: "firefox-personal"),
       ]
     )
 
@@ -66,7 +66,7 @@ final class BrowserSettingsIssueSummaryTests: XCTestCase {
           id: "identity", browserID: firefox.id, profileIdentity: "opaque-identity"),
         issueTarget(
           id: "launch-path", browserID: firefox.id,
-          profileLaunchPath: "/Profiles/personal")
+          profileLaunchPath: "/Profiles/personal"),
       ]
     )
 
@@ -102,7 +102,7 @@ final class BrowserSettingsIssueSummaryTests: XCTestCase {
           id: "chrome-work", browserID: chrome.id, profileIdentifier: "Work"),
         issueTarget(
           id: "firefox-personal", browserID: firefox.id,
-          profileDisplayName: "Personal")
+          profileDisplayName: "Personal"),
       ]
     )
 
