@@ -7,16 +7,23 @@ import XCTest
 
 @MainActor
 final class AppDelegateTests: XCTestCase {
-  func testBecomingActiveRefreshesDefaultHandlerStatus() throws {
+  func testBecomingActiveRefreshesDefaultHandlerStatusAndRetriesProfileAccess() throws {
     let defaults = AppDelegateDefaultBrowserStub()
+    let presenter = AppDelegateProfileAccessPresenterSpy()
     let model = makeModel(defaultBrowser: defaults)
     try model.load()
-    let delegate = AppDelegate(model: model, openSettings: {})
+    let delegate = AppDelegate(
+      model: model,
+      profileAccessPresenter: presenter,
+      activateApplication: {},
+      openSettings: {}
+    )
 
     delegate.applicationDidBecomeActive(
       Notification(name: NSApplication.didBecomeActiveNotification))
 
     XCTAssertEqual(defaults.statusCallCount, 2)
+    XCTAssertEqual(presenter.environmentDidChangeCallCount, 1)
   }
 
   func testRecoveredConfigurationOpensBrowserSettingsAfterLaunch() throws {
@@ -82,8 +89,11 @@ final class AppDelegateTests: XCTestCase {
     XCTAssertTrue(presenter.lastModel === model)
   }
 
-  func testLaunchRequestsPendingProfileAccessAfterOnboardingReview() throws {
-    let presenter = AppDelegateProfileAccessPresenterSpy()
+  func testLaunchQueuesPendingProfileAccessBeforeRequestingActivation() throws {
+    var lifecycleEvents: [String] = []
+    let presenter = AppDelegateProfileAccessPresenterSpy(
+      onRequestIfPending: { lifecycleEvents.append("request") }
+    )
     let model = makeModel(
       catalog: AppDelegateCatalogStub(
         scanResult: AppDelegateFixtures.profileAccessRequiredScan
@@ -94,6 +104,7 @@ final class AppDelegateTests: XCTestCase {
     let delegate = AppDelegate(
       model: model,
       profileAccessPresenter: presenter,
+      activateApplication: { lifecycleEvents.append("activate") },
       openSettings: {}
     )
 
@@ -101,6 +112,7 @@ final class AppDelegateTests: XCTestCase {
       Notification(name: NSApplication.didFinishLaunchingNotification)
     )
 
+    XCTAssertEqual(lifecycleEvents, ["request", "activate"])
     XCTAssertEqual(presenter.requestIfPendingCallCount, 1)
     XCTAssertTrue(presenter.lastModel === model)
   }
@@ -376,7 +388,13 @@ private final class AppDelegateRoutingSpy: AppRouting {
 @MainActor
 private final class AppDelegateProfileAccessPresenterSpy: ProfileAccessPresenting {
   private(set) var requestIfPendingCallCount = 0
+  private(set) var environmentDidChangeCallCount = 0
   private(set) weak var lastModel: AppModel?
+  private let onRequestIfPending: @MainActor () -> Void
+
+  init(onRequestIfPending: @escaping @MainActor () -> Void = {}) {
+    self.onRequestIfPending = onRequestIfPending
+  }
 
   func request(model: AppModel) {
     lastModel = model
@@ -385,9 +403,12 @@ private final class AppDelegateProfileAccessPresenterSpy: ProfileAccessPresentin
   func requestIfPending(model: AppModel) {
     requestIfPendingCallCount += 1
     lastModel = model
+    onRequestIfPending()
   }
 
-  func environmentDidChange() {}
+  func environmentDidChange() {
+    environmentDidChangeCallCount += 1
+  }
   func dismiss() {}
 }
 

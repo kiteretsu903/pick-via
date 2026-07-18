@@ -10,6 +10,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
   public let profileAccessPresenter: any ProfileAccessPresenting
   let settingsSceneOpener: SettingsSceneOpener
 
+  private let activateApplication: @MainActor () -> Void
   private let openSettings: @MainActor () -> Void
   private let showAbout: @MainActor () -> Void
 
@@ -28,8 +29,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
   public override convenience init() {
     let navigation = SettingsNavigation()
     let settingsSceneOpener = SettingsSceneOpener()
-    let openSettings: @MainActor () -> Void = {
+    let activateApplication: @MainActor () -> Void = {
       NSApp.activate(ignoringOtherApps: true)
+    }
+    let openSettings: @MainActor () -> Void = {
+      activateApplication()
       settingsSceneOpener.open()
     }
     let showAbout: @MainActor () -> Void = {
@@ -45,6 +49,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
       navigation: navigation,
       profileAccessPresenter: production.profileAccessPresenter,
       settingsSceneOpener: settingsSceneOpener,
+      activateApplication: activateApplication,
       openSettings: openSettings,
       showAbout: showAbout
     )
@@ -56,6 +61,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     profileAccessPresenter: any ProfileAccessPresenting = InactiveAppDelegateProfileAccessPresenter
       .shared,
     settingsSceneOpener: SettingsSceneOpener = SettingsSceneOpener(),
+    activateApplication: @escaping @MainActor () -> Void = {
+      NSApp.activate(ignoringOtherApps: true)
+    },
     openSettings: @escaping @MainActor () -> Void,
     showAbout: @escaping @MainActor () -> Void = {
       NSApp.activate(ignoringOtherApps: true)
@@ -66,6 +74,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     self.navigation = navigation
     self.profileAccessPresenter = profileAccessPresenter
     self.settingsSceneOpener = settingsSceneOpener
+    self.activateApplication = activateApplication
     self.openSettings = openSettings
     self.showAbout = showAbout
     super.init()
@@ -85,11 +94,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     if model.onboardingStep >= 3 {
       profileAccessPresenter.requestIfPending(model: model)
+      if model.shouldAutomaticallyPresentProfileAccess {
+        activateApplication()
+      }
     }
   }
 
   public func applicationDidBecomeActive(_ notification: Notification) {
     model.refreshDefaultStatus()
+    profileAccessPresenter.environmentDidChange()
   }
 
   public func applicationShouldHandleReopen(
