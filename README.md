@@ -16,6 +16,13 @@ zsh scripts/build-app.sh
 zsh scripts/smoke-test.sh build/PickVia.app
 ```
 
+The checked-in Via Compass icon assets are generated deterministically with
+macOS-native tools. Regenerate them after intentional artwork changes with:
+
+```zsh
+swift scripts/generate-icons.swift
+```
+
 The build script creates and ad-hoc signs `build/PickVia.app`. Start it with:
 
 ```zsh
