@@ -39,12 +39,14 @@ final class AppDelegateTests: XCTestCase {
     )
     try model.load()
     let navigation = SettingsNavigation()
+    let activation = AppDelegateApplicationActivationSpy()
     var destinationWhenOpened: SettingsDestination?
     let presenter = AppDelegateProfileAccessPresenterSpy()
     let delegate = AppDelegate(
       model: model,
       navigation: navigation,
       profileAccessPresenter: presenter,
+      activateApplication: { activation.activate() },
       openSettings: { destinationWhenOpened = navigation.destination }
     )
 
@@ -54,6 +56,7 @@ final class AppDelegateTests: XCTestCase {
 
     XCTAssertEqual(destinationWhenOpened, .browsers)
     XCTAssertEqual(presenter.requestIfPendingCallCount, 0)
+    XCTAssertEqual(activation.callCount, 0)
   }
 
   func testClosingRecoveredSettingsQueuesAutomaticProfileAccessAfterReview() throws {
@@ -119,6 +122,7 @@ final class AppDelegateTests: XCTestCase {
 
   func testLaunchKeepsProfileAccessPendingDuringOnboardingReview() throws {
     let presenter = AppDelegateProfileAccessPresenterSpy()
+    let activation = AppDelegateApplicationActivationSpy()
     let model = makeModel(
       catalog: AppDelegateCatalogStub(
         scanResult: AppDelegateFixtures.profileAccessRequiredScan
@@ -129,6 +133,7 @@ final class AppDelegateTests: XCTestCase {
     let delegate = AppDelegate(
       model: model,
       profileAccessPresenter: presenter,
+      activateApplication: { activation.activate() },
       openSettings: {}
     )
 
@@ -138,7 +143,32 @@ final class AppDelegateTests: XCTestCase {
 
     XCTAssertEqual(model.profileAccessPresentation, .automaticPending)
     XCTAssertEqual(presenter.requestIfPendingCallCount, 0)
+    XCTAssertEqual(activation.callCount, 0)
   }
+
+  func testLaunchDoesNotRequestActivationWithoutPendingProfileAccess() throws {
+    let presenter = AppDelegateProfileAccessPresenterSpy()
+    let activation = AppDelegateApplicationActivationSpy()
+    let model = makeModel(
+      preferences: AppDelegatePreferencesStub(onboardingStep: 3)
+    )
+    try model.load()
+    let delegate = AppDelegate(
+      model: model,
+      profileAccessPresenter: presenter,
+      activateApplication: { activation.activate() },
+      openSettings: {}
+    )
+
+    delegate.applicationDidFinishLaunching(
+      Notification(name: NSApplication.didFinishLaunchingNotification)
+    )
+
+    XCTAssertEqual(model.profileAccessPresentation, .idle)
+    XCTAssertEqual(presenter.requestIfPendingCallCount, 1)
+    XCTAssertEqual(activation.callCount, 0)
+  }
+
   func testOpenURLsPassesEachURLThroughModelValidation() throws {
     let routing = AppDelegateRoutingSpy()
     let model = makeModel(routing: routing)
@@ -410,6 +440,15 @@ private final class AppDelegateProfileAccessPresenterSpy: ProfileAccessPresentin
     environmentDidChangeCallCount += 1
   }
   func dismiss() {}
+}
+
+@MainActor
+private final class AppDelegateApplicationActivationSpy {
+  private(set) var callCount = 0
+
+  func activate() {
+    callCount += 1
+  }
 }
 
 private enum AppDelegateFixtures {

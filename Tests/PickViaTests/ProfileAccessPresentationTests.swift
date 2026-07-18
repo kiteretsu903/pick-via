@@ -90,9 +90,10 @@ final class ProfileAccessPresentationTests: XCTestCase {
   }
 
   func testInactiveAppKeepsAutomaticRequestQueuedUntilActivation() throws {
-    var isApplicationActive = false
+    let application = NSApplication.shared
+    let applicationActivity = ApplicationActivityState(isActive: false)
     let driver = AppKitProfileAccessPanelDriver(
-      isApplicationActive: { isApplicationActive }
+      isApplicationActive: { applicationActivity.isActive }
     )
     driver.attachWizardViewFactory { _ in AnyView(EmptyView()) }
     let presenter = ProfileAccessPanelController(driver: driver)
@@ -104,28 +105,33 @@ final class ProfileAccessPresentationTests: XCTestCase {
     XCTAssertEqual(model.profileAccessPresentation, .automaticPending)
     XCTAssertTrue(model.canPresentOrdinaryAppSurface)
     XCTAssertFalse(
-      NSApp.windows.contains { $0.title == "Browser Profile Access" && $0.isVisible }
+      application.windows.contains { $0.title == "Browser Profile Access" && $0.isVisible }
     )
 
-    isApplicationActive = true
+    applicationActivity.isActive = true
     presenter.environmentDidChange()
 
     XCTAssertEqual(model.profileAccessPresentation, .presented)
     XCTAssertFalse(model.canPresentOrdinaryAppSurface)
     XCTAssertEqual(
-      NSApp.windows.filter { $0.title == "Browser Profile Access" && $0.isVisible }.count,
+      application.windows.filter { $0.title == "Browser Profile Access" && $0.isVisible }.count,
       1
     )
 
     presenter.environmentDidChange()
     XCTAssertEqual(
-      NSApp.windows.filter { $0.title == "Browser Profile Access" && $0.isVisible }.count,
+      application.windows.filter { $0.title == "Browser Profile Access" && $0.isVisible }.count,
       1
     )
   }
 
   func testAppKitDriverPresentsPanelOnActiveSpace() throws {
-    let driver = AppKitProfileAccessPanelDriver(isApplicationActive: { true })
+    let application = NSApplication.shared
+    let keyRequests = PanelKeyRequestSpy()
+    let driver = AppKitProfileAccessPanelDriver(
+      isApplicationActive: { true },
+      makePanelKey: { keyRequests.record($0) }
+    )
     driver.attachWizardViewFactory { _ in AnyView(EmptyView()) }
     let model = try ProfileAccessModelFixture.automaticPending()
 
@@ -133,10 +139,12 @@ final class ProfileAccessPresentationTests: XCTestCase {
     defer { driver.dismissAndRestoreWindows() }
 
     let panel = try XCTUnwrap(
-      NSApp.windows.first(where: { $0.title == "Browser Profile Access" }) as? NSPanel
+      application.windows.first(where: { $0.title == "Browser Profile Access" }) as? NSPanel
     )
     XCTAssertTrue(panel.collectionBehavior.contains(.moveToActiveSpace))
     XCTAssertTrue(panel.isVisible)
+    XCTAssertEqual(keyRequests.panels.count, 1)
+    XCTAssertTrue(try XCTUnwrap(keyRequests.panels.first) === panel)
   }
 
   func testProfileAccessPanelOriginCentersPanelInVisibleFrame() {
@@ -478,6 +486,24 @@ final class ProfileAccessPresentationTests: XCTestCase {
 
     XCTAssertEqual(driver.presentCallCount, 1)
     XCTAssertEqual(model.profileAccessPresentation, .presented)
+  }
+}
+
+@MainActor
+private final class ApplicationActivityState {
+  var isActive: Bool
+
+  init(isActive: Bool) {
+    self.isActive = isActive
+  }
+}
+
+@MainActor
+private final class PanelKeyRequestSpy {
+  private(set) var panels: [NSPanel] = []
+
+  func record(_ panel: NSPanel) {
+    panels.append(panel)
   }
 }
 

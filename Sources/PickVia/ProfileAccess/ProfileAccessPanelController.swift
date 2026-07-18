@@ -135,6 +135,7 @@ final class AppKitProfileAccessPanelDriver: NSObject, ProfileAccessPanelDriving,
   private let notificationCenter: NotificationCenter
   private let isApplicationActive: @MainActor () -> Bool
   private let isChooserActive: @MainActor () -> Bool
+  private let makePanelKey: @MainActor (NSPanel) -> Void
   private var wizardViewFactory: WizardViewFactory?
   private var onClose: (@MainActor () -> Void)?
   private var hiddenWindows: [NSWindow] = []
@@ -143,11 +144,13 @@ final class AppKitProfileAccessPanelDriver: NSObject, ProfileAccessPanelDriving,
   init(
     notificationCenter: NotificationCenter = .default,
     isApplicationActive: @escaping @MainActor () -> Bool = { NSApp.isActive },
-    isChooserActive: @escaping @MainActor () -> Bool = { false }
+    isChooserActive: @escaping @MainActor () -> Bool = { false },
+    makePanelKey: @escaping @MainActor (NSPanel) -> Void = { $0.makeKey() }
   ) {
     self.notificationCenter = notificationCenter
     self.isApplicationActive = isApplicationActive
     self.isChooserActive = isChooserActive
+    self.makePanelKey = makePanelKey
     super.init()
     lifecycleObservers = [
       NSWindow.didEndSheetNotification,
@@ -241,7 +244,7 @@ final class AppKitProfileAccessPanelDriver: NSObject, ProfileAccessPanelDriving,
     position(panel)
     NSApp.activate(ignoringOtherApps: true)
     panel.orderFrontRegardless()
-    panel.makeKey()
+    makePanelKey(panel)
   }
 
   func dismissAndRestoreWindows() {
