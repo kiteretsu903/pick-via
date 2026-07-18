@@ -1,8 +1,47 @@
 import Foundation
 import PickViaCore
 
+public enum ChooserShortcut: Equatable, Sendable {
+  case number(Int)
+  case letter(Character)
+
+  private static let letters = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+  public var label: String {
+    switch self {
+    case .number(let number): String(number)
+    case .letter(let letter): String(letter)
+    }
+  }
+
+  public static func forVisibleIndex(_ index: Int) -> ChooserShortcut? {
+    guard index >= 0 else { return nil }
+    if index < 9 {
+      return .number(index + 1)
+    }
+
+    let letterIndex = index - 9
+    guard letters.indices.contains(letterIndex) else { return nil }
+    return .letter(letters[letterIndex])
+  }
+
+  public static func parse(_ character: Character?) -> ChooserShortcut? {
+    guard let character else { return nil }
+    if let number = character.wholeNumberValue, (1...9).contains(number) {
+      return .number(number)
+    }
+
+    let normalized = Array(String(character).uppercased())
+    guard normalized.count == 1,
+      let letter = normalized.first,
+      letters.contains(letter)
+    else { return nil }
+    return .letter(letter)
+  }
+}
+
 public enum ChooserRow: Equatable, Identifiable, Sendable {
-  case target(BrowserTarget.ID, shortcut: String?)
+  case target(BrowserTarget.ID, shortcut: ChooserShortcut?)
 
   public var id: BrowserTarget.ID { targetID }
 
@@ -12,7 +51,7 @@ public enum ChooserRow: Equatable, Identifiable, Sendable {
     }
   }
 
-  public var shortcut: String? {
+  public var shortcut: ChooserShortcut? {
     switch self {
     case .target(_, let shortcut): shortcut
     }
@@ -49,7 +88,7 @@ public enum ChooserKey: Equatable, Sendable {
   case down
   case returnKey
   case escape
-  case number(Int)
+  case shortcut(ChooserShortcut)
 }
 
 public enum ChooserAction: Equatable, Sendable {
@@ -100,8 +139,8 @@ public struct ChooserPresentation: Equatable, Sendable {
       guard !browserTargets.isEmpty else { continue }
 
       let browserRows = browserTargets.map { target -> ChooserRow in
+        let shortcut = ChooserShortcut.forVisibleIndex(shortcutIndex)
         shortcutIndex += 1
-        let shortcut = shortcutIndex <= 9 ? String(shortcutIndex) : nil
         let row = ChooserRow.target(target.id, shortcut: shortcut)
         rows.append(row)
         return row
@@ -155,9 +194,8 @@ public struct ChooserPresentation: Equatable, Sendable {
       return .select(rows[selectedIndex].targetID)
     case .escape:
       return .cancel
-    case .number(let number):
-      guard (1...9).contains(number) else { return .none }
-      guard let row = rows.first(where: { $0.shortcut == String(number) }) else { return .none }
+    case .shortcut(let shortcut):
+      guard let row = rows.first(where: { $0.shortcut == shortcut }) else { return .none }
       return .select(row.targetID)
     }
   }

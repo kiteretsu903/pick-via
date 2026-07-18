@@ -12,7 +12,7 @@ final class ChooserModelsTests: XCTestCase {
 
     XCTAssertEqual(
       presentation.groups,
-      [.direct(browserID: "chrome", row: .target("work", shortcut: "1"))]
+      [.direct(browserID: "chrome", row: .target("work", shortcut: .number(1)))]
     )
   }
 
@@ -28,8 +28,8 @@ final class ChooserModelsTests: XCTestCase {
         .group(
           browserID: "chrome",
           rows: [
-            .target("work", shortcut: "1"),
-            .target("personal", shortcut: "2"),
+            .target("work", shortcut: .number(1)),
+            .target("personal", shortcut: .number(2)),
           ]
         )
       ]
@@ -48,10 +48,10 @@ final class ChooserModelsTests: XCTestCase {
       ]
     )
 
-    XCTAssertEqual(presentation.rows, [.target("work", shortcut: "1")])
+    XCTAssertEqual(presentation.rows, [.target("work", shortcut: .number(1))])
     XCTAssertEqual(
       presentation.groups,
-      [.direct(browserID: "chrome", row: .target("work", shortcut: "1"))]
+      [.direct(browserID: "chrome", row: .target("work", shortcut: .number(1)))]
     )
   }
 
@@ -72,16 +72,36 @@ final class ChooserModelsTests: XCTestCase {
     )
   }
 
-  func testOnlyFirstNineRowsReceiveNumberShortcuts() {
-    let targets = (0..<11).map {
+  func testShortcutsUseNumbersThenLettersAndStopAfterZ() {
+    let targets = (0..<36).map {
       Fixtures.target(id: "target-\($0)", sortOrder: $0)
     }
     let presentation = makePresentation(applications: [Fixtures.chrome], targets: targets)
 
+    XCTAssertEqual(presentation.rows[0].shortcut, .number(1))
+    XCTAssertEqual(presentation.rows[8].shortcut, .number(9))
+    XCTAssertEqual(presentation.rows[9].shortcut, .letter("A"))
+    XCTAssertEqual(presentation.rows[34].shortcut, .letter("Z"))
+    XCTAssertNil(presentation.rows[35].shortcut)
     XCTAssertEqual(
-      presentation.rows.map(\.shortcut),
-      ["1", "2", "3", "4", "5", "6", "7", "8", "9", nil, nil]
+      presentation.rows.compactMap { $0.shortcut?.label },
+      (1...9).map(String.init) + Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ").map(String.init)
     )
+  }
+
+  func testFilteringOccursBeforeShortcutAssignmentWithoutGaps() {
+    var targets = (0..<10).map {
+      Fixtures.target(id: "target-\($0)", sortOrder: $0 + 1)
+    }
+    targets.append(Fixtures.target(id: "disabled", isEnabled: false, sortOrder: 0))
+    targets.append(
+      Fixtures.target(id: "unavailable", sortOrder: 0, availability: .unavailable)
+    )
+
+    let presentation = makePresentation(applications: [Fixtures.chrome], targets: targets)
+
+    XCTAssertEqual(presentation.rows.first?.shortcut, .number(1))
+    XCTAssertEqual(presentation.rows.last?.shortcut, .letter("A"))
   }
 
   func testArrowMovementWrapsAtBothEnds() {
@@ -108,14 +128,26 @@ final class ChooserModelsTests: XCTestCase {
     XCTAssertEqual(presentation.handle(.escape), .cancel)
   }
 
-  func testNumberKeySelectsMatchingShortcut() {
-    let presentation = makePresentation(
-      applications: [Fixtures.chrome],
-      targets: [Fixtures.work, Fixtures.personal]
-    )
+  func testShortcutKeySelectsMatchingNumberAndLetter() {
+    let targets = (0..<10).map {
+      Fixtures.target(id: "target-\($0)", sortOrder: $0)
+    }
+    let presentation = makePresentation(applications: [Fixtures.chrome], targets: targets)
 
-    XCTAssertEqual(presentation.handle(.number(2)), .select("personal"))
-    XCTAssertEqual(presentation.handle(.number(9)), .none)
+    XCTAssertEqual(presentation.handle(.shortcut(.number(2))), .select("target-1"))
+    XCTAssertEqual(presentation.handle(.shortcut(.letter("A"))), .select("target-9"))
+    XCTAssertEqual(presentation.handle(.shortcut(.letter("Z"))), .none)
+  }
+
+  func testTargetAfterZRemainsReachableWithArrowAndReturn() {
+    let targets = (0..<36).map {
+      Fixtures.target(id: "target-\($0)", sortOrder: $0)
+    }
+    var presentation = makePresentation(applications: [Fixtures.chrome], targets: targets)
+
+    XCTAssertNil(presentation.rows[35].shortcut)
+    presentation.moveSelection(.up)
+    XCTAssertEqual(presentation.handle(.returnKey), .select("target-35"))
   }
 
   func testErrorStatePreservesCurrentSelection() {
@@ -473,16 +505,41 @@ final class ChooserPanelControllerTests: XCTestCase {
     }
   }
 
-  func testModifiedNumberShortcutsRejectCommandOptionAndControl() {
+  func testShortcutParserAcceptsNumbersAndCaseInsensitiveLetters() {
     XCTAssertEqual(
-      ChooserPanelController.numberShortcut(character: "1", modifiers: []),
-      .number(1)
+      ChooserPanelController.shortcutKey(character: "1", modifiers: []),
+      .shortcut(.number(1))
     )
+    XCTAssertEqual(
+      ChooserPanelController.shortcutKey(character: "a", modifiers: []),
+      .shortcut(.letter("A"))
+    )
+    XCTAssertEqual(
+      ChooserPanelController.shortcutKey(character: "A", modifiers: []),
+      .shortcut(.letter("A"))
+    )
+  }
+
+  func testShortcutParserAllowsShiftAndCapsLockForLetters() {
+    XCTAssertEqual(
+      ChooserPanelController.shortcutKey(character: "A", modifiers: .shift),
+      .shortcut(.letter("A"))
+    )
+    XCTAssertEqual(
+      ChooserPanelController.shortcutKey(character: "A", modifiers: .capsLock),
+      .shortcut(.letter("A"))
+    )
+  }
+
+  func testShortcutParserRejectsCommandOptionControlAndUnsupportedCharacters() {
     for modifier in [NSEvent.ModifierFlags.command, .option, .control] {
       XCTAssertNil(
-        ChooserPanelController.numberShortcut(character: "1", modifiers: modifier)
+        ChooserPanelController.shortcutKey(character: "A", modifiers: modifier)
       )
     }
+    XCTAssertNil(ChooserPanelController.shortcutKey(character: "0", modifiers: []))
+    XCTAssertNil(ChooserPanelController.shortcutKey(character: "-", modifiers: []))
+    XCTAssertNil(ChooserPanelController.shortcutKey(character: nil, modifiers: []))
   }
 
   func testRecoveryActionsUseInjectedDependenciesWithoutPresentingWindow() {

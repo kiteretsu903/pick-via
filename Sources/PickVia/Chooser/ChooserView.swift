@@ -158,8 +158,8 @@ public struct ChooserView: View {
           }
           Spacer()
           if let shortcut = row.shortcut {
-            Text(shortcut)
-              .font(.callout.monospacedDigit())
+            Text(shortcut.label)
+              .font(.callout.monospaced())
               .foregroundStyle(.secondary)
               .padding(.horizontal, 7)
               .padding(.vertical, 3)

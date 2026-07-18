@@ -281,7 +281,7 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     case 36, 76: key = .returnKey
     case 53: key = .escape
     default:
-      key = Self.numberShortcut(
+      key = Self.shortcutKey(
         character: event.charactersIgnoringModifiers?.first,
         modifiers: event.modifierFlags
       )
@@ -346,16 +346,15 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     onPresentationChange(false)
   }
 
-  static func numberShortcut(
+  static func shortcutKey(
     character: Character?,
     modifiers: NSEvent.ModifierFlags
   ) -> ChooserKey? {
     let disallowed: NSEvent.ModifierFlags = [.command, .option, .control]
     guard modifiers.intersection(disallowed).isEmpty,
-      let number = character?.wholeNumberValue,
-      (1...9).contains(number)
+      let shortcut = ChooserShortcut.parse(character)
     else { return nil }
-    return .number(number)
+    return .shortcut(shortcut)
   }
 }
 
