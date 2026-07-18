@@ -1776,6 +1776,59 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(routing.refreshCallCount, 0)
   }
 
+  func testEveryCanonicalTargetEditClearsPendingDefaultMigration() throws {
+    let actions: [(AppModel, BrowserTarget.ID) throws -> Void] = [
+      { model, id in try model.renameTarget(id: id, label: "Customized Chrome") },
+      { model, id in try model.setTargetEnabled(id: id, isEnabled: false) },
+      { model, id in try model.setTargetMode(id: id, mode: .normal) },
+      { model, id in try model.setTargetProfile(id: id, profileIdentifier: nil) },
+    ]
+
+    for action in actions {
+      let pending = Fixtures.pendingChromeDefault(sortOrder: 0)
+      let model = makeModel(
+        store: ConfigStoreStub(
+          config: PickViaConfig(
+            schemaVersion: 1,
+            browsers: [Fixtures.chrome],
+            targets: [pending]
+          )
+        )
+      )
+      try model.load()
+
+      try action(model, pending.id)
+
+      XCTAssertFalse(try XCTUnwrap(model.targets.first).pendingDefaultMigration)
+    }
+  }
+
+  func testReorderingClearsPendingMigrationOnlyWhenCanonicalTargetPositionChanges() throws {
+    let pending = Fixtures.pendingChromeDefault(sortOrder: 0)
+    let firstManual = Fixtures.manualChromeTarget(id: "manual-a", sortOrder: 1)
+    let secondManual = Fixtures.manualChromeTarget(id: "manual-b", sortOrder: 2)
+    let model = makeModel(
+      store: ConfigStoreStub(
+        config: PickViaConfig(
+          schemaVersion: 1,
+          browsers: [Fixtures.chrome],
+          targets: [pending, firstManual, secondManual]
+        )
+      )
+    )
+    try model.load()
+
+    try model.moveTargets(fromOffsets: IndexSet(integer: 1), toOffset: 3)
+
+    XCTAssertTrue(
+      try XCTUnwrap(model.targets.first { $0.id == pending.id }).pendingDefaultMigration)
+
+    try model.moveTargets(fromOffsets: IndexSet(integer: 0), toOffset: 3)
+
+    XCTAssertFalse(
+      try XCTUnwrap(model.targets.first { $0.id == pending.id }).pendingDefaultMigration)
+  }
+
   func testBlankLabelIsRejectedWithoutMutatingConfig() throws {
     let store = ConfigStoreStub(config: Fixtures.editableConfig)
     let model = makeModel(store: store)
@@ -2612,6 +2665,38 @@ private enum Fixtures {
         origin: .detected, availability: .available)
     ]
   )
+
+  static func pendingChromeDefault(sortOrder: Int) -> BrowserTarget {
+    BrowserTarget(
+      id: "com.google.Chrome||normal",
+      browserID: chrome.id,
+      label: "Google Chrome",
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      profileIdentity: nil,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: sortOrder,
+      origin: .detected,
+      availability: .available,
+      pendingDefaultMigration: true
+    )
+  }
+
+  static func manualChromeTarget(id: BrowserTarget.ID, sortOrder: Int) -> BrowserTarget {
+    BrowserTarget(
+      id: id,
+      browserID: chrome.id,
+      label: id,
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: sortOrder,
+      origin: .manual,
+      availability: .available
+    )
+  }
 
   static let safariConfig = PickViaConfig(
     schemaVersion: 1,

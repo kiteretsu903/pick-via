@@ -94,6 +94,7 @@ public struct BrowserTarget: Codable, Equatable, Identifiable, Sendable {
   public let sortOrder: Int
   public let origin: BrowserTargetOrigin
   public let availability: BrowserTargetAvailability
+  public let pendingDefaultMigration: Bool
   public let validationError: String?
 
   public init(
@@ -109,6 +110,7 @@ public struct BrowserTarget: Codable, Equatable, Identifiable, Sendable {
     sortOrder: Int,
     origin: BrowserTargetOrigin,
     availability: BrowserTargetAvailability,
+    pendingDefaultMigration: Bool = false,
     validationError: String? = nil
   ) {
     self.id = id
@@ -123,6 +125,7 @@ public struct BrowserTarget: Codable, Equatable, Identifiable, Sendable {
     self.sortOrder = sortOrder
     self.origin = origin
     self.availability = availability
+    self.pendingDefaultMigration = pendingDefaultMigration
     self.validationError = validationError
   }
 
@@ -138,6 +141,7 @@ public struct BrowserTarget: Codable, Equatable, Identifiable, Sendable {
     case sortOrder
     case origin
     case availability
+    case pendingDefaultMigration
     case validationError
   }
 
@@ -155,6 +159,8 @@ public struct BrowserTarget: Codable, Equatable, Identifiable, Sendable {
     sortOrder = try container.decode(Int.self, forKey: .sortOrder)
     origin = try container.decode(BrowserTargetOrigin.self, forKey: .origin)
     availability = try container.decode(BrowserTargetAvailability.self, forKey: .availability)
+    pendingDefaultMigration =
+      try container.decodeIfPresent(Bool.self, forKey: .pendingDefaultMigration) ?? false
     validationError = try container.decodeIfPresent(String.self, forKey: .validationError)
   }
 
@@ -171,6 +177,9 @@ public struct BrowserTarget: Codable, Equatable, Identifiable, Sendable {
     try container.encode(sortOrder, forKey: .sortOrder)
     try container.encode(origin, forKey: .origin)
     try container.encode(availability, forKey: .availability)
+    if pendingDefaultMigration {
+      try container.encode(true, forKey: .pendingDefaultMigration)
+    }
     try container.encodeIfPresent(validationError, forKey: .validationError)
   }
 }

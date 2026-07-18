@@ -164,6 +164,114 @@ final class ConfigStoreTests: XCTestCase {
     XCTAssertNil(decoded.profileLaunchPath)
   }
 
+  func testPendingDefaultMigrationCodableIsBackwardCompatibleAndPersistsOnlyWhenSet() throws {
+    let legacyData = try JSONEncoder().encode(validTarget)
+    let legacyDocument = try XCTUnwrap(String(data: legacyData, encoding: .utf8))
+    XCTAssertFalse(legacyDocument.contains("pendingDefaultMigration"))
+    XCTAssertFalse(
+      try JSONDecoder().decode(BrowserTarget.self, from: legacyData).pendingDefaultMigration)
+
+    let pending = BrowserTarget(
+      id: "com.google.Chrome||normal",
+      browserID: validChrome.id,
+      label: "Google Chrome",
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      profileIdentity: nil,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 3,
+      origin: .detected,
+      availability: .available,
+      pendingDefaultMigration: true
+    )
+    let pendingData = try JSONEncoder().encode(pending)
+    let pendingDocument = try XCTUnwrap(String(data: pendingData, encoding: .utf8))
+
+    XCTAssertTrue(pendingDocument.contains("\"pendingDefaultMigration\":true"))
+    XCTAssertTrue(
+      try JSONDecoder().decode(BrowserTarget.self, from: pendingData).pendingDefaultMigration)
+  }
+
+  func testPendingDefaultMigrationValidationIsLimitedToDetectedCanonicalNonSafariTargets()
+    throws
+  {
+    let validPending = BrowserTarget(
+      id: "com.google.Chrome||private",
+      browserID: validChrome.id,
+      label: "Google Chrome Private",
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      profileIdentity: nil,
+      mode: .private,
+      isEnabled: false,
+      sortOrder: 0,
+      origin: .detected,
+      availability: .available,
+      pendingDefaultMigration: true
+    )
+    XCTAssertTrue(
+      try PickViaConfig(
+        schemaVersion: 1,
+        browsers: [validChrome],
+        targets: [validPending]
+      ).validatedAndMigrated().targets[0].pendingDefaultMigration)
+
+    let invalidTargets = [
+      BrowserTarget(
+        id: "manual",
+        browserID: validChrome.id,
+        label: "Manual",
+        profileIdentifier: nil,
+        profileDisplayName: nil,
+        mode: .normal,
+        isEnabled: true,
+        sortOrder: 0,
+        origin: .manual,
+        availability: .available,
+        pendingDefaultMigration: true
+      ),
+      BrowserTarget(
+        id: "com.google.Chrome|Default|normal",
+        browserID: validChrome.id,
+        label: "Personal",
+        profileIdentifier: "Default",
+        profileDisplayName: "Personal",
+        profileIdentity: "Default",
+        mode: .normal,
+        isEnabled: true,
+        sortOrder: 0,
+        origin: .detected,
+        availability: .available,
+        pendingDefaultMigration: true
+      ),
+      BrowserTarget(
+        id: "com.apple.Safari||normal",
+        browserID: validSafari.id,
+        label: "Safari",
+        profileIdentifier: nil,
+        profileDisplayName: nil,
+        mode: .normal,
+        isEnabled: true,
+        sortOrder: 0,
+        origin: .detected,
+        availability: .available,
+        pendingDefaultMigration: true
+      ),
+    ]
+
+    for target in invalidTargets {
+      let browsers = target.browserID == validSafari.id ? [validSafari] : [validChrome]
+      XCTAssertThrowsError(
+        try PickViaConfig(
+          schemaVersion: 1,
+          browsers: browsers,
+          targets: [target]
+        ).validatedAndMigrated()
+      )
+    }
+  }
+
   func testSavedFirefoxConfigurationContainsNoSelectedRootUsernameOrAbsoluteProfilePath() throws {
     let directory = try temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }

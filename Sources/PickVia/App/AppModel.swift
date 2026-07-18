@@ -463,13 +463,13 @@ public final class AppModel {
     let label = label.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !label.isEmpty else { throw TargetEditingError.blankLabel }
     try updateTarget(id: id) { target in
-      copy(target, label: label)
+      copy(target, label: label, pendingDefaultMigration: false)
     }
   }
 
   public func setTargetEnabled(id: BrowserTarget.ID, isEnabled: Bool) throws {
     try updateTarget(id: id) { target in
-      copy(target, isEnabled: isEnabled)
+      copy(target, isEnabled: isEnabled, pendingDefaultMigration: false)
     }
   }
 
@@ -484,7 +484,7 @@ public final class AppModel {
       guard browser.family != .safari || mode == .normal else {
         throw TargetEditingError.safariPrivateModeUnsupported
       }
-      return copy(target, mode: mode)
+      return copy(target, mode: mode, pendingDefaultMigration: false)
     }
   }
 
@@ -549,12 +549,24 @@ public final class AppModel {
     else { throw TargetEditingError.invalidMove }
 
     let moved = offsets.map { ordered[$0] }
+    let movedIDs = Set(moved.map(\.id))
+    let originalIndexByID = Dictionary(
+      uniqueKeysWithValues: ordered.enumerated().map { ($0.element.id, $0.offset) }
+    )
     for index in offsets.reversed() {
       ordered.remove(at: index)
     }
     let insertionIndex = destination - offsets.filter { $0 < destination }.count
     ordered.insert(contentsOf: moved, at: insertionIndex)
-    ordered = ordered.enumerated().map { copy($0.element, sortOrder: $0.offset) }
+    ordered = ordered.enumerated().map { index, target in
+      copy(
+        target,
+        sortOrder: index,
+        pendingDefaultMigration:
+          originalIndexByID[target.id] == index && !movedIDs.contains(target.id)
+          ? target.pendingDefaultMigration : false
+      )
+    }
     try persist(targets: ordered)
   }
 
@@ -817,7 +829,8 @@ private func copy(
   label: String? = nil,
   mode: BrowserMode? = nil,
   isEnabled: Bool? = nil,
-  sortOrder: Int? = nil
+  sortOrder: Int? = nil,
+  pendingDefaultMigration: Bool? = nil
 ) -> BrowserTarget {
   BrowserTarget(
     id: target.id,
@@ -832,6 +845,7 @@ private func copy(
     sortOrder: sortOrder ?? target.sortOrder,
     origin: target.origin,
     availability: target.availability,
+    pendingDefaultMigration: pendingDefaultMigration ?? target.pendingDefaultMigration,
     validationError: target.validationError
   )
 }
@@ -856,6 +870,7 @@ private func copy(
     sortOrder: target.sortOrder,
     origin: target.origin,
     availability: target.availability,
+    pendingDefaultMigration: false,
     validationError: target.validationError
   )
 }

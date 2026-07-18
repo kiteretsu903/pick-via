@@ -79,6 +79,19 @@ public struct PickViaConfig: Codable, Equatable, Sendable {
       {
         throw ConfigDocumentError.invalidTarget
       }
+      if target.pendingDefaultMigration {
+        let canonicalID = [browser.bundleIdentifier, "", target.mode.rawValue]
+          .joined(separator: "|")
+        guard
+          browser.family == .chromium || browser.family == .firefox,
+          target.origin == .detected,
+          target.id == canonicalID,
+          target.profileIdentifier == nil,
+          target.profileDisplayName == nil,
+          target.profileIdentity == nil,
+          target.profileLaunchPath == nil
+        else { throw ConfigDocumentError.invalidTarget }
+      }
     }
 
     return PickViaConfig(

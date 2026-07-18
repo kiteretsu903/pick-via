@@ -248,10 +248,6 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
 
     let existingByID = Dictionary(
       config.targets.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-    let generatedDefaultSortOrders = generatedDefaultSortOrders(
-      discovered: discovered,
-      config: config
-    )
     var nextSortOrder = (config.targets.map(\.sortOrder).max() ?? -1) + 1
     var reconciled: [BrowserTarget] = []
     var consumedExistingIDs = Set<BrowserTarget.ID>()
@@ -271,12 +267,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
         let canonicalExisting = existingByID[candidate.id]
         let legacyCanonicalWinner = canonicalDefaultMatches.min(by: stableCustomizationOrder)
         let preferredCanonical = canonicalExisting.flatMap { existing in
-          isUntouchedGeneratedDefault(
-            existing,
-            candidate: candidate,
-            expectedSortOrder: generatedDefaultSortOrders[candidate.id]
-          ) && legacyCanonicalWinner != nil
-            ? nil : existing
+          existing.pendingDefaultMigration && legacyCanonicalWinner != nil ? nil : existing
         }
         let existing =
           preferredCanonical
@@ -290,7 +281,16 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
         if let existing {
           consumedExistingIDs.insert(existing.id)
           consumedExistingIDs.formUnion(legacyAbsolutePathMatches.map(\.id))
-          reconciled.append(merging(candidate, preserving: existing))
+          reconciled.append(
+            merging(
+              candidate,
+              preserving: existing,
+              pendingDefaultMigration: shouldPreservePendingDefaultMigration(
+                from: existing,
+                candidate: candidate,
+                browser: browser
+              )
+            ))
         } else {
           reconciled.append(
             BrowserTarget(
@@ -306,6 +306,11 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
               sortOrder: nextSortOrder,
               origin: candidate.origin,
               availability: candidate.availability,
+              pendingDefaultMigration: shouldMarkPendingDefaultMigration(
+                candidate: candidate,
+                browser: browser,
+                existingTargets: config.targets
+              ),
               validationError: nil
             ))
           nextSortOrder += 1
@@ -582,7 +587,8 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
 
   private static func merging(
     _ discovered: BrowserTarget,
-    preserving existing: BrowserTarget
+    preserving existing: BrowserTarget,
+    pendingDefaultMigration: Bool
   ) -> BrowserTarget {
     BrowserTarget(
       id: discovered.id,
@@ -597,6 +603,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       sortOrder: existing.sortOrder,
       origin: existing.origin,
       availability: .available,
+      pendingDefaultMigration: pendingDefaultMigration,
       validationError: nil
     )
   }
@@ -722,6 +729,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       sortOrder: target.sortOrder,
       origin: target.origin,
       availability: availability,
+      pendingDefaultMigration: target.pendingDefaultMigration,
       validationError: target.validationError
     )
   }
@@ -796,43 +804,43 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     return lhs.id < rhs.id
   }
 
-  private static func generatedDefaultSortOrders(
-    discovered: [DiscoveredBrowser],
-    config: PickViaConfig
-  ) -> [BrowserTarget.ID: Int] {
-    let canonicalDefaults = discovered.flatMap(targetCandidates(for:)).filter(
-      isBrowserLevelTarget)
-    let canonicalIDs = Set(canonicalDefaults.map(\.id))
-    let lastRetainedOrder =
-      config.targets
-      .filter { !canonicalIDs.contains($0.id) }
-      .map(\.sortOrder)
-      .max() ?? -1
-    return Dictionary(
-      uniqueKeysWithValues: canonicalDefaults.enumerated().map { offset, candidate in
-        (candidate.id, lastRetainedOrder + offset + 1)
-      }
-    )
+  private static func shouldMarkPendingDefaultMigration(
+    candidate: BrowserTarget,
+    browser: DiscoveredBrowser,
+    existingTargets: [BrowserTarget]
+  ) -> Bool {
+    guard
+      browser.application.family == .chromium || browser.application.family == .firefox,
+      isBrowserLevelTarget(candidate),
+      hasNonAuthoritativeProfileMetadata(browser.metadataStatus)
+    else { return false }
+    return existingTargets.contains { target in
+      target.browserID == candidate.browserID
+        && target.mode == candidate.mode
+        && target.origin == .detected
+        && !isBrowserLevelTarget(target)
+    }
   }
 
-  private static func isUntouchedGeneratedDefault(
-    _ existing: BrowserTarget,
+  private static func shouldPreservePendingDefaultMigration(
+    from existing: BrowserTarget,
     candidate: BrowserTarget,
-    expectedSortOrder: Int?
+    browser: DiscoveredBrowser
   ) -> Bool {
-    existing.id == candidate.id
-      && existing.browserID == candidate.browserID
-      && existing.label == candidate.label
-      && existing.profileIdentifier == nil
-      && existing.profileDisplayName == nil
-      && existing.profileIdentity == nil
-      && existing.profileLaunchPath == nil
-      && existing.mode == candidate.mode
-      && existing.isEnabled == candidate.isEnabled
-      && existing.sortOrder == expectedSortOrder
-      && existing.origin == .detected
-      && existing.availability == .available
-      && existing.validationError == nil
+    existing.pendingDefaultMigration
+      && isBrowserLevelTarget(candidate)
+      && hasNonAuthoritativeProfileMetadata(browser.metadataStatus)
+  }
+
+  private static func hasNonAuthoritativeProfileMetadata(
+    _ status: ProfileMetadataStatus
+  ) -> Bool {
+    switch status {
+    case .metadataDamaged, .accessRequired, .accessRevoked:
+      true
+    case .notApplicable, .metadataAbsent, .loaded:
+      false
+    }
   }
 
   private static func migratedProfileIdentity(
@@ -900,6 +908,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       sortOrder: target.sortOrder,
       origin: target.origin,
       availability: target.availability,
+      pendingDefaultMigration: target.pendingDefaultMigration,
       validationError: target.validationError
     )
   }
@@ -1009,6 +1018,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       sortOrder: target.sortOrder,
       origin: target.origin,
       availability: wasProfiled ? .unavailable : target.availability,
+      pendingDefaultMigration: target.pendingDefaultMigration,
       validationError: nil
     )
   }
@@ -1030,6 +1040,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       sortOrder: target.sortOrder,
       origin: target.origin,
       availability: target.availability,
+      pendingDefaultMigration: target.pendingDefaultMigration,
       validationError: target.validationError
     )
   }
@@ -1052,6 +1063,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       sortOrder: target.sortOrder,
       origin: target.origin,
       availability: availability,
+      pendingDefaultMigration: target.pendingDefaultMigration,
       validationError: target.validationError
     )
   }

@@ -1293,6 +1293,18 @@ struct BrowserCatalogTests {
     )
 
     let waiting = BrowserCatalog.reconcile(discovered: [inaccessible], with: legacy)
+    let pendingDefaults = waiting.targets.filter {
+      $0.browserID == inaccessible.application.id
+        && $0.origin == .detected
+        && $0.profileIdentifier == nil
+        && $0.profileIdentity == nil
+    }
+    #expect(pendingDefaults.count == 2)
+    #expect(pendingDefaults.allSatisfy { $0.pendingDefaultMigration })
+    #expect(
+      waiting.targets.filter { $0.profileIdentity == "Default" }
+        .allSatisfy { !$0.pendingDefaultMigration })
+
     let result = BrowserCatalog.reconcile(discovered: [loaded], with: waiting)
     let defaults = result.targets.filter {
       $0.browserID == loaded.application.id
@@ -1303,6 +1315,213 @@ struct BrowserCatalogTests {
     #expect(defaults.map(\.label) == ["My Chrome", "Secret Chrome"])
     #expect(defaults.map(\.isEnabled) == [false, true])
     #expect(defaults.map(\.sortOrder) == [17, 18])
+    #expect(defaults.allSatisfy { !$0.pendingDefaultMigration })
+    #expect(!result.targets.contains { $0.profileIdentity == "Default" })
+  }
+
+  @Test func authoritativeDefaultWithoutLegacyMatchClearsPendingMigration() throws {
+    let inaccessible = chrome(profiles: [], metadataStatus: .metadataDamaged)
+    let loaded = chrome(profiles: [
+      DiscoveredProfile(
+        identifier: "Default",
+        displayName: "Personal",
+        directoryURL: nil,
+        isDefault: true
+      )
+    ])
+    let legacy = catalogTarget(
+      browser: inaccessible.application,
+      label: "Old Profile",
+      profileIdentifier: "Profile 9",
+      profileDisplayName: "Old Profile",
+      profileIdentity: "Profile 9",
+      mode: .normal,
+      isEnabled: false,
+      sortOrder: 4
+    )
+    let waiting = BrowserCatalog.reconcile(
+      discovered: [inaccessible],
+      with: PickViaConfig(
+        schemaVersion: 1,
+        browsers: [inaccessible.application],
+        targets: [legacy]
+      )
+    )
+    let canonicalID = BrowserCatalog.targetID(
+      bundleIdentifier: inaccessible.application.bundleIdentifier,
+      profileIdentifier: nil,
+      mode: .normal
+    )
+    let pending = try #require(waiting.targets.first { $0.id == canonicalID })
+    #expect(pending.pendingDefaultMigration)
+
+    let result = BrowserCatalog.reconcile(discovered: [loaded], with: waiting)
+    let canonical = try #require(result.targets.first { $0.id == canonicalID })
+
+    #expect(canonical.label == "Google Chrome")
+    #expect(canonical.isEnabled)
+    #expect(!canonical.pendingDefaultMigration)
+    #expect(result.targets.contains { $0.profileIdentity == "Profile 9" })
+  }
+
+  @Test func inaccessibleMetadataWithoutLegacyProfileRowsDoesNotMarkGeneratedDefaults() {
+    let inaccessible = chrome(profiles: [], metadataStatus: .accessRequired)
+
+    let result = BrowserCatalog.reconcile(
+      discovered: [inaccessible],
+      with: PickViaConfig(
+        schemaVersion: 1,
+        browsers: [inaccessible.application],
+        targets: [unprofiledManualTarget(browserID: inaccessible.application.id)]
+      )
+    )
+    let generatedDefaults = result.targets.filter {
+      $0.browserID == inaccessible.application.id
+        && $0.origin == .detected
+        && $0.profileIdentifier == nil
+        && $0.profileIdentity == nil
+    }
+
+    #expect(generatedDefaults.count == 2)
+    #expect(generatedDefaults.allSatisfy { !$0.pendingDefaultMigration })
+    #expect(
+      result.targets.filter { $0.origin == .manual }.allSatisfy {
+        !$0.pendingDefaultMigration
+      })
+  }
+
+  @Test func accessFirstDefaultMigrationSurvivesPreexistingSafariCanonicalTarget() throws {
+    let safariApplication = BrowserApplication(
+      id: "com.apple.Safari",
+      family: .safari,
+      displayName: "Safari",
+      bundleIdentifier: "com.apple.Safari",
+      applicationURL: URL(fileURLWithPath: "/Applications/Safari.app"),
+      executableURL: nil,
+      isAvailable: true
+    )
+    let safari = DiscoveredBrowser(
+      application: safariApplication,
+      profiles: [],
+      metadataStatus: .notApplicable
+    )
+    let inaccessible = chrome(profiles: [], metadataStatus: .accessRequired)
+    let loaded = chrome(profiles: [
+      DiscoveredProfile(
+        identifier: "Default",
+        displayName: "Personal",
+        directoryURL: nil,
+        isDefault: true
+      )
+    ])
+    let safariTarget = catalogTarget(
+      browser: safariApplication,
+      label: "Safari",
+      profileIdentifier: nil,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 0
+    )
+    let legacyNormal = catalogTarget(
+      browser: inaccessible.application,
+      label: "My Chrome",
+      profileIdentifier: "Default",
+      profileDisplayName: "Personal",
+      profileIdentity: "Default",
+      mode: .normal,
+      isEnabled: false,
+      sortOrder: 17
+    )
+    let legacyPrivate = catalogTarget(
+      browser: inaccessible.application,
+      label: "Secret Chrome",
+      profileIdentifier: "Default",
+      profileDisplayName: "Personal",
+      profileIdentity: "Default",
+      mode: .private,
+      isEnabled: true,
+      sortOrder: 18
+    )
+    let waiting = BrowserCatalog.reconcile(
+      discovered: [safari, inaccessible],
+      with: PickViaConfig(
+        schemaVersion: 1,
+        browsers: [safariApplication, inaccessible.application],
+        targets: [safariTarget, legacyNormal, legacyPrivate]
+      )
+    )
+    let waitingSafari = try #require(waiting.targets.first { $0.browserID == safariApplication.id })
+    #expect(!waitingSafari.pendingDefaultMigration)
+
+    let result = BrowserCatalog.reconcile(discovered: [safari, loaded], with: waiting)
+    let defaults = result.targets.filter {
+      $0.browserID == loaded.application.id
+        && $0.origin == .detected
+        && $0.profileIdentifier == nil
+        && $0.profileIdentity == nil
+    }
+
+    #expect(defaults.map(\.label) == ["My Chrome", "Secret Chrome"])
+    #expect(defaults.map(\.isEnabled) == [false, true])
+    #expect(defaults.map(\.sortOrder) == [17, 18])
+    #expect(!result.targets.contains { $0.profileIdentity == "Default" })
+  }
+
+  @Test func accessFirstDefaultMigrationSurvivesUnrelatedTargetInsertion() throws {
+    let inaccessible = chrome(profiles: [], metadataStatus: .accessRevoked)
+    let loaded = chrome(profiles: [
+      DiscoveredProfile(
+        identifier: "Default",
+        displayName: "Personal",
+        directoryURL: nil,
+        isDefault: true
+      )
+    ])
+    let legacyNormal = catalogTarget(
+      browser: inaccessible.application,
+      label: "Legacy Normal",
+      profileIdentifier: "Default",
+      profileDisplayName: "Personal",
+      profileIdentity: "Default",
+      mode: .normal,
+      isEnabled: false,
+      sortOrder: 10
+    )
+    let legacyPrivate = catalogTarget(
+      browser: inaccessible.application,
+      label: "Legacy Private",
+      profileIdentifier: "Default",
+      profileDisplayName: "Personal",
+      profileIdentity: "Default",
+      mode: .private,
+      isEnabled: true,
+      sortOrder: 11
+    )
+    let waiting = BrowserCatalog.reconcile(
+      discovered: [inaccessible],
+      with: PickViaConfig(
+        schemaVersion: 1,
+        browsers: [inaccessible.application],
+        targets: [legacyNormal, legacyPrivate]
+      )
+    )
+    let changedWaiting = PickViaConfig(
+      schemaVersion: waiting.schemaVersion,
+      browsers: waiting.browsers,
+      targets: waiting.targets + [unprofiledManualTarget(browserID: inaccessible.application.id)]
+    )
+
+    let result = BrowserCatalog.reconcile(discovered: [loaded], with: changedWaiting)
+    let defaults = result.targets.filter {
+      $0.browserID == loaded.application.id
+        && $0.origin == .detected
+        && $0.profileIdentifier == nil
+        && $0.profileIdentity == nil
+    }
+
+    #expect(defaults.map(\.label) == ["Legacy Normal", "Legacy Private"])
+    #expect(defaults.map(\.isEnabled) == [false, true])
+    #expect(defaults.map(\.sortOrder) == [10, 11])
     #expect(!result.targets.contains { $0.profileIdentity == "Default" })
   }
 
