@@ -1,4 +1,7 @@
-.agent-artifacts/
+.*powers*/
+.*dex/
+docs/*powers*/
+docs/*dex*/
 .worktrees/
 .build/
 build/
