@@ -13,7 +13,7 @@ protocol ProfileAccessPanelDriving: AnyObject {
   var environmentDidChangeHandler: (@MainActor () -> Void)? { get set }
   var canPresent: Bool { get }
   func hideCompetingPickViaWindows()
-  func present(model: AppModel, onClose: @escaping @MainActor () -> Void)
+  func present(model: AppModel, onClose: @escaping @MainActor () -> Void) -> Bool
   func dismissAndRestoreWindows()
 }
 
@@ -85,15 +85,21 @@ public final class ProfileAccessPanelController: ProfileAccessPresenting {
       return
     }
     guard driver.canPresent else { return }
-    pendingModel = nil
-    isPresented = true
-    presentedModel = model
     selectionCoordinator?.beginPresentation()
     driver.hideCompetingPickViaWindows()
-    driver.present(model: model) { [weak self, weak model] in
+    let didPresent = driver.present(model: model) { [weak self, weak model] in
       model?.closeProfileAccess()
       self?.dismiss()
     }
+    guard didPresent else {
+      selectionCoordinator?.endPresentation()
+      driver.dismissAndRestoreWindows()
+      return
+    }
+
+    pendingModel = nil
+    isPresented = true
+    presentedModel = model
     model.profileAccessDidPresent()
   }
 }
@@ -133,8 +139,9 @@ final class AppKitProfileAccessPanelDriver: NSObject, ProfileAccessPanelDriving,
   var environmentDidChangeHandler: (@MainActor () -> Void)?
 
   private let notificationCenter: NotificationCenter
-  private let isApplicationActive: @MainActor () -> Bool
   private let isChooserActive: @MainActor () -> Bool
+  private let orderPanelFront: @MainActor (NSPanel) -> Void
+  private let activateApplication: @MainActor () -> Void
   private let makePanelKey: @MainActor (NSPanel) -> Void
   private var wizardViewFactory: WizardViewFactory?
   private var onClose: (@MainActor () -> Void)?
@@ -143,13 +150,19 @@ final class AppKitProfileAccessPanelDriver: NSObject, ProfileAccessPanelDriving,
 
   init(
     notificationCenter: NotificationCenter = .default,
-    isApplicationActive: @escaping @MainActor () -> Bool = { NSApp.isActive },
     isChooserActive: @escaping @MainActor () -> Bool = { false },
+    orderPanelFront: @escaping @MainActor (NSPanel) -> Void = {
+      $0.orderFrontRegardless()
+    },
+    activateApplication: @escaping @MainActor () -> Void = {
+      NSApp.activate(ignoringOtherApps: true)
+    },
     makePanelKey: @escaping @MainActor (NSPanel) -> Void = { $0.makeKey() }
   ) {
     self.notificationCenter = notificationCenter
-    self.isApplicationActive = isApplicationActive
     self.isChooserActive = isChooserActive
+    self.orderPanelFront = orderPanelFront
+    self.activateApplication = activateApplication
     self.makePanelKey = makePanelKey
     super.init()
     lifecycleObservers = [
@@ -189,8 +202,7 @@ final class AppKitProfileAccessPanelDriver: NSObject, ProfileAccessPanelDriving,
   }()
 
   var canPresent: Bool {
-    isApplicationActive()
-      && !isChooserActive()
+    !isChooserActive()
       && wizardViewFactory != nil
       && !panel.isVisible
       && NSApp.modalWindow == nil
@@ -237,14 +249,19 @@ final class AppKitProfileAccessPanelDriver: NSObject, ProfileAccessPanelDriving,
     )
   }
 
-  func present(model: AppModel, onClose: @escaping @MainActor () -> Void) {
-    guard let wizardViewFactory else { return }
+  func present(model: AppModel, onClose: @escaping @MainActor () -> Void) -> Bool {
+    guard let wizardViewFactory else { return false }
     self.onClose = onClose
     panel.contentViewController = NSHostingController(rootView: wizardViewFactory(model))
     position(panel)
-    NSApp.activate(ignoringOtherApps: true)
-    panel.orderFrontRegardless()
+    orderPanelFront(panel)
+    guard panel.isVisible else {
+      self.onClose = nil
+      return false
+    }
+    activateApplication()
     makePanelKey(panel)
+    return true
   }
 
   func dismissAndRestoreWindows() {

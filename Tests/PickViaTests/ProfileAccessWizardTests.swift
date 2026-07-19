@@ -421,8 +421,9 @@ private final class QueuedProfileAccessPanelDriver: ProfileAccessPanelDriving {
   private(set) var presentCallCount = 0
 
   func hideCompetingPickViaWindows() {}
-  func present(model: AppModel, onClose: @escaping @MainActor () -> Void) {
+  func present(model: AppModel, onClose: @escaping @MainActor () -> Void) -> Bool {
     presentCallCount += 1
+    return true
   }
   func dismissAndRestoreWindows() {}
 }
