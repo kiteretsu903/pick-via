@@ -262,6 +262,110 @@ final class ChooserPanelControllerTests: XCTestCase {
     XCTAssertNil(controller.pointerAnchorForCurrentPresentation)
   }
 
+  func testSameRequestErrorRerenderKeepsExistingPanelOrigin() throws {
+    let screen = try XCTUnwrap(NSScreen.main)
+    let pointer = NSPoint(
+      x: screen.visibleFrame.midX,
+      y: screen.visibleFrame.minY + 250
+    )
+    let controller = ChooserPanelController(pointerLocationProvider: { pointer })
+
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work],
+      error: nil,
+      onSelection: { _ in },
+      onCancel: {}
+    )
+    let initialOrigin = controller.panelFrameForTesting.origin
+
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work],
+      error: LaunchFailure(
+        message: String(repeating: "The browser could not open this link safely. ", count: 12)
+      ),
+      onSelection: { _ in },
+      onCancel: {}
+    )
+
+    XCTAssertEqual(controller.panelFrameForTesting.origin, initialOrigin)
+    controller.dismiss()
+  }
+
+  func testSameRequestErrorRerenderStaysWithinTopScreenEdge() throws {
+    let screen = try XCTUnwrap(NSScreen.main)
+    let pointer = NSPoint(
+      x: screen.visibleFrame.midX,
+      y: screen.visibleFrame.maxY - 30
+    )
+    let controller = ChooserPanelController(pointerLocationProvider: { pointer })
+
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work],
+      error: nil,
+      onSelection: { _ in },
+      onCancel: {}
+    )
+    let initialOrigin = controller.panelFrameForTesting.origin
+
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work],
+      error: LaunchFailure(
+        message: String(repeating: "The browser could not open this link safely. ", count: 30)
+      ),
+      onSelection: { _ in },
+      onCancel: {}
+    )
+    let rerenderedFrame = controller.panelFrameForTesting
+
+    XCTAssertEqual(rerenderedFrame.origin, initialOrigin)
+    XCTAssertLessThanOrEqual(
+      rerenderedFrame.maxY,
+      screen.visibleFrame.maxY - ChooserPanelLayout.screenMargin + 1
+    )
+    controller.dismiss()
+  }
+
+  func testHostedChooserGrowsForFittingRowsAndCapsOversizedTargetList() throws {
+    let screen = try XCTUnwrap(NSScreen.main)
+    let controller = ChooserPanelController(
+      pointerLocationProvider: { NSPoint(x: screen.frame.midX, y: screen.frame.midY) }
+    )
+
+    func presentedHeight(targetCount: Int) -> CGFloat {
+      let targets = (0..<targetCount).map {
+        Fixtures.target(id: "target-\($0)", sortOrder: $0)
+      }
+      controller.present(
+        request: Fixtures.request,
+        applications: [Fixtures.chrome],
+        targets: targets,
+        error: nil,
+        onSelection: { _ in },
+        onCancel: {}
+      )
+      let height = controller.panelContentSizeForTesting.height
+      controller.dismiss()
+      return height
+    }
+
+    let oneRowHeight = presentedHeight(targetCount: 1)
+    let sixRowHeight = presentedHeight(targetCount: 6)
+    let oversizedHeight = presentedHeight(targetCount: 80)
+    let maximumHeight = ChooserPanelLayout.maximumPanelHeight(in: screen.visibleFrame)
+
+    XCTAssertGreaterThan(sixRowHeight, oneRowHeight)
+    XCTAssertGreaterThan(oversizedHeight, sixRowHeight)
+    XCTAssertEqual(oversizedHeight, maximumHeight, accuracy: 1)
+  }
+
   func testNewRequestCapturesANewPointerAnchor() {
     var points = [NSPoint(x: 100, y: 700), NSPoint(x: 900, y: 100)]
     let controller = ChooserPanelController(pointerLocationProvider: { points.removeFirst() })

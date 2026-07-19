@@ -89,6 +89,53 @@ struct ProfileParserTests {
     #expect(profiles.first { $0.displayName == "Work" }?.isDefault == true)
   }
 
+  @Test func firefoxInstallDefaultOverridesLegacyGlobalDefault() throws {
+    let root = URL(fileURLWithPath: "/Users/example/Firefox", isDirectory: true)
+    let profiles = try FirefoxProfileParser.parse(
+      text: """
+        [Profile0]
+        Name=Compatibility
+        IsRelative=1
+        Path=Profiles/compatibility
+        Default=1
+        [Profile1]
+        Name=Release
+        IsRelative=1
+        Path=Profiles/release
+        [Install308046B0AF4A39CB]
+        Default=Profiles/release
+        Locked=1
+        """,
+      baseDirectory: root
+    )
+
+    #expect(profiles.first { $0.displayName == "Compatibility" }?.isDefault == false)
+    #expect(profiles.first { $0.displayName == "Release" }?.isDefault == true)
+  }
+
+  @Test func firefoxDistinctInstallDefaultsAreNotAbsorbedWithoutInstallDisambiguation() throws {
+    let root = URL(fileURLWithPath: "/Users/example/Firefox", isDirectory: true)
+    let profiles = try FirefoxProfileParser.parse(
+      text: """
+        [Profile0]
+        Name=Release
+        IsRelative=1
+        Path=Profiles/release
+        [Profile1]
+        Name=Beta
+        IsRelative=1
+        Path=Profiles/beta
+        [InstallRelease]
+        Default=Profiles/release
+        [InstallBeta]
+        Default=Profiles/beta
+        """,
+      baseDirectory: root
+    )
+
+    #expect(profiles.allSatisfy { !$0.isDefault })
+  }
+
   @Test func firefoxIgnoresNonProfileSectionsAndAcceptsExactRelativeFlags() throws {
     let text = """
       [Profile0]

@@ -957,8 +957,25 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       }
       return $0.displayName < $1.displayName
     }
-    var seen = Set<String>()
-    return sorted.filter { seen.insert($0.identifier).inserted }
+    var indexByIdentifier: [String: Int] = [:]
+    var unique: [DiscoveredProfile] = []
+    for profile in sorted {
+      if let index = indexByIdentifier[profile.identifier] {
+        guard profile.isDefault, !unique[index].isDefault else { continue }
+        let representative = unique[index]
+        unique[index] = DiscoveredProfile(
+          identifier: representative.identifier,
+          displayName: representative.displayName,
+          directoryURL: representative.directoryURL,
+          launchIdentifier: representative.launchIdentifier,
+          isDefault: true
+        )
+      } else {
+        indexByIdentifier[profile.identifier] = unique.count
+        unique.append(profile)
+      }
+    }
+    return unique
   }
 
   private static func runtimeSanitizedFirefoxTarget(_ target: BrowserTarget) -> BrowserTarget {

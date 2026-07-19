@@ -31,6 +31,7 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
   private var hostingView: NSHostingView<ChooserView>?
   private var pointerAnchor: NSPoint?
   private var maximumContentHeightForCurrentPresentation: CGFloat?
+  private var visibleFrameForCurrentPresentation: CGRect?
   // NSEvent monitor tokens are opaque and non-Sendable. The controller owns the
   // token exclusively; this escape hatch lets nonisolated deinit remove it too.
   nonisolated(unsafe) private var keyMonitor: Any?
@@ -135,29 +136,52 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
         nil
       }
     let mainVisibleFrame = NSScreen.main?.visibleFrame
-    let maximumHeight = (containingScreen?.visibleFrame ?? mainVisibleFrame).map {
-      ChooserPanelLayout.maximumPanelHeight(in: $0)
+    let retainedOrigin = isNewRequest ? nil : panel?.frame.origin
+    let visibleFrame =
+      isNewRequest
+      ? containingScreen?.visibleFrame ?? mainVisibleFrame
+      : visibleFrameForCurrentPresentation
+    if isNewRequest {
+      visibleFrameForCurrentPresentation = visibleFrame
+    }
+    let maximumHeight: CGFloat?
+    if let retainedOrigin, let visibleFrame {
+      let remainingHeight = max(
+        1,
+        visibleFrame.maxY - ChooserPanelLayout.screenMargin - retainedOrigin.y
+      )
+      maximumHeight =
+        maximumContentHeightForCurrentPresentation.map {
+          min($0, remainingHeight)
+        } ?? remainingHeight
+    } else {
+      maximumHeight = visibleFrame.map { ChooserPanelLayout.maximumPanelHeight(in: $0) }
     }
     maximumContentHeightForCurrentPresentation = maximumHeight
     render(maximumContentHeight: maximumHeight)
+    if let retainedOrigin {
+      panel?.setFrameOrigin(retainedOrigin)
+    }
     installKeyMonitor()
 
     guard let panel else { return }
-    if let pointerAnchor, let visibleFrame = containingScreen?.visibleFrame {
-      panel.setFrameOrigin(
-        ChooserPanelLayout.origin(
-          pointer: pointerAnchor,
-          panelSize: panel.frame.size,
-          visibleFrame: visibleFrame
+    if isNewRequest {
+      if let pointerAnchor, let visibleFrame = containingScreen?.visibleFrame {
+        panel.setFrameOrigin(
+          ChooserPanelLayout.origin(
+            pointer: pointerAnchor,
+            panelSize: panel.frame.size,
+            visibleFrame: visibleFrame
+          )
         )
-      )
-    } else if let mainVisibleFrame {
-      panel.setFrameOrigin(
-        ChooserPanelLayout.centeredOrigin(
-          panelSize: panel.frame.size,
-          visibleFrame: mainVisibleFrame
+      } else if let mainVisibleFrame {
+        panel.setFrameOrigin(
+          ChooserPanelLayout.centeredOrigin(
+            panelSize: panel.frame.size,
+            visibleFrame: mainVisibleFrame
+          )
         )
-      )
+      }
     }
     NSApp.activate(ignoringOtherApps: true)
     panel.makeKeyAndOrderFront(nil)
@@ -177,6 +201,7 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     presentation = nil
     pointerAnchor = nil
     maximumContentHeightForCurrentPresentation = nil
+    visibleFrameForCurrentPresentation = nil
     suppressesResignCancellation = false
     isDismissing = false
     schedulePresentationEndReport()

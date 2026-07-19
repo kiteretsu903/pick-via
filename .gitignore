@@ -2,6 +2,8 @@
 .*dex/
 docs/*powers*/
 docs/*dex*/
+.DS_Store
 .worktrees/
 .build/
 build/
+.vscode/

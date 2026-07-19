@@ -687,6 +687,32 @@ struct BrowserCatalogTests {
     )
   }
 
+  @Test func duplicateFirefoxPathMetadataPreservesCanonicalDefaultMarker() {
+    let path = URL(fileURLWithPath: "/profiles/same", isDirectory: true).standardizedFileURL
+    let identity = FirefoxProfileIdentity.identifier(for: path)
+    let browser = firefox(
+      profiles: [
+        DiscoveredProfile(
+          identifier: identity,
+          displayName: "A Compatibility Entry",
+          directoryURL: path,
+          launchIdentifier: "A Compatibility Entry"
+        ),
+        DiscoveredProfile(
+          identifier: identity,
+          displayName: "Z Install Default",
+          directoryURL: path,
+          launchIdentifier: "Z Install Default",
+          isDefault: true
+        ),
+      ])
+
+    let result = BrowserCatalog.reconcile(discovered: [browser], with: .initial)
+
+    #expect(result.targets.count == 2)
+    #expect(result.targets.allSatisfy { $0.profileIdentity == nil })
+  }
+
   @Test func duplicateFirefoxNamesDoNotReuseLegacyDetectedCustomization() {
     let legacy = BrowserTarget(
       id: BrowserCatalog.targetID(

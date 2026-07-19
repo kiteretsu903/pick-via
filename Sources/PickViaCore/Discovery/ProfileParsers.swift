@@ -56,16 +56,13 @@ public enum ChromiumProfileParser {
 
 public enum FirefoxProfileParser {
   public static func parse(text: String, baseDirectory: URL) throws -> [DiscoveredProfile] {
-    var sections: [[String: String]] = []
+    var sections: [(name: String, values: [String: String])] = []
     var currentSectionName: String?
     var currentValues: [String: String] = [:]
 
     func appendCurrentSection() {
-      guard
-        let name = currentSectionName,
-        isNumericProfileSection(name)
-      else { return }
-      sections.append(currentValues)
+      guard let name = currentSectionName else { return }
+      sections.append((name: name, values: currentValues))
     }
 
     for rawLine in text.components(separatedBy: .newlines) {
@@ -88,7 +85,9 @@ public enum FirefoxProfileParser {
     }
     appendCurrentSection()
 
-    return try sections.map { values in
+    let parsedProfiles = try sections.compactMap { section -> ParsedFirefoxProfile? in
+      guard isNumericProfileSection(section.name) else { return nil }
+      let values = section.values
       guard
         let name = values["Name"],
         !name.isEmpty,
@@ -113,12 +112,47 @@ public enum FirefoxProfileParser {
       }
 
       let normalizedURL = directoryURL.standardizedFileURL
-      return DiscoveredProfile(
+      return ParsedFirefoxProfile(
         identifier: FirefoxProfileIdentity.identifier(for: normalizedURL),
         displayName: name,
         directoryURL: normalizedURL,
         launchIdentifier: name,
-        isDefault: values["Default"] == "1"
+        isLegacyDefault: values["Default"] == "1"
+      )
+    }
+
+    let installDefaultValues = sections.compactMap { section -> String? in
+      guard isInstallSection(section.name) else { return nil }
+      return section.values["Default"]
+    }
+    let installDefaultURLs = installDefaultValues.compactMap {
+      normalizedInstallDefaultURL(path: $0, baseDirectory: baseDirectory)
+    }
+    let uniqueInstallDefaultPaths = Set(installDefaultURLs.map(\.path))
+
+    let defaultPath: String?
+    if !installDefaultValues.isEmpty {
+      // The install hash cannot be mapped safely from profiles.ini alone. A
+      // single distinct, valid install default is nevertheless unambiguous;
+      // differing or malformed install entries must not cause absorption.
+      defaultPath =
+        installDefaultURLs.count == installDefaultValues.count
+          && uniqueInstallDefaultPaths.count == 1
+        ? uniqueInstallDefaultPaths.first : nil
+    } else {
+      let legacyDefaultPaths = Set(
+        parsedProfiles.filter(\.isLegacyDefault).map(\.directoryURL.path)
+      )
+      defaultPath = legacyDefaultPaths.count == 1 ? legacyDefaultPaths.first : nil
+    }
+
+    return parsedProfiles.map { profile in
+      DiscoveredProfile(
+        identifier: profile.identifier,
+        displayName: profile.displayName,
+        directoryURL: profile.directoryURL,
+        launchIdentifier: profile.launchIdentifier,
+        isDefault: profile.directoryURL.path == defaultPath
       )
     }
     .sorted { $0.identifier < $1.identifier }
@@ -130,6 +164,26 @@ public enum FirefoxProfileParser {
     return !suffix.isEmpty
       && suffix.unicodeScalars.allSatisfy { (48...57).contains($0.value) }
   }
+
+  private static func isInstallSection(_ name: String) -> Bool {
+    name.hasPrefix("Install") && name.count > "Install".count
+  }
+
+  private static func normalizedInstallDefaultURL(
+    path: String,
+    baseDirectory: URL
+  ) -> URL? {
+    guard !path.isEmpty, !(path as NSString).isAbsolutePath else { return nil }
+    return baseDirectory.appending(path: path, directoryHint: .isDirectory).standardizedFileURL
+  }
+}
+
+private struct ParsedFirefoxProfile {
+  let identifier: String
+  let displayName: String
+  let directoryURL: URL
+  let launchIdentifier: String
+  let isLegacyDefault: Bool
 }
 
 public enum FirefoxProfileParserError: Error, Equatable, Sendable {
