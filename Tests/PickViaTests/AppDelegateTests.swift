@@ -15,7 +15,6 @@ final class AppDelegateTests: XCTestCase {
     let delegate = AppDelegate(
       model: model,
       profileAccessPresenter: presenter,
-      activateApplication: {},
       openSettings: {}
     )
 
@@ -39,14 +38,14 @@ final class AppDelegateTests: XCTestCase {
     )
     try model.load()
     let navigation = SettingsNavigation()
-    let activation = AppDelegateApplicationActivationSpy()
+    let scheduler = AppDelegateLaunchSchedulerSpy()
     var destinationWhenOpened: SettingsDestination?
     let presenter = AppDelegateProfileAccessPresenterSpy()
     let delegate = AppDelegate(
       model: model,
       navigation: navigation,
       profileAccessPresenter: presenter,
-      activateApplication: { activation.activate() },
+      launchScheduler: scheduler,
       openSettings: { destinationWhenOpened = navigation.destination }
     )
 
@@ -56,7 +55,7 @@ final class AppDelegateTests: XCTestCase {
 
     XCTAssertEqual(destinationWhenOpened, .browsers)
     XCTAssertEqual(presenter.requestIfPendingCallCount, 0)
-    XCTAssertEqual(activation.callCount, 0)
+    XCTAssertEqual(scheduler.scheduleCallCount, 0)
   }
 
   func testClosingRecoveredSettingsQueuesAutomaticProfileAccessAfterReview() throws {
@@ -92,11 +91,9 @@ final class AppDelegateTests: XCTestCase {
     XCTAssertTrue(presenter.lastModel === model)
   }
 
-  func testLaunchQueuesPendingProfileAccessBeforeRequestingActivation() throws {
-    var lifecycleEvents: [String] = []
-    let presenter = AppDelegateProfileAccessPresenterSpy(
-      onRequestIfPending: { lifecycleEvents.append("request") }
-    )
+  func testLaunchDefersPendingProfileAccessUntilNextMainRunLoopTurn() throws {
+    let presenter = AppDelegateProfileAccessPresenterSpy()
+    let scheduler = AppDelegateLaunchSchedulerSpy()
     let model = makeModel(
       catalog: AppDelegateCatalogStub(
         scanResult: AppDelegateFixtures.profileAccessRequiredScan
@@ -107,7 +104,7 @@ final class AppDelegateTests: XCTestCase {
     let delegate = AppDelegate(
       model: model,
       profileAccessPresenter: presenter,
-      activateApplication: { lifecycleEvents.append("activate") },
+      launchScheduler: scheduler,
       openSettings: {}
     )
 
@@ -115,14 +112,18 @@ final class AppDelegateTests: XCTestCase {
       Notification(name: NSApplication.didFinishLaunchingNotification)
     )
 
-    XCTAssertEqual(lifecycleEvents, ["request", "activate"])
+    XCTAssertEqual(scheduler.scheduleCallCount, 1)
+    XCTAssertEqual(presenter.requestIfPendingCallCount, 0)
+
+    scheduler.runNext()
+
     XCTAssertEqual(presenter.requestIfPendingCallCount, 1)
     XCTAssertTrue(presenter.lastModel === model)
   }
 
   func testLaunchKeepsProfileAccessPendingDuringOnboardingReview() throws {
     let presenter = AppDelegateProfileAccessPresenterSpy()
-    let activation = AppDelegateApplicationActivationSpy()
+    let scheduler = AppDelegateLaunchSchedulerSpy()
     let model = makeModel(
       catalog: AppDelegateCatalogStub(
         scanResult: AppDelegateFixtures.profileAccessRequiredScan
@@ -133,7 +134,7 @@ final class AppDelegateTests: XCTestCase {
     let delegate = AppDelegate(
       model: model,
       profileAccessPresenter: presenter,
-      activateApplication: { activation.activate() },
+      launchScheduler: scheduler,
       openSettings: {}
     )
 
@@ -143,12 +144,12 @@ final class AppDelegateTests: XCTestCase {
 
     XCTAssertEqual(model.profileAccessPresentation, .automaticPending)
     XCTAssertEqual(presenter.requestIfPendingCallCount, 0)
-    XCTAssertEqual(activation.callCount, 0)
+    XCTAssertEqual(scheduler.scheduleCallCount, 0)
   }
 
-  func testLaunchDoesNotRequestActivationWithoutPendingProfileAccess() throws {
+  func testLaunchDoesNotScheduleWithoutPendingProfileAccess() throws {
     let presenter = AppDelegateProfileAccessPresenterSpy()
-    let activation = AppDelegateApplicationActivationSpy()
+    let scheduler = AppDelegateLaunchSchedulerSpy()
     let model = makeModel(
       preferences: AppDelegatePreferencesStub(onboardingStep: 3)
     )
@@ -156,7 +157,7 @@ final class AppDelegateTests: XCTestCase {
     let delegate = AppDelegate(
       model: model,
       profileAccessPresenter: presenter,
-      activateApplication: { activation.activate() },
+      launchScheduler: scheduler,
       openSettings: {}
     )
 
@@ -165,8 +166,8 @@ final class AppDelegateTests: XCTestCase {
     )
 
     XCTAssertEqual(model.profileAccessPresentation, .idle)
-    XCTAssertEqual(presenter.requestIfPendingCallCount, 1)
-    XCTAssertEqual(activation.callCount, 0)
+    XCTAssertEqual(presenter.requestIfPendingCallCount, 0)
+    XCTAssertEqual(scheduler.scheduleCallCount, 0)
   }
 
   func testOpenURLsPassesEachURLThroughModelValidation() throws {
@@ -443,11 +444,19 @@ private final class AppDelegateProfileAccessPresenterSpy: ProfileAccessPresentin
 }
 
 @MainActor
-private final class AppDelegateApplicationActivationSpy {
-  private(set) var callCount = 0
+private final class AppDelegateLaunchSchedulerSpy: AppLaunchScheduling {
+  private(set) var scheduleCallCount = 0
+  private var scheduledAction: (@MainActor @Sendable () -> Void)?
 
-  func activate() {
-    callCount += 1
+  func schedule(_ action: @escaping @MainActor @Sendable () -> Void) {
+    scheduleCallCount += 1
+    scheduledAction = action
+  }
+
+  func runNext() {
+    let action = scheduledAction
+    scheduledAction = nil
+    action?()
   }
 }
 

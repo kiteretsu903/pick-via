@@ -4,13 +4,25 @@ import PickViaCore
 import SwiftUI
 
 @MainActor
+protocol AppLaunchScheduling: AnyObject {
+  func schedule(_ action: @escaping @MainActor @Sendable () -> Void)
+}
+
+@MainActor
+final class MainRunLoopAppLaunchScheduler: AppLaunchScheduling {
+  func schedule(_ action: @escaping @MainActor @Sendable () -> Void) {
+    DispatchQueue.main.async(execute: action)
+  }
+}
+
+@MainActor
 public final class AppDelegate: NSObject, NSApplicationDelegate {
   public let model: AppModel
   public let navigation: SettingsNavigation
   public let profileAccessPresenter: any ProfileAccessPresenting
   let settingsSceneOpener: SettingsSceneOpener
 
-  private let activateApplication: @MainActor () -> Void
+  private let launchScheduler: any AppLaunchScheduling
   private let openSettings: @MainActor () -> Void
   private let showAbout: @MainActor () -> Void
 
@@ -49,7 +61,6 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
       navigation: navigation,
       profileAccessPresenter: production.profileAccessPresenter,
       settingsSceneOpener: settingsSceneOpener,
-      activateApplication: activateApplication,
       openSettings: openSettings,
       showAbout: showAbout
     )
@@ -61,9 +72,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     profileAccessPresenter: any ProfileAccessPresenting = InactiveAppDelegateProfileAccessPresenter
       .shared,
     settingsSceneOpener: SettingsSceneOpener = SettingsSceneOpener(),
-    activateApplication: @escaping @MainActor () -> Void = {
-      NSApp.activate(ignoringOtherApps: true)
-    },
+    launchScheduler: any AppLaunchScheduling = MainRunLoopAppLaunchScheduler(),
     openSettings: @escaping @MainActor () -> Void,
     showAbout: @escaping @MainActor () -> Void = {
       NSApp.activate(ignoringOtherApps: true)
@@ -74,7 +83,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     self.navigation = navigation
     self.profileAccessPresenter = profileAccessPresenter
     self.settingsSceneOpener = settingsSceneOpener
-    self.activateApplication = activateApplication
+    self.launchScheduler = launchScheduler
     self.openSettings = openSettings
     self.showAbout = showAbout
     super.init()
@@ -92,11 +101,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
       openSettings()
       return
     }
-    if model.onboardingStep >= 3 {
-      profileAccessPresenter.requestIfPending(model: model)
-      if model.shouldAutomaticallyPresentProfileAccess {
-        activateApplication()
-      }
+    guard model.onboardingStep >= 3,
+      model.shouldAutomaticallyPresentProfileAccess
+    else { return }
+
+    launchScheduler.schedule { [weak self] in
+      guard let self else { return }
+      self.profileAccessPresenter.requestIfPending(model: self.model)
     }
   }
 
