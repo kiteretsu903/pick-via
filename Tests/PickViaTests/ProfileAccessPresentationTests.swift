@@ -155,7 +155,7 @@ final class ProfileAccessPresentationTests: XCTestCase {
     XCTAssertEqual(keyCallCount, 0)
   }
 
-  func testAppKitDriverPresentsPanelOnAllSpacesWithoutMovingToActiveSpace() throws {
+  func testAppKitDriverPresentsNonactivatingPanelOnAllSpaces() throws {
     let application = NSApplication.shared
     let keyRequests = PanelKeyRequestSpy()
     let driver = AppKitProfileAccessPanelDriver(makePanelKey: { keyRequests.record($0) })
@@ -171,6 +171,7 @@ final class ProfileAccessPresentationTests: XCTestCase {
     XCTAssertTrue(panel.collectionBehavior.contains(.canJoinAllSpaces))
     XCTAssertTrue(panel.collectionBehavior.contains(.fullScreenAuxiliary))
     XCTAssertFalse(panel.collectionBehavior.contains(.moveToActiveSpace))
+    XCTAssertTrue(panel.styleMask.contains(.nonactivatingPanel))
     XCTAssertTrue(panel.isVisible)
     XCTAssertEqual(keyRequests.panels.count, 1)
     XCTAssertTrue(try XCTUnwrap(keyRequests.panels.first) === panel)

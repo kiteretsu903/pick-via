@@ -190,7 +190,7 @@ final class AppKitProfileAccessPanelDriver: NSObject, ProfileAccessPanelDriving,
   private lazy var panel: NSPanel = {
     let panel = NSPanel(
       contentRect: NSRect(x: 0, y: 0, width: 620, height: 440),
-      styleMask: [.titled, .closable],
+      styleMask: [.titled, .closable, .nonactivatingPanel],
       backing: .buffered,
       defer: false
     )
