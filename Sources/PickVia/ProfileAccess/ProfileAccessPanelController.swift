@@ -196,7 +196,7 @@ final class AppKitProfileAccessPanelDriver: NSObject, ProfileAccessPanelDriving,
     )
     panel.title = "Browser Profile Access"
     panel.isReleasedWhenClosed = false
-    panel.collectionBehavior = [.moveToActiveSpace]
+    panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
     panel.delegate = self
     return panel
   }()
