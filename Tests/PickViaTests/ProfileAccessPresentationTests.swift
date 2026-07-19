@@ -172,6 +172,8 @@ final class ProfileAccessPresentationTests: XCTestCase {
     XCTAssertTrue(panel.collectionBehavior.contains(.fullScreenAuxiliary))
     XCTAssertFalse(panel.collectionBehavior.contains(.moveToActiveSpace))
     XCTAssertTrue(panel.styleMask.contains(.nonactivatingPanel))
+    XCTAssertTrue(panel.styleMask.contains(.titled))
+    XCTAssertTrue(panel.styleMask.contains(.closable))
     XCTAssertTrue(panel.isVisible)
     XCTAssertEqual(keyRequests.panels.count, 1)
     XCTAssertTrue(try XCTUnwrap(keyRequests.panels.first) === panel)

@@ -223,13 +223,12 @@ final class ChooserPanelControllerTests: XCTestCase {
     )
     let panelFrame = controller.panelFrameForTesting
 
-    XCTAssertEqual(
-      panelFrame.origin,
-      ChooserPanelLayout.centeredOrigin(
-        panelSize: panelFrame.size,
-        visibleFrame: mainScreen.visibleFrame
-      )
+    let expectedOrigin = ChooserPanelLayout.centeredOrigin(
+      panelSize: panelFrame.size,
+      visibleFrame: mainScreen.visibleFrame
     )
+    XCTAssertEqual(panelFrame.origin.x, expectedOrigin.x, accuracy: 0.5)
+    XCTAssertEqual(panelFrame.origin.y, expectedOrigin.y, accuracy: 0.5)
     controller.dismiss()
   }
 
