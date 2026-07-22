@@ -472,7 +472,7 @@ private struct ProfileAccessWizardCatalogStub: BrowserDiscovering {
   }
   func reconcile(discovered: [DiscoveredBrowser], with config: PickViaConfig) -> PickViaConfig {
     PickViaConfig(
-      schemaVersion: 1,
+      schemaVersion: PickViaConfig.currentSchemaVersion,
       browsers: discovered.map(\.application),
       targets: [ProfileAccessWizardFixtures.target]
     )

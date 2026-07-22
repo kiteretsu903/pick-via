@@ -31,32 +31,32 @@ final class ConfigStoreTests: XCTestCase {
     let corruptConfigurations = [
       PickViaConfig(schemaVersion: 99, browsers: [], targets: []),
       PickViaConfig(
-        schemaVersion: 1,
+        schemaVersion: PickViaConfig.currentSchemaVersion,
         browsers: [validChrome, validChrome],
         targets: []
       ),
       PickViaConfig(
-        schemaVersion: 1,
+        schemaVersion: PickViaConfig.currentSchemaVersion,
         browsers: [validChrome],
         targets: [copyTarget(validTarget, id: "blank-label", label: "  ")]
       ),
       PickViaConfig(
-        schemaVersion: 1,
+        schemaVersion: PickViaConfig.currentSchemaVersion,
         browsers: [validChrome],
         targets: [validTarget, validTarget]
       ),
       PickViaConfig(
-        schemaVersion: 1,
+        schemaVersion: PickViaConfig.currentSchemaVersion,
         browsers: [validChrome],
         targets: [copyTarget(validTarget, id: "mismatch", browserID: "missing-browser")]
       ),
       PickViaConfig(
-        schemaVersion: 1,
+        schemaVersion: PickViaConfig.currentSchemaVersion,
         browsers: [validChrome],
         targets: [copyTarget(validTarget, id: "bad-profile", profileIdentity: "  ")]
       ),
       PickViaConfig(
-        schemaVersion: 1,
+        schemaVersion: PickViaConfig.currentSchemaVersion,
         browsers: [validSafari],
         targets: [validSafariTargetWithMetadata]
       ),
@@ -90,6 +90,49 @@ final class ConfigStoreTests: XCTestCase {
     XCTAssertEqual(migrated.browsers.map(\.id), legacy.browsers.map(\.id))
     XCTAssertEqual(migrated.targets, legacy.targets)
   }
+
+  func testSchemaOneNormalizesDetectedTargetEnabledStatesOnce() throws {
+    let browser = validChrome
+    let detected = [
+      makeTarget(id: "default-normal", profile: nil, mode: .normal, enabled: false),
+      makeTarget(id: "default-private", profile: nil, mode: .private, enabled: false),
+      makeTarget(id: "work-normal", profile: "Profile 1", mode: .normal, enabled: false),
+      makeTarget(id: "work-private", profile: "Profile 1", mode: .private, enabled: true),
+    ]
+    let manual = makeTarget(
+      id: "manual-private",
+      profile: "Profile 1",
+      mode: .private,
+      enabled: true,
+      origin: .manual
+    )
+
+    let migrated = try PickViaConfig(
+      schemaVersion: 1,
+      browsers: [browser],
+      targets: detected + [manual]
+    ).validatedAndMigrated()
+
+    XCTAssertEqual(migrated.schemaVersion, 2)
+    XCTAssertEqual(migrated.targets.map(\.isEnabled), [true, true, true, false, true])
+  }
+
+  func testCurrentSchemaPreservesDetectedEnabledStates() throws {
+    let target = makeTarget(
+      id: "default-private",
+      profile: nil,
+      mode: .private,
+      enabled: false
+    )
+    let validated = try PickViaConfig(
+      schemaVersion: 2,
+      browsers: [validChrome],
+      targets: [target]
+    ).validatedAndMigrated()
+
+    XCTAssertFalse(validated.targets[0].isEnabled)
+  }
+
   func testMissingFileReturnsInitialConfiguration() throws {
     let directory = try temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -106,7 +149,7 @@ final class ConfigStoreTests: XCTestCase {
       now: { Date(timeIntervalSince1970: 1_700_000_000) }
     )
     let target = copyTarget(validTarget, label: "工作")
-    let expected = PickViaConfig(schemaVersion: 1, browsers: [validChrome], targets: [target])
+    let expected = PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [validChrome], targets: [target])
 
     try store.save(expected)
 
@@ -123,7 +166,7 @@ final class ConfigStoreTests: XCTestCase {
     let store = JSONConfigStore(directory: directory)
 
     try store.save(
-      PickViaConfig(schemaVersion: 1, browsers: [validChrome], targets: [validTarget])
+      PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [validChrome], targets: [validTarget])
     )
 
     let data = try Data(contentsOf: directory.appending(path: "PickViaConfig.json"))
@@ -212,7 +255,7 @@ final class ConfigStoreTests: XCTestCase {
     )
     XCTAssertTrue(
       try PickViaConfig(
-        schemaVersion: 1,
+        schemaVersion: PickViaConfig.currentSchemaVersion,
         browsers: [validChrome],
         targets: [validPending]
       ).validatedAndMigrated().targets[0].pendingDefaultMigration)
@@ -264,7 +307,7 @@ final class ConfigStoreTests: XCTestCase {
       let browsers = target.browserID == validSafari.id ? [validSafari] : [validChrome]
       XCTAssertThrowsError(
         try PickViaConfig(
-          schemaVersion: 1,
+          schemaVersion: PickViaConfig.currentSchemaVersion,
           browsers: browsers,
           targets: [target]
         ).validatedAndMigrated()
@@ -305,7 +348,7 @@ final class ConfigStoreTests: XCTestCase {
     )
 
     try JSONConfigStore(directory: directory).save(
-      PickViaConfig(schemaVersion: 1, browsers: [firefox], targets: [target])
+      PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox], targets: [target])
     )
 
     let data = try Data(contentsOf: directory.appending(path: "PickViaConfig.json"))
@@ -346,7 +389,7 @@ final class ConfigStoreTests: XCTestCase {
 
     XCTAssertThrowsError(
       try store.save(
-        PickViaConfig(schemaVersion: 1, browsers: [firefox], targets: [legacy])
+        PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox], targets: [legacy])
       ))
     XCTAssertFalse(
       FileManager.default.fileExists(
@@ -437,7 +480,7 @@ final class ConfigStoreTests: XCTestCase {
 
       XCTAssertThrowsError(
         try store.save(
-          PickViaConfig(schemaVersion: 1, browsers: [firefox], targets: [target])
+          PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox], targets: [target])
         ))
       XCTAssertFalse(
         FileManager.default.fileExists(
@@ -479,7 +522,7 @@ final class ConfigStoreTests: XCTestCase {
     let store = JSONConfigStore(directory: directory)
 
     try store.save(
-      PickViaConfig(schemaVersion: 1, browsers: [firefox], targets: [manual])
+      PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox], targets: [manual])
     )
 
     let document = try XCTUnwrap(
@@ -529,7 +572,7 @@ final class ConfigStoreTests: XCTestCase {
 
     let migratable = legacy(profileName: "Work Profile", availability: .unavailable)
     try JSONConfigStore(directory: directory.appending(path: "valid")).save(
-      PickViaConfig(schemaVersion: 1, browsers: [firefox], targets: [migratable])
+      PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox], targets: [migratable])
     )
 
     let invalid = [
@@ -542,7 +585,7 @@ final class ConfigStoreTests: XCTestCase {
       let caseDirectory = directory.appending(path: "invalid-\(index)")
       XCTAssertThrowsError(
         try JSONConfigStore(directory: caseDirectory).save(
-          PickViaConfig(schemaVersion: 1, browsers: [firefox], targets: [target])
+          PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox], targets: [target])
         ))
       XCTAssertFalse(
         FileManager.default.fileExists(
@@ -568,9 +611,9 @@ final class ConfigStoreTests: XCTestCase {
     let directory = try temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }
     let store = JSONConfigStore(directory: directory)
-    let first = PickViaConfig(schemaVersion: 1, browsers: [], targets: [])
+    let first = PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [], targets: [])
     let second = PickViaConfig(
-      schemaVersion: 1,
+      schemaVersion: PickViaConfig.currentSchemaVersion,
       browsers: [validChrome],
       targets: [validTarget]
     )
@@ -633,6 +676,29 @@ private let validTarget = BrowserTarget(
   origin: .detected,
   availability: .available
 )
+
+private func makeTarget(
+  id: String,
+  profile: String?,
+  mode: BrowserMode,
+  enabled: Bool,
+  origin: BrowserTargetOrigin = .detected
+) -> BrowserTarget {
+  let baseLabel = profile ?? validChrome.displayName
+  return BrowserTarget(
+    id: id,
+    browserID: validChrome.id,
+    label: mode == .private ? "\(baseLabel) Private" : baseLabel,
+    profileIdentifier: profile,
+    profileDisplayName: profile,
+    profileIdentity: profile,
+    mode: mode,
+    isEnabled: enabled,
+    sortOrder: 0,
+    origin: origin,
+    availability: .available
+  )
+}
 
 private let validSafari = BrowserApplication(
   id: "com.apple.Safari",

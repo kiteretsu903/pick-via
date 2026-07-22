@@ -39,7 +39,7 @@ final class AppModelTests: XCTestCase {
   func testStartupRescansLoadedConfigurationAndPreservesCustomization() throws {
     let store = ConfigStoreStub(config: Fixtures.editableConfig)
     let reconciled = PickViaConfig(
-      schemaVersion: 1,
+      schemaVersion: PickViaConfig.currentSchemaVersion,
       browsers: Fixtures.editableConfig.browsers,
       targets: Fixtures.editableConfig.targets.map {
         $0.id == "work" ? Fixtures.copy($0, label: "Client Work") : $0
@@ -90,7 +90,7 @@ final class AppModelTests: XCTestCase {
   func testInvalidStartupReconciliationPreservesLastValidConfigAndSnapshot() throws {
     let valid = Fixtures.editableConfig
     let invalid = PickViaConfig(
-      schemaVersion: 1,
+      schemaVersion: PickViaConfig.currentSchemaVersion,
       browsers: valid.browsers,
       targets: [valid.targets[0], valid.targets[0]]
     )
@@ -153,7 +153,7 @@ final class AppModelTests: XCTestCase {
     let discovered = Fixtures.installedBrowser(
       "com.google.Chrome", status: .accessRequired)
     let config = PickViaConfig(
-      schemaVersion: 1,
+      schemaVersion: PickViaConfig.currentSchemaVersion,
       browsers: [discovered.application],
       targets: []
     )
@@ -225,7 +225,7 @@ final class AppModelTests: XCTestCase {
       availability: .unavailable
     )
     let config = PickViaConfig(
-      schemaVersion: 1,
+      schemaVersion: PickViaConfig.currentSchemaVersion,
       browsers: [required.application],
       targets: [unavailableWork]
     )
@@ -281,7 +281,7 @@ final class AppModelTests: XCTestCase {
       availability: .unavailable
     )
     let config = PickViaConfig(
-      schemaVersion: 1,
+      schemaVersion: PickViaConfig.currentSchemaVersion,
       browsers: [required.application],
       targets: [unavailableWork]
     )
@@ -334,7 +334,7 @@ final class AppModelTests: XCTestCase {
       availability: .unavailable
     )
     let config = PickViaConfig(
-      schemaVersion: 1,
+      schemaVersion: PickViaConfig.currentSchemaVersion,
       browsers: [required.application],
       targets: [unavailableWork]
     )
@@ -366,7 +366,7 @@ final class AppModelTests: XCTestCase {
   func testRescanReconcilesAndPersistsConfiguration() throws {
     let store = ConfigStoreStub(config: Fixtures.editableConfig)
     let reconciled = PickViaConfig(
-      schemaVersion: 1,
+      schemaVersion: PickViaConfig.currentSchemaVersion,
       browsers: Fixtures.editableConfig.browsers,
       targets: Fixtures.editableConfig.targets.map {
         $0.id == "work" ? Fixtures.copy($0, label: "Reconciled") : $0
@@ -1320,7 +1320,7 @@ final class AppModelTests: XCTestCase {
       availability: .unavailable
     )
     let config = PickViaConfig(
-      schemaVersion: 1,
+      schemaVersion: PickViaConfig.currentSchemaVersion,
       browsers: Fixtures.config.browsers,
       targets: [unavailable]
     )
@@ -1789,7 +1789,7 @@ final class AppModelTests: XCTestCase {
       let model = makeModel(
         store: ConfigStoreStub(
           config: PickViaConfig(
-            schemaVersion: 1,
+            schemaVersion: PickViaConfig.currentSchemaVersion,
             browsers: [Fixtures.chrome],
             targets: [pending]
           )
@@ -1810,7 +1810,7 @@ final class AppModelTests: XCTestCase {
     let model = makeModel(
       store: ConfigStoreStub(
         config: PickViaConfig(
-          schemaVersion: 1,
+          schemaVersion: PickViaConfig.currentSchemaVersion,
           browsers: [Fixtures.chrome],
           targets: [pending, firstManual, secondManual]
         )
@@ -1863,7 +1863,7 @@ final class AppModelTests: XCTestCase {
       executableURL: URL(fileURLWithPath: "/Applications/Example.app/Contents/MacOS/Example"),
       isAvailable: true
     )
-    let config = PickViaConfig(schemaVersion: 1, browsers: [unsupported], targets: [])
+    let config = PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [unsupported], targets: [])
     let store = ConfigStoreStub(config: config)
     let model = makeModel(store: store)
     try model.load()
@@ -1909,7 +1909,7 @@ final class AppModelTests: XCTestCase {
       availability: .available
     )
     let config = PickViaConfig(
-      schemaVersion: 1,
+      schemaVersion: PickViaConfig.currentSchemaVersion,
       browsers: Fixtures.profileEditConfig.browsers,
       targets: Fixtures.profileEditConfig.targets + [manual]
     )
@@ -1939,7 +1939,7 @@ final class AppModelTests: XCTestCase {
       availability: .available
     )
     let original = PickViaConfig(
-      schemaVersion: 1,
+      schemaVersion: PickViaConfig.currentSchemaVersion,
       browsers: Fixtures.profileEditConfig.browsers,
       targets: Fixtures.profileEditConfig.targets + [manual]
     )
@@ -1991,7 +1991,7 @@ final class AppModelTests: XCTestCase {
       availability: .available
     )
     let config = PickViaConfig(
-      schemaVersion: 1,
+      schemaVersion: PickViaConfig.currentSchemaVersion,
       browsers: Fixtures.profileEditConfig.browsers,
       targets: Fixtures.profileEditConfig.targets + [manual]
     )
@@ -2032,7 +2032,7 @@ final class AppModelTests: XCTestCase {
       origin: .manual,
       availability: .available
     )
-    let config = PickViaConfig(schemaVersion: 1, browsers: [Fixtures.chrome], targets: [manualOnly])
+    let config = PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [Fixtures.chrome], targets: [manualOnly])
     let store = ConfigStoreStub(config: config)
     let model = makeModel(store: store)
     try model.load()
@@ -2270,7 +2270,7 @@ final class AppModelTests: XCTestCase {
       availability: .available
     )
     let config = PickViaConfig(
-      schemaVersion: 1,
+      schemaVersion: PickViaConfig.currentSchemaVersion,
       browsers: Fixtures.editableConfig.browsers,
       targets: Fixtures.editableConfig.targets + [manual]
     )
@@ -2449,7 +2449,7 @@ final class AppModelTests: XCTestCase {
       availability: .available
     )
     let loaded = PickViaConfig(
-      schemaVersion: 1,
+      schemaVersion: PickViaConfig.currentSchemaVersion,
       browsers: [firefox],
       targets: [
         browserLevel, manualBrowserLevel, nameOnlyManual, rawIdentityManual, idOnlyLegacy,
@@ -2575,7 +2575,7 @@ private enum Fixtures {
   }
 
   static let config = PickViaConfig(
-    schemaVersion: 1,
+    schemaVersion: PickViaConfig.currentSchemaVersion,
     browsers: [browser],
     targets: [target()]
   )
@@ -2641,7 +2641,7 @@ private enum Fixtures {
   }
 
   static let editableConfig = PickViaConfig(
-    schemaVersion: 1,
+    schemaVersion: PickViaConfig.currentSchemaVersion,
     browsers: [chrome],
     targets: [
       BrowserTarget(
@@ -2656,7 +2656,7 @@ private enum Fixtures {
   )
 
   static let profileEditConfig = PickViaConfig(
-    schemaVersion: 1,
+    schemaVersion: PickViaConfig.currentSchemaVersion,
     browsers: [chrome],
     targets: editableConfig.targets + [
       BrowserTarget(
@@ -2699,7 +2699,7 @@ private enum Fixtures {
   }
 
   static let safariConfig = PickViaConfig(
-    schemaVersion: 1,
+    schemaVersion: PickViaConfig.currentSchemaVersion,
     browsers: [
       BrowserApplication(
         id: "com.apple.Safari", family: .safari, displayName: "Safari",

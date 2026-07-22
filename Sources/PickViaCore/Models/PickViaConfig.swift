@@ -1,5 +1,5 @@
 public struct PickViaConfig: Codable, Equatable, Sendable {
-  public static let currentSchemaVersion = 1
+  public static let currentSchemaVersion = 2
 
   public let schemaVersion: Int
   public let browsers: [BrowserApplication]
@@ -94,10 +94,43 @@ public struct PickViaConfig: Codable, Equatable, Sendable {
       }
     }
 
+    let migratedTargets = targets.map { target in
+      guard
+        schemaVersion < 2,
+        target.origin == .detected,
+        let browser = browsers.first(where: { $0.id == target.browserID }),
+        browser.family == .chromium || browser.family == .firefox
+      else { return target }
+
+      let hasExplicitProfile =
+        target.profileIdentity != nil
+        || target.profileIdentifier != nil
+        || target.profileDisplayName != nil
+        || target.profileLaunchPath != nil
+      let shouldEnable = !hasExplicitProfile || target.mode == .normal
+
+      return BrowserTarget(
+        id: target.id,
+        browserID: target.browserID,
+        label: target.label,
+        profileIdentifier: target.profileIdentifier,
+        profileDisplayName: target.profileDisplayName,
+        profileIdentity: target.profileIdentity,
+        profileLaunchPath: target.profileLaunchPath,
+        mode: target.mode,
+        isEnabled: shouldEnable,
+        sortOrder: target.sortOrder,
+        origin: target.origin,
+        availability: target.availability,
+        pendingDefaultMigration: target.pendingDefaultMigration,
+        validationError: target.validationError
+      )
+    }
+
     return PickViaConfig(
       schemaVersion: Self.currentSchemaVersion,
       browsers: browsers,
-      targets: targets
+      targets: migratedTargets
     )
   }
 }

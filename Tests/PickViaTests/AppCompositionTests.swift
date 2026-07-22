@@ -9,7 +9,7 @@ final class AppCompositionTests: XCTestCase {
   func testRoutingUsesAuthoritativeStartupSnapshotWithoutReloadingDisk() throws {
     let chooser = CompositionChooserSpy()
     let stale = PickViaConfig(
-      schemaVersion: 1,
+      schemaVersion: PickViaConfig.currentSchemaVersion,
       browsers: CompositionFixtures.config.browsers,
       targets: [CompositionFixtures.copyTarget(isEnabled: false)]
     )
@@ -394,7 +394,7 @@ private enum CompositionFixtures {
     availability: .available
   )
   static let config = PickViaConfig(
-    schemaVersion: 1,
+    schemaVersion: PickViaConfig.currentSchemaVersion,
     browsers: [browser],
     targets: [target]
   )

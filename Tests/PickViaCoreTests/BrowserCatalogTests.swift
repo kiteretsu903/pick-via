@@ -340,7 +340,30 @@ struct BrowserCatalogTests {
     #expect(result.targets.count == 2)
     #expect(result.targets.map(\.profileIdentifier) == [nil, nil])
     #expect(result.targets.map(\.mode) == [.normal, .private])
-    #expect(result.targets.map(\.isEnabled) == [true, false])
+    #expect(result.targets.map(\.isEnabled) == [true, true])
+  }
+
+  @Test func detectedTargetDefaultsEnableOnlyBrowserPrivateAndAllNormalTargets() {
+    let discovered = chrome(profiles: [
+      DiscoveredProfile(
+        identifier: "Default",
+        displayName: "Personal",
+        directoryURL: nil,
+        isDefault: true
+      ),
+      DiscoveredProfile(identifier: "Profile 1", displayName: "Work", directoryURL: nil),
+    ])
+
+    let result = BrowserCatalog.reconcile(discovered: [discovered], with: .initial)
+    let values = result.targets.map { target in
+      (target.profileIdentity == nil, target.mode, target.isEnabled)
+    }
+
+    #expect(values.count == 4)
+    #expect(values[0].0 && values[0].1 == .normal && values[0].2)
+    #expect(values[1].0 && values[1].1 == .private && values[1].2)
+    #expect(!values[2].0 && values[2].1 == .normal && values[2].2)
+    #expect(!values[3].0 && values[3].1 == .private && !values[3].2)
   }
 
   @Test func damagedMetadataPreservesExistingProfileAvailability() throws {
@@ -386,7 +409,7 @@ struct BrowserCatalogTests {
     #expect(chromeTargets[0].mode == .normal)
     #expect(chromeTargets[0].isEnabled)
     #expect(chromeTargets[1].mode == .private)
-    #expect(!chromeTargets[1].isEnabled)
+    #expect(chromeTargets[1].isEnabled)
   }
 
   @Test func firefoxAbsorbsDefaultOnlyWhenTheFlagIsUnique() {

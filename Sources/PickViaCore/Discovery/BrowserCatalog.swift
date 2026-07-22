@@ -578,7 +578,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       profileIdentity: profile?.identifier,
       profileLaunchPath: profile?.directoryURL?.standardizedFileURL.path,
       mode: mode,
-      isEnabled: mode == .normal,
+      isEnabled: profile == nil || mode == .normal,
       sortOrder: 0,
       origin: .detected,
       availability: .available
