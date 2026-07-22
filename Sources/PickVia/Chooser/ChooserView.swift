@@ -33,7 +33,7 @@ public struct ChooserView: View {
   }
 
   public var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
+    VStack(alignment: .leading, spacing: metrics.mainSpacing) {
       Text("Open link with")
         .font(.title2.weight(.semibold))
 
@@ -84,11 +84,13 @@ public struct ChooserView: View {
       }
       .controlSize(.small)
     }
-    .padding(14)
+    .padding(metrics.outerPadding)
     .frame(width: density.metrics.contentWidth)
     .frame(maxHeight: maximumContentHeight)
     .background(.regularMaterial)
   }
+
+  private var metrics: ChooserMetrics { density.metrics }
 
   private var selectedTargetID: BrowserTarget.ID? {
     guard let selectedIndex = presentation.selectedIndex,
@@ -98,7 +100,7 @@ public struct ChooserView: View {
   }
 
   private var groupStack: some View {
-    VStack(spacing: 6) {
+    VStack(spacing: metrics.groupSpacing) {
       ForEach(presentation.groups) { group in
         groupView(group)
       }
@@ -119,8 +121,8 @@ public struct ChooserView: View {
             .font(.headline)
           Spacer()
         }
-        .padding(.horizontal, 10)
-        .padding(.top, 2)
+        .padding(.horizontal, metrics.headerHorizontalPadding)
+        .padding(.vertical, metrics.headerVerticalPadding)
       }
       ForEach(rows) { row in
         rowView(row, indented: true)
@@ -139,45 +141,15 @@ public struct ChooserView: View {
           presentation.rows.indices.contains($0) ? presentation.rows[$0].id : nil
         } == row.id
 
-      Button {
-        onSelection(row.targetID)
-      } label: {
-        HStack(spacing: 10) {
-          if !indented {
-            applicationIcon(application)
-          } else {
-            Color.clear.frame(width: 22, height: 1)
-          }
-          VStack(alignment: .leading, spacing: 1) {
-            Text(target.label)
-              .fontWeight(.medium)
-              .lineLimit(1)
-              .truncationMode(.tail)
-            Text(detail(for: target, application: application, indented: indented))
-              .font(.caption)
-              .foregroundStyle(.secondary)
-              .lineLimit(1)
-              .truncationMode(.tail)
-          }
-          Spacer()
-          if let shortcut = row.shortcut {
-            Text(shortcut.label)
-              .font(.callout.monospaced())
-              .foregroundStyle(.secondary)
-              .padding(.horizontal, 7)
-              .padding(.vertical, 3)
-              .background(.quaternary, in: RoundedRectangle(cornerRadius: 5))
-          }
-        }
-        .contentShape(Rectangle())
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(
-          selected ? Color.accentColor.opacity(0.2) : Color.clear,
-          in: RoundedRectangle(cornerRadius: 8)
-        )
-      }
-      .buttonStyle(.plain)
+      ChooserTargetRow(
+        label: target.label,
+        shortcut: row.shortcut,
+        applicationURL: indented ? nil : application.applicationURL,
+        isIndented: indented,
+        isSelected: selected,
+        metrics: metrics,
+        action: { onSelection(row.targetID) }
+      )
     }
   }
 
@@ -187,20 +159,5 @@ public struct ChooserView: View {
     return Image(nsImage: image)
       .resizable()
       .frame(width: 22, height: 22)
-  }
-
-  private func detail(
-    for target: BrowserTarget,
-    application: BrowserApplication,
-    indented: Bool
-  ) -> String {
-    var parts: [String] = []
-    if !indented { parts.append(application.displayName) }
-    if let profile = target.profileDisplayName, profile != target.label {
-      parts.append(profile)
-    }
-    if target.mode == .private { parts.append("Private") }
-    return parts.isEmpty
-      ? (target.mode == .private ? "Private" : "Normal") : parts.joined(separator: " · ")
   }
 }

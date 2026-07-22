@@ -36,31 +36,27 @@ final class BrowserSettingsViewTests: XCTestCase {
     XCTAssertTrue(source.contains("ViewThatFits(in: .vertical)"))
     XCTAssertTrue(source.contains("ScrollViewReader"))
     XCTAssertTrue(source.contains("scrollTo(selectedTargetID"))
-    XCTAssertTrue(source.contains("density.metrics.contentWidth"))
+    XCTAssertTrue(source.contains(".frame(width: density.metrics.contentWidth)"))
     XCTAssertTrue(source.contains(".lineLimit(1)"))
   }
 
-  func testChooserTargetLabelAndDetailUseOneLineTailTruncation() throws {
+  func testChooserRowsAreSingleLineAndDoNotRenderDetailText() throws {
     let source = try projectSource("Sources/PickVia/Chooser/ChooserView.swift")
-    let rowStart = try XCTUnwrap(source.range(of: "private func rowView"))
-    let rowEnd = try XCTUnwrap(
-      source.range(of: "private func applicationIcon", range: rowStart.upperBound..<source.endIndex)
-    )
-    let row = String(source[rowStart.lowerBound..<rowEnd.lowerBound])
-    let labelStart = try XCTUnwrap(row.range(of: "Text(target.label)"))
-    let detailStart = try XCTUnwrap(
-      row.range(of: "Text(detail(for:", range: labelStart.upperBound..<row.endIndex)
-    )
-    let spacer = try XCTUnwrap(
-      row.range(of: "Spacer()", range: detailStart.upperBound..<row.endIndex)
-    )
-    let label = String(row[labelStart.lowerBound..<detailStart.lowerBound])
-    let detail = String(row[detailStart.lowerBound..<spacer.lowerBound])
+    XCTAssertFalse(source.contains("detail(for:"))
+    XCTAssertTrue(source.contains("ChooserTargetRow("))
 
-    XCTAssertTrue(label.contains(".lineLimit(1)"))
-    XCTAssertTrue(label.contains(".truncationMode(.tail)"))
-    XCTAssertTrue(detail.contains(".lineLimit(1)"))
-    XCTAssertTrue(detail.contains(".truncationMode(.tail)"))
+    let rowSource = try projectSource("Sources/PickVia/Chooser/ChooserTargetRow.swift")
+    XCTAssertTrue(rowSource.contains("Text(label)"))
+    XCTAssertTrue(rowSource.contains(".lineLimit(1)"))
+    XCTAssertTrue(rowSource.contains(".truncationMode(.tail)"))
+    XCTAssertFalse(rowSource.contains("VStack"))
+  }
+
+  func testChooserSelectionUsesTintAndInsetBorderWithoutShadow() throws {
+    let source = try projectSource("Sources/PickVia/Chooser/ChooserTargetRow.swift")
+    XCTAssertTrue(source.contains("Color.accentColor.opacity"))
+    XCTAssertTrue(source.contains(".strokeBorder"))
+    XCTAssertFalse(source.contains(".shadow"))
   }
 
   private func fixedActionStrip(in source: String) throws -> String {
