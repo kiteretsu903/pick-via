@@ -22,10 +22,12 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
   private let clipboard: any ClipboardWriting
   private let openBrowserSettings: @MainActor () -> Void
   private let showsURLProvider: @MainActor () -> Bool
+  private let densityProvider: @MainActor () -> ChooserDensity
   private let onPresentationChange: @MainActor (Bool) -> Void
   private let pointerLocationProvider: @MainActor () -> NSPoint
 
   private(set) var showsURLForCurrentPresentation = true
+  private(set) var densityForCurrentPresentation: ChooserDensity = .compact
 
   private var panel: NSPanel?
   private var hostingView: NSHostingView<ChooserView>?
@@ -54,12 +56,14 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
   public init(
     clipboard: any ClipboardWriting = SystemClipboardWriter(),
     showsURL: Bool = true,
+    densityProvider: @escaping @MainActor () -> ChooserDensity = { .compact },
     openBrowserSettings: @escaping @MainActor () -> Void = {},
     onPresentationChange: @escaping @MainActor (Bool) -> Void = { _ in },
     pointerLocationProvider: @escaping @MainActor () -> NSPoint = { NSEvent.mouseLocation }
   ) {
     self.clipboard = clipboard
     self.showsURLProvider = { showsURL }
+    self.densityProvider = densityProvider
     self.openBrowserSettings = openBrowserSettings
     self.onPresentationChange = onPresentationChange
     self.pointerLocationProvider = pointerLocationProvider
@@ -68,6 +72,7 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
 
   public init(
     showsURLProvider: @escaping @MainActor () -> Bool,
+    densityProvider: @escaping @MainActor () -> ChooserDensity = { .compact },
     clipboard: any ClipboardWriting = SystemClipboardWriter(),
     openBrowserSettings: @escaping @MainActor () -> Void = {},
     onPresentationChange: @escaping @MainActor (Bool) -> Void = { _ in },
@@ -75,6 +80,7 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
   ) {
     self.clipboard = clipboard
     self.showsURLProvider = showsURLProvider
+    self.densityProvider = densityProvider
     self.openBrowserSettings = openBrowserSettings
     self.onPresentationChange = onPresentationChange
     self.pointerLocationProvider = pointerLocationProvider
@@ -98,6 +104,9 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     let isNewRequest = presentation?.request.id != request.id
     if isNewRequest || pointerAnchor == nil {
       pointerAnchor = pointerLocationProvider()
+    }
+    if isNewRequest {
+      densityForCurrentPresentation = densityProvider()
     }
     showsURLForCurrentPresentation = showsURLProvider()
     let preservedTargetID: BrowserTarget.ID?
@@ -236,6 +245,7 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     let view = ChooserView(
       presentation: presentation,
       showsURL: showsURLForCurrentPresentation,
+      density: densityForCurrentPresentation,
       maximumContentHeight: maximumContentHeight,
       onSelection: { [weak self] targetID in self?.select(targetID) },
       onCopyURL: { [weak self] in self?.copyCurrentURL() },
@@ -246,13 +256,14 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     if let hostingView {
       hostingView.rootView = view
     } else {
+      let contentWidth = densityForCurrentPresentation.metrics.contentWidth
       let hostingView = NSHostingView(rootView: view)
       self.hostingView = hostingView
       let panel = ChooserPanel(
         contentRect: NSRect(
           x: 0,
           y: 0,
-          width: ChooserPanelLayout.contentWidth,
+          width: contentWidth,
           height: 300
         ),
         styleMask: [.borderless],
@@ -273,12 +284,13 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
 
     guard let hostingView, let panel else { return }
     hostingView.layoutSubtreeIfNeeded()
+    let contentWidth = densityForCurrentPresentation.metrics.contentWidth
     let fittingSize = hostingView.fittingSize
     let fittedHeight =
       maximumContentHeight.map { min($0, fittingSize.height) } ?? fittingSize.height
     panel.setContentSize(
       NSSize(
-        width: ChooserPanelLayout.contentWidth,
+        width: contentWidth,
         height: max(1, fittedHeight)
       )
     )

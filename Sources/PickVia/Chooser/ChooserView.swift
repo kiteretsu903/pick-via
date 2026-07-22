@@ -5,6 +5,7 @@ import SwiftUI
 public struct ChooserView: View {
   public let presentation: ChooserPresentation
   public let showsURL: Bool
+  public let density: ChooserDensity
   public let maximumContentHeight: CGFloat?
   public let onSelection: (BrowserTarget.ID) -> Void
   public let onCopyURL: () -> Void
@@ -14,6 +15,7 @@ public struct ChooserView: View {
   public init(
     presentation: ChooserPresentation,
     showsURL: Bool = true,
+    density: ChooserDensity = .compact,
     maximumContentHeight: CGFloat? = nil,
     onSelection: @escaping (BrowserTarget.ID) -> Void,
     onCopyURL: @escaping () -> Void,
@@ -22,6 +24,7 @@ public struct ChooserView: View {
   ) {
     self.presentation = presentation
     self.showsURL = showsURL
+    self.density = density
     self.maximumContentHeight = maximumContentHeight
     self.onSelection = onSelection
     self.onCopyURL = onCopyURL
@@ -82,7 +85,7 @@ public struct ChooserView: View {
       .controlSize(.small)
     }
     .padding(14)
-    .frame(width: ChooserPanelLayout.contentWidth)
+    .frame(width: density.metrics.contentWidth)
     .frame(maxHeight: maximumContentHeight)
     .background(.regularMaterial)
   }

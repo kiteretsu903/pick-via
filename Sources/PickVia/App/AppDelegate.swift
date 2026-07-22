@@ -168,6 +168,11 @@ extension AppModel {
       showsURLProvider: {
         preferences.bool(forKey: PreferenceKey.showsURLInChooser) ?? true
       },
+      densityProvider: {
+        ChooserDensity.fromPersistedValue(
+          preferences.integer(forKey: PreferenceKey.chooserDensity)
+        )
+      },
       clipboard: SystemClipboardWriter(),
       openBrowserSettings: recovery.open,
       onPresentationChange: { [weak profileAccessPresenter] _ in

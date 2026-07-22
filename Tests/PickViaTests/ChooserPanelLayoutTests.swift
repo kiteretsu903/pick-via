@@ -7,8 +7,7 @@ final class ChooserPanelLayoutTests: XCTestCase {
   private let visible = CGRect(x: 0, y: 0, width: 1000, height: 800)
   private let panel = CGSize(width: 360, height: 300)
 
-  func testContentWidthAndMaximumHeightUseApprovedConstants() {
-    XCTAssertEqual(ChooserPanelLayout.contentWidth, 360)
+  func testMaximumHeightUsesApprovedConstants() {
     XCTAssertEqual(ChooserPanelLayout.maximumPanelHeight(in: visible), 776)
   }
 

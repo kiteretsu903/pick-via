@@ -257,9 +257,52 @@ final class ChooserPanelControllerTests: XCTestCase {
 
     XCTAssertEqual(controller.pointerAnchorForCurrentPresentation, NSPoint(x: 100, y: 700))
     XCTAssertEqual(points.count, 1)
-    XCTAssertEqual(controller.panelContentSizeForTesting.width, 360)
+    XCTAssertEqual(
+      controller.panelContentSizeForTesting.width,
+      ChooserDensity.compact.metrics.contentWidth
+    )
     controller.dismiss()
     XCTAssertNil(controller.pointerAnchorForCurrentPresentation)
+  }
+
+  func testDensityIsResolvedForEachNewRequestAndRetainedForRerender() {
+    let preference = DensityPreference(value: .compact)
+    let controller = ChooserPanelController(densityProvider: { preference.value })
+
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work],
+      error: nil,
+      onSelection: { _ in },
+      onCancel: {}
+    )
+    XCTAssertEqual(controller.densityForCurrentPresentation, .compact)
+    XCTAssertEqual(controller.panelContentSizeForTesting.width, 340)
+
+    preference.value = .spacious
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work],
+      error: LaunchFailure(message: "Safe launch error"),
+      onSelection: { _ in },
+      onCancel: {}
+    )
+    XCTAssertEqual(controller.densityForCurrentPresentation, .compact)
+
+    controller.dismiss()
+    controller.present(
+      request: RoutingRequest(url: URL(string: "https://example.com/new")!),
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work],
+      error: nil,
+      onSelection: { _ in },
+      onCancel: {}
+    )
+    XCTAssertEqual(controller.densityForCurrentPresentation, .spacious)
+    XCTAssertEqual(controller.panelContentSizeForTesting.width, 420)
+    controller.dismiss()
   }
 
   func testSameRequestErrorRerenderKeepsExistingPanelOrigin() throws {
@@ -759,6 +802,15 @@ private final class URLVisibilityPreference {
   var value: Bool
 
   init(value: Bool) {
+    self.value = value
+  }
+}
+
+@MainActor
+private final class DensityPreference {
+  var value: ChooserDensity
+
+  init(value: ChooserDensity) {
     self.value = value
   }
 }

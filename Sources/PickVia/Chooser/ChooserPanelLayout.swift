@@ -6,7 +6,6 @@ enum ChooserPanelPlacement: Equatable {
 }
 
 enum ChooserPanelLayout {
-  static let contentWidth: CGFloat = 360
   static let gap: CGFloat = 10
   static let screenMargin: CGFloat = 12
 

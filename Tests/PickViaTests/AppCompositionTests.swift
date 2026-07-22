@@ -188,6 +188,36 @@ final class AppCompositionTests: XCTestCase {
     chooser.dismiss()
   }
 
+  func testAppModelDensityPreferenceIsResolvedByChooserForEachPreview() throws {
+    let preferences = CompositionPreferencesStub()
+    let chooser = ChooserPanelController(
+      densityProvider: {
+        ChooserDensity.fromPersistedValue(
+          preferences.integer(forKey: PreferenceKey.chooserDensity)
+        )
+      }
+    )
+    let model = AppComposition.makeModel(
+      configStore: CompositionConfigStore(config: CompositionFixtures.config),
+      browserCatalog: CompositionCatalogStub(),
+      preferences: preferences,
+      defaultBrowser: CompositionDefaultBrowserStub(),
+      loginItem: CompositionLoginItemStub(),
+      chooser: chooser,
+      launcher: CompositionLauncherSpy()
+    )
+    try model.load()
+
+    model.previewChooser()
+    XCTAssertEqual(chooser.densityForCurrentPresentation, .compact)
+    chooser.dismiss()
+
+    model.chooserDensity = .spacious
+    model.previewChooser()
+    XCTAssertEqual(chooser.densityForCurrentPresentation, .spacious)
+    chooser.dismiss()
+  }
+
   func testCompositionInjectsProfileAccessManagerIntoAppModel() throws {
     let profileAccess = CompositionProfileAccessManagerSpy(
       persistence: ["com.google.Chrome": .persistent]
@@ -277,11 +307,12 @@ private struct CompositionCatalogStub: BrowserDiscovering {
 @MainActor
 private final class CompositionPreferencesStub: PreferencesStoring {
   private var booleans: [String: Bool] = [:]
+  private var integers: [String: Int] = [:]
 
   func bool(forKey key: String) -> Bool? { booleans[key] }
-  func integer(forKey key: String) -> Int? { nil }
+  func integer(forKey key: String) -> Int? { integers[key] }
   func set(_ value: Bool, forKey key: String) { booleans[key] = value }
-  func set(_ value: Int, forKey key: String) {}
+  func set(_ value: Int, forKey key: String) { integers[key] = value }
 }
 
 @MainActor
