@@ -27,6 +27,12 @@ public struct GeneralSettingsView: View {
             set: { model.setLaunchAtLogin($0) }
           ))
         Toggle("Show URL in browser chooser", isOn: $model.showsURLInChooser)
+        Picker("Chooser size", selection: $model.chooserDensity) {
+          ForEach(ChooserDensity.allCases) { density in
+            Text(density.title).tag(density)
+          }
+        }
+        .pickerStyle(.segmented)
       }
 
       if let errorMessage = model.errorMessage {

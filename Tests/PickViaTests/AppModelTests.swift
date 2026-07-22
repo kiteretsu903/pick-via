@@ -6,6 +6,33 @@ import XCTest
 
 @MainActor
 final class AppModelTests: XCTestCase {
+  func testDensityUsesCompactForMissingAndInvalidPreference() throws {
+    let missingModel = makeModel(preferences: PreferencesStub())
+    try missingModel.load()
+    XCTAssertEqual(missingModel.chooserDensity, .compact)
+
+    let invalidModel = makeModel(preferences: PreferencesStub(integers: ["chooserDensity": 99]))
+    try invalidModel.load()
+    XCTAssertEqual(invalidModel.chooserDensity, .compact)
+  }
+
+  func testDensityLoadsAndPersistsEveryPreset() throws {
+    let preferences = PreferencesStub(
+      integers: ["chooserDensity": ChooserDensity.balanced.rawValue]
+    )
+    let model = makeModel(preferences: preferences)
+    try model.load()
+    XCTAssertEqual(model.chooserDensity, .balanced)
+
+    model.chooserDensity = .spacious
+    XCTAssertEqual(preferences.setIntegers["chooserDensity"], ChooserDensity.spacious.rawValue)
+  }
+
+  func testDensityDisplayOrderAndNames() {
+    XCTAssertEqual(ChooserDensity.allCases, [.compact, .balanced, .spacious])
+    XCTAssertEqual(ChooserDensity.allCases.map(\.title), ["Compact", "Balanced", "Spacious"])
+  }
+
   func testLoadPublishesPersistedConfigAndSystemPreferencesOnlyOnce() throws {
     let config = Fixtures.config
     let store = ConfigStoreStub(config: config)

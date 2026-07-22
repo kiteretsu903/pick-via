@@ -2,6 +2,14 @@ import Foundation
 import XCTest
 
 final class BrowserSettingsViewTests: XCTestCase {
+  func testGeneralSettingsContainsSegmentedChooserSizePicker() throws {
+    let source = try projectSource("Sources/PickVia/Views/GeneralSettingsView.swift")
+
+    XCTAssertTrue(source.contains("Picker(\"Chooser size\""))
+    XCTAssertTrue(source.contains("ChooserDensity.allCases"))
+    XCTAssertTrue(source.contains(".pickerStyle(.segmented)"))
+  }
+
   func testFixedActionStripContainsStableLabeledActionsAndProfileAccessFlow() throws {
     let source = try projectSource("Sources/PickVia/Views/BrowserSettingsView.swift")
     let strip = try fixedActionStrip(in: source)

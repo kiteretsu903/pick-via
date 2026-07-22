@@ -32,6 +32,13 @@ public final class AppModel {
     }
   }
 
+  public var chooserDensity: ChooserDensity {
+    didSet {
+      guard isLoaded else { return }
+      preferences.set(chooserDensity.rawValue, forKey: PreferenceKey.chooserDensity)
+    }
+  }
+
   public private(set) var onboardingStep: Int {
     didSet {
       guard isLoaded else { return }
@@ -151,6 +158,7 @@ public final class AppModel {
     self.profileAccess = profileAccess
     self.profileRootValidator = profileRootValidator
     showsURLInChooser = true
+    chooserDensity = .compact
     onboardingStep = 1
   }
 
@@ -200,6 +208,9 @@ public final class AppModel {
       }
     }
     showsURLInChooser = preferences.bool(forKey: PreferenceKey.showsURLInChooser) ?? true
+    chooserDensity = .fromPersistedValue(
+      preferences.integer(forKey: PreferenceKey.chooserDensity)
+    )
     launchesAtLogin = loginItem.isEnabled
     defaultStatus = defaultBrowser.status()
     let persistedStep =
@@ -903,6 +914,7 @@ private func detectedProfileTarget(
 
 enum PreferenceKey {
   static let showsURLInChooser = "showsURLInChooser"
+  static let chooserDensity = "chooserDensity"
   static let onboardingStep = "onboardingStep"
 }
 
