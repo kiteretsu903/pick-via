@@ -773,12 +773,20 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
         target.mode == candidate.mode,
         target.origin == .detected
       else { return false }
+      let legacyIdentityPath: String? = target.profileIdentity.flatMap { identity in
+        guard
+          browser.application.family == .firefox,
+          (identity as NSString).isAbsolutePath
+        else { return nil }
+        return URL(fileURLWithPath: identity, isDirectory: true).standardizedFileURL.path
+      }
       return target.profileIdentity == profile.identifier
         || (target.profileIdentity == nil
           && (target.profileIdentifier == profile.identifier
             || target.profileIdentifier == profile.launchIdentifier))
         || (normalizedPath != nil
-          && target.profileLaunchPath == normalizedPath)
+          && (target.profileLaunchPath == normalizedPath
+            || legacyIdentityPath == normalizedPath))
     }
   }
 

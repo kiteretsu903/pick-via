@@ -1367,6 +1367,75 @@ struct BrowserCatalogTests {
     #expect(!privateDefault.pendingDefaultMigration)
   }
 
+  @Test func schemaOneDecodedAbsoluteFirefoxPrivateDefaultCanonicalizesAfterDirectDiscovery()
+    throws
+  {
+    let directory = URL(
+      fileURLWithPath: "/profiles/legacy-default-release",
+      isDirectory: true
+    ).standardizedFileURL
+    let profile = DiscoveredProfile(
+      identifier: FirefoxProfileIdentity.identifier(for: directory),
+      displayName: "default-release",
+      directoryURL: directory,
+      launchIdentifier: "default-release",
+      isDefault: true
+    )
+    let browser = firefox(profiles: [profile])
+    let stored = catalogTarget(
+      id: BrowserCatalog.targetID(
+        bundleIdentifier: browser.application.bundleIdentifier,
+        profileIdentifier: directory.path,
+        mode: .private
+      ),
+      browser: browser.application,
+      label: "Legacy Private Default",
+      profileIdentifier: profile.launchIdentifier,
+      profileDisplayName: profile.displayName,
+      profileIdentity: directory.path,
+      profileLaunchPath: directory.path,
+      mode: .private,
+      isEnabled: true,
+      sortOrder: 8
+    )
+    let decoded = try JSONDecoder().decode(
+      BrowserTarget.self,
+      from: JSONEncoder().encode(stored)
+    )
+    #expect(decoded.profileIdentity == directory.path)
+    #expect(decoded.profileLaunchPath == nil)
+    let migrated = try PickViaConfig(
+      schemaVersion: 1,
+      browsers: [browser.application],
+      targets: [decoded]
+    ).validatedAndMigrated()
+
+    let migratedPrivate = try #require(migrated.targets.first)
+    #expect(!migratedPrivate.isEnabled)
+    #expect(migratedPrivate.pendingDefaultMigration)
+
+    let reconciled = BrowserCatalog.reconcile(discovered: [browser], with: migrated)
+    let privateTargets = reconciled.targets.filter {
+      $0.browserID == browser.application.id
+        && $0.origin == .detected
+        && $0.mode == .private
+    }
+    let privateDefault = try #require(privateTargets.first)
+
+    #expect(privateTargets.count == 1)
+    #expect(
+      privateDefault.id
+        == BrowserCatalog.targetID(
+          bundleIdentifier: browser.application.bundleIdentifier,
+          profileIdentifier: nil,
+          mode: .private
+        )
+    )
+    #expect(privateDefault.profileIdentity == nil)
+    #expect(privateDefault.isEnabled)
+    #expect(!privateDefault.pendingDefaultMigration)
+  }
+
   @Test func schemaOneChromiumPrivateDefaultUsesBrowserDefaultMatrixAfterAccessFirstDiscovery()
     throws
   {

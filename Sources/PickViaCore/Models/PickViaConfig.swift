@@ -88,9 +88,15 @@ public struct PickViaConfig: Codable, Equatable, Sendable {
           && target.profileDisplayName == nil
           && target.profileIdentity == nil
           && target.profileLaunchPath == nil
+        let hasExplicitProfile =
+          target.profileIdentity != nil
+          || target.profileIdentifier != nil
+          || target.profileDisplayName != nil
+          || target.profileLaunchPath != nil
         let isMigratedPrivateProfile =
           target.mode == .private
           && target.id != canonicalID
+          && hasExplicitProfile
         guard
           browser.family == .chromium || browser.family == .firefox,
           target.origin == .detected,

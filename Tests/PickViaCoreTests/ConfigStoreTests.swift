@@ -312,6 +312,21 @@ final class ConfigStoreTests: XCTestCase {
         pendingDefaultMigration: true
       ),
       BrowserTarget(
+        id: "com.google.Chrome|missing-profile|private",
+        browserID: validChrome.id,
+        label: "Malformed Private",
+        profileIdentifier: nil,
+        profileDisplayName: nil,
+        profileIdentity: nil,
+        profileLaunchPath: nil,
+        mode: .private,
+        isEnabled: false,
+        sortOrder: 0,
+        origin: .detected,
+        availability: .available,
+        pendingDefaultMigration: true
+      ),
+      BrowserTarget(
         id: "com.apple.Safari||normal",
         browserID: validSafari.id,
         label: "Safari",
