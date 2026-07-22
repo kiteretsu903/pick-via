@@ -17,15 +17,20 @@ final class AppModelTests: XCTestCase {
   }
 
   func testDensityLoadsAndPersistsEveryPreset() throws {
-    let preferences = PreferencesStub(
-      integers: ["chooserDensity": ChooserDensity.balanced.rawValue]
-    )
-    let model = makeModel(preferences: preferences)
-    try model.load()
-    XCTAssertEqual(model.chooserDensity, .balanced)
+    for density in ChooserDensity.allCases {
+      let restorationPreferences = PreferencesStub(
+        integers: ["chooserDensity": density.rawValue]
+      )
+      let restoredModel = makeModel(preferences: restorationPreferences)
+      try restoredModel.load()
+      XCTAssertEqual(restoredModel.chooserDensity, density)
 
-    model.chooserDensity = .spacious
-    XCTAssertEqual(preferences.setIntegers["chooserDensity"], ChooserDensity.spacious.rawValue)
+      let persistencePreferences = PreferencesStub()
+      let persistenceModel = makeModel(preferences: persistencePreferences)
+      try persistenceModel.load()
+      persistenceModel.chooserDensity = density
+      XCTAssertEqual(persistencePreferences.setIntegers["chooserDensity"], density.rawValue)
+    }
   }
 
   func testDensityDisplayOrderAndNames() {

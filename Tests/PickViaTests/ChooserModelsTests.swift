@@ -265,7 +265,74 @@ final class ChooserPanelControllerTests: XCTestCase {
     XCTAssertNil(controller.pointerAnchorForCurrentPresentation)
   }
 
-  func testDensityIsResolvedForEachNewRequestAndRetainedForRerender() {
+  func testDensityMetricsMatchEveryApprovedPresetValue() {
+    let expected: [(ChooserDensity, ChooserMetrics)] = [
+      (
+        .compact,
+        ChooserMetrics(
+          contentWidth: 340,
+          outerPadding: 12,
+          mainSpacing: 8,
+          groupSpacing: 3,
+          rowHorizontalPadding: 8,
+          rowVerticalPadding: 3,
+          headerHorizontalPadding: 8,
+          headerVerticalPadding: 1
+        )
+      ),
+      (
+        .balanced,
+        ChooserMetrics(
+          contentWidth: 380,
+          outerPadding: 14,
+          mainSpacing: 10,
+          groupSpacing: 6,
+          rowHorizontalPadding: 10,
+          rowVerticalPadding: 5,
+          headerHorizontalPadding: 10,
+          headerVerticalPadding: 2
+        )
+      ),
+      (
+        .spacious,
+        ChooserMetrics(
+          contentWidth: 420,
+          outerPadding: 18,
+          mainSpacing: 14,
+          groupSpacing: 9,
+          rowHorizontalPadding: 12,
+          rowVerticalPadding: 8,
+          headerHorizontalPadding: 12,
+          headerVerticalPadding: 4
+        )
+      ),
+    ]
+
+    for (density, metrics) in expected {
+      XCTAssertEqual(density.metrics.contentWidth, metrics.contentWidth, density.title)
+      XCTAssertEqual(density.metrics.outerPadding, metrics.outerPadding, density.title)
+      XCTAssertEqual(density.metrics.mainSpacing, metrics.mainSpacing, density.title)
+      XCTAssertEqual(density.metrics.groupSpacing, metrics.groupSpacing, density.title)
+      XCTAssertEqual(
+        density.metrics.rowHorizontalPadding,
+        metrics.rowHorizontalPadding,
+        density.title
+      )
+      XCTAssertEqual(density.metrics.rowVerticalPadding, metrics.rowVerticalPadding, density.title)
+      XCTAssertEqual(
+        density.metrics.headerHorizontalPadding,
+        metrics.headerHorizontalPadding,
+        density.title
+      )
+      XCTAssertEqual(
+        density.metrics.headerVerticalPadding,
+        metrics.headerVerticalPadding,
+        density.title
+      )
+    }
+  }
+
+  func testEveryDensityWidthIsResolvedForNewRequestsAndRetainedForRerender() {
     let preference = DensityPreference(value: .compact)
     let controller = ChooserPanelController(densityProvider: { preference.value })
 
@@ -280,7 +347,7 @@ final class ChooserPanelControllerTests: XCTestCase {
     XCTAssertEqual(controller.densityForCurrentPresentation, .compact)
     XCTAssertEqual(controller.panelContentSizeForTesting.width, 340)
 
-    preference.value = .spacious
+    preference.value = .balanced
     controller.present(
       request: Fixtures.request,
       applications: [Fixtures.chrome],
@@ -294,6 +361,19 @@ final class ChooserPanelControllerTests: XCTestCase {
     controller.dismiss()
     controller.present(
       request: RoutingRequest(url: URL(string: "https://example.com/new")!),
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work],
+      error: nil,
+      onSelection: { _ in },
+      onCancel: {}
+    )
+    XCTAssertEqual(controller.densityForCurrentPresentation, .balanced)
+    XCTAssertEqual(controller.panelContentSizeForTesting.width, 380)
+    controller.dismiss()
+
+    preference.value = .spacious
+    controller.present(
+      request: RoutingRequest(url: URL(string: "https://example.com/spacious")!),
       applications: [Fixtures.chrome],
       targets: [Fixtures.work],
       error: nil,

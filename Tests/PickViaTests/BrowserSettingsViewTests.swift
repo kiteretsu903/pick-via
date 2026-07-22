@@ -54,8 +54,22 @@ final class BrowserSettingsViewTests: XCTestCase {
 
   func testChooserSelectionUsesTintAndInsetBorderWithoutShadow() throws {
     let source = try projectSource("Sources/PickVia/Chooser/ChooserTargetRow.swift")
-    XCTAssertTrue(source.contains("Color.accentColor.opacity"))
+    let fillStart = try XCTUnwrap(source.range(of: "private var selectionFill: Color"))
+    let fillEnd = try XCTUnwrap(
+      source.range(of: "private func applicationIcon", range: fillStart.upperBound..<source.endIndex)
+    )
+    let fill = String(source[fillStart.lowerBound..<fillEnd.lowerBound])
+    let selected = try XCTUnwrap(
+      fill.range(of: "if isSelected { return Color.accentColor.opacity(0.16) }")
+    )
+    let hover = try XCTUnwrap(
+      fill.range(of: "if isHovering { return Color.accentColor.opacity(0.07) }")
+    )
+
+    XCTAssertLessThan(selected.lowerBound, hover.lowerBound)
+    XCTAssertTrue(source.contains("isSelected ? Color.accentColor.opacity(0.55) : .clear"))
     XCTAssertTrue(source.contains(".strokeBorder"))
+    XCTAssertTrue(source.contains(".onHover { isHovering = $0 }"))
     XCTAssertFalse(source.contains(".shadow"))
   }
 

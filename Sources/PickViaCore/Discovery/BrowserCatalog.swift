@@ -599,7 +599,11 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       profileIdentity: discovered.profileIdentity,
       profileLaunchPath: discovered.profileLaunchPath,
       mode: discovered.mode,
-      isEnabled: existing.isEnabled,
+      isEnabled:
+        existing.pendingDefaultMigration
+          && isBrowserLevelTarget(discovered)
+          && !isBrowserLevelTarget(existing)
+        ? discovered.isEnabled : existing.isEnabled,
       sortOrder: existing.sortOrder,
       origin: existing.origin,
       availability: .available,

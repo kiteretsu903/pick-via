@@ -115,6 +115,10 @@ final class ConfigStoreTests: XCTestCase {
 
     XCTAssertEqual(migrated.schemaVersion, 2)
     XCTAssertEqual(migrated.targets.map(\.isEnabled), [true, true, true, false, true])
+    XCTAssertEqual(
+      migrated.targets.map(\.pendingDefaultMigration),
+      [false, false, false, true, false]
+    )
   }
 
   func testCurrentSchemaPreservesDetectedEnabledStates() throws {
@@ -236,29 +240,48 @@ final class ConfigStoreTests: XCTestCase {
       try JSONDecoder().decode(BrowserTarget.self, from: pendingData).pendingDefaultMigration)
   }
 
-  func testPendingDefaultMigrationValidationIsLimitedToDetectedCanonicalNonSafariTargets()
+  func testPendingDefaultMigrationValidationIsLimitedToDetectedMigrationTargets()
     throws
   {
-    let validPending = BrowserTarget(
-      id: "com.google.Chrome||private",
-      browserID: validChrome.id,
-      label: "Google Chrome Private",
-      profileIdentifier: nil,
-      profileDisplayName: nil,
-      profileIdentity: nil,
-      mode: .private,
-      isEnabled: false,
-      sortOrder: 0,
-      origin: .detected,
-      availability: .available,
-      pendingDefaultMigration: true
-    )
-    XCTAssertTrue(
-      try PickViaConfig(
-        schemaVersion: PickViaConfig.currentSchemaVersion,
-        browsers: [validChrome],
-        targets: [validPending]
-      ).validatedAndMigrated().targets[0].pendingDefaultMigration)
+    let validPendingTargets = [
+      BrowserTarget(
+        id: "com.google.Chrome||private",
+        browserID: validChrome.id,
+        label: "Google Chrome Private",
+        profileIdentifier: nil,
+        profileDisplayName: nil,
+        profileIdentity: nil,
+        mode: .private,
+        isEnabled: false,
+        sortOrder: 0,
+        origin: .detected,
+        availability: .available,
+        pendingDefaultMigration: true
+      ),
+      BrowserTarget(
+        id: "com.google.Chrome|Default|private",
+        browserID: validChrome.id,
+        label: "Personal Private",
+        profileIdentifier: "Default",
+        profileDisplayName: "Personal",
+        profileIdentity: "Default",
+        mode: .private,
+        isEnabled: false,
+        sortOrder: 1,
+        origin: .detected,
+        availability: .available,
+        pendingDefaultMigration: true
+      ),
+    ]
+    for target in validPendingTargets {
+      XCTAssertTrue(
+        try PickViaConfig(
+          schemaVersion: PickViaConfig.currentSchemaVersion,
+          browsers: [validChrome],
+          targets: [target]
+        ).validatedAndMigrated().targets[0].pendingDefaultMigration
+      )
+    }
 
     let invalidTargets = [
       BrowserTarget(

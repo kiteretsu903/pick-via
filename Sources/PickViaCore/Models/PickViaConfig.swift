@@ -82,14 +82,19 @@ public struct PickViaConfig: Codable, Equatable, Sendable {
       if target.pendingDefaultMigration {
         let canonicalID = [browser.bundleIdentifier, "", target.mode.rawValue]
           .joined(separator: "|")
+        let isCanonicalDefault =
+          target.id == canonicalID
+          && target.profileIdentifier == nil
+          && target.profileDisplayName == nil
+          && target.profileIdentity == nil
+          && target.profileLaunchPath == nil
+        let isMigratedPrivateProfile =
+          target.mode == .private
+          && target.id != canonicalID
         guard
           browser.family == .chromium || browser.family == .firefox,
           target.origin == .detected,
-          target.id == canonicalID,
-          target.profileIdentifier == nil,
-          target.profileDisplayName == nil,
-          target.profileIdentity == nil,
-          target.profileLaunchPath == nil
+          isCanonicalDefault || isMigratedPrivateProfile
         else { throw ConfigDocumentError.invalidTarget }
       }
     }
@@ -122,7 +127,8 @@ public struct PickViaConfig: Codable, Equatable, Sendable {
         sortOrder: target.sortOrder,
         origin: target.origin,
         availability: target.availability,
-        pendingDefaultMigration: target.pendingDefaultMigration,
+        pendingDefaultMigration: target.pendingDefaultMigration
+          || (hasExplicitProfile && target.mode == .private),
         validationError: target.validationError
       )
     }

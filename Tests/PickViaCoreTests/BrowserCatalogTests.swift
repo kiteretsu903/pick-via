@@ -1305,6 +1305,207 @@ struct BrowserCatalogTests {
     #expect(!result.targets.contains { $0.profileLaunchPath == legacyDefaultPath })
   }
 
+  @Test func schemaOneChromiumPrivateDefaultUsesBrowserDefaultMatrixAfterDirectDiscovery()
+    throws
+  {
+    let profile = DiscoveredProfile(
+      identifier: "Default",
+      displayName: "Personal",
+      directoryURL: nil,
+      isDefault: true
+    )
+    let browser = chrome(profiles: [profile])
+    let migrated = try schemaOneConfig(
+      browser: browser.application,
+      legacyPrivateDefault: profile
+    ).validatedAndMigrated()
+
+    #expect(try #require(migrated.targets.first).isEnabled == false)
+
+    let reconciled = BrowserCatalog.reconcile(discovered: [browser], with: migrated)
+    let privateDefault = try #require(
+      reconciled.targets.first {
+        $0.browserID == browser.application.id
+          && $0.profileIdentity == nil
+          && $0.mode == .private
+      }
+    )
+
+    #expect(privateDefault.isEnabled)
+    #expect(!privateDefault.pendingDefaultMigration)
+  }
+
+  @Test func schemaOneFirefoxPrivateDefaultUsesBrowserDefaultMatrixAfterDirectDiscovery()
+    throws
+  {
+    let directory = URL(fileURLWithPath: "/profiles/default-release", isDirectory: true)
+    let profile = DiscoveredProfile(
+      identifier: FirefoxProfileIdentity.identifier(for: directory),
+      displayName: "default-release",
+      directoryURL: directory,
+      launchIdentifier: "default-release",
+      isDefault: true
+    )
+    let browser = firefox(profiles: [profile])
+    let migrated = try schemaOneConfig(
+      browser: browser.application,
+      legacyPrivateDefault: profile
+    ).validatedAndMigrated()
+
+    #expect(try #require(migrated.targets.first).isEnabled == false)
+
+    let reconciled = BrowserCatalog.reconcile(discovered: [browser], with: migrated)
+    let privateDefault = try #require(
+      reconciled.targets.first {
+        $0.browserID == browser.application.id
+          && $0.profileIdentity == nil
+          && $0.mode == .private
+      }
+    )
+
+    #expect(privateDefault.isEnabled)
+    #expect(!privateDefault.pendingDefaultMigration)
+  }
+
+  @Test func schemaOneChromiumPrivateDefaultUsesBrowserDefaultMatrixAfterAccessFirstDiscovery()
+    throws
+  {
+    let profile = DiscoveredProfile(
+      identifier: "Default",
+      displayName: "Personal",
+      directoryURL: nil,
+      isDefault: true
+    )
+    let inaccessible = chrome(profiles: [], metadataStatus: .accessRequired)
+    let loaded = chrome(profiles: [profile])
+    let migrated = try schemaOneConfig(
+      browser: inaccessible.application,
+      legacyPrivateDefault: profile
+    ).validatedAndMigrated()
+
+    let waiting = try BrowserCatalog.reconcile(discovered: [inaccessible], with: migrated)
+      .validatedAndMigrated()
+    let reconciled = BrowserCatalog.reconcile(discovered: [loaded], with: waiting)
+    let privateDefault = try #require(
+      reconciled.targets.first {
+        $0.browserID == loaded.application.id
+          && $0.profileIdentity == nil
+          && $0.mode == .private
+      }
+    )
+
+    #expect(privateDefault.isEnabled)
+    #expect(!privateDefault.pendingDefaultMigration)
+  }
+
+  @Test func schemaOneFirefoxPrivateDefaultUsesBrowserDefaultMatrixAfterAccessFirstDiscovery()
+    throws
+  {
+    let directory = URL(fileURLWithPath: "/profiles/default-release", isDirectory: true)
+    let profile = DiscoveredProfile(
+      identifier: FirefoxProfileIdentity.identifier(for: directory),
+      displayName: "default-release",
+      directoryURL: directory,
+      launchIdentifier: "default-release",
+      isDefault: true
+    )
+    let inaccessible = firefox(profiles: [], metadataStatus: .accessRequired)
+    let loaded = firefox(profiles: [profile])
+    let migrated = try schemaOneConfig(
+      browser: inaccessible.application,
+      legacyPrivateDefault: profile
+    ).validatedAndMigrated()
+
+    let waiting = try BrowserCatalog.reconcile(discovered: [inaccessible], with: migrated)
+      .validatedAndMigrated()
+    let reconciled = BrowserCatalog.reconcile(discovered: [loaded], with: waiting)
+    let privateDefault = try #require(
+      reconciled.targets.first {
+        $0.browserID == loaded.application.id
+          && $0.profileIdentity == nil
+          && $0.mode == .private
+      }
+    )
+
+    #expect(privateDefault.isEnabled)
+    #expect(!privateDefault.pendingDefaultMigration)
+  }
+
+  @Test func schemaTwoPrivateDefaultChoiceSurvivesLegacyDefaultCanonicalization() throws {
+    let profile = DiscoveredProfile(
+      identifier: "Default",
+      displayName: "Personal",
+      directoryURL: nil,
+      isDefault: true
+    )
+    let browser = chrome(profiles: [profile])
+    let privateTarget = catalogTarget(
+      browser: browser.application,
+      label: "Private Default",
+      profileIdentifier: profile.launchIdentifier,
+      profileDisplayName: profile.displayName,
+      profileIdentity: profile.identifier,
+      mode: .private,
+      isEnabled: false,
+      sortOrder: 8
+    )
+    let current = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: [browser.application],
+      targets: [privateTarget]
+    )
+
+    let reconciled = BrowserCatalog.reconcile(discovered: [browser], with: current)
+    let privateDefault = try #require(
+      reconciled.targets.first {
+        $0.browserID == browser.application.id
+          && $0.profileIdentity == nil
+          && $0.mode == .private
+      }
+    )
+
+    #expect(!privateDefault.isEnabled)
+  }
+
+  @Test func postMigrationPrivateDefaultChoiceWinsAfterAccessFirstDiscovery() throws {
+    let profile = DiscoveredProfile(
+      identifier: "Default",
+      displayName: "Personal",
+      directoryURL: nil,
+      isDefault: true
+    )
+    let inaccessible = chrome(profiles: [], metadataStatus: .accessRequired)
+    let loaded = chrome(profiles: [profile])
+    let migrated = try schemaOneConfig(
+      browser: inaccessible.application,
+      legacyPrivateDefault: profile
+    ).validatedAndMigrated()
+    let waiting = try BrowserCatalog.reconcile(discovered: [inaccessible], with: migrated)
+      .validatedAndMigrated()
+    let canonicalPrivateID = BrowserCatalog.targetID(
+      bundleIdentifier: inaccessible.application.bundleIdentifier,
+      profileIdentifier: nil,
+      mode: .private
+    )
+    let userEdited = PickViaConfig(
+      schemaVersion: waiting.schemaVersion,
+      browsers: waiting.browsers,
+      targets: waiting.targets.map { target in
+        target.id == canonicalPrivateID
+          ? copy(target, label: target.label, enabled: false)
+          : target
+      }
+    )
+
+    let reconciled = BrowserCatalog.reconcile(discovered: [loaded], with: userEdited)
+    let privateDefault = try #require(
+      reconciled.targets.first { $0.id == canonicalPrivateID }
+    )
+
+    #expect(!privateDefault.isEnabled)
+    #expect(!privateDefault.pendingDefaultMigration)
+  }
+
   @Test func accessFirstDefaultMigrationRetainsLegacyCustomizationAfterMetadataLoads() throws {
     let inaccessible = chrome(profiles: [], metadataStatus: .accessRequired)
     let loaded = chrome(profiles: [
@@ -2286,6 +2487,29 @@ private func catalogTarget(
     sortOrder: sortOrder,
     origin: .detected,
     availability: availability
+  )
+}
+
+private func schemaOneConfig(
+  browser: BrowserApplication,
+  legacyPrivateDefault profile: DiscoveredProfile
+) -> PickViaConfig {
+  PickViaConfig(
+    schemaVersion: 1,
+    browsers: [browser],
+    targets: [
+      catalogTarget(
+        browser: browser,
+        label: "Legacy Private Default",
+        profileIdentifier: profile.launchIdentifier,
+        profileDisplayName: profile.displayName,
+        profileIdentity: profile.identifier,
+        profileLaunchPath: profile.directoryURL?.standardizedFileURL.path,
+        mode: .private,
+        isEnabled: true,
+        sortOrder: 8
+      )
+    ]
   )
 }
 
