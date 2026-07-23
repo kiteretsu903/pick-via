@@ -225,6 +225,17 @@ final class ChooserModelsTests: XCTestCase {
     XCTAssertNil(presentation.selectedIndex)
   }
 
+  func testMakeDropsSelectionWhenPreservedTargetIsMissing() {
+    let presentation = ChooserPresentation.make(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work, Fixtures.personal],
+      preservingSelection: "missing"
+    )
+
+    XCTAssertNil(presentation.selectedIndex)
+  }
+
   func testDisplayURLRemovesCredentials() throws {
     let request = RoutingRequest(
       url: try XCTUnwrap(URL(string: "https://person:secret@example.com/private?q=1")))
@@ -311,6 +322,61 @@ final class ChooserPanelControllerTests: XCTestCase {
     )
     controller.dismiss()
     XCTAssertNil(controller.pointerAnchorForCurrentPresentation)
+  }
+
+  func testSameRequestRerenderPreservesSelectedRowForReturn() throws {
+    var selectedTargetIDs: [BrowserTarget.ID] = []
+    let controller = ChooserPanelController()
+
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work, Fixtures.personal],
+      error: nil,
+      onSelection: { selectedTargetIDs.append($0) },
+      onCancel: {}
+    )
+    NSApp.sendEvent(try makeKeyEvent(keyCode: 125, characters: ""))
+
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work, Fixtures.personal],
+      error: LaunchFailure(message: "Safe launch error"),
+      onSelection: { selectedTargetIDs.append($0) },
+      onCancel: {}
+    )
+    NSApp.sendEvent(try makeKeyEvent(keyCode: 36, characters: "\r"))
+
+    XCTAssertEqual(selectedTargetIDs, ["work"])
+    controller.dismiss()
+  }
+
+  func testSameRequestRerenderKeepsNeutralStateAndReturnInert() throws {
+    var selectedTargetIDs: [BrowserTarget.ID] = []
+    let controller = ChooserPanelController()
+
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work, Fixtures.personal],
+      error: nil,
+      onSelection: { selectedTargetIDs.append($0) },
+      onCancel: {}
+    )
+
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work, Fixtures.personal],
+      error: LaunchFailure(message: "Safe launch error"),
+      onSelection: { selectedTargetIDs.append($0) },
+      onCancel: {}
+    )
+    NSApp.sendEvent(try makeKeyEvent(keyCode: 36, characters: "\r"))
+
+    XCTAssertTrue(selectedTargetIDs.isEmpty)
+    controller.dismiss()
   }
 
   func testDensityMetricsMatchEveryApprovedPresetValue() {
