@@ -73,6 +73,12 @@ final class BrowserSettingsViewTests: XCTestCase {
     XCTAssertFalse(source.contains(".shadow"))
   }
 
+  func testChooserRowsDisableNativeFocusEffect() throws {
+    let source = try projectSource("Sources/PickVia/Chooser/ChooserTargetRow.swift")
+
+    XCTAssertTrue(source.contains(".buttonStyle(.plain)\n    .focusEffectDisabled()"))
+  }
+
   private func fixedActionStrip(in source: String) throws -> String {
     let body = try XCTUnwrap(source.range(of: "public var body: some View {"))
     let dividerAndList = try XCTUnwrap(

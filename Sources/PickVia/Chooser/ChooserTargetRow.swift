@@ -48,6 +48,7 @@ struct ChooserTargetRow: View {
       }
     }
     .buttonStyle(.plain)
+    .focusEffectDisabled()
     .onHover { isHovering = $0 }
   }
 
