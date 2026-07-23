@@ -155,10 +155,9 @@ public struct ChooserPresentation: Equatable, Sendable {
       }
     }
 
-    let selectedIndex =
-      targetID.flatMap { selectedID in
-        rows.firstIndex { $0.targetID == selectedID }
-      } ?? (rows.isEmpty ? nil : 0)
+    let selectedIndex = targetID.flatMap { selectedID in
+      rows.firstIndex { $0.targetID == selectedID }
+    }
 
     return ChooserPresentation(
       request: request,
@@ -178,7 +177,15 @@ public struct ChooserPresentation: Equatable, Sendable {
       return
     }
 
-    let current = selectedIndex ?? 0
+    guard let current = selectedIndex else {
+      selectedIndex =
+        switch direction {
+        case .up: rows.count - 1
+        case .down: 0
+        }
+      return
+    }
+
     switch direction {
     case .up:
       selectedIndex = (current - 1 + rows.count) % rows.count

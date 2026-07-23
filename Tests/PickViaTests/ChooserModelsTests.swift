@@ -118,12 +118,23 @@ final class ChooserModelsTests: XCTestCase {
     XCTAssertEqual(presentation.rows.last?.shortcut, .letter("A"))
   }
 
-  func testArrowMovementWrapsAtBothEnds() {
+  func testPresentationStartsNeutralAndReturnDoesNothing() {
+    let presentation = makePresentation(
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work, Fixtures.personal]
+    )
+
+    XCTAssertNil(presentation.selectedIndex)
+    XCTAssertEqual(presentation.handle(.returnKey), .none)
+  }
+
+  func testDownFromNeutralSelectsFirstThenWraps() {
     var presentation = makePresentation(
       applications: [Fixtures.chrome],
       targets: [Fixtures.work, Fixtures.personal]
     )
 
+    presentation.moveSelection(.down)
     XCTAssertEqual(presentation.selectedIndex, 0)
     presentation.moveSelection(.up)
     XCTAssertEqual(presentation.selectedIndex, 1)
@@ -131,11 +142,23 @@ final class ChooserModelsTests: XCTestCase {
     XCTAssertEqual(presentation.selectedIndex, 0)
   }
 
-  func testReturnSelectsCurrentRowAndEscapeCancels() {
+  func testUpFromNeutralSelectsLast() {
     var presentation = makePresentation(
       applications: [Fixtures.chrome],
       targets: [Fixtures.work, Fixtures.personal]
     )
+
+    presentation.moveSelection(.up)
+
+    XCTAssertEqual(presentation.selectedIndex, 1)
+  }
+
+  func testReturnSelectsExplicitCurrentRowAndEscapeCancels() {
+    var presentation = makePresentation(
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work, Fixtures.personal]
+    )
+    presentation.moveSelection(.down)
     presentation.moveSelection(.down)
 
     XCTAssertEqual(presentation.handle(.returnKey), .select("personal"))
@@ -170,11 +193,36 @@ final class ChooserModelsTests: XCTestCase {
       targets: [Fixtures.work, Fixtures.personal]
     )
     presentation.moveSelection(.down)
+    presentation.moveSelection(.down)
 
     presentation.setError(LaunchFailure(message: "Safe launch error"))
 
     XCTAssertEqual(presentation.selectedIndex, 1)
     XCTAssertEqual(presentation.errorMessage, "Safe launch error")
+  }
+
+  func testMakePreservesExplicitSelectionAcrossRerender() {
+    let presentation = ChooserPresentation.make(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work, Fixtures.personal],
+      error: LaunchFailure(message: "Safe launch error"),
+      preservingSelection: "personal"
+    )
+
+    XCTAssertEqual(presentation.selectedIndex, 1)
+  }
+
+  func testMakePreservesNeutralSelectionAcrossRerender() {
+    let presentation = ChooserPresentation.make(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work, Fixtures.personal],
+      error: LaunchFailure(message: "Safe launch error"),
+      preservingSelection: nil
+    )
+
+    XCTAssertNil(presentation.selectedIndex)
   }
 
   func testDisplayURLRemovesCredentials() throws {
@@ -651,22 +699,8 @@ final class ChooserPanelControllerTests: XCTestCase {
       onSelection: { _ in controller.dismiss() },
       onCancel: {}
     )
-    let returnKey = try XCTUnwrap(
-      NSEvent.keyEvent(
-        with: .keyDown,
-        location: .zero,
-        modifierFlags: [],
-        timestamp: 0,
-        windowNumber: 0,
-        context: nil,
-        characters: "\r",
-        charactersIgnoringModifiers: "\r",
-        isARepeat: false,
-        keyCode: 36
-      )
-    )
-
-    NSApp.sendEvent(returnKey)
+    NSApp.sendEvent(try makeKeyEvent(keyCode: 125, characters: ""))
+    NSApp.sendEvent(try makeKeyEvent(keyCode: 36, characters: "\r"))
     await fulfillment(of: [presentationEnded], timeout: 1)
 
     XCTAssertEqual(changes, [true, false])
