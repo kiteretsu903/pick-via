@@ -88,7 +88,7 @@ public struct ChooserView: View {
     .frame(width: density.metrics.contentWidth)
     .frame(maxHeight: maximumContentHeight)
     .background(.regularMaterial)
-    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
   }
 
   private var metrics: ChooserMetrics { density.metrics }

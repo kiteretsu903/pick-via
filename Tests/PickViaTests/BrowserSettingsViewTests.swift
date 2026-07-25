@@ -84,7 +84,7 @@ final class BrowserSettingsViewTests: XCTestCase {
 
     XCTAssertTrue(
       source.contains(
-        ".clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))"
+        ".clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))"
       )
     )
   }
