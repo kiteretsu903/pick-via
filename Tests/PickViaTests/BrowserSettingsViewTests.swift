@@ -79,6 +79,16 @@ final class BrowserSettingsViewTests: XCTestCase {
     XCTAssertTrue(source.contains(".buttonStyle(.plain)\n    .focusEffectDisabled()"))
   }
 
+  func testChooserUsesStandardWindowCornerRadius() throws {
+    let source = try projectSource("Sources/PickVia/Chooser/ChooserView.swift")
+
+    XCTAssertTrue(
+      source.contains(
+        ".clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))"
+      )
+    )
+  }
+
   private func fixedActionStrip(in source: String) throws -> String {
     let body = try XCTUnwrap(source.range(of: "public var body: some View {"))
     let dividerAndList = try XCTUnwrap(
