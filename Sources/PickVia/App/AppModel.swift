@@ -1015,7 +1015,7 @@ public final class AppModel {
       max(persistedStep, Onboarding.firstStep),
       Onboarding.completedStep
     )
-    if bounded == Onboarding.completedStep && !hasConfirmedDefaultStatus {
+    if bounded >= Onboarding.mailReviewStep && !hasConfirmedDefaultStatus {
       return Onboarding.defaultBrowserStep
     }
     return bounded

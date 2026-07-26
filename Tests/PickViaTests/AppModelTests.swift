@@ -2052,6 +2052,68 @@ final class AppModelTests: XCTestCase {
     }
   }
 
+  func testVersionTwoMailReviewWithoutConfirmedBrowserReturnsToDefaultBrowserStep() throws {
+    let preferences = PreferencesStub(integers: [
+      "onboardingVersion": 2,
+      "onboardingStep": 4,
+    ])
+    let defaults = DefaultBrowserSpy(
+      status: .init(http: .isDefault, https: .notDefault, mailto: .notDefault)
+    )
+    let model = makeModel(
+      preferences: preferences,
+      defaultBrowser: defaults
+    )
+
+    try model.load()
+
+    XCTAssertEqual(model.onboardingStep, 3)
+    XCTAssertFalse(model.isOnboardingComplete)
+    XCTAssertEqual(preferences.setIntegers["onboardingStep"], 3)
+
+    model.skipMailSetup()
+
+    XCTAssertEqual(model.onboardingStep, 3)
+    XCTAssertFalse(model.isOnboardingComplete)
+    XCTAssertTrue(defaults.requestedSchemes.isEmpty)
+  }
+
+  func testVersionTwoDefaultMailWithoutConfirmedBrowserReturnsToDefaultBrowserStep()
+    async throws
+  {
+    let unconfirmed = DefaultHandlerStatus(
+      http: .notDefault,
+      https: .isDefault,
+      mailto: .notDefault
+    )
+    let mailConfirmed = DefaultHandlerStatus(
+      http: .notDefault,
+      https: .isDefault,
+      mailto: .isDefault
+    )
+    let preferences = PreferencesStub(integers: [
+      "onboardingVersion": 2,
+      "onboardingStep": 5,
+    ])
+    let defaults = DefaultBrowserSpy(statuses: [unconfirmed, mailConfirmed])
+    let model = makeModel(
+      preferences: preferences,
+      defaultBrowser: defaults
+    )
+
+    try model.load()
+
+    XCTAssertEqual(model.onboardingStep, 3)
+    XCTAssertFalse(model.isOnboardingComplete)
+    XCTAssertEqual(preferences.setIntegers["onboardingStep"], 3)
+
+    await model.requestDefaultMail()
+
+    XCTAssertEqual(defaults.requestedSchemes, ["mailto"])
+    XCTAssertEqual(model.onboardingStep, 3)
+    XCTAssertFalse(model.isOnboardingComplete)
+  }
+
   func testContinueMailReviewRequiresEnabledAvailableMailTarget() throws {
     let preferences = PreferencesStub(integers: [
       "onboardingVersion": 2,
@@ -2061,7 +2123,10 @@ final class AppModelTests: XCTestCase {
       store: ConfigStoreStub(config: Fixtures.webAndMailConfig),
       catalog: BrowserCatalogStub(reconciled: Fixtures.webAndMailConfig),
       mailCatalog: .authoritative([Fixtures.appleMailDiscovery]),
-      preferences: preferences
+      preferences: preferences,
+      defaultBrowser: DefaultBrowserSpy(
+        status: .init(http: .isDefault, https: .isDefault)
+      )
     )
     try model.load()
 
@@ -2116,7 +2181,10 @@ final class AppModelTests: XCTestCase {
         preferences: PreferencesStub(integers: [
           "onboardingVersion": 2,
           "onboardingStep": 4,
-        ])
+        ]),
+        defaultBrowser: DefaultBrowserSpy(
+          status: .init(http: .isDefault, https: .isDefault)
+        )
       )
       try model.load()
 
