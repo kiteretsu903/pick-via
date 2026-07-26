@@ -546,6 +546,11 @@ public final class AppModel {
     }
   }
 
+  public func requestDefaultMail() async {
+    _ = try? await defaultBrowser.requestDefault(for: ["mailto"])
+    defaultStatus = defaultBrowser.status()
+  }
+
   public func setLaunchAtLogin(_ enabled: Bool) {
     let previous = launchesAtLogin
     launchesAtLogin = enabled

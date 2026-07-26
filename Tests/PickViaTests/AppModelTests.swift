@@ -1874,6 +1874,29 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(defaults.requestedSchemes, ["http", "https"])
   }
 
+  func testMailDefaultRequestRefreshesOnlyMailStatusWithoutChangingOnboarding() async throws {
+    let refreshedStatus = DefaultHandlerStatus(
+      http: .notDefault,
+      https: .notDefault,
+      mailto: .isDefault
+    )
+    let defaults = DefaultBrowserSpy(
+      statuses: [.init(http: .notDefault, https: .notDefault), refreshedStatus]
+    )
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.config),
+      defaultBrowser: defaults
+    )
+    try model.load()
+    let onboardingStep = model.onboardingStep
+
+    await model.requestDefaultMail()
+
+    XCTAssertEqual(defaults.requestedSchemes, ["mailto"])
+    XCTAssertEqual(model.defaultStatus, refreshedStatus)
+    XCTAssertEqual(model.onboardingStep, onboardingStep)
+  }
+
   func testDefaultRequestDoesNothingWithoutValidEnabledTarget() async throws {
     let defaults = DefaultBrowserSpy()
     let model = makeModel(

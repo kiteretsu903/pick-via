@@ -3,6 +3,7 @@ import SwiftUI
 public enum SettingsDestination: String, CaseIterable, Identifiable {
   case general
   case browsers
+  case mail
   case about
 
   public var id: Self { self }
@@ -12,6 +13,7 @@ public enum SettingsDestination: String, CaseIterable, Identifiable {
     switch self {
     case .general: "gear"
     case .browsers: "globe"
+    case .mail: "envelope"
     case .about: "info.circle"
     }
   }
@@ -36,6 +38,7 @@ public struct SettingsRootView: View {
       switch navigation.destination {
       case .general: GeneralSettingsView()
       case .browsers: BrowserSettingsView()
+      case .mail: MailSettingsView()
       case .about: AboutView()
       }
     }
