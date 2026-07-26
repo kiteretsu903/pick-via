@@ -1117,13 +1117,16 @@ private func replacingCapability(
   if let replacementCapability {
     capabilities.append(replacementCapability)
   }
+  let metadata =
+    routeKind == .mail && existing.supports(.web)
+    ? existing : replacement
   return RoutedApplication(
-    id: replacement.id,
-    displayName: replacement.displayName,
-    bundleIdentifier: replacement.bundleIdentifier,
+    id: metadata.id,
+    displayName: metadata.displayName,
+    bundleIdentifier: metadata.bundleIdentifier,
     capabilities: capabilities,
-    applicationURL: replacement.applicationURL,
-    browserExecutableURL: replacement.browserExecutableURL
+    applicationURL: metadata.applicationURL,
+    browserExecutableURL: metadata.browserExecutableURL
   )
 }
 

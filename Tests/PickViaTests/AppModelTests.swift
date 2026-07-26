@@ -618,6 +618,70 @@ final class AppModelTests: XCTestCase {
     )
   }
 
+  func testMailRescanPreservesBrowserMetadataForDualCapabilityApplication() throws {
+    let originalApplication = RoutedApplication(
+      id: Fixtures.chrome.id,
+      displayName: Fixtures.chrome.displayName,
+      bundleIdentifier: Fixtures.chrome.bundleIdentifier,
+      capabilities: [
+        .browser(family: .chromium, isAvailable: true),
+        .mail(isAvailable: true),
+      ],
+      applicationURL: Fixtures.chrome.applicationURL,
+      browserExecutableURL: Fixtures.chrome.browserExecutableURL
+    )
+    let mailTarget = RouteTarget(
+      id: RouteTarget.mailID(bundleIdentifier: originalApplication.bundleIdentifier),
+      applicationID: originalApplication.id,
+      label: "Chrome Mail",
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .detected,
+      availability: .available,
+      capability: .mail
+    )
+    let config = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      applications: [originalApplication],
+      targets: Fixtures.editableConfig.targets + [mailTarget]
+    )
+    let mailCatalog = MailCatalogStub.nonAuthoritative
+    let model = makeModel(
+      store: ConfigStoreStub(config: config),
+      catalog: BrowserCatalogStub(
+        scanResult: BrowserScanResult(
+          browsers: [],
+          warnings: [],
+          isAuthoritative: false
+        )
+      ),
+      mailCatalog: mailCatalog
+    )
+    try model.load()
+    let browserBefore = try XCTUnwrap(model.browsers.first)
+    let webTargetsBefore = model.targets.filter { $0.routeKind == .web }
+    mailCatalog.setScan(
+      MailScanResult(
+        applications: [
+          DiscoveredMailApplication(
+            bundleIdentifier: originalApplication.bundleIdentifier,
+            displayName: "Mail Discovery Alias",
+            applicationURL: URL(fileURLWithPath: "/Applications/Mail Discovery Alias.app")
+          )
+        ],
+        isAuthoritative: true
+      )
+    )
+
+    try model.rescanMailApplications()
+
+    XCTAssertEqual(try XCTUnwrap(model.browsers.first), browserBefore)
+    XCTAssertEqual(
+      model.targets.filter { $0.routeKind == .web },
+      webTargetsBefore
+    )
+  }
+
   func testMailRescanFailurePreservesConfigurationAndShowsMailError() throws {
     let store = ConfigStoreStub(config: Fixtures.webAndMailConfig)
     let model = makeModel(store: store, mailCatalog: .nonAuthoritative)
