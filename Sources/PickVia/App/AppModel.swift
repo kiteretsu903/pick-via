@@ -160,7 +160,7 @@ public final class AppModel {
   private var targetedProfileAccessOverlays: [String: TargetedProfileAccessOverlay] = [:]
   private var isAutomaticProfileAccessFlowPresented = false
   private var deferredAcceptedURLs: [URL] = []
-  private var chooserSettingsRoute: RouteKind?
+  private var isContextualChooserSettingsSessionActive = false
 
   public init(
     configStore: any ConfigStoring,
@@ -384,9 +384,7 @@ public final class AppModel {
       authoritativeConfig = authoritativeUpdate
       config = runtimeUpdate
       targetSnapshot?.publish(runtimeUpdate)
-      if chooserSettingsRoute != .mail {
-        routing.refreshCurrent()
-      }
+      refreshRoutingUnlessContextualSettings()
       mailErrorMessage = nil
     } catch {
       mailErrorMessage =
@@ -557,15 +555,15 @@ public final class AppModel {
   }
 
   public func settingsDidClose() {
-    chooserSettingsRoute = nil
+    isContextualChooserSettingsSessionActive = false
     routing.refreshCurrent()
     if configurationRecovery == .recoveredCorruption {
       configurationRecovery = .none
     }
   }
 
-  public func chooserSettingsDidOpen(for routeKind: RouteKind) {
-    chooserSettingsRoute = routeKind
+  public func chooserSettingsDidOpen(for _: RouteKind) {
+    isContextualChooserSettingsSessionActive = true
   }
 
   public func accept(url: URL) {
@@ -931,8 +929,13 @@ public final class AppModel {
     config = runtimeUpdate
     targetSnapshot?.publish(runtimeUpdate)
     if refreshRouting {
-      routing.refreshCurrent()
+      refreshRoutingUnlessContextualSettings()
     }
+  }
+
+  private func refreshRoutingUnlessContextualSettings() {
+    guard !isContextualChooserSettingsSessionActive else { return }
+    routing.refreshCurrent()
   }
 
   private func authoritativeTargets(

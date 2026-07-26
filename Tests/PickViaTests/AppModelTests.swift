@@ -883,6 +883,110 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(routing.refreshCallCount, 1)
   }
 
+  func testWebChooserSettingsDefersMailRescanRefreshUntilSettingsClose() throws {
+    let routing = RoutingSpy()
+    let mailCatalog = MailCatalogStub.authoritative([Fixtures.appleMailDiscovery])
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.webAndMailConfig),
+      catalog: BrowserCatalogStub(
+        scanResult: BrowserScanResult(
+          browsers: [],
+          warnings: [],
+          isAuthoritative: false
+        )
+      ),
+      mailCatalog: mailCatalog,
+      routing: routing
+    )
+    try model.load()
+    mailCatalog.setScan(
+      MailScanResult(
+        applications: [Fixtures.appleMailDiscovery, Fixtures.outlookDiscovery],
+        isAuthoritative: true
+      )
+    )
+    let navigation = SettingsNavigation()
+    let settingsHandler = AppComposition.makeChooserSettingsHandler(
+      navigation: navigation,
+      openSettings: {},
+      chooserSettingsDidOpen: { model.chooserSettingsDidOpen(for: $0) }
+    )
+    let chooser = ChooserPanelController(openSettings: settingsHandler)
+
+    chooser.showSettings(for: .web)
+    try model.rescanMailApplications()
+
+    XCTAssertEqual(navigation.destination, .browsers)
+    XCTAssertEqual(routing.refreshCallCount, 0)
+
+    model.settingsDidClose()
+
+    XCTAssertEqual(routing.refreshCallCount, 1)
+  }
+
+  func testMailChooserSettingsDefersBrowserRescanRefreshUntilSettingsClose() throws {
+    let routing = RoutingSpy()
+    let browserCatalog = BrowserCatalogStub(
+      discovered: [Fixtures.discoveredChrome],
+      reconciled: Fixtures.webAndMailConfig
+    )
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.webAndMailConfig),
+      catalog: browserCatalog,
+      mailCatalog: .nonAuthoritative,
+      routing: routing
+    )
+    try model.load()
+    let navigation = SettingsNavigation()
+    let settingsHandler = AppComposition.makeChooserSettingsHandler(
+      navigation: navigation,
+      openSettings: {},
+      chooserSettingsDidOpen: { model.chooserSettingsDidOpen(for: $0) }
+    )
+    let chooser = ChooserPanelController(openSettings: settingsHandler)
+
+    chooser.showSettings(for: .mail)
+    try model.rescan()
+
+    XCTAssertEqual(navigation.destination, .mail)
+    XCTAssertEqual(routing.refreshCallCount, 0)
+
+    model.settingsDidClose()
+
+    XCTAssertEqual(routing.refreshCallCount, 1)
+  }
+
+  func testWebChooserSettingsDefersBrowserRescanRefreshUntilSettingsClose() throws {
+    let routing = RoutingSpy()
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.webAndMailConfig),
+      catalog: BrowserCatalogStub(
+        discovered: [Fixtures.discoveredChrome],
+        reconciled: Fixtures.webAndMailConfig
+      ),
+      mailCatalog: .nonAuthoritative,
+      routing: routing
+    )
+    try model.load()
+    let navigation = SettingsNavigation()
+    let settingsHandler = AppComposition.makeChooserSettingsHandler(
+      navigation: navigation,
+      openSettings: {},
+      chooserSettingsDidOpen: { model.chooserSettingsDidOpen(for: $0) }
+    )
+    let chooser = ChooserPanelController(openSettings: settingsHandler)
+
+    chooser.showSettings(for: .web)
+    try model.rescan()
+
+    XCTAssertEqual(navigation.destination, .browsers)
+    XCTAssertEqual(routing.refreshCallCount, 0)
+
+    model.settingsDidClose()
+
+    XCTAssertEqual(routing.refreshCallCount, 1)
+  }
+
   func testMailRescanOutsideContextualSettingsRefreshesImmediately() throws {
     let routing = RoutingSpy()
     let mailCatalog = MailCatalogStub.authoritative([Fixtures.appleMailDiscovery])
@@ -900,6 +1004,24 @@ final class AppModelTests: XCTestCase {
     )
 
     try model.rescanMailApplications()
+
+    XCTAssertEqual(routing.refreshCallCount, 1)
+  }
+
+  func testBrowserRescanOutsideContextualSettingsRefreshesImmediately() throws {
+    let routing = RoutingSpy()
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.webAndMailConfig),
+      catalog: BrowserCatalogStub(
+        discovered: [Fixtures.discoveredChrome],
+        reconciled: Fixtures.webAndMailConfig
+      ),
+      mailCatalog: .nonAuthoritative,
+      routing: routing
+    )
+    try model.load()
+
+    try model.rescan()
 
     XCTAssertEqual(routing.refreshCallCount, 1)
   }
