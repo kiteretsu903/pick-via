@@ -71,12 +71,12 @@ public struct BrowserDescriptor: Sendable {
 }
 
 public struct DiscoveredBrowser: Equatable, Sendable {
-  public let application: BrowserApplication
+  public let application: RoutedApplication
   public let profiles: [DiscoveredProfile]
   public let metadataStatus: ProfileMetadataStatus
 
   public init(
-    application: BrowserApplication,
+    application: RoutedApplication,
     profiles: [DiscoveredProfile],
     metadataStatus: ProfileMetadataStatus = .loaded
   ) {
@@ -229,28 +229,36 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     discovered: [DiscoveredBrowser],
     with config: PickViaConfig
   ) -> PickViaConfig {
-    let discoveredApplications = discovered.map(\.application)
+    let discoveredApplications = discovered.map { browser in
+      replacingBrowserCapability(
+        in: config.applications.first { $0.id == browser.application.id },
+        with: browser.application
+      )
+    }
     let discoveredApplicationIDs = Set(discoveredApplications.map(\.id))
-    let missingApplications = config.browsers
+    let missingApplications = config.applications
       .filter { !discoveredApplicationIDs.contains($0.id) }
       .map { application in
-        BrowserApplication(
+        guard let family = application.browserFamily else { return application }
+        let unavailableBrowser = RoutedApplication(
           id: application.id,
-          family: application.family,
           displayName: application.displayName,
           bundleIdentifier: application.bundleIdentifier,
+          capabilities: [.browser(family: family, isAvailable: false)],
           applicationURL: application.applicationURL,
-          executableURL: application.executableURL,
-          isAvailable: false
+          browserExecutableURL: application.browserExecutableURL
         )
+        return replacingBrowserCapability(in: application, with: unavailableBrowser)
       }
-    let browsers = discoveredApplications + missingApplications
+    let applications = discoveredApplications + missingApplications
+    let browserTargets = config.targets.filter { $0.routeKind == .web }
+    let mailTargets = config.targets.filter { $0.routeKind == .mail }
 
     let existingByID = Dictionary(
-      config.targets.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-    var nextSortOrder = (config.targets.map(\.sortOrder).max() ?? -1) + 1
-    var reconciled: [BrowserTarget] = []
-    var consumedExistingIDs = Set<BrowserTarget.ID>()
+      browserTargets.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    var nextSortOrder = (browserTargets.map(\.sortOrder).max() ?? -1) + 1
+    var reconciled: [RouteTarget] = []
+    var consumedExistingIDs = Set<RouteTarget.ID>()
 
     for browser in discovered {
       let candidates = targetCandidates(for: browser)
@@ -258,11 +266,11 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
         let canonicalDefaultMatches = legacyCanonicalDefaultMatches(
           for: candidate,
           browser: browser,
-          in: config.targets
+          in: browserTargets
         )
         let legacyAbsolutePathMatches = legacyAbsolutePathProfileMatches(
           for: candidate,
-          in: config.targets
+          in: browserTargets
         )
         let canonicalExisting = existingByID[candidate.id]
         let legacyCanonicalWinner = canonicalDefaultMatches.min(by: stableCustomizationOrder)
@@ -274,9 +282,9 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
           ?? legacyCanonicalWinner
           ?? canonicalExisting
           ?? legacyAbsolutePathMatches.min(by: stableCustomizationOrder)
-          ?? ((browser.application.family == .safari || !isBrowserLevelTarget(candidate))
+          ?? ((browser.application.browserFamily == .safari || !isBrowserLevelTarget(candidate))
             && hasUniqueMutableProfileName(candidate, among: candidates)
-            ? legacyProfileMatch(for: candidate, in: config.targets) : nil)
+            ? legacyProfileMatch(for: candidate, in: browserTargets) : nil)
         consumedExistingIDs.formUnion(canonicalDefaultMatches.map(\.id))
         if let existing {
           consumedExistingIDs.insert(existing.id)
@@ -293,9 +301,9 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
             ))
         } else {
           reconciled.append(
-            BrowserTarget(
+            RouteTarget(
               id: candidate.id,
-              browserID: candidate.browserID,
+              browserID: candidate.applicationID,
               label: candidate.label,
               profileIdentifier: candidate.profileIdentifier,
               profileDisplayName: candidate.profileDisplayName,
@@ -309,7 +317,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
               pendingDefaultMigration: shouldMarkPendingDefaultMigration(
                 candidate: candidate,
                 browser: browser,
-                existingTargets: config.targets
+                existingTargets: browserTargets
               ),
               validationError: nil
             ))
@@ -322,7 +330,9 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     reconciled.append(
       contentsOf: config.targets
         .filter {
-          !reconciledIDs.contains($0.id) && !consumedExistingIDs.contains($0.id)
+          $0.routeKind == .web
+            && !reconciledIDs.contains($0.id)
+            && !consumedExistingIDs.contains($0.id)
         }
         .map { target in
           preservingAvailability(target, discovered: discovered)
@@ -334,8 +344,38 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     }
     return PickViaConfig(
       schemaVersion: config.schemaVersion,
-      browsers: browsers,
-      targets: reconciled
+      applications: applications,
+      targets: reconciled + mailTargets
+    )
+  }
+
+  private static func replacingBrowserCapability(
+    in existing: RoutedApplication?,
+    with discovered: RoutedApplication
+  ) -> RoutedApplication {
+    guard let existing else { return discovered }
+    guard
+      let browserCapability = discovered.capabilities.first(where: {
+        $0.routeKind == .web
+      })
+    else { return existing }
+
+    var replacedBrowserCapability = false
+    var capabilities = existing.capabilities.map { capability in
+      guard capability.routeKind == .web else { return capability }
+      replacedBrowserCapability = true
+      return browserCapability
+    }
+    if !replacedBrowserCapability {
+      capabilities.append(browserCapability)
+    }
+    return RoutedApplication(
+      id: discovered.id,
+      displayName: discovered.displayName,
+      bundleIdentifier: discovered.bundleIdentifier,
+      capabilities: capabilities,
+      applicationURL: discovered.applicationURL,
+      browserExecutableURL: discovered.browserExecutableURL
     )
   }
 
@@ -349,15 +389,22 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   }
 
   public static func runtimeSanitizedFallback(_ config: PickViaConfig) -> PickViaConfig {
-    let familyByBrowserID = Dictionary(
-      uniqueKeysWithValues: config.browsers.map { ($0.id, $0.family) }
+    let familyByApplicationID = Dictionary(
+      uniqueKeysWithValues: config.applications.compactMap { application in
+        application.browserFamily.map { (application.id, $0) }
+      }
     )
     var usedTargetIDs = Set(
       config.targets.compactMap { target in
-        familyByBrowserID[target.browserID] == .firefox ? nil : target.id
+        target.routeKind == .web
+          && familyByApplicationID[target.applicationID] == .firefox
+          ? nil : target.id
       })
     let targets = config.targets.enumerated().map { index, target in
-      guard familyByBrowserID[target.browserID] == .firefox else {
+      guard
+        target.routeKind == .web,
+        familyByApplicationID[target.applicationID] == .firefox
+      else {
         return target
       }
 
@@ -381,12 +428,12 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     }
     return PickViaConfig(
       schemaVersion: config.schemaVersion,
-      browsers: config.browsers,
+      applications: config.applications,
       targets: targets
     )
   }
 
-  static func isProfileBearingFirefoxTarget(_ target: BrowserTarget) -> Bool {
+  static func isProfileBearingFirefoxTarget(_ target: RouteTarget) -> Bool {
     if target.profileIdentifier != nil || target.profileDisplayName != nil
       || target.profileIdentity != nil || target.profileLaunchPath != nil
       || isSensitivePathShaped(target.id)
@@ -396,13 +443,13 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     guard target.origin == .detected else { return false }
     return target.id
       != targetID(
-        bundleIdentifier: target.browserID,
+        bundleIdentifier: target.applicationID,
         profileIdentifier: nil,
         mode: target.mode
       )
   }
 
-  private static func isBrowserLevelTarget(_ target: BrowserTarget) -> Bool {
+  private static func isBrowserLevelTarget(_ target: RouteTarget) -> Bool {
     target.profileIdentifier == nil
       && target.profileDisplayName == nil
       && target.profileIdentity == nil
@@ -420,16 +467,15 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       return nil
     }
 
-    let application = BrowserApplication(
+    let application = RoutedApplication(
       id: descriptor.bundleIdentifier,
-      family: descriptor.family,
       displayName: descriptor.displayName,
       bundleIdentifier: descriptor.bundleIdentifier,
+      capabilities: [.browser(family: descriptor.family, isAvailable: true)],
       applicationURL: applicationURL,
-      executableURL: descriptor.executableRelativePath.map {
+      browserExecutableURL: descriptor.executableRelativePath.map {
         applicationURL.appending(path: $0)
-      },
-      isAvailable: true
+      }
     )
     let metadata = readProfiles(for: descriptor)
     return (
@@ -529,8 +575,8 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     }
   }
 
-  private static func targetCandidates(for browser: DiscoveredBrowser) -> [BrowserTarget] {
-    if browser.application.family == .safari {
+  private static func targetCandidates(for browser: DiscoveredBrowser) -> [RouteTarget] {
+    if browser.application.browserFamily == .safari {
       return [candidate(browser: browser.application, profile: nil, mode: .normal)]
     }
 
@@ -559,13 +605,13 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   }
 
   private static func candidate(
-    browser: BrowserApplication,
+    browser: RoutedApplication,
     profile: DiscoveredProfile?,
     mode: BrowserMode
-  ) -> BrowserTarget {
+  ) -> RouteTarget {
     let baseLabel = profile?.displayName ?? browser.displayName
     let label = mode == .private ? "\(baseLabel) Private" : baseLabel
-    return BrowserTarget(
+    return RouteTarget(
       id: targetID(
         bundleIdentifier: browser.bundleIdentifier,
         profileIdentifier: profile?.identifier,
@@ -586,13 +632,13 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   }
 
   private static func merging(
-    _ discovered: BrowserTarget,
-    preserving existing: BrowserTarget,
+    _ discovered: RouteTarget,
+    preserving existing: RouteTarget,
     pendingDefaultMigration: Bool
-  ) -> BrowserTarget {
-    BrowserTarget(
+  ) -> RouteTarget {
+    RouteTarget(
       id: discovered.id,
-      browserID: discovered.browserID,
+      browserID: discovered.applicationID,
       label: existing.label,
       profileIdentifier: discovered.profileIdentifier,
       profileDisplayName: discovered.profileDisplayName,
@@ -613,35 +659,37 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   }
 
   private static func preservingAvailability(
-    _ target: BrowserTarget,
+    _ target: RouteTarget,
     discovered: [DiscoveredBrowser]
-  ) -> BrowserTarget {
+  ) -> RouteTarget {
     let targetFamily =
-      discovered.first(where: { $0.application.id == target.browserID })?.application.family
-      ?? BrowserDescriptor.family(forBundleIdentifier: target.browserID)
-    let availability: BrowserTargetAvailability
+      discovered.first(where: { $0.application.id == target.applicationID })?
+      .application.browserFamily
+      ?? BrowserDescriptor.family(forBundleIdentifier: target.applicationID)
+    let availability: TargetAvailability
     var resolvedProfile: DiscoveredProfile?
     var refreshesMutableLaunchSelector = false
-    if let browser = discovered.first(where: { $0.application.id == target.browserID }),
-      browser.application.isAvailable,
+    if let browser = discovered.first(where: { $0.application.id == target.applicationID }),
+      browser.application.isAvailable(for: .web),
+      let browserFamily = browser.application.browserFamily,
       BrowserDescriptor.supported.contains(where: {
         $0.bundleIdentifier == browser.application.bundleIdentifier
-          && $0.family == browser.application.family
+          && $0.family == browserFamily
       })
     {
       switch browser.metadataStatus {
       case .metadataDamaged:
         return preservingWithoutAuthoritativeMetadata(
           target,
-          family: browser.application.family
+          family: browserFamily
         )
       case .accessRequired, .accessRevoked:
-        switch browser.application.family {
+        switch browserFamily {
         case .safari:
           if target.origin == .manual {
             return preservingWithoutAuthoritativeMetadata(
               target,
-              family: browser.application.family
+              family: browserFamily
             )
           }
           availability =
@@ -653,7 +701,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
           } else if target.origin == .manual {
             return preservingWithoutAuthoritativeMetadata(
               target,
-              family: browser.application.family
+              family: browserFamily
             )
           } else {
             availability = .unavailable
@@ -661,8 +709,8 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
         }
       case .notApplicable, .metadataAbsent, .loaded:
         let profiles = uniqueProfiles(browser.profiles)
-        refreshesMutableLaunchSelector = browser.application.family == .firefox
-        switch browser.application.family {
+        refreshesMutableLaunchSelector = browserFamily == .firefox
+        switch browserFamily {
         case .safari:
           availability =
             target.profileIdentifier == nil && target.mode == .normal
@@ -673,7 +721,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
             availability = .available
           } else {
             if let profileIdentity = target.profileIdentity {
-              if browser.application.family == .firefox,
+              if browserFamily == .firefox,
                 (profileIdentity as NSString).isAbsolutePath
               {
                 let normalizedLegacyPath = URL(
@@ -686,7 +734,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
               } else {
                 resolvedProfile = profiles.first { $0.identifier == profileIdentity }
               }
-            } else if browser.application.family == .firefox {
+            } else if browserFamily == .firefox {
               let nameMatches = profiles.filter {
                 $0.launchIdentifier == target.profileIdentifier
               }
@@ -709,13 +757,13 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       resolvedProfile: resolvedProfile,
       family: targetFamily
     )
-    return BrowserTarget(
+    return RouteTarget(
       id: migratedTargetID(
         for: target,
         profileIdentity: migratedIdentity,
         family: targetFamily
       ),
-      browserID: target.browserID,
+      browserID: target.applicationID,
       label: target.label,
       profileIdentifier: refreshesMutableLaunchSelector
         ? (resolvedProfile?.launchIdentifier ?? target.profileIdentifier)
@@ -739,11 +787,11 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   }
 
   private static func legacyProfileMatch(
-    for candidate: BrowserTarget,
-    in targets: [BrowserTarget]
-  ) -> BrowserTarget? {
+    for candidate: RouteTarget,
+    in targets: [RouteTarget]
+  ) -> RouteTarget? {
     targets.first {
-      $0.browserID == candidate.browserID
+      $0.applicationID == candidate.applicationID
         && $0.mode == candidate.mode
         && $0.origin == .detected
         && $0.profileIdentity == nil
@@ -752,10 +800,10 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   }
 
   private static func legacyCanonicalDefaultMatches(
-    for candidate: BrowserTarget,
+    for candidate: RouteTarget,
     browser: DiscoveredBrowser,
-    in targets: [BrowserTarget]
-  ) -> [BrowserTarget] {
+    in targets: [RouteTarget]
+  ) -> [RouteTarget] {
     guard
       browser.metadataStatus == .loaded || browser.metadataStatus == .metadataAbsent
     else { return [] }
@@ -769,13 +817,13 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
 
     return targets.filter { target in
       guard
-        target.browserID == candidate.browserID,
+        target.applicationID == candidate.applicationID,
         target.mode == candidate.mode,
         target.origin == .detected
       else { return false }
       let legacyIdentityPath: String? = target.profileIdentity.flatMap { identity in
         guard
-          browser.application.family == .firefox,
+          browser.application.browserFamily == .firefox,
           (identity as NSString).isAbsolutePath
         else { return nil }
         return URL(fileURLWithPath: identity, isDirectory: true).standardizedFileURL.path
@@ -791,13 +839,13 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   }
 
   private static func legacyAbsolutePathProfileMatches(
-    for candidate: BrowserTarget,
-    in targets: [BrowserTarget]
-  ) -> [BrowserTarget] {
+    for candidate: RouteTarget,
+    in targets: [RouteTarget]
+  ) -> [RouteTarget] {
     guard let candidatePath = candidate.profileLaunchPath else { return [] }
     return targets.filter { target in
       guard
-        target.browserID == candidate.browserID,
+        target.applicationID == candidate.applicationID,
         target.mode == candidate.mode,
         target.origin == .detected,
         let identity = target.profileIdentity,
@@ -809,25 +857,26 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   }
 
   private static func stableCustomizationOrder(
-    _ lhs: BrowserTarget,
-    _ rhs: BrowserTarget
+    _ lhs: RouteTarget,
+    _ rhs: RouteTarget
   ) -> Bool {
     if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder < rhs.sortOrder }
     return lhs.id < rhs.id
   }
 
   private static func shouldMarkPendingDefaultMigration(
-    candidate: BrowserTarget,
+    candidate: RouteTarget,
     browser: DiscoveredBrowser,
-    existingTargets: [BrowserTarget]
+    existingTargets: [RouteTarget]
   ) -> Bool {
     guard
-      browser.application.family == .chromium || browser.application.family == .firefox,
+      browser.application.browserFamily == .chromium
+        || browser.application.browserFamily == .firefox,
       isBrowserLevelTarget(candidate),
       hasNonAuthoritativeProfileMetadata(browser.metadataStatus)
     else { return false }
     return existingTargets.contains { target in
-      target.browserID == candidate.browserID
+      target.applicationID == candidate.applicationID
         && target.mode == candidate.mode
         && target.origin == .detected
         && !isBrowserLevelTarget(target)
@@ -835,8 +884,8 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   }
 
   private static func shouldPreservePendingDefaultMigration(
-    from existing: BrowserTarget,
-    candidate: BrowserTarget,
+    from existing: RouteTarget,
+    candidate: RouteTarget,
     browser: DiscoveredBrowser
   ) -> Bool {
     existing.pendingDefaultMigration
@@ -856,7 +905,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   }
 
   private static func migratedProfileIdentity(
-    for target: BrowserTarget,
+    for target: RouteTarget,
     resolvedProfile: DiscoveredProfile?,
     family: BrowserFamily?
   ) -> String? {
@@ -872,10 +921,10 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   }
 
   private static func migratedTargetID(
-    for target: BrowserTarget,
+    for target: RouteTarget,
     profileIdentity: String?,
     family: BrowserFamily?
-  ) -> BrowserTarget.ID {
+  ) -> RouteTarget.ID {
     guard
       family == .firefox,
       target.origin == .detected,
@@ -883,16 +932,16 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       (legacyIdentity as NSString).isAbsolutePath
     else { return target.id }
     return targetID(
-      bundleIdentifier: target.browserID,
+      bundleIdentifier: target.applicationID,
       profileIdentifier: profileIdentity,
       mode: target.mode
     )
   }
 
   private static func sanitizingLegacyFirefoxIdentity(
-    _ target: BrowserTarget,
+    _ target: RouteTarget,
     family: BrowserFamily
-  ) -> BrowserTarget {
+  ) -> RouteTarget {
     guard
       family == .firefox,
       let legacyIdentity = target.profileIdentity,
@@ -901,15 +950,15 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     let opaqueIdentity = FirefoxProfileIdentity.identifier(
       for: URL(fileURLWithPath: legacyIdentity, isDirectory: true)
     )
-    return BrowserTarget(
+    return RouteTarget(
       id: target.origin == .detected
         ? targetID(
-          bundleIdentifier: target.browserID,
+          bundleIdentifier: target.applicationID,
           profileIdentifier: opaqueIdentity,
           mode: target.mode
         )
         : target.id,
-      browserID: target.browserID,
+      browserID: target.applicationID,
       label: target.label,
       profileIdentifier: target.profileIdentifier,
       profileDisplayName: target.profileDisplayName,
@@ -926,9 +975,9 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   }
 
   private static func preservingWithoutAuthoritativeMetadata(
-    _ target: BrowserTarget,
+    _ target: RouteTarget,
     family: BrowserFamily
-  ) -> BrowserTarget {
+  ) -> RouteTarget {
     let sanitized = sanitizingLegacyFirefoxIdentity(target, family: family)
     switch family {
     case .safari:
@@ -953,8 +1002,8 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   }
 
   private static func hasUniqueMutableProfileName(
-    _ candidate: BrowserTarget,
-    among candidates: [BrowserTarget]
+    _ candidate: RouteTarget,
+    among candidates: [RouteTarget]
   ) -> Bool {
     candidates.filter {
       $0.mode == candidate.mode && $0.profileIdentifier == candidate.profileIdentifier
@@ -990,7 +1039,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     return unique
   }
 
-  private static func runtimeSanitizedFirefoxTarget(_ target: BrowserTarget) -> BrowserTarget {
+  private static func runtimeSanitizedFirefoxTarget(_ target: RouteTarget) -> RouteTarget {
     let wasProfiled = isProfileBearingFirefoxTarget(target)
     let sanitizedIdentity: String?
     if let identity = target.profileIdentity,
@@ -1017,13 +1066,13 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     let profileDisplayName = target.profileDisplayName.flatMap {
       isSensitivePathShaped($0) ? nil : $0
     }
-    let sanitizedID: BrowserTarget.ID
+    let sanitizedID: RouteTarget.ID
     if target.origin == .detected, wasProfiled {
       let identityForID =
         sanitizedIdentity ?? profileIdentifier
         ?? FirefoxProfileIdentity.identifier(forLegacyValue: target.id)
       sanitizedID = targetID(
-        bundleIdentifier: target.browserID,
+        bundleIdentifier: target.applicationID,
         profileIdentifier: identityForID,
         mode: target.mode
       )
@@ -1034,9 +1083,9 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       sanitizedID = target.id
     }
 
-    return BrowserTarget(
+    return RouteTarget(
       id: sanitizedID,
-      browserID: target.browserID,
+      browserID: target.applicationID,
       label: target.label,
       profileIdentifier: profileIdentifier,
       profileDisplayName: profileDisplayName,
@@ -1053,12 +1102,12 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   }
 
   private static func copying(
-    _ target: BrowserTarget,
-    id: BrowserTarget.ID
-  ) -> BrowserTarget {
-    BrowserTarget(
+    _ target: RouteTarget,
+    id: RouteTarget.ID
+  ) -> RouteTarget {
+    RouteTarget(
       id: id,
-      browserID: target.browserID,
+      browserID: target.applicationID,
       label: target.label,
       profileIdentifier: target.profileIdentifier,
       profileDisplayName: target.profileDisplayName,
@@ -1075,13 +1124,13 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   }
 
   private static func copying(
-    _ target: BrowserTarget,
-    availability: BrowserTargetAvailability,
+    _ target: RouteTarget,
+    availability: TargetAvailability,
     profileLaunchPath: String?
-  ) -> BrowserTarget {
-    BrowserTarget(
+  ) -> RouteTarget {
+    RouteTarget(
       id: target.id,
-      browserID: target.browserID,
+      browserID: target.applicationID,
       label: target.label,
       profileIdentifier: target.profileIdentifier,
       profileDisplayName: target.profileDisplayName,

@@ -139,40 +139,43 @@ public struct JSONConfigStore: ConfigStoring, Sendable {
 
   public func save(_ config: PickViaConfig) throws {
     let config = try config.validatedAndMigrated()
-    let familyByBrowserID = Dictionary(
-      uniqueKeysWithValues: config.browsers.map { ($0.id, $0.family) }
-    )
     guard
       config.targets.allSatisfy({ target in
-        guard familyByBrowserID[target.browserID] == .firefox else { return true }
+        guard
+          let application = config.applications.first(where: {
+            $0.id == target.applicationID
+          }),
+          application.browserFamily == .firefox,
+          let options = target.browserOptions
+        else { return true }
         guard !Self.isPathShapedTargetID(target.id) else { return false }
-        if let profileIdentity = target.profileIdentity {
+        if let profileIdentity = options.profileIdentity {
           guard FirefoxProfileIdentity.isOpaqueIdentifier(profileIdentity) else {
             return false
           }
           guard target.origin == .detected else { return true }
           return target.id
             == BrowserCatalog.targetID(
-              bundleIdentifier: target.browserID,
+              bundleIdentifier: target.applicationID,
               profileIdentifier: profileIdentity,
-              mode: target.mode
+              mode: options.mode
             )
         }
         guard target.origin == .detected else { return true }
-        if let profileIdentifier = target.profileIdentifier {
+        if let profileIdentifier = options.profileIdentifier {
           return target.availability == .unavailable
             && target.id
               == BrowserCatalog.targetID(
-                bundleIdentifier: target.browserID,
+                bundleIdentifier: target.applicationID,
                 profileIdentifier: profileIdentifier,
-                mode: target.mode
+                mode: options.mode
               )
         }
         return target.id
           == BrowserCatalog.targetID(
-            bundleIdentifier: target.browserID,
+            bundleIdentifier: target.applicationID,
             profileIdentifier: nil,
-            mode: target.mode
+            mode: options.mode
           )
       })
     else {
@@ -192,7 +195,7 @@ public struct JSONConfigStore: ConfigStoring, Sendable {
     }
   }
 
-  private static func isPathShapedTargetID(_ id: BrowserTarget.ID) -> Bool {
+  private static func isPathShapedTargetID(_ id: RouteTarget.ID) -> Bool {
     let decoded = id.removingPercentEncoding ?? id
     let lowercase = decoded.lowercased()
     return decoded.contains("/") || decoded.contains("\\") || decoded.contains("~")

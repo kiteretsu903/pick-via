@@ -113,7 +113,7 @@ final class ConfigStoreTests: XCTestCase {
       targets: detected + [manual]
     ).validatedAndMigrated()
 
-    XCTAssertEqual(migrated.schemaVersion, 2)
+    XCTAssertEqual(migrated.schemaVersion, PickViaConfig.currentSchemaVersion)
     XCTAssertEqual(migrated.targets.map(\.isEnabled), [true, true, true, false, true])
     XCTAssertEqual(
       migrated.targets.map(\.pendingDefaultMigration),
@@ -129,7 +129,7 @@ final class ConfigStoreTests: XCTestCase {
       enabled: false
     )
     let validated = try PickViaConfig(
-      schemaVersion: 2,
+      schemaVersion: PickViaConfig.currentSchemaVersion,
       browsers: [validChrome],
       targets: [target]
     ).validatedAndMigrated()
@@ -162,6 +162,43 @@ final class ConfigStoreTests: XCTestCase {
     XCTAssertEqual(loaded.targets, expected.targets)
     XCTAssertEqual(loaded.browsers.map(\.id), expected.browsers.map(\.id))
     XCTAssertEqual(loaded.browsers.map(\.displayName), expected.browsers.map(\.displayName))
+  }
+
+  func testSaveSkipsFirefoxProfileValidationForMailTarget() throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let application = RoutedApplication(
+      id: "org.mozilla.firefox",
+      displayName: "Firefox",
+      bundleIdentifier: "org.mozilla.firefox",
+      capabilities: [
+        .browser(family: .firefox, isAvailable: true),
+        .mail(isAvailable: true),
+      ],
+      applicationURL: URL(fileURLWithPath: "/Applications/Firefox.app"),
+      browserExecutableURL: URL(
+        fileURLWithPath: "/Applications/Firefox.app/Contents/MacOS/firefox")
+    )
+    let mailTarget = RouteTarget(
+      id: RouteTarget.mailID(bundleIdentifier: application.bundleIdentifier),
+      applicationID: application.id,
+      label: "Firefox Mail",
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .detected,
+      availability: .available,
+      capability: .mail
+    )
+    let expected = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      applications: [application],
+      targets: [mailTarget]
+    )
+
+    let store = JSONConfigStore(directory: directory)
+    try store.save(expected)
+
+    XCTAssertEqual(try store.load().targets, [mailTarget])
   }
 
   func testSavedDocumentDoesNotPersistApplicationOrExecutablePaths() throws {
@@ -440,10 +477,17 @@ final class ConfigStoreTests: XCTestCase {
       """
       {
         "id":"com.google.Chrome",
-        "family":"chromium",
         "displayName":"Google Chrome",
         "bundleIdentifier":"com.google.Chrome",
+        "capabilities":[
+          {
+            "kind":"browser",
+            "family":"chromium",
+            "isAvailable":true
+          }
+        ],
         "applicationURL":"file:///tmp/Evil.app/",
+        "browserExecutableURL":"file:///tmp/payload",
         "executableURL":"file:///tmp/payload",
         "isAvailable":true
       }

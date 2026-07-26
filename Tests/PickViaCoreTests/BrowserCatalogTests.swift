@@ -343,6 +343,80 @@ struct BrowserCatalogTests {
     #expect(result.targets.map(\.isEnabled) == [true, true])
   }
 
+  @Test func reconcileRetainsMailCapabilityAndAppendsMailTargetsUnchanged() throws {
+    let discovered = chrome(profiles: [], metadataStatus: .metadataAbsent)
+    let combinedApplication = RoutedApplication(
+      id: discovered.application.id,
+      displayName: discovered.application.displayName,
+      bundleIdentifier: discovered.application.bundleIdentifier,
+      capabilities: [
+        .browser(family: .chromium, isAvailable: false),
+        .mail(isAvailable: true),
+      ],
+      applicationURL: discovered.application.applicationURL,
+      browserExecutableURL: discovered.application.browserExecutableURL
+    )
+    let mailTarget = RouteTarget(
+      id: RouteTarget.mailID(bundleIdentifier: combinedApplication.bundleIdentifier),
+      applicationID: combinedApplication.id,
+      label: "Google Chrome Mail",
+      isEnabled: false,
+      sortOrder: 42,
+      origin: .detected,
+      availability: .unavailable,
+      capability: .mail
+    )
+    let config = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      applications: [combinedApplication],
+      targets: [mailTarget]
+    )
+
+    let result = BrowserCatalog.reconcile(discovered: [discovered], with: config)
+
+    let application = try #require(result.applications.first)
+    #expect(application.browserFamily == .chromium)
+    #expect(application.isAvailable(for: .web))
+    #expect(application.supports(.mail))
+    #expect(application.isAvailable(for: .mail))
+    #expect(result.targets.last == mailTarget)
+    #expect(result.targets.last?.sortOrder == 42)
+    #expect(result.targets.dropLast().allSatisfy { $0.routeKind == .web })
+  }
+
+  @Test func runtimeSanitizedFallbackRetainsMailTargetsUnchanged() {
+    let application = RoutedApplication(
+      id: "org.mozilla.firefox",
+      displayName: "Firefox",
+      bundleIdentifier: "org.mozilla.firefox",
+      capabilities: [
+        .browser(family: .firefox, isAvailable: true),
+        .mail(isAvailable: true),
+      ],
+      applicationURL: URL(fileURLWithPath: "/Applications/Firefox.app")
+    )
+    let mailTarget = RouteTarget(
+      id: RouteTarget.mailID(bundleIdentifier: application.bundleIdentifier),
+      applicationID: application.id,
+      label: "Firefox Mail",
+      isEnabled: true,
+      sortOrder: 9,
+      origin: .detected,
+      availability: .available,
+      capability: .mail
+    )
+    let config = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      applications: [application],
+      targets: [mailTarget]
+    )
+
+    let result = BrowserCatalog.runtimeSanitizedFallback(config)
+
+    #expect(result.applications == config.applications)
+    #expect(result.targets == [mailTarget])
+  }
+
   @Test func detectedTargetDefaultsEnableOnlyBrowserPrivateAndAllNormalTargets() {
     let discovered = chrome(profiles: [
       DiscoveredProfile(
