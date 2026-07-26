@@ -68,6 +68,44 @@ struct MailCatalogTests {
     #expect(result.applications.isEmpty)
   }
 
+  @Test func scanUsesFirstTrimmedNonemptyDisplayMetadataWithoutDroppingValidHandlers() throws {
+    try withTemporaryApplications { root in
+      let valid = try application(
+        at: root.appending(path: "Valid.app"),
+        bundleIdentifier: "com.example.valid",
+        displayName: "Valid"
+      )
+      let nameFallback = try application(
+        at: root.appending(path: "Name Fallback.app"),
+        bundleIdentifier: "com.example.name-fallback",
+        displayName: "   ",
+        bundleName: "  Name Fallback  "
+      )
+      let filenameFallback = try application(
+        at: root.appending(path: "Filename Fallback.app"),
+        bundleIdentifier: "com.example.filename-fallback",
+        displayName: "\n",
+        bundleName: "\t"
+      )
+      let catalog = MailCatalog(
+        applicationLocator: MailApplicationLocatorStub(
+          urls: [valid, nameFallback, filenameFallback]
+        )
+      )
+
+      let scan = catalog.scanResult()
+      let validated = try MailCatalog.reconcile(scan, with: .initial).validatedAndMigrated()
+
+      #expect(scan.isAuthoritative)
+      #expect(
+        validated.mailApplications.map(\.displayName) == [
+          "Filename Fallback",
+          "Name Fallback",
+          "Valid",
+        ])
+    }
+  }
+
   @Test func reconcileAddsEnabledMailTargetsInScanOrderAfterExistingMailOrders() {
     let existingMail = mailTarget(
       bundleIdentifier: "com.example.existing",
@@ -102,6 +140,31 @@ struct MailCatalogTests {
     #expect(mailTargets.map(\.sortOrder) == [4, 5, 6])
     #expect(mailTargets.suffix(2).allSatisfy { $0.isEnabled && $0.availability == .available })
     #expect(result.targets.first { $0.routeKind == .web } == webTarget)
+  }
+
+  @Test func reconcileStablyDeduplicatesExternallyConstructedScanEntries() {
+    let scan = MailScanResult(
+      applications: [
+        discoveredMail("com.example.duplicate", name: "First"),
+        discoveredMail("com.example.duplicate", name: "Second"),
+        discoveredMail("com.example.other", name: "Other"),
+      ],
+      isAuthoritative: true
+    )
+
+    let result = MailCatalog.reconcile(scan, with: .initial)
+
+    #expect(
+      result.mailApplications.map(\.bundleIdentifier) == [
+        "com.example.duplicate",
+        "com.example.other",
+      ])
+    #expect(result.mailApplications.map(\.displayName) == ["First", "Other"])
+    #expect(
+      result.targets.map(\.id) == [
+        "mailto|com.example.duplicate",
+        "mailto|com.example.other",
+      ])
   }
 
   @Test func reconcilePreservesExistingMailCustomizationWhileRefreshingAvailability() {
@@ -440,14 +503,15 @@ private func withTemporaryApplications(
 private func application(
   at url: URL,
   bundleIdentifier: String,
-  displayName: String
+  displayName: String,
+  bundleName: String? = nil
 ) throws -> URL {
   let contents = url.appending(path: "Contents", directoryHint: .isDirectory)
   try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
   let metadata: [String: Any] = [
     "CFBundleIdentifier": bundleIdentifier,
     "CFBundleDisplayName": displayName,
-    "CFBundleName": displayName,
+    "CFBundleName": bundleName ?? displayName,
     "CFBundlePackageType": "APPL",
   ]
   let data = try PropertyListSerialization.data(

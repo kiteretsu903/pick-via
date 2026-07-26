@@ -172,7 +172,10 @@ extension AppModel {
       clipboard: SystemClipboardWriter(),
       openSettings: AppComposition.makeChooserSettingsHandler(
         navigation: navigation,
-        openSettings: openSettings
+        openSettings: openSettings,
+        chooserSettingsDidOpen: { [weak chooserActivity] kind in
+          chooserActivity?.model?.chooserSettingsDidOpen(for: kind)
+        }
       ),
       onPresentationChange: { [weak profileAccessPresenter] _ in
         profileAccessPresenter?.environmentDidChange()
@@ -198,6 +201,7 @@ extension AppModel {
       profileAccess: profileAccessCoordinator,
       profileRootValidator: profileRootValidator
     )
+    chooserActivity.model = model
     profileAccessPanelDriver.attachWizardViewFactory { [weak profileAccessPresenter] model in
       AnyView(
         ProfileAccessWizardView(
@@ -216,6 +220,7 @@ extension AppModel {
 @MainActor
 private final class ChooserPresentationActivity {
   weak var chooser: ChooserPanelController?
+  weak var model: AppModel?
 }
 
 @MainActor
@@ -265,9 +270,11 @@ enum AppComposition {
 
   static func makeChooserSettingsHandler(
     navigation: SettingsNavigation,
-    openSettings: @escaping @MainActor () -> Void
+    openSettings: @escaping @MainActor () -> Void,
+    chooserSettingsDidOpen: @escaping @MainActor (RouteKind) -> Void = { _ in }
   ) -> @MainActor (RouteKind) -> Void {
     { kind in
+      chooserSettingsDidOpen(kind)
       switch kind {
       case .web:
         navigation.destination = .browsers

@@ -102,8 +102,12 @@ public struct MailCatalog: MailDiscovering, Sendable {
   ) -> PickViaConfig {
     guard scan.isAuthoritative else { return config }
 
+    var seenBundleIdentifiers = Set<String>()
+    let discoveredApplications = scan.applications.filter {
+      seenBundleIdentifiers.insert($0.bundleIdentifier).inserted
+    }
     let discoveredByBundleIdentifier = Dictionary(
-      uniqueKeysWithValues: scan.applications.map { ($0.bundleIdentifier, $0) }
+      uniqueKeysWithValues: discoveredApplications.map { ($0.bundleIdentifier, $0) }
     )
     let applications =
       config.applications.map { application in
@@ -114,14 +118,14 @@ public struct MailCatalog: MailDiscovering, Sendable {
         }
         return merging(discovered, into: application)
       }
-      + scan.applications
+      + discoveredApplications
       .filter { discoveredByBundleIdentifier[$0.bundleIdentifier] != nil }
       .filter { discovered in
         !config.applications.contains { $0.bundleIdentifier == discovered.bundleIdentifier }
       }
       .map(newMailApplication)
 
-    let discoveredIdentifiers = Set(scan.applications.map(\.bundleIdentifier))
+    let discoveredIdentifiers = Set(discoveredApplications.map(\.bundleIdentifier))
     let existingMailTargetIDs = Set(
       config.targets.lazy.filter { $0.routeKind == .mail }.map(\.id)
     )
@@ -134,7 +138,7 @@ public struct MailCatalog: MailDiscovering, Sendable {
         )
       }
       + newMailTargets(
-        for: scan.applications.filter {
+        for: discoveredApplications.filter {
           !existingMailTargetIDs.contains(RouteTarget.mailID(bundleIdentifier: $0.bundleIdentifier))
         },
         after: config.targets.lazy.filter { $0.routeKind == .mail }.map(\.sortOrder).max() ?? -1
@@ -179,10 +183,14 @@ public struct MailCatalog: MailDiscovering, Sendable {
       !bundleIdentifier.isEmpty
     else { return nil }
 
-    let displayName =
-      (bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
-      ?? (bundle.object(forInfoDictionaryKey: "CFBundleName") as? String)
-      ?? standardizedURL.deletingPathExtension().lastPathComponent
+    let displayName = [
+      bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String,
+      bundle.object(forInfoDictionaryKey: "CFBundleName") as? String,
+      standardizedURL.deletingPathExtension().lastPathComponent,
+    ]
+    .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+    .first { !$0.isEmpty }
+    guard let displayName else { return nil }
     return DiscoveredMailApplication(
       bundleIdentifier: bundleIdentifier,
       displayName: displayName,

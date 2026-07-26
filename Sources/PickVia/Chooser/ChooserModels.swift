@@ -152,8 +152,14 @@ public struct ChooserPresentation: Equatable, Sendable {
     var shortcutIndex = 0
     var groups: [ChooserGroup] = []
     var rows: [ChooserRow] = []
+    let orderedApplications =
+      request.kind == .mail
+      ? sortedTargets.compactMap { target in
+        availableApplications.first { $0.id == target.applicationID }
+      }
+      : availableApplications
 
-    for application in availableApplications {
+    for application in orderedApplications {
       let applicationTargets = sortedTargets.filter { $0.applicationID == application.id }
       guard !applicationTargets.isEmpty else { continue }
       assert(

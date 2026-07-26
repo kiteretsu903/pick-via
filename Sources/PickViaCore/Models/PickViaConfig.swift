@@ -127,6 +127,7 @@ public struct PickViaConfig: Codable, Equatable, Sendable {
       guard
         application.id == application.bundleIdentifier,
         !application.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+        !application.capabilities.isEmpty,
         Set(routeKinds).count == routeKinds.count
       else { throw ConfigDocumentError.invalidBrowser }
 

@@ -29,6 +29,7 @@ public struct MailLauncher: Sendable {
     target: RouteTarget
   ) throws -> MailLaunchPlan {
     guard
+      (try? URLValidator.validate(url))?.kind == .mail,
       case .mail = target.capability,
       application.id == target.applicationID,
       application.id == application.bundleIdentifier,

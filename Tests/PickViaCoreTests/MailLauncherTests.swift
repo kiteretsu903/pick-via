@@ -56,6 +56,18 @@ struct MailLauncherTests {
     }
   }
 
+  @Test func nonMailURLIsRejectedByMailLauncher() throws {
+    let url = try #require(URL(string: "https://example.com/private"))
+
+    #expect(throws: LaunchFailure.self) {
+      try makeLauncher().makePlan(
+        url: url,
+        application: Fixtures.mailApplication,
+        target: Fixtures.mailTarget
+      )
+    }
+  }
+
   @Test func targetForAnotherApplicationIsRejected() throws {
     let url = try #require(URL(string: "mailto:person@example.com"))
     let mismatchedTarget = RouteTarget(

@@ -23,6 +23,40 @@ final class ChooserModelsTests: XCTestCase {
     XCTAssertNil(presentation.selectedIndex)
   }
 
+  func testMailPresentationFollowsTargetOrderWhenApplicationOrderIsOpposite() {
+    let outlookFirst = RouteTarget(
+      id: Fixtures.outlookTarget.id,
+      applicationID: Fixtures.outlookTarget.applicationID,
+      label: Fixtures.outlookTarget.label,
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .detected,
+      availability: .available,
+      capability: .mail
+    )
+    let appleMailSecond = RouteTarget(
+      id: Fixtures.appleMailTarget.id,
+      applicationID: Fixtures.appleMailTarget.applicationID,
+      label: Fixtures.appleMailTarget.label,
+      isEnabled: true,
+      sortOrder: 1,
+      origin: .detected,
+      availability: .available,
+      capability: .mail
+    )
+
+    let presentation = ChooserPresentation.make(
+      request: Fixtures.mailRequest,
+      applications: [Fixtures.appleMail, Fixtures.outlook],
+      targets: [outlookFirst, appleMailSecond]
+    )
+
+    XCTAssertEqual(
+      presentation.rows.map(\.targetID),
+      [Fixtures.outlookTarget.id, Fixtures.appleMailTarget.id]
+    )
+  }
+
   func testMailPresentationNeverLeaksURLIntoVisibleStrings() {
     let presentation = Fixtures.mailPresentation(
       "mailto:person@example.com?subject=Secret&body=Private"

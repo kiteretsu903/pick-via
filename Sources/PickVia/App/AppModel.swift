@@ -159,6 +159,7 @@ public final class AppModel {
   private var targetedProfileAccessOverlays: [String: TargetedProfileAccessOverlay] = [:]
   private var isAutomaticProfileAccessFlowPresented = false
   private var deferredAcceptedURLs: [URL] = []
+  private var chooserSettingsRoute: RouteKind?
 
   public init(
     configStore: any ConfigStoring,
@@ -207,7 +208,8 @@ public final class AppModel {
     let runtimeFallback = mailCatalog.runtimeSanitizedFallback(browserFallback)
 
     if configurationRecovery != .loadFailed {
-      var candidate = runtimeFallback
+      var persistedCandidate = loadedConfig
+      var runtimeCandidate = runtimeFallback
       var browserChanged = false
       var mailChanged = false
 
@@ -217,15 +219,21 @@ public final class AppModel {
         do {
           let reconciled = browserCatalog.reconcile(
             discovered: browserScan.browsers,
-            with: candidate
+            with: runtimeCandidate
           )
-          let validated = try replacingRouteSlice(
+          let validatedRuntime = try replacingRouteSlice(
             .web,
-            in: candidate,
+            in: runtimeCandidate,
             with: reconciled
           ).validatedAndMigrated()
-          browserChanged = validated != candidate
-          candidate = validated
+          let validatedPersisted = try replacingRouteSlice(
+            .web,
+            in: persistedCandidate,
+            with: reconciled
+          ).validatedAndMigrated()
+          browserChanged = validatedPersisted != persistedCandidate
+          runtimeCandidate = validatedRuntime
+          persistedCandidate = validatedPersisted
         } catch {
           errorMessage = "Browser discovery produced a configuration that could not be committed."
         }
@@ -244,14 +252,20 @@ public final class AppModel {
       let mailScan = mailCatalog.scanResult()
       if mailScan.isAuthoritative {
         do {
-          let reconciled = mailCatalog.reconcile(mailScan, with: candidate)
-          let validated = try replacingRouteSlice(
+          let reconciled = mailCatalog.reconcile(mailScan, with: runtimeCandidate)
+          let validatedRuntime = try replacingRouteSlice(
             .mail,
-            in: candidate,
+            in: runtimeCandidate,
             with: reconciled
           ).validatedAndMigrated()
-          mailChanged = validated != candidate
-          candidate = validated
+          let validatedPersisted = try replacingRouteSlice(
+            .mail,
+            in: persistedCandidate,
+            with: reconciled
+          ).validatedAndMigrated()
+          mailChanged = validatedPersisted != persistedCandidate
+          runtimeCandidate = validatedRuntime
+          persistedCandidate = validatedPersisted
         } catch {
           mailErrorMessage =
             "Mail application discovery produced a configuration that could not be committed."
@@ -263,8 +277,8 @@ public final class AppModel {
 
       if browserChanged || mailChanged {
         do {
-          try configStore.save(candidate)
-          config = candidate
+          try configStore.save(persistedCandidate)
+          config = runtimeCandidate
         } catch {
           config = runtimeFallback
           if browserChanged {
@@ -277,7 +291,7 @@ public final class AppModel {
           }
         }
       } else {
-        config = candidate
+        config = runtimeCandidate
       }
       targetSnapshot?.publish(config)
     } else {
@@ -360,7 +374,9 @@ public final class AppModel {
       try configStore.save(updated)
       config = updated
       targetSnapshot?.publish(updated)
-      routing.refreshCurrent()
+      if chooserSettingsRoute != .mail {
+        routing.refreshCurrent()
+      }
       mailErrorMessage = nil
     } catch {
       mailErrorMessage =
@@ -531,10 +547,15 @@ public final class AppModel {
   }
 
   public func settingsDidClose() {
+    chooserSettingsRoute = nil
     routing.refreshCurrent()
     if configurationRecovery == .recoveredCorruption {
       configurationRecovery = .none
     }
+  }
+
+  public func chooserSettingsDidOpen(for routeKind: RouteKind) {
+    chooserSettingsRoute = routeKind
   }
 
   public func accept(url: URL) {

@@ -86,6 +86,28 @@ final class RouteModelTests: XCTestCase {
     XCTAssertThrowsError(try config.validatedAndMigrated())
   }
 
+  func testSchemaThreeDocumentRejectsApplicationWithoutCapabilities() throws {
+    let data = Data(
+      """
+      {
+        "schemaVersion": 3,
+        "applications": [
+          {
+            "id": "com.example.Empty",
+            "displayName": "Empty",
+            "bundleIdentifier": "com.example.Empty",
+            "capabilities": []
+          }
+        ],
+        "targets": []
+      }
+      """.utf8
+    )
+    let decoded = try JSONDecoder().decode(PickViaConfig.self, from: data)
+
+    XCTAssertThrowsError(try decoded.validatedAndMigrated())
+  }
+
   func testMailApplicationCapabilityRejectsBrowserOnlyFamilyPayload() {
     let data = Data(
       """

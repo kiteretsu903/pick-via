@@ -199,6 +199,52 @@ final class AppModelTests: XCTestCase {
     )
   }
 
+  func testBrowserStartupChangePersistsAuthoritativeMailWhileRuntimeUsesMailFallback() throws {
+    let persisted = Fixtures.webAndMailConfig
+    let unavailableMail = Fixtures.copy(
+      Fixtures.appleMail,
+      mailIsAvailable: false
+    )
+    let runtimeFallback = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      applications: Fixtures.editableConfig.applications + [unavailableMail],
+      targets: persisted.targets
+    )
+    let browserReconciled = BrowserCatalog.reconcile(
+      discovered: [Fixtures.discoveredChromeWithProfiles],
+      with: persisted
+    )
+    let store = ConfigStoreStub(config: persisted)
+    let snapshot = MutableTargetSnapshot()
+    let model = makeModel(
+      store: store,
+      catalog: BrowserCatalogStub(
+        discovered: [Fixtures.discoveredChromeWithProfiles],
+        reconciled: browserReconciled
+      ),
+      mailCatalog: MailCatalogStub(
+        scan: MailScanResult(applications: [], isAuthoritative: false),
+        runtimeFallback: runtimeFallback
+      ),
+      targetSnapshot: snapshot
+    )
+
+    try model.load()
+
+    let saved = try XCTUnwrap(store.saved.last)
+    XCTAssertEqual(saved.mailApplications, persisted.mailApplications)
+    XCTAssertEqual(
+      saved.targets.filter { $0.routeKind == .mail },
+      persisted.targets.filter { $0.routeKind == .mail }
+    )
+    XCTAssertEqual(
+      saved.targets.filter { $0.routeKind == .web },
+      browserReconciled.targets.filter { $0.routeKind == .web }
+    )
+    XCTAssertFalse(try XCTUnwrap(model.mailApplications.first).isAvailable(for: .mail))
+    XCTAssertTrue(snapshot.availableSnapshot(for: .mail).targets.isEmpty)
+  }
+
   func testLoadAppliesMailRuntimeFallbackBeforeEitherDiscoveryPass() throws {
     let unavailableMail = Fixtures.copy(
       Fixtures.appleMail,
@@ -695,6 +741,68 @@ final class AppModelTests: XCTestCase {
       model.mailErrorMessage,
       "Mail application discovery could not be completed. Existing choices were preserved."
     )
+  }
+
+  func testChooserMailSettingsRescanDefersRefreshUntilSettingsClose() throws {
+    let routing = RoutingSpy()
+    let mailCatalog = MailCatalogStub.authoritative([Fixtures.appleMailDiscovery])
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.webAndMailConfig),
+      catalog: BrowserCatalogStub(
+        scanResult: BrowserScanResult(
+          browsers: [],
+          warnings: [],
+          isAuthoritative: false
+        )
+      ),
+      mailCatalog: mailCatalog,
+      routing: routing
+    )
+    try model.load()
+    mailCatalog.setScan(
+      MailScanResult(
+        applications: [Fixtures.appleMailDiscovery, Fixtures.outlookDiscovery],
+        isAuthoritative: true
+      )
+    )
+    let navigation = SettingsNavigation()
+    let settingsHandler = AppComposition.makeChooserSettingsHandler(
+      navigation: navigation,
+      openSettings: {},
+      chooserSettingsDidOpen: { model.chooserSettingsDidOpen(for: $0) }
+    )
+    let chooser = ChooserPanelController(openSettings: settingsHandler)
+
+    chooser.showSettings(for: .mail)
+    try model.rescanMailApplications()
+
+    XCTAssertEqual(navigation.destination, .mail)
+    XCTAssertEqual(routing.refreshCallCount, 0)
+
+    model.settingsDidClose()
+
+    XCTAssertEqual(routing.refreshCallCount, 1)
+  }
+
+  func testMailRescanOutsideContextualSettingsRefreshesImmediately() throws {
+    let routing = RoutingSpy()
+    let mailCatalog = MailCatalogStub.authoritative([Fixtures.appleMailDiscovery])
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.webAndMailConfig),
+      mailCatalog: mailCatalog,
+      routing: routing
+    )
+    try model.load()
+    mailCatalog.setScan(
+      MailScanResult(
+        applications: [Fixtures.appleMailDiscovery, Fixtures.outlookDiscovery],
+        isAuthoritative: true
+      )
+    )
+
+    try model.rescanMailApplications()
+
+    XCTAssertEqual(routing.refreshCallCount, 1)
   }
 
   func testAutomaticWizardContainsOnlyAccessFailuresAndSuppressesAfterSkip() throws {
