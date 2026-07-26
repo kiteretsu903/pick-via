@@ -647,8 +647,8 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       mode: discovered.mode,
       isEnabled:
         existing.pendingDefaultMigration
-          && isBrowserLevelTarget(discovered)
-          && !isBrowserLevelTarget(existing)
+        && isBrowserLevelTarget(discovered)
+        && !isBrowserLevelTarget(existing)
         ? discovered.isEnabled : existing.isEnabled,
       sortOrder: existing.sortOrder,
       origin: existing.origin,

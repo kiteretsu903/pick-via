@@ -1,6 +1,6 @@
 # PickVia
 
-PickVia is a local, menu-bar-only macOS browser chooser. It handles HTTP and HTTPS links and lets you choose an installed Safari, Chromium-family, or Firefox target each time.
+PickVia is a local, menu-bar-only macOS application chooser for web and mail links. It handles HTTP, HTTPS, and `mailto:` links and lets you choose an installed application each time.
 
 ## Requirements
 
@@ -39,6 +39,14 @@ On first run, scan the installed browsers, review the resulting targets, and use
 | Chrome, Chromium, Edge, Brave, Vivaldi | Yes | Yes | Yes | Direct executable arguments |
 | Firefox | Yes | Yes | Yes | Direct executable arguments |
 
+## Mail capabilities
+
+PickVia handles `mailto:` links only. It automatically discovers installed applications that macOS registers as `mailto:` handlers and presents app-level choices without mail accounts, profiles, identities, or compose modes.
+
+Use **Mail Settings** to enable or disable mail applications, change their order, and rescan registered handlers. Mail setup is optional during onboarding; choose **Skip Mail Setup** to keep the current default mail handler and configure PickVia later.
+
+The mail chooser never previews request content. PickVia does not rewrite, log, or persist mail requests.
+
 Configuration is stored at `~/Library/Application Support/PickVia/PickViaConfig.json`. Small preferences are stored in the app's user defaults domain. PickVia does not persist opened URLs.
 
 ## Browser Profile Access
@@ -60,4 +68,4 @@ To revoke a grant, open **Browser Settings**, choose **Profile Access**, and use
 
 ## Current MVP exclusions
 
-PickVia does not include routing rules, remembered domain choices, URL rewriting, browser extensions, Safari profiles/private windows, mail or file routing, sync, analytics, updates, or App Store distribution.
+PickVia does not include mail account/profile routing, routing rules, remembered choices, URL rewriting, browser extensions, Safari profiles/private windows, file routing, sync, analytics, updates, or App Store distribution.

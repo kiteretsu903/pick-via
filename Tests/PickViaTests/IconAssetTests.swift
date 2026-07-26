@@ -120,10 +120,11 @@ final class IconAssetTests: XCTestCase {
     let generator = Process()
     let output = Pipe()
     generator.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-    generator.arguments = [
-      "swift",
-      repositoryRoot.appending(path: "scripts/generate-icons.swift").path,
-    ] + arguments
+    generator.arguments =
+      [
+        "swift",
+        repositoryRoot.appending(path: "scripts/generate-icons.swift").path,
+      ] + arguments
     generator.standardOutput = output
     generator.standardError = output
     try generator.run()

@@ -16,10 +16,12 @@ final class MailSettingsViewTests: XCTestCase {
       targets: [Fixtures.outlookTarget(order: 0), Fixtures.appleMailTarget(order: 1)]
     )
 
-    XCTAssertEqual(rows.map(\.targetID), [
-      Fixtures.outlookTargetID,
-      Fixtures.appleMailTargetID,
-    ])
+    XCTAssertEqual(
+      rows.map(\.targetID),
+      [
+        Fixtures.outlookTargetID,
+        Fixtures.appleMailTargetID,
+      ])
     XCTAssertEqual(rows.map(\.isAvailable), [false, true])
   }
 }

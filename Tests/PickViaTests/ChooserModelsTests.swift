@@ -16,9 +16,10 @@ final class ChooserModelsTests: XCTestCase {
     XCTAssertNil(presentation.displayURL)
     XCTAssertFalse(presentation.showsCopyAction)
     XCTAssertEqual(presentation.groups.count, 2)
-    XCTAssertTrue(presentation.groups.allSatisfy {
-      if case .direct = $0 { true } else { false }
-    })
+    XCTAssertTrue(
+      presentation.groups.allSatisfy {
+        if case .direct = $0 { true } else { false }
+      })
     XCTAssertNil(presentation.selectedIndex)
   }
 

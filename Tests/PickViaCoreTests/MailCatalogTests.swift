@@ -50,7 +50,8 @@ struct MailCatalogTests {
       let result = catalog.scanResult()
 
       #expect(result.isAuthoritative)
-      #expect(result.applications.map(\.bundleIdentifier) == ["com.example.alpha", "com.example.zulu"])
+      #expect(
+        result.applications.map(\.bundleIdentifier) == ["com.example.alpha", "com.example.zulu"])
       #expect(result.applications.map(\.displayName) == ["alpha", "Zulu"])
       #expect(result.applications.first?.applicationURL == alpha.standardizedFileURL)
       #expect(locator.requestedURLs == [URL(string: "mailto:pickvia-discovery@invalid")!])
@@ -58,7 +59,8 @@ struct MailCatalogTests {
   }
 
   @Test func scanFailureIsNonAuthoritativeAndDoesNotInferApplications() {
-    let catalog = MailCatalog(applicationLocator: MailApplicationLocatorStub(error: StubError.failed))
+    let catalog = MailCatalog(
+      applicationLocator: MailApplicationLocatorStub(error: StubError.failed))
 
     let result = catalog.scanResult()
 
@@ -91,11 +93,12 @@ struct MailCatalogTests {
     let result = MailCatalog.reconcile(scan, with: config)
 
     let mailTargets = result.targets.filter { $0.routeKind == .mail }
-    #expect(mailTargets.map(\.id) == [
-      "mailto|com.example.existing",
-      "mailto|com.example.first",
-      "mailto|com.example.second",
-    ])
+    #expect(
+      mailTargets.map(\.id) == [
+        "mailto|com.example.existing",
+        "mailto|com.example.first",
+        "mailto|com.example.second",
+      ])
     #expect(mailTargets.map(\.sortOrder) == [4, 5, 6])
     #expect(mailTargets.suffix(2).allSatisfy { $0.isEnabled && $0.availability == .available })
     #expect(result.targets.first { $0.routeKind == .web } == webTarget)
@@ -129,15 +132,16 @@ struct MailCatalogTests {
     #expect(result.applications.first?.displayName == "Client Renamed")
     #expect(result.applications.first?.applicationURL == discovered.applicationURL)
     #expect(result.applications.first?.isAvailable(for: .mail) == true)
-    #expect(result.targets == [
-      mailTarget(
-        bundleIdentifier: existing.bundleIdentifier,
-        label: "My Client",
-        enabled: false,
-        order: 7,
-        availability: .available
-      )
-    ])
+    #expect(
+      result.targets == [
+        mailTarget(
+          bundleIdentifier: existing.bundleIdentifier,
+          label: "My Client",
+          enabled: false,
+          order: 7,
+          availability: .available
+        )
+      ])
   }
 
   @Test func reconcileMarksMissingMailStateUnavailableWithoutChangingBrowserState() {
@@ -172,18 +176,21 @@ struct MailCatalogTests {
       with: config
     )
 
-    #expect(result.applications.first?.capabilities == [
-      .browser(family: .chromium, isAvailable: true),
-      .mail(isAvailable: false),
-    ])
+    #expect(
+      result.applications.first?.capabilities == [
+        .browser(family: .chromium, isAvailable: true),
+        .mail(isAvailable: false),
+      ])
     #expect(result.targets.first { $0.routeKind == .web } == web)
-    #expect(result.targets.first { $0.routeKind == .mail } == mailTarget(
-      bundleIdentifier: browser.bundleIdentifier,
-      label: "Chrome Mail",
-      enabled: false,
-      order: 8,
-      availability: .unavailable
-    ))
+    #expect(
+      result.targets.first { $0.routeKind == .mail }
+        == mailTarget(
+          bundleIdentifier: browser.bundleIdentifier,
+          label: "Chrome Mail",
+          enabled: false,
+          order: 8,
+          availability: .unavailable
+        ))
   }
 
   @Test func reconcileRestoresMissingMailApplicationCustomizationOnReinstall() {
@@ -215,15 +222,16 @@ struct MailCatalogTests {
     )
 
     #expect(restored.applications.first?.isAvailable(for: .mail) == true)
-    #expect(restored.targets == [
-      mailTarget(
-        bundleIdentifier: original.bundleIdentifier,
-        label: "Client Alias",
-        enabled: false,
-        order: 11,
-        availability: .available
-      )
-    ])
+    #expect(
+      restored.targets == [
+        mailTarget(
+          bundleIdentifier: original.bundleIdentifier,
+          label: "Client Alias",
+          enabled: false,
+          order: 11,
+          availability: .available
+        )
+      ])
   }
 
   @Test func reconcileMergesMailCapabilityIntoExistingBrowserApplication() {
@@ -242,9 +250,10 @@ struct MailCatalogTests {
     #expect(result.applications.count == 1)
     #expect(result.applications[0].supports(.web))
     #expect(result.applications[0].supports(.mail))
-    #expect(result.targets.filter { $0.routeKind == .mail }.map(\.id) == [
-      "mailto|com.google.Chrome"
-    ])
+    #expect(
+      result.targets.filter { $0.routeKind == .mail }.map(\.id) == [
+        "mailto|com.google.Chrome"
+      ])
     #expect(result.targets.first { $0.routeKind == .mail }?.isEnabled == true)
   }
 
@@ -275,23 +284,26 @@ struct MailCatalogTests {
       applications: [combined, unavailable],
       targets: [web, mail]
     )
-    let catalog = MailCatalog(applicationLocator: MailApplicationLocatorStub(
-      urls: [],
-      applications: [
-        browser.bundleIdentifier: URL(fileURLWithPath: "/New/Google Chrome.app")
-      ],
-      error: StubError.failed
-    ))
+    let catalog = MailCatalog(
+      applicationLocator: MailApplicationLocatorStub(
+        urls: [],
+        applications: [
+          browser.bundleIdentifier: URL(fileURLWithPath: "/New/Google Chrome.app")
+        ],
+        error: StubError.failed
+      ))
 
     let scan = catalog.scanResult()
     let fallback = catalog.runtimeSanitizedFallback(config)
 
     #expect(!scan.isAuthoritative)
-    #expect(fallback.applications[0].applicationURL == URL(fileURLWithPath: "/New/Google Chrome.app"))
-    #expect(fallback.applications[0].capabilities == [
-      .browser(family: .chromium, isAvailable: true),
-      .mail(isAvailable: true),
-    ])
+    #expect(
+      fallback.applications[0].applicationURL == URL(fileURLWithPath: "/New/Google Chrome.app"))
+    #expect(
+      fallback.applications[0].capabilities == [
+        .browser(family: .chromium, isAvailable: true),
+        .mail(isAvailable: true),
+      ])
     #expect(fallback.applications[1].applicationURL == unavailable.applicationURL)
     #expect(fallback.applications[1].capabilities == [.mail(isAvailable: false)])
     #expect(fallback.targets == config.targets)
@@ -311,11 +323,14 @@ private func browserApplication() -> RoutedApplication {
     bundleIdentifier: "com.google.Chrome",
     capabilities: [.browser(family: .chromium, isAvailable: true)],
     applicationURL: URL(fileURLWithPath: "/Applications/Google Chrome.app"),
-    browserExecutableURL: URL(fileURLWithPath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+    browserExecutableURL: URL(
+      fileURLWithPath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
   )
 }
 
-private func mailApplication(_ bundleIdentifier: String, available: Bool = true) -> RoutedApplication {
+private func mailApplication(_ bundleIdentifier: String, available: Bool = true)
+  -> RoutedApplication
+{
   RoutedApplication(
     id: bundleIdentifier,
     displayName: "Client",

@@ -153,7 +153,8 @@ final class ConfigStoreTests: XCTestCase {
       now: { Date(timeIntervalSince1970: 1_700_000_000) }
     )
     let target = copyTarget(validTarget, label: "工作")
-    let expected = PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [validChrome], targets: [target])
+    let expected = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [validChrome], targets: [target])
 
     try store.save(expected)
 
@@ -207,7 +208,9 @@ final class ConfigStoreTests: XCTestCase {
     let store = JSONConfigStore(directory: directory)
 
     try store.save(
-      PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [validChrome], targets: [validTarget])
+      PickViaConfig(
+        schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [validChrome],
+        targets: [validTarget])
     )
 
     let data = try Data(contentsOf: directory.appending(path: "PickViaConfig.json"))
@@ -423,7 +426,8 @@ final class ConfigStoreTests: XCTestCase {
     )
 
     try JSONConfigStore(directory: directory).save(
-      PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox], targets: [target])
+      PickViaConfig(
+        schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox], targets: [target])
     )
 
     let data = try Data(contentsOf: directory.appending(path: "PickViaConfig.json"))
@@ -464,7 +468,8 @@ final class ConfigStoreTests: XCTestCase {
 
     XCTAssertThrowsError(
       try store.save(
-        PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox], targets: [legacy])
+        PickViaConfig(
+          schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox], targets: [legacy])
       ))
     XCTAssertFalse(
       FileManager.default.fileExists(
@@ -562,7 +567,9 @@ final class ConfigStoreTests: XCTestCase {
 
       XCTAssertThrowsError(
         try store.save(
-          PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox], targets: [target])
+          PickViaConfig(
+            schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox],
+            targets: [target])
         ))
       XCTAssertFalse(
         FileManager.default.fileExists(
@@ -604,7 +611,8 @@ final class ConfigStoreTests: XCTestCase {
     let store = JSONConfigStore(directory: directory)
 
     try store.save(
-      PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox], targets: [manual])
+      PickViaConfig(
+        schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox], targets: [manual])
     )
 
     let document = try XCTUnwrap(
@@ -654,7 +662,9 @@ final class ConfigStoreTests: XCTestCase {
 
     let migratable = legacy(profileName: "Work Profile", availability: .unavailable)
     try JSONConfigStore(directory: directory.appending(path: "valid")).save(
-      PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox], targets: [migratable])
+      PickViaConfig(
+        schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox],
+        targets: [migratable])
     )
 
     let invalid = [
@@ -667,7 +677,9 @@ final class ConfigStoreTests: XCTestCase {
       let caseDirectory = directory.appending(path: "invalid-\(index)")
       XCTAssertThrowsError(
         try JSONConfigStore(directory: caseDirectory).save(
-          PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox], targets: [target])
+          PickViaConfig(
+            schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox],
+            targets: [target])
         ))
       XCTAssertFalse(
         FileManager.default.fileExists(
@@ -693,7 +705,8 @@ final class ConfigStoreTests: XCTestCase {
     let directory = try temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }
     let store = JSONConfigStore(directory: directory)
-    let first = PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [], targets: [])
+    let first = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [], targets: [])
     let second = PickViaConfig(
       schemaVersion: PickViaConfig.currentSchemaVersion,
       browsers: [validChrome],

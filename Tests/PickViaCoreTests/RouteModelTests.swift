@@ -62,6 +62,20 @@ final class RouteModelTests: XCTestCase {
     XCTAssertEqual(decoded.targets[0].browserOptions?.validationError, "Needs rescan")
   }
 
+  func testSchemaThreeValidationIsIdempotent() throws {
+    let config = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      applications: [Fixtures.chromeApplication],
+      targets: []
+    )
+
+    let first = try config.validatedAndMigrated()
+    let second = try first.validatedAndMigrated()
+
+    XCTAssertEqual(first, config)
+    XCTAssertEqual(second, first)
+  }
+
   func testMailTargetRejectsApplicationWithoutMailCapability() {
     let config = PickViaConfig(
       schemaVersion: 3,

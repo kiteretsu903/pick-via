@@ -18,14 +18,17 @@ func makeMailSettingsRows(
   targets: [RouteTarget]
 ) -> [MailSettingsRow] {
   let applicationsByID = Dictionary(uniqueKeysWithValues: applications.map { ($0.id, $0) })
-  return targets
+  return
+    targets
     .filter { $0.routeKind == .mail }
     .sorted {
       if $0.sortOrder != $1.sortOrder { return $0.sortOrder < $1.sortOrder }
       return $0.id < $1.id
     }
     .compactMap { target in
-      applicationsByID[target.applicationID].map { MailSettingsRow(target: target, application: $0) }
+      applicationsByID[target.applicationID].map {
+        MailSettingsRow(target: target, application: $0)
+      }
     }
 }
 

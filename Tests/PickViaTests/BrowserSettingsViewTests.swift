@@ -110,7 +110,8 @@ final class BrowserSettingsViewTests: XCTestCase {
     let source = try projectSource("Sources/PickVia/Chooser/ChooserTargetRow.swift")
     let fillStart = try XCTUnwrap(source.range(of: "private var selectionFill: Color"))
     let fillEnd = try XCTUnwrap(
-      source.range(of: "private func applicationIcon", range: fillStart.upperBound..<source.endIndex)
+      source.range(
+        of: "private func applicationIcon", range: fillStart.upperBound..<source.endIndex)
     )
     let fill = String(source[fillStart.lowerBound..<fillEnd.lowerBound])
     let selected = try XCTUnwrap(

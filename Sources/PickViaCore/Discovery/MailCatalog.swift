@@ -105,14 +105,16 @@ public struct MailCatalog: MailDiscovering, Sendable {
     let discoveredByBundleIdentifier = Dictionary(
       uniqueKeysWithValues: scan.applications.map { ($0.bundleIdentifier, $0) }
     )
-    let applications = config.applications.map { application in
-      guard let discovered = discoveredByBundleIdentifier[application.bundleIdentifier] else {
-        return application.supports(.mail)
-          ? replacingMailCapability(in: application, isAvailable: false)
-          : application
+    let applications =
+      config.applications.map { application in
+        guard let discovered = discoveredByBundleIdentifier[application.bundleIdentifier] else {
+          return application.supports(.mail)
+            ? replacingMailCapability(in: application, isAvailable: false)
+            : application
+        }
+        return merging(discovered, into: application)
       }
-      return merging(discovered, into: application)
-    } + scan.applications
+      + scan.applications
       .filter { discoveredByBundleIdentifier[$0.bundleIdentifier] != nil }
       .filter { discovered in
         !config.applications.contains { $0.bundleIdentifier == discovered.bundleIdentifier }
@@ -123,18 +125,20 @@ public struct MailCatalog: MailDiscovering, Sendable {
     let existingMailTargetIDs = Set(
       config.targets.lazy.filter { $0.routeKind == .mail }.map(\.id)
     )
-    let targets = config.targets.map { target in
-      guard target.routeKind == .mail else { return target }
-      return replacingAvailability(
-        of: target,
-        isAvailable: discoveredIdentifiers.contains(target.applicationID)
+    let targets =
+      config.targets.map { target in
+        guard target.routeKind == .mail else { return target }
+        return replacingAvailability(
+          of: target,
+          isAvailable: discoveredIdentifiers.contains(target.applicationID)
+        )
+      }
+      + newMailTargets(
+        for: scan.applications.filter {
+          !existingMailTargetIDs.contains(RouteTarget.mailID(bundleIdentifier: $0.bundleIdentifier))
+        },
+        after: config.targets.lazy.filter { $0.routeKind == .mail }.map(\.sortOrder).max() ?? -1
       )
-    } + newMailTargets(
-      for: scan.applications.filter {
-        !existingMailTargetIDs.contains(RouteTarget.mailID(bundleIdentifier: $0.bundleIdentifier))
-      },
-      after: config.targets.lazy.filter { $0.routeKind == .mail }.map(\.sortOrder).max() ?? -1
-    )
 
     return PickViaConfig(
       schemaVersion: config.schemaVersion,
@@ -148,9 +152,11 @@ public struct MailCatalog: MailDiscovering, Sendable {
       schemaVersion: config.schemaVersion,
       applications: config.applications.map { application in
         guard application.supports(.mail) else { return application }
-        guard let applicationURL = applicationLocator.applicationURL(
-          forBundleIdentifier: application.bundleIdentifier
-        ) else {
+        guard
+          let applicationURL = applicationLocator.applicationURL(
+            forBundleIdentifier: application.bundleIdentifier
+          )
+        else {
           return Self.replacingMailCapability(in: application, isAvailable: false)
         }
         return Self.replacingMailCapability(
@@ -173,11 +179,10 @@ public struct MailCatalog: MailDiscovering, Sendable {
       !bundleIdentifier.isEmpty
     else { return nil }
 
-    let displayName = (
-      bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
-    ) ?? (
-      bundle.object(forInfoDictionaryKey: "CFBundleName") as? String
-    ) ?? standardizedURL.deletingPathExtension().lastPathComponent
+    let displayName =
+      (bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
+      ?? (bundle.object(forInfoDictionaryKey: "CFBundleName") as? String)
+      ?? standardizedURL.deletingPathExtension().lastPathComponent
     return DiscoveredMailApplication(
       bundleIdentifier: bundleIdentifier,
       displayName: displayName,

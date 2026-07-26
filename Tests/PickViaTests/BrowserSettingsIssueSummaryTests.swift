@@ -191,7 +191,8 @@ final class BrowserSettingsIssueSummaryTests: XCTestCase {
       ],
       profileAccessIssues: [.accessRequired(bundleIdentifier: chrome.id)]
     )
-    let config = PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [chrome], targets: [])
+    let config = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [chrome], targets: [])
 
     XCTAssertEqual(
       makeBrowserSettingsIssueSummary(

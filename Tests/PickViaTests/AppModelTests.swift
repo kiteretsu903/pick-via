@@ -2779,7 +2779,8 @@ final class AppModelTests: XCTestCase {
       executableURL: URL(fileURLWithPath: "/Applications/Example.app/Contents/MacOS/Example"),
       isAvailable: true
     )
-    let config = PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [unsupported], targets: [])
+    let config = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [unsupported], targets: [])
     let store = ConfigStoreStub(config: config)
     let model = makeModel(store: store)
     try model.load()
@@ -2948,7 +2949,9 @@ final class AppModelTests: XCTestCase {
       origin: .manual,
       availability: .available
     )
-    let config = PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [Fixtures.chrome], targets: [manualOnly])
+    let config = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [Fixtures.chrome],
+      targets: [manualOnly])
     let store = ConfigStoreStub(config: config)
     let model = makeModel(store: store)
     try model.load()

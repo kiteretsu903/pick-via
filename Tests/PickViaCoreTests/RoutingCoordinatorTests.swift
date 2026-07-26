@@ -207,6 +207,18 @@ final class RoutingCoordinatorTests: XCTestCase {
   }
 
   @MainActor
+  func testMixedMailAndWebRequestsRemainFIFO() {
+    let chooser = ChooserSpy()
+    let coordinator = makeCoordinator(chooser: chooser, snapshots: .webAndMail)
+
+    coordinator.enqueue(URL(string: "mailto:person@example.com")!)
+    coordinator.enqueue(URL(string: "https://one.example")!)
+    coordinator.cancelCurrent()
+
+    XCTAssertEqual(chooser.presentedKinds, [.mail, .web])
+  }
+
+  @MainActor
   func testSuccessfulLaunchRemovesCurrentRequestAndPresentsNextRequest() async {
     let chooser = ChooserSpy()
     let launcher = LauncherStub()
