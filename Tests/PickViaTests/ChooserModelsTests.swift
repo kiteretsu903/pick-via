@@ -4,6 +4,40 @@ import XCTest
 @testable import PickVia
 
 final class ChooserModelsTests: XCTestCase {
+  func testMailPresentationUsesDirectApplicationRowsAndNoRequestPreview() {
+    let presentation = ChooserPresentation.make(
+      request: Fixtures.mailRequest,
+      applications: [Fixtures.appleMail, Fixtures.outlook],
+      targets: [Fixtures.appleMailTarget, Fixtures.outlookTarget]
+    )
+
+    XCTAssertEqual(presentation.kind, .mail)
+    XCTAssertEqual(presentation.heading, "Open email with")
+    XCTAssertNil(presentation.displayURL)
+    XCTAssertFalse(presentation.showsCopyAction)
+    XCTAssertEqual(presentation.groups.count, 2)
+    XCTAssertTrue(presentation.groups.allSatisfy {
+      if case .direct = $0 { true } else { false }
+    })
+    XCTAssertNil(presentation.selectedIndex)
+  }
+
+  func testMailPresentationNeverLeaksURLIntoVisibleStrings() {
+    let presentation = Fixtures.mailPresentation(
+      "mailto:person@example.com?subject=Secret&body=Private"
+    )
+    let visible = [
+      presentation.heading,
+      presentation.displayURL ?? "",
+      presentation.emptyStateMessage,
+      presentation.errorMessage ?? "",
+    ].joined(separator: " ")
+
+    XCTAssertFalse(visible.contains("person@example.com"))
+    XCTAssertFalse(visible.contains("Secret"))
+    XCTAssertFalse(visible.contains("Private"))
+  }
+
   func testDualCapabilityApplicationOmitsEnabledMailTarget() {
     let presentation = makePresentation(
       applications: [Fixtures.dualCapabilityChrome],
@@ -277,6 +311,15 @@ final class ChooserModelsTests: XCTestCase {
 
 @MainActor
 final class ChooserPanelControllerTests: XCTestCase {
+  func testSettingsCallbackUsesCurrentRouteKind() {
+    var openedKinds: [RouteKind] = []
+    let controller = ChooserPanelController(openSettings: { openedKinds.append($0) })
+
+    controller.showSettings(for: .mail)
+
+    XCTAssertEqual(openedKinds, [.mail])
+  }
+
   func testPointerOutsideScreensCentersPanelOnMainVisibleFrame() throws {
     let mainScreen = try XCTUnwrap(NSScreen.main)
     let frames = NSScreen.screens.map(\.frame)
@@ -1033,6 +1076,11 @@ private enum Fixtures {
     url: URL(string: "https://example.com/a")!
   )
 
+  static let mailRequest = RoutingRequest(
+    kind: .mail,
+    url: URL(string: "mailto:person@example.com")!
+  )
+
   static let chrome = BrowserApplication(
     id: "chrome",
     family: .chromium,
@@ -1041,6 +1089,44 @@ private enum Fixtures {
     applicationURL: URL(fileURLWithPath: "/Applications/Google Chrome.app"),
     executableURL: nil,
     isAvailable: true
+  )
+
+  static let appleMail = RoutedApplication(
+    id: "apple-mail",
+    displayName: "Mail",
+    bundleIdentifier: "com.apple.mail",
+    capabilities: [.mail(isAvailable: true)],
+    applicationURL: URL(fileURLWithPath: "/System/Applications/Mail.app")
+  )
+
+  static let outlook = RoutedApplication(
+    id: "outlook",
+    displayName: "Microsoft Outlook",
+    bundleIdentifier: "com.microsoft.Outlook",
+    capabilities: [.mail(isAvailable: true)],
+    applicationURL: URL(fileURLWithPath: "/Applications/Microsoft Outlook.app")
+  )
+
+  static let appleMailTarget = RouteTarget(
+    id: RouteTarget.mailID(bundleIdentifier: appleMail.bundleIdentifier),
+    applicationID: appleMail.id,
+    label: appleMail.displayName,
+    isEnabled: true,
+    sortOrder: 0,
+    origin: .detected,
+    availability: .available,
+    capability: .mail
+  )
+
+  static let outlookTarget = RouteTarget(
+    id: RouteTarget.mailID(bundleIdentifier: outlook.bundleIdentifier),
+    applicationID: outlook.id,
+    label: outlook.displayName,
+    isEnabled: true,
+    sortOrder: 1,
+    origin: .detected,
+    availability: .available,
+    capability: .mail
   )
 
   static let dualCapabilityChrome = RoutedApplication(
@@ -1076,6 +1162,14 @@ private enum Fixtures {
     availability: .available,
     capability: .mail
   )
+
+  static func mailPresentation(_ url: String) -> ChooserPresentation {
+    ChooserPresentation.make(
+      request: RoutingRequest(kind: .mail, url: URL(string: url)!),
+      applications: [appleMail, outlook],
+      targets: [appleMailTarget, outlookTarget]
+    )
+  }
 
   static func target(
     id: String,

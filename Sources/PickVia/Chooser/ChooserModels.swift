@@ -43,11 +43,11 @@ public enum ChooserShortcut: Equatable, Sendable {
 }
 
 public enum ChooserRow: Equatable, Identifiable, Sendable {
-  case target(BrowserTarget.ID, shortcut: ChooserShortcut?)
+  case target(RouteTarget.ID, shortcut: ChooserShortcut?)
 
-  public var id: BrowserTarget.ID { targetID }
+  public var id: RouteTarget.ID { targetID }
 
-  public var targetID: BrowserTarget.ID {
+  public var targetID: RouteTarget.ID {
     switch self {
     case .target(let id, _): id
     }
@@ -94,7 +94,7 @@ public enum ChooserKey: Equatable, Sendable {
 }
 
 public enum ChooserAction: Equatable, Sendable {
-  case select(BrowserTarget.ID)
+  case select(RouteTarget.ID)
   case cancel
   case none
 }
@@ -103,26 +103,40 @@ public struct ChooserPresentation: Equatable, Sendable {
   public let request: RoutingRequest
   public let groups: [ChooserGroup]
   public let rows: [ChooserRow]
-  public let displayURL: String
+  public let displayURL: String?
   public private(set) var selectedIndex: Int?
   public private(set) var errorMessage: String?
 
-  private let applications: [BrowserApplication]
-  private let targets: [BrowserTarget]
+  private let applications: [RoutedApplication]
+  private let targets: [RouteTarget]
+
+  public var kind: RouteKind { request.kind }
+
+  public var heading: String {
+    request.kind == .mail ? "Open email with" : "Open link with"
+  }
+
+  public var showsCopyAction: Bool { request.kind == .web }
+
+  public var emptyStateMessage: String {
+    request.kind == .mail
+      ? "No available mail applications. Open Mail Settings to enable or rescan one."
+      : "No available browser targets. Open Browser Settings to add or enable one."
+  }
 
   public static func make(
     request: RoutingRequest,
-    applications: [BrowserApplication],
-    targets: [BrowserTarget],
+    applications: [RoutedApplication],
+    targets: [RouteTarget],
     error: LaunchFailure? = nil,
-    preservingSelection targetID: BrowserTarget.ID? = nil
+    preservingSelection targetID: RouteTarget.ID? = nil
   ) -> ChooserPresentation {
     let availableApplications = applications.filter {
-      $0.supports(.web) && $0.isAvailable(for: .web)
+      $0.supports(request.kind) && $0.isAvailable(for: request.kind)
     }
     let applicationIDs = Set(availableApplications.map(\.id))
     let indexedTargets = targets.enumerated().filter { _, target in
-      target.routeKind == .web
+      target.routeKind == request.kind
         && target.isEnabled
         && target.availability == .available
         && applicationIDs.contains(target.applicationID)
@@ -140,10 +154,14 @@ public struct ChooserPresentation: Equatable, Sendable {
     var rows: [ChooserRow] = []
 
     for application in availableApplications {
-      let browserTargets = sortedTargets.filter { $0.applicationID == application.id }
-      guard !browserTargets.isEmpty else { continue }
+      let applicationTargets = sortedTargets.filter { $0.applicationID == application.id }
+      guard !applicationTargets.isEmpty else { continue }
+      assert(
+        request.kind != .mail || applicationTargets.count == 1,
+        "Mail targets must be presented as direct application rows."
+      )
 
-      let browserRows = browserTargets.map { target -> ChooserRow in
+      let applicationRows = applicationTargets.map { target -> ChooserRow in
         let shortcut = ChooserShortcut.forVisibleIndex(shortcutIndex)
         shortcutIndex += 1
         let row = ChooserRow.target(target.id, shortcut: shortcut)
@@ -151,10 +169,10 @@ public struct ChooserPresentation: Equatable, Sendable {
         return row
       }
 
-      if browserRows.count == 1, let row = browserRows.first {
+      if applicationRows.count == 1, let row = applicationRows.first {
         groups.append(.direct(browserID: application.id, row: row))
       } else {
-        groups.append(.group(browserID: application.id, rows: browserRows))
+        groups.append(.group(browserID: application.id, rows: applicationRows))
       }
     }
 
@@ -166,7 +184,7 @@ public struct ChooserPresentation: Equatable, Sendable {
       request: request,
       groups: groups,
       rows: rows,
-      displayURL: sanitizedDisplayURL(request.url),
+      displayURL: request.kind == .web ? sanitizedDisplayURL(request.url) : nil,
       selectedIndex: selectedIndex,
       errorMessage: error?.message,
       applications: availableApplications,
@@ -216,11 +234,11 @@ public struct ChooserPresentation: Equatable, Sendable {
     errorMessage = failure?.message
   }
 
-  public func application(for browserID: BrowserApplication.ID) -> BrowserApplication? {
-    applications.first { $0.id == browserID }
+  public func application(for applicationID: RoutedApplication.ID) -> RoutedApplication? {
+    applications.first { $0.id == applicationID }
   }
 
-  public func target(for row: ChooserRow) -> BrowserTarget? {
+  public func target(for row: ChooserRow) -> RouteTarget? {
     targets.first { $0.id == row.targetID }
   }
 

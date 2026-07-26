@@ -20,7 +20,7 @@ public final class SystemClipboardWriter: ClipboardWriting {
 @MainActor
 public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindowDelegate {
   private let clipboard: any ClipboardWriting
-  private let openBrowserSettings: @MainActor () -> Void
+  private let openSettings: @MainActor (RouteKind) -> Void
   private let showsURLProvider: @MainActor () -> Bool
   private let densityProvider: @MainActor () -> ChooserDensity
   private let onPresentationChange: @MainActor (Bool) -> Void
@@ -38,7 +38,7 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
   // token exclusively; this escape hatch lets nonisolated deinit remove it too.
   nonisolated(unsafe) private var keyMonitor: Any?
   private var presentation: ChooserPresentation?
-  private var onSelection: ((BrowserTarget.ID) -> Void)?
+  private var onSelection: ((RouteTarget.ID) -> Void)?
   private var onCancel: (() -> Void)?
   private var isDismissing = false
   private var suppressesResignCancellation = false
@@ -53,7 +53,7 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
   }
   var panelFrameForTesting: NSRect { panel?.frame ?? .zero }
 
-  public init(
+  public convenience init(
     clipboard: any ClipboardWriting = SystemClipboardWriter(),
     showsURL: Bool = true,
     densityProvider: @escaping @MainActor () -> ChooserDensity = { .compact },
@@ -61,16 +61,34 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     onPresentationChange: @escaping @MainActor (Bool) -> Void = { _ in },
     pointerLocationProvider: @escaping @MainActor () -> NSPoint = { NSEvent.mouseLocation }
   ) {
+    self.init(
+      clipboard: clipboard,
+      showsURL: showsURL,
+      densityProvider: densityProvider,
+      openSettings: { _ in openBrowserSettings() },
+      onPresentationChange: onPresentationChange,
+      pointerLocationProvider: pointerLocationProvider
+    )
+  }
+
+  public init(
+    clipboard: any ClipboardWriting = SystemClipboardWriter(),
+    showsURL: Bool = true,
+    densityProvider: @escaping @MainActor () -> ChooserDensity = { .compact },
+    openSettings: @escaping @MainActor (RouteKind) -> Void,
+    onPresentationChange: @escaping @MainActor (Bool) -> Void = { _ in },
+    pointerLocationProvider: @escaping @MainActor () -> NSPoint = { NSEvent.mouseLocation }
+  ) {
     self.clipboard = clipboard
     self.showsURLProvider = { showsURL }
     self.densityProvider = densityProvider
-    self.openBrowserSettings = openBrowserSettings
+    self.openSettings = openSettings
     self.onPresentationChange = onPresentationChange
     self.pointerLocationProvider = pointerLocationProvider
     super.init()
   }
 
-  public init(
+  public convenience init(
     showsURLProvider: @escaping @MainActor () -> Bool,
     densityProvider: @escaping @MainActor () -> ChooserDensity = { .compact },
     clipboard: any ClipboardWriting = SystemClipboardWriter(),
@@ -78,10 +96,28 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     onPresentationChange: @escaping @MainActor (Bool) -> Void = { _ in },
     pointerLocationProvider: @escaping @MainActor () -> NSPoint = { NSEvent.mouseLocation }
   ) {
+    self.init(
+      showsURLProvider: showsURLProvider,
+      densityProvider: densityProvider,
+      clipboard: clipboard,
+      openSettings: { _ in openBrowserSettings() },
+      onPresentationChange: onPresentationChange,
+      pointerLocationProvider: pointerLocationProvider
+    )
+  }
+
+  public init(
+    showsURLProvider: @escaping @MainActor () -> Bool,
+    densityProvider: @escaping @MainActor () -> ChooserDensity = { .compact },
+    clipboard: any ClipboardWriting = SystemClipboardWriter(),
+    openSettings: @escaping @MainActor (RouteKind) -> Void,
+    onPresentationChange: @escaping @MainActor (Bool) -> Void = { _ in },
+    pointerLocationProvider: @escaping @MainActor () -> NSPoint = { NSEvent.mouseLocation }
+  ) {
     self.clipboard = clipboard
     self.showsURLProvider = showsURLProvider
     self.densityProvider = densityProvider
-    self.openBrowserSettings = openBrowserSettings
+    self.openSettings = openSettings
     self.onPresentationChange = onPresentationChange
     self.pointerLocationProvider = pointerLocationProvider
     super.init()
@@ -95,10 +131,10 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
 
   public func present(
     request: RoutingRequest,
-    applications: [BrowserApplication],
-    targets: [BrowserTarget],
+    applications: [RoutedApplication],
+    targets: [RouteTarget],
     error: LaunchFailure?,
-    onSelection: @escaping (BrowserTarget.ID) -> Void,
+    onSelection: @escaping (RouteTarget.ID) -> Void,
     onCancel: @escaping () -> Void
   ) {
     let isNewRequest = presentation?.request.id != request.id
@@ -109,7 +145,7 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
       densityForCurrentPresentation = densityProvider()
     }
     showsURLForCurrentPresentation = showsURLProvider()
-    let preservedTargetID: BrowserTarget.ID?
+    let preservedTargetID: RouteTarget.ID?
     if presentation?.request.id == request.id,
       let index = presentation?.selectedIndex,
       let rows = presentation?.rows,
@@ -229,11 +265,15 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     clipboard.write(url.absoluteString)
   }
 
-  func showBrowserSettings() {
+  func showSettings(for kind: RouteKind) {
     suppressesResignCancellation = true
     removeKeyMonitor()
     panel?.orderOut(nil)
-    openBrowserSettings()
+    openSettings(kind)
+  }
+
+  func showBrowserSettings() {
+    showSettings(for: .web)
   }
 
   func resignKeyForTesting() {
@@ -249,7 +289,7 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
       maximumContentHeight: maximumContentHeight,
       onSelection: { [weak self] targetID in self?.select(targetID) },
       onCopyURL: { [weak self] in self?.copyCurrentURL() },
-      onOpenBrowserSettings: { [weak self] in self?.showBrowserSettings() },
+      onOpenSettings: { [weak self] kind in self?.showSettings(for: kind) },
       onCancel: { [weak self] in self?.cancelAndDismiss() }
     )
 
@@ -347,7 +387,7 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     }
   }
 
-  private func select(_ targetID: BrowserTarget.ID) {
+  private func select(_ targetID: RouteTarget.ID) {
     onSelection?(targetID)
   }
 

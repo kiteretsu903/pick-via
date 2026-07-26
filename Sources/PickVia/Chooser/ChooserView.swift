@@ -7,9 +7,9 @@ public struct ChooserView: View {
   public let showsURL: Bool
   public let density: ChooserDensity
   public let maximumContentHeight: CGFloat?
-  public let onSelection: (BrowserTarget.ID) -> Void
+  public let onSelection: (RouteTarget.ID) -> Void
   public let onCopyURL: () -> Void
-  public let onOpenBrowserSettings: () -> Void
+  public let onOpenSettings: (RouteKind) -> Void
   public let onCancel: () -> Void
 
   public init(
@@ -17,9 +17,9 @@ public struct ChooserView: View {
     showsURL: Bool = true,
     density: ChooserDensity = .compact,
     maximumContentHeight: CGFloat? = nil,
-    onSelection: @escaping (BrowserTarget.ID) -> Void,
+    onSelection: @escaping (RouteTarget.ID) -> Void,
     onCopyURL: @escaping () -> Void,
-    onOpenBrowserSettings: @escaping () -> Void,
+    onOpenSettings: @escaping (RouteKind) -> Void,
     onCancel: @escaping () -> Void
   ) {
     self.presentation = presentation
@@ -28,17 +28,17 @@ public struct ChooserView: View {
     self.maximumContentHeight = maximumContentHeight
     self.onSelection = onSelection
     self.onCopyURL = onCopyURL
-    self.onOpenBrowserSettings = onOpenBrowserSettings
+    self.onOpenSettings = onOpenSettings
     self.onCancel = onCancel
   }
 
   public var body: some View {
     VStack(alignment: .leading, spacing: metrics.mainSpacing) {
-      Text("Open link with")
+      Text(presentation.heading)
         .font(.title2.weight(.semibold))
 
-      if showsURL {
-        Text(presentation.displayURL)
+      if presentation.kind == .web, showsURL, let displayURL = presentation.displayURL {
+        Text(displayURL)
           .font(.caption.monospaced())
           .foregroundStyle(.secondary)
           .lineLimit(1)
@@ -54,7 +54,7 @@ public struct ChooserView: View {
       }
 
       if presentation.rows.isEmpty {
-        Text("No available browser targets. Open Browser Settings to add or enable one.")
+        Text(presentation.emptyStateMessage)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
       } else {
@@ -76,8 +76,12 @@ public struct ChooserView: View {
       Divider()
 
       HStack {
-        Button("Copy", systemImage: "doc.on.doc", action: onCopyURL)
-        Button("Settings", systemImage: "gearshape", action: onOpenBrowserSettings)
+        if presentation.showsCopyAction {
+          Button("Copy", systemImage: "doc.on.doc", action: onCopyURL)
+        }
+        Button("Settings", systemImage: "gearshape") {
+          onOpenSettings(presentation.kind)
+        }
         Spacer()
         Button("Cancel", action: onCancel)
           .keyboardShortcut(.cancelAction)
@@ -93,7 +97,7 @@ public struct ChooserView: View {
 
   private var metrics: ChooserMetrics { density.metrics }
 
-  private var selectedTargetID: BrowserTarget.ID? {
+  private var selectedTargetID: RouteTarget.ID? {
     guard let selectedIndex = presentation.selectedIndex,
       presentation.rows.indices.contains(selectedIndex)
     else { return nil }
@@ -114,8 +118,8 @@ public struct ChooserView: View {
     case .direct(_, let row):
       rowView(row, indented: false)
         .id(row.targetID)
-    case .group(let browserID, let rows):
-      if let application = presentation.application(for: browserID) {
+    case .group(let applicationID, let rows):
+      if let application = presentation.application(for: applicationID) {
         HStack(spacing: 8) {
           applicationIcon(application)
           Text(application.displayName)
@@ -135,7 +139,7 @@ public struct ChooserView: View {
   @ViewBuilder
   private func rowView(_ row: ChooserRow, indented: Bool) -> some View {
     if let target = presentation.target(for: row),
-      let application = presentation.application(for: target.browserID)
+      let application = presentation.application(for: target.applicationID)
     {
       let selected =
         presentation.selectedIndex.flatMap {
@@ -154,7 +158,7 @@ public struct ChooserView: View {
     }
   }
 
-  private func applicationIcon(_ application: BrowserApplication) -> some View {
+  private func applicationIcon(_ application: RoutedApplication) -> some View {
     let image = NSWorkspace.shared.icon(forFile: application.applicationURL.path)
     image.size = NSSize(width: 22, height: 22)
     return Image(nsImage: image)
