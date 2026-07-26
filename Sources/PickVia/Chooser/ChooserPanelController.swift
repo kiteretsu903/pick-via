@@ -391,8 +391,8 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     onSelection?(targetID)
   }
 
-  private func copyCurrentURL() {
-    guard let url = presentation?.request.url else { return }
+  func copyCurrentURL() {
+    guard presentation?.kind == .web, let url = presentation?.request.url else { return }
     copyURL(url)
   }
 

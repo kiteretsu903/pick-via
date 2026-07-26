@@ -963,6 +963,24 @@ final class ChooserPanelControllerTests: XCTestCase {
     XCTAssertEqual(settingsCallCount, 1)
   }
 
+  func testMailPresentationDoesNotCopyRequestURL() {
+    let clipboard = ClipboardSpy()
+    let controller = ChooserPanelController(clipboard: clipboard)
+    controller.present(
+      request: Fixtures.mailRequest,
+      applications: [Fixtures.appleMail, Fixtures.outlook],
+      targets: [Fixtures.appleMailTarget, Fixtures.outlookTarget],
+      error: nil,
+      onSelection: { _ in },
+      onCancel: {}
+    )
+
+    controller.copyCurrentURL()
+
+    XCTAssertTrue(clipboard.strings.isEmpty)
+    controller.dismiss()
+  }
+
   func testURLVisibilityIsResolvedForEachPresentation() {
     let preference = URLVisibilityPreference(value: true)
     let controller = ChooserPanelController(showsURLProvider: { preference.value })
