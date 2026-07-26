@@ -98,6 +98,20 @@ public final class AppModel {
     }
   }
 
+  public var canContinueMailReview: Bool {
+    config.targets.contains { target in
+      guard
+        target.routeKind == .mail,
+        target.isEnabled,
+        target.availability == .available,
+        let application = config.applications.first(where: {
+          $0.id == target.applicationID
+        })
+      else { return false }
+      return application.isAvailable(for: .mail)
+    }
+  }
+
   public var hasUnresolvedAutomaticProfileAccess: Bool {
     switch profileAccessPresentation {
     case .automaticPending:
@@ -275,10 +289,21 @@ public final class AppModel {
     )
     launchesAtLogin = loginItem.isEnabled
     defaultStatus = defaultBrowser.status()
+    let persistedVersion =
+      preferences.integer(forKey: PreferenceKey.onboardingVersion) ?? 1
     let persistedStep =
       preferences.integer(forKey: PreferenceKey.onboardingStep) ?? Onboarding.firstStep
-    onboardingStep = normalizedOnboardingStep(persistedStep)
-    if onboardingStep != persistedStep {
+    onboardingStep = normalizedOnboardingStep(
+      persistedStep,
+      persistedVersion: persistedVersion
+    )
+    if persistedVersion != Onboarding.currentVersion {
+      preferences.set(onboardingStep, forKey: PreferenceKey.onboardingStep)
+      preferences.set(
+        Onboarding.currentVersion,
+        forKey: PreferenceKey.onboardingVersion
+      )
+    } else if onboardingStep != persistedStep {
       preferences.set(onboardingStep, forKey: PreferenceKey.onboardingStep)
     }
     isLoaded = true
@@ -287,8 +312,8 @@ public final class AppModel {
   public func advanceOnboarding() {
     switch onboardingStep {
     case Onboarding.firstStep:
-      onboardingStep = 2
-    case 2 where canContinueOnboardingReview:
+      onboardingStep = Onboarding.browserReviewStep
+    case Onboarding.browserReviewStep where canContinueOnboardingReview:
       onboardingStep = Onboarding.defaultBrowserStep
     default:
       break
@@ -535,7 +560,9 @@ public final class AppModel {
     defaultStatus = defaultBrowser.status()
 
     if hasConfirmedDefaultStatus {
-      onboardingStep = Onboarding.completedStep
+      if onboardingStep == Onboarding.defaultBrowserStep {
+        onboardingStep = Onboarding.mailReviewStep
+      }
       errorMessage = nil
     } else {
       if onboardingStep >= Onboarding.completedStep {
@@ -546,9 +573,35 @@ public final class AppModel {
     }
   }
 
+  public func continueMailReview() {
+    guard
+      onboardingStep == Onboarding.mailReviewStep,
+      canContinueMailReview
+    else { return }
+    onboardingStep = Onboarding.defaultMailStep
+  }
+
   public func requestDefaultMail() async {
     _ = try? await defaultBrowser.requestDefault(for: ["mailto"])
     defaultStatus = defaultBrowser.status()
+
+    guard onboardingStep == Onboarding.defaultMailStep else { return }
+    if defaultStatus.mailto == .isDefault {
+      onboardingStep = Onboarding.completedStep
+      mailErrorMessage = nil
+    } else {
+      mailErrorMessage =
+        "PickVia was not made the default mail app. You can try again."
+    }
+  }
+
+  public func skipMailSetup() {
+    guard
+      onboardingStep == Onboarding.mailReviewStep
+        || onboardingStep == Onboarding.defaultMailStep
+    else { return }
+    mailErrorMessage = nil
+    onboardingStep = Onboarding.completedStep
   }
 
   public func setLaunchAtLogin(_ enabled: Bool) {
@@ -941,7 +994,23 @@ public final class AppModel {
     defaultStatus.isDefaultBrowser
   }
 
-  private func normalizedOnboardingStep(_ persistedStep: Int) -> Int {
+  private func normalizedOnboardingStep(
+    _ persistedStep: Int,
+    persistedVersion: Int
+  ) -> Int {
+    if persistedVersion < Onboarding.currentVersion {
+      let legacyStep = min(
+        max(persistedStep, Onboarding.firstStep),
+        4
+      )
+      if legacyStep == 4 {
+        return hasConfirmedDefaultStatus
+          ? Onboarding.completedStep
+          : Onboarding.defaultBrowserStep
+      }
+      return legacyStep
+    }
+
     let bounded = min(
       max(persistedStep, Onboarding.firstStep),
       Onboarding.completedStep
@@ -1170,11 +1239,16 @@ private func detectedProfileTarget(
 enum PreferenceKey {
   static let showsURLInChooser = "showsURLInChooser"
   static let chooserDensity = "chooserDensity"
+  static let onboardingVersion = "onboardingVersion"
   static let onboardingStep = "onboardingStep"
 }
 
 private enum Onboarding {
+  static let currentVersion = 2
   static let firstStep = 1
+  static let browserReviewStep = 2
   static let defaultBrowserStep = 3
-  static let completedStep = 4
+  static let mailReviewStep = 4
+  static let defaultMailStep = 5
+  static let completedStep = 6
 }

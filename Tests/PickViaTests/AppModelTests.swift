@@ -1874,27 +1874,36 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(defaults.requestedSchemes, ["http", "https"])
   }
 
-  func testMailDefaultRequestRefreshesOnlyMailStatusWithoutChangingOnboarding() async throws {
-    let refreshedStatus = DefaultHandlerStatus(
+  func testConfirmedBrowserDefaultAdvancesNewUserToMailReview() async throws {
+    let incomplete = DefaultHandlerStatus(
       http: .notDefault,
       https: .notDefault,
-      mailto: .isDefault
+      mailto: .notDefault
+    )
+    let confirmed = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .notDefault
     )
     let defaults = DefaultBrowserSpy(
-      statuses: [.init(http: .notDefault, https: .notDefault), refreshedStatus]
+      statuses: [incomplete, confirmed]
     )
+    let preferences = PreferencesStub(integers: [
+      "onboardingVersion": 2,
+      "onboardingStep": 3,
+    ])
     let model = makeModel(
       store: ConfigStoreStub(config: Fixtures.config),
+      preferences: preferences,
       defaultBrowser: defaults
     )
     try model.load()
-    let onboardingStep = model.onboardingStep
 
-    await model.requestDefaultMail()
+    await model.requestDefaultBrowser()
 
-    XCTAssertEqual(defaults.requestedSchemes, ["mailto"])
-    XCTAssertEqual(model.defaultStatus, refreshedStatus)
-    XCTAssertEqual(model.onboardingStep, onboardingStep)
+    XCTAssertEqual(defaults.requestedSchemes, ["http", "https"])
+    XCTAssertEqual(model.onboardingStep, 4)
+    XCTAssertFalse(model.isOnboardingComplete)
   }
 
   func testDefaultRequestDoesNothingWithoutValidEnabledTarget() async throws {
@@ -1969,10 +1978,13 @@ final class AppModelTests: XCTestCase {
     XCTAssertNotNil(model.errorMessage)
   }
 
-  func testDualSchemeDefaultStatusCompletesOnboarding() async throws {
+  func testDualSchemeDefaultStatusAdvancesToMailReview() async throws {
     let incomplete = DefaultBrowserStatus(http: .notDefault, https: .notDefault)
     let complete = DefaultBrowserStatus(http: .isDefault, https: .isDefault)
-    let preferences = PreferencesStub(integers: ["onboardingStep": 3])
+    let preferences = PreferencesStub(integers: [
+      "onboardingVersion": 2,
+      "onboardingStep": 3,
+    ])
     let defaults = DefaultBrowserSpy(statuses: [incomplete, complete])
     let model = makeModel(
       store: ConfigStoreStub(config: Fixtures.config),
@@ -1985,12 +1997,31 @@ final class AppModelTests: XCTestCase {
 
     XCTAssertEqual(model.defaultStatus, complete)
     XCTAssertEqual(model.onboardingStep, 4)
-    XCTAssertTrue(model.isOnboardingComplete)
+    XCTAssertFalse(model.isOnboardingComplete)
     XCTAssertNil(model.errorMessage)
     XCTAssertEqual(preferences.setIntegers["onboardingStep"], 4)
   }
 
-  func testPersistedCompletionIsClampedWhenDefaultStatusIsIncomplete() throws {
+  func testLegacyCompletedUserMigratesDirectlyToNewCompletedStep() throws {
+    let preferences = PreferencesStub(integers: ["onboardingStep": 4])
+    let defaults = DefaultBrowserSpy(
+      status: .init(http: .isDefault, https: .isDefault, mailto: .notDefault)
+    )
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.config),
+      preferences: preferences,
+      defaultBrowser: defaults
+    )
+
+    try model.load()
+
+    XCTAssertEqual(model.onboardingStep, 6)
+    XCTAssertTrue(model.isOnboardingComplete)
+    XCTAssertEqual(preferences.setIntegers["onboardingVersion"], 2)
+    XCTAssertEqual(preferences.setIntegers["onboardingStep"], 6)
+  }
+
+  func testLegacyCompletionWithoutConfirmedBrowserReturnsToDefaultBrowserStep() throws {
     let preferences = PreferencesStub(integers: ["onboardingStep": 4])
     let defaults = DefaultBrowserSpy(
       status: .init(http: .isDefault, https: .notDefault)
@@ -2006,6 +2037,303 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(model.onboardingStep, 3)
     XCTAssertFalse(model.isOnboardingComplete)
     XCTAssertEqual(preferences.setIntegers["onboardingStep"], 3)
+  }
+
+  func testIncompleteLegacyStepsArePreservedDuringVersionMigration() throws {
+    for step in 1...3 {
+      let preferences = PreferencesStub(integers: ["onboardingStep": step])
+      let model = makeModel(preferences: preferences)
+
+      try model.load()
+
+      XCTAssertEqual(model.onboardingStep, step)
+      XCTAssertEqual(preferences.setIntegers["onboardingVersion"], 2)
+      XCTAssertEqual(preferences.setIntegers["onboardingStep"], step)
+    }
+  }
+
+  func testContinueMailReviewRequiresEnabledAvailableMailTarget() throws {
+    let preferences = PreferencesStub(integers: [
+      "onboardingVersion": 2,
+      "onboardingStep": 4,
+    ])
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.webAndMailConfig),
+      catalog: BrowserCatalogStub(reconciled: Fixtures.webAndMailConfig),
+      mailCatalog: .authoritative([Fixtures.appleMailDiscovery]),
+      preferences: preferences
+    )
+    try model.load()
+
+    model.continueMailReview()
+
+    XCTAssertEqual(model.onboardingStep, 5)
+  }
+
+  func testContinueMailReviewDoesNothingWithoutEnabledAvailableMailTarget() throws {
+    let disabledTarget = RouteTarget(
+      id: Fixtures.appleMailTarget.id,
+      applicationID: Fixtures.appleMailTarget.applicationID,
+      label: Fixtures.appleMailTarget.label,
+      isEnabled: false,
+      sortOrder: Fixtures.appleMailTarget.sortOrder,
+      origin: Fixtures.appleMailTarget.origin,
+      availability: .available,
+      capability: .mail
+    )
+    let unavailableTarget = RouteTarget(
+      id: Fixtures.appleMailTarget.id,
+      applicationID: Fixtures.appleMailTarget.applicationID,
+      label: Fixtures.appleMailTarget.label,
+      isEnabled: true,
+      sortOrder: Fixtures.appleMailTarget.sortOrder,
+      origin: Fixtures.appleMailTarget.origin,
+      availability: .unavailable,
+      capability: .mail
+    )
+    let invalidConfigs = [
+      Fixtures.config,
+      PickViaConfig(
+        schemaVersion: PickViaConfig.currentSchemaVersion,
+        applications: Fixtures.webAndMailConfig.applications,
+        targets: Fixtures.config.targets + [disabledTarget]
+      ),
+      PickViaConfig(
+        schemaVersion: PickViaConfig.currentSchemaVersion,
+        applications: Fixtures.webAndMailConfig.applications,
+        targets: Fixtures.config.targets + [unavailableTarget]
+      ),
+    ]
+
+    for config in invalidConfigs {
+      let model = makeModel(
+        store: ConfigStoreStub(config: config),
+        catalog: BrowserCatalogStub(reconciled: config),
+        mailCatalog: MailCatalogStub(
+          scan: .init(applications: [], isAuthoritative: false),
+          runtimeFallback: config
+        ),
+        preferences: PreferencesStub(integers: [
+          "onboardingVersion": 2,
+          "onboardingStep": 4,
+        ])
+      )
+      try model.load()
+
+      model.continueMailReview()
+
+      XCTAssertEqual(model.onboardingStep, 4)
+    }
+  }
+
+  func testSkipMailSetupFromReviewCompletesWithoutDefaultRequest() throws {
+    let defaults = DefaultBrowserSpy(
+      status: .init(http: .isDefault, https: .isDefault, mailto: .notDefault)
+    )
+    let model = makeModel(
+      preferences: PreferencesStub(integers: [
+        "onboardingVersion": 2,
+        "onboardingStep": 4,
+      ]),
+      defaultBrowser: defaults
+    )
+    try model.load()
+
+    model.skipMailSetup()
+
+    XCTAssertEqual(model.onboardingStep, 6)
+    XCTAssertTrue(model.isOnboardingComplete)
+    XCTAssertTrue(defaults.requestedSchemes.isEmpty)
+  }
+
+  func testSkipMailSetupFromDefaultStepClearsMailErrorAndCompletes() async throws {
+    let status = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .notDefault
+    )
+    let defaults = DefaultBrowserSpy(
+      statuses: [status, status],
+      requestError: TestError.declined
+    )
+    let model = makeModel(
+      preferences: PreferencesStub(integers: [
+        "onboardingVersion": 2,
+        "onboardingStep": 5,
+      ]),
+      defaultBrowser: defaults
+    )
+    try model.load()
+
+    await model.requestDefaultMail()
+    XCTAssertNotNil(model.mailErrorMessage)
+
+    model.skipMailSetup()
+
+    XCTAssertEqual(model.onboardingStep, 6)
+    XCTAssertTrue(model.isOnboardingComplete)
+    XCTAssertNil(model.mailErrorMessage)
+    XCTAssertEqual(defaults.requestedSchemes, ["mailto"])
+  }
+
+  func testMailDefaultRequestOutsideOnboardingRefreshesWithoutChangingCompletion() async throws {
+    let before = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .notDefault
+    )
+    let refreshed = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .isDefault
+    )
+    let defaults = DefaultBrowserSpy(statuses: [before, refreshed])
+    let model = makeModel(
+      preferences: PreferencesStub(integers: [
+        "onboardingVersion": 2,
+        "onboardingStep": 6,
+      ]),
+      defaultBrowser: defaults
+    )
+    try model.load()
+
+    await model.requestDefaultMail()
+
+    XCTAssertEqual(defaults.requestedSchemes, ["mailto"])
+    XCTAssertEqual(model.defaultStatus, refreshed)
+    XCTAssertEqual(model.onboardingStep, 6)
+    XCTAssertTrue(model.isOnboardingComplete)
+  }
+
+  func testSkipMailSetupOutsideMailStepsDoesNothing() throws {
+    let defaults = DefaultBrowserSpy(
+      status: .init(http: .isDefault, https: .isDefault, mailto: .notDefault)
+    )
+    let model = makeModel(
+      preferences: PreferencesStub(integers: [
+        "onboardingVersion": 2,
+        "onboardingStep": 3,
+      ]),
+      defaultBrowser: defaults
+    )
+    try model.load()
+
+    model.skipMailSetup()
+
+    XCTAssertEqual(model.onboardingStep, 3)
+    XCTAssertTrue(defaults.requestedSchemes.isEmpty)
+  }
+
+  func testConfirmedMailDefaultCompletesOnboarding() async throws {
+    let before = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .notDefault
+    )
+    let confirmed = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .isDefault
+    )
+    let defaults = DefaultBrowserSpy(statuses: [before, confirmed])
+    let model = makeModel(
+      preferences: PreferencesStub(integers: [
+        "onboardingVersion": 2,
+        "onboardingStep": 5,
+      ]),
+      defaultBrowser: defaults
+    )
+    try model.load()
+
+    await model.requestDefaultMail()
+
+    XCTAssertEqual(defaults.requestedSchemes, ["mailto"])
+    XCTAssertEqual(model.onboardingStep, 6)
+    XCTAssertTrue(model.isOnboardingComplete)
+    XCTAssertNil(model.mailErrorMessage)
+  }
+
+  func testDeclinedMailDefaultRequestRefreshesAndRemainsAtDefaultMailStep() async throws {
+    let status = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .notDefault
+    )
+    let defaults = DefaultBrowserSpy(
+      statuses: [status, status],
+      requestError: TestError.declined
+    )
+    let model = makeModel(
+      preferences: PreferencesStub(integers: [
+        "onboardingVersion": 2,
+        "onboardingStep": 5,
+      ]),
+      defaultBrowser: defaults
+    )
+    try model.load()
+
+    await model.requestDefaultMail()
+
+    XCTAssertEqual(defaults.requestedSchemes, ["mailto"])
+    XCTAssertEqual(defaults.statusCallCount, 2)
+    XCTAssertEqual(model.onboardingStep, 5)
+    XCTAssertFalse(model.isOnboardingComplete)
+    XCTAssertNotNil(model.mailErrorMessage)
+  }
+
+  func testUnknownMailConfirmationRemainsAtDefaultMailStep() async throws {
+    let before = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .notDefault
+    )
+    let unknown = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .unknown
+    )
+    let model = makeModel(
+      preferences: PreferencesStub(integers: [
+        "onboardingVersion": 2,
+        "onboardingStep": 5,
+      ]),
+      defaultBrowser: DefaultBrowserSpy(statuses: [before, unknown])
+    )
+    try model.load()
+
+    await model.requestDefaultMail()
+
+    XCTAssertEqual(model.defaultStatus.mailto, .unknown)
+    XCTAssertEqual(model.onboardingStep, 5)
+    XCTAssertFalse(model.isOnboardingComplete)
+    XCTAssertNotNil(model.mailErrorMessage)
+  }
+
+  func testCompletedVersionTwoUserRemainsCompleteAfterMailDefaultChanges() throws {
+    let initial = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .isDefault
+    )
+    let changed = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .notDefault
+    )
+    let model = makeModel(
+      preferences: PreferencesStub(integers: [
+        "onboardingVersion": 2,
+        "onboardingStep": 6,
+      ]),
+      defaultBrowser: DefaultBrowserSpy(statuses: [initial, changed])
+    )
+    try model.load()
+
+    model.refreshDefaultStatus()
+
+    XCTAssertEqual(model.defaultStatus.mailto, .notDefault)
+    XCTAssertEqual(model.onboardingStep, 6)
+    XCTAssertTrue(model.isOnboardingComplete)
   }
 
   func testAdvanceOnboardingAllowsOrdinaryEarlierStepProgression() throws {
