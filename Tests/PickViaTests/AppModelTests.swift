@@ -245,6 +245,105 @@ final class AppModelTests: XCTestCase {
     XCTAssertTrue(snapshot.availableSnapshot(for: .mail).targets.isEmpty)
   }
 
+  func testBrowserTargetEditAfterMailFallbackPersistsAuthoritativeMailState() throws {
+    let persisted = Fixtures.webAndMailConfig
+    let runtimeFallback = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      applications: Fixtures.editableConfig.applications + [
+        Fixtures.copy(Fixtures.appleMail, mailIsAvailable: false)
+      ],
+      targets: persisted.targets
+    )
+    let store = ConfigStoreStub(config: persisted)
+    let snapshot = MutableTargetSnapshot()
+    let model = makeModel(
+      store: store,
+      catalog: BrowserCatalogStub(
+        scanResult: BrowserScanResult(
+          browsers: [],
+          warnings: [],
+          isAuthoritative: false
+        )
+      ),
+      mailCatalog: MailCatalogStub(
+        scan: MailScanResult(applications: [], isAuthoritative: false),
+        runtimeFallback: runtimeFallback
+      ),
+      targetSnapshot: snapshot
+    )
+    try model.load()
+    store.resetSaved()
+
+    try model.renameTarget(id: "work", label: "Edited Work")
+
+    let saved = try XCTUnwrap(store.saved.last)
+    XCTAssertEqual(saved.mailApplications, persisted.mailApplications)
+    XCTAssertEqual(
+      saved.targets.filter { $0.routeKind == .mail },
+      persisted.targets.filter { $0.routeKind == .mail }
+    )
+    XCTAssertEqual(
+      saved.targets.first { $0.id == "work" }?.label,
+      "Edited Work"
+    )
+    XCTAssertFalse(try XCTUnwrap(model.mailApplications.first).isAvailable(for: .mail))
+    XCTAssertTrue(snapshot.availableSnapshot(for: .mail).targets.isEmpty)
+  }
+
+  func testAuthoritativeBrowserRescanAfterMailFallbackPersistsAuthoritativeMailState() throws {
+    let persisted = Fixtures.webAndMailConfig
+    let runtimeFallback = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      applications: Fixtures.editableConfig.applications + [
+        Fixtures.copy(Fixtures.appleMail, mailIsAvailable: false)
+      ],
+      targets: persisted.targets
+    )
+    let browserScan = BrowserScanResult(
+      browsers: [Fixtures.discoveredChromeWithProfiles],
+      warnings: [],
+      isAuthoritative: true
+    )
+    let browserCatalog = BrowserCatalogStub(
+      scanResult: BrowserScanResult(
+        browsers: [],
+        warnings: [],
+        isAuthoritative: false
+      ),
+      reconciler: { config in
+        BrowserCatalog.reconcile(
+          discovered: browserScan.browsers,
+          with: config
+        )
+      }
+    )
+    let store = ConfigStoreStub(config: persisted)
+    let snapshot = MutableTargetSnapshot()
+    let model = makeModel(
+      store: store,
+      catalog: browserCatalog,
+      mailCatalog: MailCatalogStub(
+        scan: MailScanResult(applications: [], isAuthoritative: false),
+        runtimeFallback: runtimeFallback
+      ),
+      targetSnapshot: snapshot
+    )
+    try model.load()
+    store.resetSaved()
+    browserCatalog.setScanResult(browserScan)
+
+    try model.rescan()
+
+    let saved = try XCTUnwrap(store.saved.last)
+    XCTAssertEqual(saved.mailApplications, persisted.mailApplications)
+    XCTAssertEqual(
+      saved.targets.filter { $0.routeKind == .mail },
+      persisted.targets.filter { $0.routeKind == .mail }
+    )
+    XCTAssertFalse(try XCTUnwrap(model.mailApplications.first).isAvailable(for: .mail))
+    XCTAssertTrue(snapshot.availableSnapshot(for: .mail).targets.isEmpty)
+  }
+
   func testLoadAppliesMailRuntimeFallbackBeforeEitherDiscoveryPass() throws {
     let unavailableMail = Fixtures.copy(
       Fixtures.appleMail,

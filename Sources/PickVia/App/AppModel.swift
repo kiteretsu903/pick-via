@@ -154,6 +154,7 @@ public final class AppModel {
   private let targetSnapshot: MutableTargetSnapshot?
   private let profileAccess: any ProfileAccessManaging
   private let profileRootValidator: BrowserProfileRootValidator
+  private var authoritativeConfig: PickViaConfig = .initial
   private var isLoaded = false
   private var latestAuthoritativeBrowserScan: BrowserScanResult?
   private var targetedProfileAccessOverlays: [String: TargetedProfileAccessOverlay] = [:]
@@ -203,6 +204,7 @@ public final class AppModel {
       loadedConfig = .initial
       configurationRecovery = .loadFailed
     }
+    authoritativeConfig = loadedConfig
 
     let browserFallback = BrowserCatalog.runtimeSanitizedFallback(loadedConfig)
     let runtimeFallback = mailCatalog.runtimeSanitizedFallback(browserFallback)
@@ -219,7 +221,7 @@ public final class AppModel {
         do {
           let reconciled = browserCatalog.reconcile(
             discovered: browserScan.browsers,
-            with: runtimeCandidate
+            with: persistedCandidate
           )
           let validatedRuntime = try replacingRouteSlice(
             .web,
@@ -252,7 +254,7 @@ public final class AppModel {
       let mailScan = mailCatalog.scanResult()
       if mailScan.isAuthoritative {
         do {
-          let reconciled = mailCatalog.reconcile(mailScan, with: runtimeCandidate)
+          let reconciled = mailCatalog.reconcile(mailScan, with: persistedCandidate)
           let validatedRuntime = try replacingRouteSlice(
             .mail,
             in: runtimeCandidate,
@@ -278,6 +280,7 @@ public final class AppModel {
       if browserChanged || mailChanged {
         do {
           try configStore.save(persistedCandidate)
+          authoritativeConfig = persistedCandidate
           config = runtimeCandidate
         } catch {
           config = runtimeFallback
@@ -291,6 +294,7 @@ public final class AppModel {
           }
         }
       } else {
+        authoritativeConfig = persistedCandidate
         config = runtimeCandidate
       }
       targetSnapshot?.publish(config)
@@ -343,7 +347,7 @@ public final class AppModel {
     }
     recordAuthoritativeScan(scan)
     do {
-      try commitAuthoritativeScan(scan, base: config, refreshRouting: true)
+      try commitAuthoritativeScan(scan, refreshRouting: true)
     } catch {
       errorMessage = "Browser discovery produced a configuration that could not be committed."
       updateAutomaticProfileAccessRows(from: scan)
@@ -365,15 +369,21 @@ public final class AppModel {
     }
 
     do {
-      let reconciled = mailCatalog.reconcile(scan, with: config)
-      let updated = try replacingRouteSlice(
+      let reconciled = mailCatalog.reconcile(scan, with: authoritativeConfig)
+      let authoritativeUpdate = try replacingRouteSlice(
+        .mail,
+        in: authoritativeConfig,
+        with: reconciled
+      ).validatedAndMigrated()
+      let runtimeUpdate = try replacingRouteSlice(
         .mail,
         in: config,
         with: reconciled
       ).validatedAndMigrated()
-      try configStore.save(updated)
-      config = updated
-      targetSnapshot?.publish(updated)
+      try configStore.save(authoritativeUpdate)
+      authoritativeConfig = authoritativeUpdate
+      config = runtimeUpdate
+      targetSnapshot?.publish(runtimeUpdate)
       if chooserSettingsRoute != .mail {
         routing.refreshCurrent()
       }
@@ -460,7 +470,7 @@ public final class AppModel {
     }
     recordAuthoritativeScan(scan)
     do {
-      try commitAuthoritativeScan(scan, base: config, refreshRouting: true)
+      try commitAuthoritativeScan(scan, refreshRouting: true)
     } catch {
       rebuildProfileAccessRows(using: scan)
       errorMessage = "Browser discovery produced a configuration that could not be committed."
@@ -482,7 +492,7 @@ public final class AppModel {
     }
     recordAuthoritativeScan(scan)
     do {
-      try commitAuthoritativeScan(scan, base: config, refreshRouting: true)
+      try commitAuthoritativeScan(scan, refreshRouting: true)
     } catch {
       rebuildProfileAccessRows(using: scan)
       errorMessage = "Browser discovery produced a configuration that could not be committed."
@@ -880,35 +890,85 @@ public final class AppModel {
   }
 
   private func persist(targets: [BrowserTarget]) throws {
-    let updated = PickViaConfig(
+    let runtimeUpdate = try PickViaConfig(
       schemaVersion: config.schemaVersion,
       applications: config.applications,
       targets: targets
-    )
-    let validated = try updated.validatedAndMigrated()
-    try configStore.save(validated)
-    config = validated
-    targetSnapshot?.publish(validated)
+    ).validatedAndMigrated()
+    let authoritativeUpdate = try PickViaConfig(
+      schemaVersion: authoritativeConfig.schemaVersion,
+      applications: authoritativeConfig.applications,
+      targets: authoritativeTargets(applying: targets)
+    ).validatedAndMigrated()
+    try configStore.save(authoritativeUpdate)
+    authoritativeConfig = authoritativeUpdate
+    config = runtimeUpdate
+    targetSnapshot?.publish(runtimeUpdate)
     errorMessage = nil
     mailErrorMessage = nil
   }
 
   private func commitAuthoritativeScan(
     _ scan: BrowserScanResult,
-    base: PickViaConfig,
     refreshRouting: Bool
   ) throws {
-    let reconciled = browserCatalog.reconcile(discovered: scan.browsers, with: base)
-    let validated = try replacingRouteSlice(
+    let reconciled = browserCatalog.reconcile(
+      discovered: scan.browsers,
+      with: authoritativeConfig
+    )
+    let authoritativeUpdate = try replacingRouteSlice(
       .web,
-      in: base,
+      in: authoritativeConfig,
       with: reconciled
     ).validatedAndMigrated()
-    try configStore.save(validated)
-    config = validated
-    targetSnapshot?.publish(validated)
+    let runtimeUpdate = try replacingRouteSlice(
+      .web,
+      in: config,
+      with: reconciled
+    ).validatedAndMigrated()
+    try configStore.save(authoritativeUpdate)
+    authoritativeConfig = authoritativeUpdate
+    config = runtimeUpdate
+    targetSnapshot?.publish(runtimeUpdate)
     if refreshRouting {
       routing.refreshCurrent()
+    }
+  }
+
+  private func authoritativeTargets(
+    applying runtimeTargets: [RouteTarget]
+  ) throws -> [RouteTarget] {
+    try runtimeTargets.map { updatedRuntimeTarget in
+      guard
+        let runtimeIndex = config.targets.firstIndex(where: {
+          $0.id == updatedRuntimeTarget.id
+        })
+      else {
+        return updatedRuntimeTarget
+      }
+      let currentRuntimeTarget = config.targets[runtimeIndex]
+      let authoritativeTarget: RouteTarget?
+      if let exactMatch = authoritativeConfig.targets.first(where: {
+        $0.id == currentRuntimeTarget.id
+      }) {
+        authoritativeTarget = exactMatch
+      } else if authoritativeConfig.targets.indices.contains(runtimeIndex) {
+        authoritativeTarget = authoritativeConfig.targets[runtimeIndex]
+      } else {
+        authoritativeTarget = nil
+      }
+      guard
+        let authoritativeTarget,
+        authoritativeTarget.routeKind == currentRuntimeTarget.routeKind,
+        authoritativeTarget.applicationID == currentRuntimeTarget.applicationID
+      else {
+        throw TargetEditingError.targetNotFound
+      }
+      return applyingTargetChanges(
+        from: currentRuntimeTarget,
+        to: updatedRuntimeTarget,
+        on: authoritativeTarget
+      )
     }
   }
 
@@ -1168,6 +1228,37 @@ private func copy(
         validationError: options.validationError
       )
     )
+  )
+}
+
+private func applyingTargetChanges(
+  from currentRuntimeTarget: RouteTarget,
+  to updatedRuntimeTarget: RouteTarget,
+  on authoritativeTarget: RouteTarget
+) -> RouteTarget {
+  RouteTarget(
+    id: authoritativeTarget.id,
+    applicationID:
+      updatedRuntimeTarget.applicationID == currentRuntimeTarget.applicationID
+      ? authoritativeTarget.applicationID : updatedRuntimeTarget.applicationID,
+    label:
+      updatedRuntimeTarget.label == currentRuntimeTarget.label
+      ? authoritativeTarget.label : updatedRuntimeTarget.label,
+    isEnabled:
+      updatedRuntimeTarget.isEnabled == currentRuntimeTarget.isEnabled
+      ? authoritativeTarget.isEnabled : updatedRuntimeTarget.isEnabled,
+    sortOrder:
+      updatedRuntimeTarget.sortOrder == currentRuntimeTarget.sortOrder
+      ? authoritativeTarget.sortOrder : updatedRuntimeTarget.sortOrder,
+    origin:
+      updatedRuntimeTarget.origin == currentRuntimeTarget.origin
+      ? authoritativeTarget.origin : updatedRuntimeTarget.origin,
+    availability:
+      updatedRuntimeTarget.availability == currentRuntimeTarget.availability
+      ? authoritativeTarget.availability : updatedRuntimeTarget.availability,
+    capability:
+      updatedRuntimeTarget.capability == currentRuntimeTarget.capability
+      ? authoritativeTarget.capability : updatedRuntimeTarget.capability
   )
 }
 
