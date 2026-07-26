@@ -6,6 +6,37 @@ import Testing
 struct BrowserLauncherTests {
   private let url = URL(string: "https://example.com")!
 
+  @Test func mailTargetIsRejectedWithoutReadingBrowserOptions() {
+    let application = RoutedApplication(
+      id: "com.google.Chrome",
+      displayName: "Google Chrome",
+      bundleIdentifier: "com.google.Chrome",
+      capabilities: [
+        .browser(family: .chromium, isAvailable: true),
+        .mail(isAvailable: true),
+      ],
+      applicationURL: applicationURL
+    )
+    let mailTarget = RouteTarget(
+      id: RouteTarget.mailID(bundleIdentifier: application.bundleIdentifier),
+      applicationID: application.id,
+      label: "Google Chrome Mail",
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .detected,
+      availability: .available,
+      capability: .mail
+    )
+
+    #expect(throws: LaunchFailure.self) {
+      try testLauncher().makePlan(
+        url: url,
+        application: application,
+        target: mailTarget
+      )
+    }
+  }
+
   @Test func chromiumNormalPlanUsesExactProfileAndURLTokens() throws {
     let launcher = testLauncher()
 

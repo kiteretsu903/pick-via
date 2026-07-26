@@ -4,6 +4,54 @@ import XCTest
 @testable import PickViaCore
 
 final class RoutingCoordinatorTests: XCTestCase {
+  func testMutableSnapshotExcludesEnabledMailTargetForDualCapabilityApplication() {
+    let application = RoutedApplication(
+      id: "com.google.Chrome",
+      displayName: "Google Chrome",
+      bundleIdentifier: "com.google.Chrome",
+      capabilities: [
+        .browser(family: .chromium, isAvailable: true),
+        .mail(isAvailable: true),
+      ],
+      applicationURL: URL(fileURLWithPath: "/Applications/Google Chrome.app")
+    )
+    let webTarget = BrowserTarget(
+      id: "com.google.Chrome||normal",
+      browserID: application.id,
+      label: "Google Chrome",
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .detected,
+      availability: .available
+    )
+    let mailTarget = RouteTarget(
+      id: RouteTarget.mailID(bundleIdentifier: application.bundleIdentifier),
+      applicationID: application.id,
+      label: "Google Chrome Mail",
+      isEnabled: true,
+      sortOrder: 1,
+      origin: .detected,
+      availability: .available,
+      capability: .mail
+    )
+    let provider = MutableTargetSnapshot()
+    provider.publish(
+      PickViaConfig(
+        schemaVersion: PickViaConfig.currentSchemaVersion,
+        applications: [application],
+        targets: [webTarget, mailTarget]
+      )
+    )
+
+    let snapshot = provider.availableSnapshot()
+
+    XCTAssertEqual(snapshot.applications.map(\.id), [application.id])
+    XCTAssertEqual(snapshot.targets.map(\.id), [webTarget.id])
+  }
+
   func testValidatorAcceptsUppercaseHTTPScheme() throws {
     let input = try XCTUnwrap(URL(string: "HTTP://example.com/path"))
 

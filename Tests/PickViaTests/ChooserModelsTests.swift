@@ -4,6 +4,19 @@ import XCTest
 @testable import PickVia
 
 final class ChooserModelsTests: XCTestCase {
+  func testDualCapabilityApplicationOmitsEnabledMailTarget() {
+    let presentation = makePresentation(
+      applications: [Fixtures.dualCapabilityChrome],
+      targets: [Fixtures.mail, Fixtures.work]
+    )
+
+    XCTAssertEqual(presentation.rows, [.target("work", shortcut: .number(1))])
+    XCTAssertEqual(
+      presentation.groups,
+      [.direct(browserID: "chrome", row: .target("work", shortcut: .number(1)))]
+    )
+  }
+
   func testBrowserWithOneTargetIsDirectRow() {
     let presentation = makePresentation(
       applications: [Fixtures.chrome],
@@ -1017,6 +1030,17 @@ private enum Fixtures {
     isAvailable: true
   )
 
+  static let dualCapabilityChrome = RoutedApplication(
+    id: chrome.id,
+    displayName: chrome.displayName,
+    bundleIdentifier: chrome.bundleIdentifier,
+    capabilities: [
+      .browser(family: .chromium, isAvailable: true),
+      .mail(isAvailable: true),
+    ],
+    applicationURL: chrome.applicationURL
+  )
+
   static let missingBrowser = BrowserApplication(
     id: "missing-browser",
     family: .firefox,
@@ -1029,6 +1053,16 @@ private enum Fixtures {
 
   static let work = target(id: "work", label: "Work", sortOrder: 0)
   static let personal = target(id: "personal", label: "Personal", sortOrder: 1)
+  static let mail = RouteTarget(
+    id: RouteTarget.mailID(bundleIdentifier: dualCapabilityChrome.bundleIdentifier),
+    applicationID: dualCapabilityChrome.id,
+    label: "Google Chrome Mail",
+    isEnabled: true,
+    sortOrder: 2,
+    origin: .detected,
+    availability: .available,
+    capability: .mail
+  )
 
   static func target(
     id: String,

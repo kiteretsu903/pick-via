@@ -78,7 +78,11 @@ public struct WelcomeView: View {
         .font(.title2.bold())
       Text("Choose which profiles and modes should appear when you open a link.")
         .foregroundStyle(.secondary)
-      List(model.targets.sorted { $0.sortOrder < $1.sortOrder }) { target in
+      List(
+        model.targets.filter { $0.routeKind == .web }.sorted {
+          $0.sortOrder < $1.sortOrder
+        }
+      ) { target in
         HStack {
           Text(target.label)
           Spacer()

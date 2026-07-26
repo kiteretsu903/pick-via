@@ -274,6 +274,48 @@ final class BrowserSettingsIssueSummaryTests: XCTestCase {
     XCTAssertEqual(summary.missingEnabledProfileCount, 0)
   }
 
+  func testMissingProfileSummaryIgnoresMailTargetForDualCapabilityApplication() {
+    let application = RoutedApplication(
+      id: "com.google.Chrome",
+      displayName: "Chrome",
+      bundleIdentifier: "com.google.Chrome",
+      capabilities: [
+        .browser(family: .chromium, isAvailable: true),
+        .mail(isAvailable: true),
+      ],
+      applicationURL: URL(fileURLWithPath: "/Applications/Google Chrome.app"),
+      browserExecutableURL: nil
+    )
+    let mailTarget = RouteTarget(
+      id: RouteTarget.mailID(bundleIdentifier: application.bundleIdentifier),
+      applicationID: application.id,
+      label: "Chrome",
+      isEnabled: true,
+      sortOrder: 1,
+      origin: .detected,
+      availability: .unavailable,
+      capability: .mail
+    )
+    let config = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: [application],
+      targets: [mailTarget]
+    )
+
+    let summary = makeBrowserSettingsIssueSummary(
+      authoritativeScan: BrowserScanResult(
+        browsers: [
+          DiscoveredBrowser(application: application, profiles: [], metadataStatus: .loaded)
+        ],
+        profileAccessIssues: []
+      ),
+      metadataOverrides: [:],
+      config: config
+    )
+
+    XCTAssertEqual(summary, .init(accessIssueBrowserCount: 0, missingEnabledProfileCount: 0))
+  }
+
   func testSegmentsUseApprovedSingularAndPluralCopy() {
     XCTAssertEqual(
       BrowserSettingsIssueSegment(kind: .access, count: 1).text,

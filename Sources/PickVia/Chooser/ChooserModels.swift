@@ -117,12 +117,15 @@ public struct ChooserPresentation: Equatable, Sendable {
     error: LaunchFailure? = nil,
     preservingSelection targetID: BrowserTarget.ID? = nil
   ) -> ChooserPresentation {
-    let availableApplications = applications.filter(\.isAvailable)
+    let availableApplications = applications.filter {
+      $0.supports(.web) && $0.isAvailable(for: .web)
+    }
     let applicationIDs = Set(availableApplications.map(\.id))
     let indexedTargets = targets.enumerated().filter { _, target in
-      target.isEnabled
+      target.routeKind == .web
+        && target.isEnabled
         && target.availability == .available
-        && applicationIDs.contains(target.browserID)
+        && applicationIDs.contains(target.applicationID)
     }
 
     let sortedTargets = indexedTargets.sorted { left, right in
@@ -137,7 +140,7 @@ public struct ChooserPresentation: Equatable, Sendable {
     var rows: [ChooserRow] = []
 
     for application in availableApplications {
-      let browserTargets = sortedTargets.filter { $0.browserID == application.id }
+      let browserTargets = sortedTargets.filter { $0.applicationID == application.id }
       guard !browserTargets.isEmpty else { continue }
 
       let browserRows = browserTargets.map { target -> ChooserRow in

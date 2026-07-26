@@ -44,19 +44,20 @@ public final class MutableTargetSnapshot: TargetProviding, @unchecked Sendable {
 
   public func availableSnapshot() -> RoutingTargetSnapshot {
     lock.withLock {
-      let applications = config.browsers.filter(\.isAvailable)
+      let applications = config.browsers.filter { $0.isAvailable(for: .web) }
       let applicationIDs = Set(applications.map(\.id))
       let targets = config.targets
         .filter {
-          $0.isEnabled
+          $0.routeKind == .web
+            && $0.isEnabled
             && $0.availability == .available
-            && applicationIDs.contains($0.browserID)
+            && applicationIDs.contains($0.applicationID)
         }
         .sorted {
           if $0.sortOrder != $1.sortOrder { return $0.sortOrder < $1.sortOrder }
           return $0.id < $1.id
         }
-      let targetBrowserIDs = Set(targets.map(\.browserID))
+      let targetBrowserIDs = Set(targets.map(\.applicationID))
       return RoutingTargetSnapshot(
         applications: applications.filter { targetBrowserIDs.contains($0.id) },
         targets: targets
@@ -127,7 +128,10 @@ public final class RoutingCoordinator {
       let request = currentRequest,
       let snapshot = currentSnapshot,
       let target = snapshot.targets.first(where: { $0.id == targetID }),
-      let application = snapshot.applications.first(where: { $0.id == target.browserID })
+      target.routeKind == .web,
+      let application = snapshot.applications.first(where: {
+        $0.id == target.applicationID && $0.supports(.web)
+      })
     else {
       launchFailed(Self.sanitizedLaunchFailure)
       return

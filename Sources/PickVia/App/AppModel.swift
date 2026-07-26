@@ -82,11 +82,12 @@ public final class AppModel {
   public var canContinueOnboardingReview: Bool {
     config.targets.contains { target in
       guard
+        target.routeKind == .web,
         target.isEnabled,
         target.availability == .available,
-        let browser = config.browsers.first(where: { $0.id == target.browserID })
+        let browser = config.browsers.first(where: { $0.id == target.applicationID })
       else { return false }
-      return browser.isAvailable
+      return browser.isAvailable(for: .web)
     }
   }
 
@@ -904,7 +905,8 @@ private func detectedProfileTarget(
   in config: PickViaConfig
 ) -> BrowserTarget? {
   config.targets.first {
-    $0.browserID == browserID
+    $0.routeKind == .web
+      && $0.applicationID == browserID
       && ($0.profileIdentifier == profileIdentifier
         || ($0.profileIdentity ?? $0.profileIdentifier) == profileIdentifier)
       && $0.origin == .detected
