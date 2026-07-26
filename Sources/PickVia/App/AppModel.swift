@@ -524,6 +524,10 @@ public final class AppModel {
 
   public func refreshDefaultStatus() {
     defaultStatus = defaultBrowser.status()
+    onboardingStep = normalizedOnboardingStep(
+      onboardingStep,
+      persistedVersion: Onboarding.currentVersion
+    )
   }
 
   public func settingsDidClose() {
@@ -557,7 +561,7 @@ public final class AppModel {
 
     // Status is authoritative; refresh it even when the consent API throws.
     _ = try? await defaultBrowser.requestDefault(for: ["http", "https"])
-    defaultStatus = defaultBrowser.status()
+    refreshDefaultStatus()
 
     if hasConfirmedDefaultStatus {
       if onboardingStep == Onboarding.defaultBrowserStep {
@@ -583,7 +587,7 @@ public final class AppModel {
 
   public func requestDefaultMail() async {
     _ = try? await defaultBrowser.requestDefault(for: ["mailto"])
-    defaultStatus = defaultBrowser.status()
+    refreshDefaultStatus()
 
     guard onboardingStep == Onboarding.defaultMailStep else { return }
     if defaultStatus.mailto == .isDefault {

@@ -2114,6 +2114,79 @@ final class AppModelTests: XCTestCase {
     XCTAssertFalse(model.isOnboardingComplete)
   }
 
+  func testRefreshLosingBrowserDefaultFromMailReviewPreventsSkipCompletingOnboarding()
+    throws
+  {
+    let confirmed = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .notDefault
+    )
+    let browserUnconfirmed = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .notDefault,
+      mailto: .notDefault
+    )
+    let defaults = DefaultBrowserSpy(statuses: [confirmed, browserUnconfirmed])
+    let model = makeModel(
+      preferences: PreferencesStub(integers: [
+        "onboardingVersion": 2,
+        "onboardingStep": 4,
+      ]),
+      defaultBrowser: defaults
+    )
+    try model.load()
+    XCTAssertEqual(model.onboardingStep, 4)
+
+    model.refreshDefaultStatus()
+    model.skipMailSetup()
+
+    XCTAssertEqual(model.defaultStatus, browserUnconfirmed)
+    XCTAssertEqual(model.onboardingStep, 3)
+    XCTAssertFalse(model.isOnboardingComplete)
+    XCTAssertTrue(defaults.requestedSchemes.isEmpty)
+  }
+
+  func testRefreshLosingBrowserDefaultFromDefaultMailPreventsMailConfirmationCompletingOnboarding()
+    async throws
+  {
+    let confirmed = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .notDefault
+    )
+    let browserUnconfirmed = DefaultHandlerStatus(
+      http: .notDefault,
+      https: .isDefault,
+      mailto: .notDefault
+    )
+    let mailConfirmedWithoutBrowser = DefaultHandlerStatus(
+      http: .notDefault,
+      https: .isDefault,
+      mailto: .isDefault
+    )
+    let defaults = DefaultBrowserSpy(
+      statuses: [confirmed, browserUnconfirmed, mailConfirmedWithoutBrowser]
+    )
+    let model = makeModel(
+      preferences: PreferencesStub(integers: [
+        "onboardingVersion": 2,
+        "onboardingStep": 5,
+      ]),
+      defaultBrowser: defaults
+    )
+    try model.load()
+    XCTAssertEqual(model.onboardingStep, 5)
+
+    model.refreshDefaultStatus()
+    await model.requestDefaultMail()
+
+    XCTAssertEqual(model.defaultStatus, mailConfirmedWithoutBrowser)
+    XCTAssertEqual(defaults.requestedSchemes, ["mailto"])
+    XCTAssertEqual(model.onboardingStep, 3)
+    XCTAssertFalse(model.isOnboardingComplete)
+  }
+
   func testContinueMailReviewRequiresEnabledAvailableMailTarget() throws {
     let preferences = PreferencesStub(integers: [
       "onboardingVersion": 2,
