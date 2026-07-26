@@ -18,7 +18,7 @@ public protocol ExecutableValidating: Sendable {
   func isExecutableFile(at url: URL) -> Bool
 }
 
-public protocol TrustedBrowserResolving: Sendable {
+public protocol TrustedApplicationResolving: Sendable {
   func applicationURL(forBundleIdentifier bundleIdentifier: String) -> URL?
 }
 
@@ -63,7 +63,7 @@ public struct SystemWorkspace: WorkspaceOpening {
   }
 }
 
-public struct BrowserLauncher: BrowserLaunching, Sendable {
+public struct BrowserLauncher: RouteLaunching, Sendable {
   private static let launchFailure = LaunchFailure(
     message: "Could not open the selected browser target."
   )
@@ -71,15 +71,15 @@ public struct BrowserLauncher: BrowserLaunching, Sendable {
   private let processRunner: any ProcessRunning
   private let workspace: any WorkspaceOpening
   private let executableValidator: any ExecutableValidating
-  private let trustedBrowserResolver: any TrustedBrowserResolving
+  private let trustedApplicationResolver: any TrustedApplicationResolving
 
   public init(
-    trustedBrowserResolver: any TrustedBrowserResolving = WorkspaceApplicationLocator(),
+    trustedApplicationResolver: any TrustedApplicationResolving = WorkspaceApplicationLocator(),
     processRunner: any ProcessRunning = SystemProcessRunner(),
     workspace: any WorkspaceOpening = SystemWorkspace(),
     executableValidator: any ExecutableValidating = FoundationExecutableValidator()
   ) {
-    self.trustedBrowserResolver = trustedBrowserResolver
+    self.trustedApplicationResolver = trustedApplicationResolver
     self.processRunner = processRunner
     self.workspace = workspace
     self.executableValidator = executableValidator
@@ -91,15 +91,14 @@ public struct BrowserLauncher: BrowserLaunching, Sendable {
     target: BrowserTarget
   ) throws -> LaunchPlan {
     guard
-      target.routeKind == .web,
-      let options = target.browserOptions,
+      case .browser(let options) = target.capability,
       application.id == target.applicationID,
       application.id == application.bundleIdentifier,
       let browserFamily = application.browserFamily,
       let descriptor = BrowserDescriptor.descriptor(
         forBundleIdentifier: application.bundleIdentifier),
       descriptor.family == browserFamily,
-      let trustedApplicationURL = trustedBrowserResolver.applicationURL(
+      let trustedApplicationURL = trustedApplicationResolver.applicationURL(
         forBundleIdentifier: application.bundleIdentifier),
       application.isAvailable(for: .web),
       target.availability == .available

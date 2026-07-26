@@ -255,7 +255,10 @@ final class ProfileAccessPresentationTests: XCTestCase {
     relay.handler = { presenter.environmentDidChange() }
     let model = try ProfileAccessModelFixture.automaticPending()
     chooser.present(
-      request: RoutingRequest(url: URL(string: "https://example.com/hidden")!),
+      request: RoutingRequest(
+        kind: .web,
+        url: URL(string: "https://example.com/hidden")!
+      ),
       applications: [],
       targets: [],
       error: nil,

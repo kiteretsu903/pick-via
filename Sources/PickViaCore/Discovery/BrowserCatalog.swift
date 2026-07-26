@@ -137,7 +137,7 @@ public protocol ApplicationLocating: Sendable {
   func applicationURL(forBundleIdentifier bundleIdentifier: String) -> URL?
 }
 
-public struct WorkspaceApplicationLocator: ApplicationLocating, TrustedBrowserResolving {
+public struct WorkspaceApplicationLocator: ApplicationLocating, TrustedApplicationResolving {
   public init() {}
 
   public func applicationURL(forBundleIdentifier bundleIdentifier: String) -> URL? {

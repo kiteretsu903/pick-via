@@ -187,7 +187,7 @@ extension AppModel {
       defaultBrowser: MacOSDefaultBrowserService(),
       loginItem: MacOSLoginItemService(),
       chooser: chooser,
-      launcher: BrowserLauncher(),
+      launcher: RouteLauncher(),
       profileAccess: profileAccessCoordinator,
       profileRootValidator: profileRootValidator
     )
@@ -273,9 +273,9 @@ private final class PreviewPresenter {
 
   func present(_ url: URL) {
     guard canPresent() else { return }
-    let snapshot = targetProvider.availableSnapshot()
+    let snapshot = targetProvider.availableSnapshot(for: .web)
     chooser.present(
-      request: RoutingRequest(url: url),
+      request: RoutingRequest(kind: .web, url: url),
       applications: snapshot.applications,
       targets: snapshot.targets,
       error: nil,

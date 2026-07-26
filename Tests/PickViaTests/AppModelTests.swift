@@ -1745,11 +1745,21 @@ final class AppModelTests: XCTestCase {
 
     model.accept(url: URL(string: "file:///tmp/private")!)
     XCTAssertTrue(routing.acceptedURLs.isEmpty)
-    XCTAssertNotNil(model.errorMessage)
+    XCTAssertEqual(
+      model.errorMessage,
+      "Only valid HTTP, HTTPS, and mailto URLs can be opened."
+    )
 
     model.accept(url: URL(string: "https://example.com/path")!)
+    model.accept(url: URL(string: "mailto:person@example.com?subject=Private")!)
 
-    XCTAssertEqual(routing.acceptedURLs, [URL(string: "https://example.com/path")!])
+    XCTAssertEqual(
+      routing.acceptedURLs,
+      [
+        URL(string: "https://example.com/path")!,
+        URL(string: "mailto:person@example.com?subject=Private")!,
+      ]
+    )
     XCTAssertNil(model.errorMessage)
   }
 

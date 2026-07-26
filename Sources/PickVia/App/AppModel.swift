@@ -424,13 +424,13 @@ public final class AppModel {
     do {
       let validated = try URLValidator.validate(url)
       if isProfileAccessSurfaceActive {
-        deferredAcceptedURLs.append(validated)
+        deferredAcceptedURLs.append(validated.url)
       } else {
-        routing.accept(validated)
+        routing.accept(validated.url)
       }
       errorMessage = nil
     } catch {
-      errorMessage = "Only valid HTTP and HTTPS URLs can be opened."
+      errorMessage = "Only valid HTTP, HTTPS, and mailto URLs can be opened."
     }
   }
 

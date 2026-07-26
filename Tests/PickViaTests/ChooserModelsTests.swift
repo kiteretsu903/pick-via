@@ -251,6 +251,7 @@ final class ChooserModelsTests: XCTestCase {
 
   func testDisplayURLRemovesCredentials() throws {
     let request = RoutingRequest(
+      kind: .web,
       url: try XCTUnwrap(URL(string: "https://person:secret@example.com/private?q=1")))
 
     let presentation = ChooserPresentation.make(
@@ -487,7 +488,10 @@ final class ChooserPanelControllerTests: XCTestCase {
 
     controller.dismiss()
     controller.present(
-      request: RoutingRequest(url: URL(string: "https://example.com/new")!),
+      request: RoutingRequest(
+        kind: .web,
+        url: URL(string: "https://example.com/new")!
+      ),
       applications: [Fixtures.chrome],
       targets: [Fixtures.work],
       error: nil,
@@ -500,7 +504,10 @@ final class ChooserPanelControllerTests: XCTestCase {
 
     preference.value = .spacious
     controller.present(
-      request: RoutingRequest(url: URL(string: "https://example.com/spacious")!),
+      request: RoutingRequest(
+        kind: .web,
+        url: URL(string: "https://example.com/spacious")!
+      ),
       applications: [Fixtures.chrome],
       targets: [Fixtures.work],
       error: nil,
@@ -628,7 +635,10 @@ final class ChooserPanelControllerTests: XCTestCase {
       onSelection: { _ in },
       onCancel: {}
     )
-    let nextRequest = RoutingRequest(url: URL(string: "https://example.com/next")!)
+    let nextRequest = RoutingRequest(
+      kind: .web,
+      url: URL(string: "https://example.com/next")!
+    )
     controller.present(
       request: nextRequest,
       applications: [Fixtures.chrome],
@@ -974,7 +984,7 @@ private final class ProfileAccessRetryObserver {
 }
 
 private struct ChooserTargetProviderStub: TargetProviding {
-  func availableSnapshot() -> RoutingTargetSnapshot {
+  func availableSnapshot(for kind: RouteKind) -> RoutingTargetSnapshot {
     RoutingTargetSnapshot(
       applications: [Fixtures.chrome],
       targets: [Fixtures.work]
@@ -1018,7 +1028,10 @@ private final class ClipboardSpy: ClipboardWriting {
 }
 
 private enum Fixtures {
-  static let request = RoutingRequest(url: URL(string: "https://example.com/a")!)
+  static let request = RoutingRequest(
+    kind: .web,
+    url: URL(string: "https://example.com/a")!
+  )
 
   static let chrome = BrowserApplication(
     id: "chrome",
