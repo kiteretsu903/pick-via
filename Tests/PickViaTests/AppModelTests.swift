@@ -88,6 +88,169 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(store.saved, [reconciled])
   }
 
+  func testDefaultHandlerStatusIncludesMailAndRetainsBrowserSummary() {
+    let status = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .notDefault
+    )
+
+    XCTAssertEqual(status.http, .isDefault)
+    XCTAssertEqual(status.https, .isDefault)
+    XCTAssertEqual(status.mailto, .notDefault)
+    XCTAssertTrue(status.isDefaultBrowser)
+    XCTAssertEqual(
+      DefaultHandlerStatus.unknown,
+      DefaultHandlerStatus(http: .unknown, https: .unknown, mailto: .unknown)
+    )
+  }
+
+  func testLoadReconcilesMailWithoutChangingBrowserTargets() throws {
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.browserConfig),
+      mailCatalog: .authoritative([Fixtures.appleMailDiscovery])
+    )
+
+    try model.load()
+
+    XCTAssertEqual(
+      model.targets.filter { $0.routeKind == .web }.map(\.id),
+      Fixtures.browserConfig.targets.map(\.id)
+    )
+    XCTAssertEqual(model.mailTargets.map(\.id), ["mailto|com.apple.mail"])
+    XCTAssertEqual(model.mailApplications.map(\.id), ["com.apple.mail"])
+  }
+
+  func testLoadReconcilesBrowserWithoutChangingMailTargets() throws {
+    let browserReconciled = BrowserCatalog.reconcile(
+      discovered: [Fixtures.discoveredChrome],
+      with: Fixtures.mailConfig
+    )
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.mailConfig),
+      catalog: BrowserCatalogStub(
+        discovered: [Fixtures.discoveredChrome],
+        reconciled: browserReconciled
+      ),
+      mailCatalog: .nonAuthoritative
+    )
+
+    try model.load()
+
+    XCTAssertFalse(model.browsers.isEmpty)
+    XCTAssertEqual(model.mailTargets, Fixtures.mailConfig.targets)
+    XCTAssertEqual(
+      model.mailApplications.map(\.id),
+      Fixtures.mailConfig.applications.map(\.id)
+    )
+  }
+
+  func testNonAuthoritativeBrowserScanStillCommitsAuthoritativeMailSlice() throws {
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.browserConfig),
+      catalog: BrowserCatalogStub(
+        scanResult: BrowserScanResult(
+          browsers: [],
+          warnings: [],
+          isAuthoritative: false
+        )
+      ),
+      mailCatalog: .authoritative([Fixtures.appleMailDiscovery])
+    )
+
+    try model.load()
+
+    XCTAssertEqual(
+      model.targets.filter { $0.routeKind == .web },
+      Fixtures.browserConfig.targets
+    )
+    XCTAssertEqual(model.mailTargets.map(\.id), ["mailto|com.apple.mail"])
+    XCTAssertEqual(
+      model.errorMessage,
+      "Browser discovery could not be completed. Existing targets were preserved."
+    )
+    XCTAssertNil(model.mailErrorMessage)
+  }
+
+  func testNonAuthoritativeMailScanStillCommitsAuthoritativeBrowserSlice() throws {
+    let browserReconciled = BrowserCatalog.reconcile(
+      discovered: [Fixtures.discoveredChromeWithProfiles],
+      with: Fixtures.mailConfig
+    )
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.mailConfig),
+      catalog: BrowserCatalogStub(
+        discovered: [Fixtures.discoveredChromeWithProfiles],
+        reconciled: browserReconciled
+      ),
+      mailCatalog: .nonAuthoritative
+    )
+
+    try model.load()
+
+    XCTAssertEqual(
+      model.targets.filter { $0.routeKind == .web },
+      browserReconciled.targets.filter { $0.routeKind == .web }
+    )
+    XCTAssertEqual(model.mailTargets, Fixtures.mailConfig.targets)
+    XCTAssertEqual(
+      model.mailErrorMessage,
+      "Mail application discovery could not be completed. Existing choices were preserved."
+    )
+  }
+
+  func testLoadAppliesMailRuntimeFallbackBeforeEitherDiscoveryPass() throws {
+    let unavailableMail = Fixtures.copy(
+      Fixtures.appleMail,
+      mailIsAvailable: false
+    )
+    let fallback = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      applications: [Fixtures.chrome, unavailableMail],
+      targets: Fixtures.webAndMailConfig.targets
+    )
+    let mailCatalog = MailCatalogStub(
+      scan: MailScanResult(applications: [], isAuthoritative: false),
+      runtimeFallback: fallback
+    )
+    let browserCatalog = BrowserCatalogStub(
+      scanResult: BrowserScanResult(
+        browsers: [],
+        warnings: [],
+        isAuthoritative: false
+      )
+    )
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.webAndMailConfig),
+      catalog: browserCatalog,
+      mailCatalog: mailCatalog
+    )
+
+    try model.load()
+
+    XCTAssertEqual(mailCatalog.runtimeFallbackInputs, [Fixtures.webAndMailConfig])
+    XCTAssertEqual(browserCatalog.reconcileInputs, [])
+    XCTAssertEqual(model.config, fallback)
+    XCTAssertFalse(try XCTUnwrap(model.mailApplications.first).isAvailable(for: .mail))
+  }
+
+  func testLoadPublishesOneFinalSnapshotContainingBothRouteKinds() throws {
+    let snapshot = MutableTargetSnapshot()
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.browserConfig),
+      mailCatalog: .authoritative([Fixtures.appleMailDiscovery]),
+      targetSnapshot: snapshot
+    )
+
+    try model.load()
+
+    XCTAssertFalse(snapshot.availableSnapshot(for: .web).targets.isEmpty)
+    XCTAssertEqual(
+      snapshot.availableSnapshot(for: .mail).targets.map(\.id),
+      [Fixtures.appleMailTarget.id]
+    )
+  }
+
   func testRecoveredCorruptionPublishesVisibleRecoveryState() throws {
     let store = ConfigStoreStub(
       config: .initial,
@@ -415,6 +578,59 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(model.config, reconciled)
     XCTAssertEqual(catalog.reconcileInputs, [reconciled])
     XCTAssertEqual(store.saved, [reconciled])
+  }
+
+  func testRescanMailApplicationsDoesNotRescanOrChangeBrowserState() throws {
+    let store = ConfigStoreStub(config: Fixtures.webAndMailConfig)
+    let browserCatalog = BrowserCatalogStub(
+      scanResult: BrowserScanResult(
+        browsers: [],
+        warnings: [],
+        isAuthoritative: false
+      )
+    )
+    let mailCatalog = MailCatalogStub.authoritative([Fixtures.appleMailDiscovery])
+    let model = makeModel(
+      store: store,
+      catalog: browserCatalog,
+      mailCatalog: mailCatalog
+    )
+    try model.load()
+    browserCatalog.resetScanCalls()
+    mailCatalog.setScan(
+      MailScanResult(
+        applications: [Fixtures.outlookDiscovery],
+        isAuthoritative: true
+      )
+    )
+
+    try model.rescanMailApplications()
+
+    XCTAssertEqual(browserCatalog.scanResultCallCount, 0)
+    XCTAssertEqual(mailCatalog.scanResultCallCount, 2)
+    XCTAssertEqual(
+      model.targets.filter { $0.routeKind == .web },
+      Fixtures.webAndMailConfig.targets.filter { $0.routeKind == .web }
+    )
+    XCTAssertEqual(
+      Set(model.mailTargets.map(\.id)),
+      Set(["mailto|com.apple.mail", "mailto|com.microsoft.Outlook"])
+    )
+  }
+
+  func testMailRescanFailurePreservesConfigurationAndShowsMailError() throws {
+    let store = ConfigStoreStub(config: Fixtures.webAndMailConfig)
+    let model = makeModel(store: store, mailCatalog: .nonAuthoritative)
+    try model.load()
+    let before = model.config
+
+    try model.rescanMailApplications()
+
+    XCTAssertEqual(model.config, before)
+    XCTAssertEqual(
+      model.mailErrorMessage,
+      "Mail application discovery could not be completed. Existing choices were preserved."
+    )
   }
 
   func testAutomaticWizardContainsOnlyAccessFailuresAndSuppressesAfterSkip() throws {
@@ -1818,6 +2034,108 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(routing.refreshCallCount, 0)
   }
 
+  func testMailTargetCanBeRenamedAndEnabledWithoutLosingCapability() throws {
+    let store = ConfigStoreStub(config: Fixtures.webAndMailConfig)
+    let snapshot = MutableTargetSnapshot()
+    let model = makeModel(
+      store: store,
+      mailCatalog: .nonAuthoritative,
+      targetSnapshot: snapshot
+    )
+    try model.load()
+
+    try model.setMailTargetEnabled(id: Fixtures.appleMailTarget.id, isEnabled: false)
+    XCTAssertTrue(snapshot.availableSnapshot(for: .mail).targets.isEmpty)
+    try model.setMailTargetEnabled(id: Fixtures.appleMailTarget.id, isEnabled: true)
+    try model.renameTarget(id: Fixtures.appleMailTarget.id, label: "Personal Mail")
+
+    let edited = try XCTUnwrap(
+      model.mailTargets.first { $0.id == Fixtures.appleMailTarget.id }
+    )
+    XCTAssertTrue(edited.isEnabled)
+    XCTAssertEqual(edited.label, "Personal Mail")
+    XCTAssertEqual(edited.capability, .mail)
+    XCTAssertEqual(
+      snapshot.availableSnapshot(for: .mail).targets.first {
+        $0.id == Fixtures.appleMailTarget.id
+      },
+      edited
+    )
+    XCTAssertNil(model.mailErrorMessage)
+    XCTAssertEqual(store.saved.last, model.config)
+  }
+
+  func testMailEditingRejectsWebTargetsAndBrowserEditingRejectsMailTargets() throws {
+    let store = ConfigStoreStub(config: Fixtures.webAndMailConfig)
+    let model = makeModel(store: store, mailCatalog: .nonAuthoritative)
+    try model.load()
+    let before = model.config
+
+    XCTAssertThrowsError(
+      try model.setMailTargetEnabled(id: Fixtures.browserConfig.targets[0].id, isEnabled: false)
+    )
+    XCTAssertThrowsError(
+      try model.setTargetMode(id: Fixtures.appleMailTarget.id, mode: .private)
+    )
+    XCTAssertThrowsError(
+      try model.setTargetProfile(
+        id: Fixtures.appleMailTarget.id,
+        profileIdentifier: nil
+      )
+    )
+
+    XCTAssertEqual(model.config, before)
+  }
+
+  func testMoveMailTargetsReordersOnlyMailAndPreservesWebSortOrders() throws {
+    let store = ConfigStoreStub(config: Fixtures.webAndTwoMailConfig)
+    let model = makeModel(store: store, mailCatalog: .nonAuthoritative)
+    try model.load()
+    let webSortOrders = Dictionary(
+      uniqueKeysWithValues: model.targets
+        .filter { $0.routeKind == .web }
+        .map { ($0.id, $0.sortOrder) }
+    )
+
+    try model.moveMailTargets(fromOffsets: IndexSet(integer: 0), toOffset: 2)
+
+    XCTAssertEqual(
+      model.mailTargets.map(\.id),
+      [Fixtures.outlookTarget.id, Fixtures.appleMailTarget.id]
+    )
+    XCTAssertEqual(model.mailTargets.map(\.sortOrder), [0, 1])
+    XCTAssertEqual(
+      Dictionary(
+        uniqueKeysWithValues: model.targets
+          .filter { $0.routeKind == .web }
+          .map { ($0.id, $0.sortOrder) }
+      ),
+      webSortOrders
+    )
+    XCTAssertEqual(store.saved.last, model.config)
+  }
+
+  func testMailEditSaveFailureLeavesModelAndPublishedSnapshotUnchanged() throws {
+    let store = ConfigStoreStub(config: Fixtures.webAndMailConfig)
+    let snapshot = MutableTargetSnapshot()
+    let model = makeModel(
+      store: store,
+      mailCatalog: .nonAuthoritative,
+      targetSnapshot: snapshot
+    )
+    try model.load()
+    let before = model.config
+    let publishedBefore = snapshot.availableSnapshot()
+    store.saveError = TestError.denied
+
+    XCTAssertThrowsError(
+      try model.setMailTargetEnabled(id: Fixtures.appleMailTarget.id, isEnabled: false)
+    )
+
+    XCTAssertEqual(model.config, before)
+    XCTAssertEqual(snapshot.availableSnapshot(), publishedBefore)
+  }
+
   func testEveryCanonicalTargetEditClearsPendingDefaultMigration() throws {
     let actions: [(AppModel, BrowserTarget.ID) throws -> Void] = [
       { model, id in try model.renameTarget(id: id, label: "Customized Chrome") },
@@ -2376,6 +2694,7 @@ final class AppModelTests: XCTestCase {
   private func makeModel(
     store: ConfigStoreStub = ConfigStoreStub(config: .initial),
     catalog: BrowserCatalogStub = BrowserCatalogStub(),
+    mailCatalog: MailCatalogStub = .missing,
     preferences: PreferencesStub = PreferencesStub(),
     defaultBrowser: DefaultBrowserSpy = DefaultBrowserSpy(),
     loginItem: LoginItemStub = LoginItemStub(),
@@ -2387,6 +2706,7 @@ final class AppModelTests: XCTestCase {
     AppModel(
       configStore: store,
       browserCatalog: catalog,
+      mailCatalog: mailCatalog,
       preferences: preferences,
       defaultBrowser: defaultBrowser,
       loginItem: loginItem,
@@ -2646,6 +2966,76 @@ private enum Fixtures {
     ]
   )
 
+  static let browserConfig = editableConfig
+
+  static let appleMail = RoutedApplication(
+    id: "com.apple.mail",
+    displayName: "Mail",
+    bundleIdentifier: "com.apple.mail",
+    capabilities: [.mail(isAvailable: true)],
+    applicationURL: URL(fileURLWithPath: "/System/Applications/Mail.app")
+  )
+
+  static let outlook = RoutedApplication(
+    id: "com.microsoft.Outlook",
+    displayName: "Microsoft Outlook",
+    bundleIdentifier: "com.microsoft.Outlook",
+    capabilities: [.mail(isAvailable: true)],
+    applicationURL: URL(fileURLWithPath: "/Applications/Microsoft Outlook.app")
+  )
+
+  static let appleMailDiscovery = DiscoveredMailApplication(
+    bundleIdentifier: appleMail.bundleIdentifier,
+    displayName: appleMail.displayName,
+    applicationURL: appleMail.applicationURL
+  )
+
+  static let outlookDiscovery = DiscoveredMailApplication(
+    bundleIdentifier: outlook.bundleIdentifier,
+    displayName: outlook.displayName,
+    applicationURL: outlook.applicationURL
+  )
+
+  static let appleMailTarget = RouteTarget(
+    id: RouteTarget.mailID(bundleIdentifier: appleMail.bundleIdentifier),
+    applicationID: appleMail.id,
+    label: appleMail.displayName,
+    isEnabled: true,
+    sortOrder: 4,
+    origin: .detected,
+    availability: .available,
+    capability: .mail
+  )
+
+  static let outlookTarget = RouteTarget(
+    id: RouteTarget.mailID(bundleIdentifier: outlook.bundleIdentifier),
+    applicationID: outlook.id,
+    label: outlook.displayName,
+    isEnabled: true,
+    sortOrder: 8,
+    origin: .detected,
+    availability: .available,
+    capability: .mail
+  )
+
+  static let mailConfig = PickViaConfig(
+    schemaVersion: PickViaConfig.currentSchemaVersion,
+    applications: [appleMail],
+    targets: [appleMailTarget]
+  )
+
+  static let webAndMailConfig = PickViaConfig(
+    schemaVersion: PickViaConfig.currentSchemaVersion,
+    applications: editableConfig.applications + [appleMail],
+    targets: editableConfig.targets + [appleMailTarget]
+  )
+
+  static let webAndTwoMailConfig = PickViaConfig(
+    schemaVersion: PickViaConfig.currentSchemaVersion,
+    applications: editableConfig.applications + [appleMail, outlook],
+    targets: editableConfig.targets + [appleMailTarget, outlookTarget]
+  )
+
   static func installedBrowser(
     _ bundleIdentifier: String,
     status: ProfileMetadataStatus,
@@ -2773,6 +3163,24 @@ private enum Fixtures {
       availability: target.availability
     )
   }
+
+  static func copy(
+    _ application: RoutedApplication,
+    mailIsAvailable: Bool
+  ) -> RoutedApplication {
+    RoutedApplication(
+      id: application.id,
+      displayName: application.displayName,
+      bundleIdentifier: application.bundleIdentifier,
+      capabilities: application.capabilities.map { capability in
+        capability.routeKind == .mail
+          ? .mail(isAvailable: mailIsAvailable)
+          : capability
+      },
+      applicationURL: application.applicationURL,
+      browserExecutableURL: application.browserExecutableURL
+    )
+  }
 }
 
 private final class ConfigStoreStub: ConfigStoring, @unchecked Sendable {
@@ -2854,6 +3262,62 @@ private final class BrowserCatalogStub: BrowserDiscovering, @unchecked Sendable 
   func resetScanCalls() { scanResultCallCount = 0 }
   func resetTargetedScanCalls() { targetedScanBundleIdentifiers.removeAll() }
   func setScanResult(_ scanResult: BrowserScanResult) { configuredScanResult = scanResult }
+}
+
+private final class MailCatalogStub: MailDiscovering, @unchecked Sendable {
+  private var configuredScan: MailScanResult
+  private let reconciler: ((MailScanResult, PickViaConfig) -> PickViaConfig)?
+  private let fallback: PickViaConfig?
+  private(set) var scanResultCallCount = 0
+  private(set) var reconcileInputs: [PickViaConfig] = []
+  private(set) var runtimeFallbackInputs: [PickViaConfig] = []
+
+  init(
+    scan: MailScanResult,
+    runtimeFallback: PickViaConfig? = nil,
+    reconciler: ((MailScanResult, PickViaConfig) -> PickViaConfig)? = nil
+  ) {
+    configuredScan = scan
+    fallback = runtimeFallback
+    self.reconciler = reconciler
+  }
+
+  static func authoritative(
+    _ applications: [DiscoveredMailApplication]
+  ) -> MailCatalogStub {
+    MailCatalogStub(
+      scan: MailScanResult(applications: applications, isAuthoritative: true)
+    )
+  }
+
+  static var nonAuthoritative: MailCatalogStub {
+    MailCatalogStub(
+      scan: MailScanResult(applications: [], isAuthoritative: false)
+    )
+  }
+
+  static var missing: MailCatalogStub {
+    .authoritative([])
+  }
+
+  func scanResult() -> MailScanResult {
+    scanResultCallCount += 1
+    return configuredScan
+  }
+
+  func reconcile(_ scan: MailScanResult, with config: PickViaConfig) -> PickViaConfig {
+    reconcileInputs.append(config)
+    return reconciler?(scan, config) ?? MailCatalog.reconcile(scan, with: config)
+  }
+
+  func runtimeSanitizedFallback(_ config: PickViaConfig) -> PickViaConfig {
+    runtimeFallbackInputs.append(config)
+    return fallback ?? config
+  }
+
+  func setScan(_ scan: MailScanResult) {
+    configuredScan = scan
+  }
 }
 
 private final class ProfileAccessManagerSpy: ProfileAccessManaging, @unchecked Sendable {

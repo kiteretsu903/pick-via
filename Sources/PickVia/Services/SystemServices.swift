@@ -9,26 +9,40 @@ public enum SchemeStatus: Equatable, Sendable {
   case unknown
 }
 
-public struct DefaultBrowserStatus: Equatable, Sendable {
+public struct DefaultHandlerStatus: Equatable, Sendable {
   public let http: SchemeStatus
   public let https: SchemeStatus
+  public let mailto: SchemeStatus
 
-  public init(http: SchemeStatus, https: SchemeStatus) {
+  public init(
+    http: SchemeStatus,
+    https: SchemeStatus,
+    mailto: SchemeStatus = .unknown
+  ) {
     self.http = http
     self.https = https
+    self.mailto = mailto
   }
 
-  public static let unknown = DefaultBrowserStatus(http: .unknown, https: .unknown)
+  public var isDefaultBrowser: Bool {
+    http == .isDefault && https == .isDefault
+  }
+
+  public static let unknown = DefaultHandlerStatus(
+    http: .unknown,
+    https: .unknown,
+    mailto: .unknown
+  )
 }
 
 @MainActor
-public protocol DefaultBrowserServicing: AnyObject {
-  func status() -> DefaultBrowserStatus
+public protocol DefaultHandlerServicing: AnyObject {
+  func status() -> DefaultHandlerStatus
   func requestDefault(for schemes: [String]) async throws
 }
 
 @MainActor
-public final class MacOSDefaultBrowserService: DefaultBrowserServicing {
+public final class MacOSDefaultHandlerService: DefaultHandlerServicing {
   private let workspace: NSWorkspace
   private let applicationURL: URL
 
@@ -40,10 +54,11 @@ public final class MacOSDefaultBrowserService: DefaultBrowserServicing {
     self.applicationURL = applicationURL
   }
 
-  public func status() -> DefaultBrowserStatus {
-    DefaultBrowserStatus(
+  public func status() -> DefaultHandlerStatus {
+    DefaultHandlerStatus(
       http: status(for: "http"),
-      https: status(for: "https")
+      https: status(for: "https"),
+      mailto: status(for: "mailto")
     )
   }
 
@@ -83,6 +98,10 @@ public final class MacOSDefaultBrowserService: DefaultBrowserServicing {
     }
   }
 }
+
+public typealias DefaultBrowserStatus = DefaultHandlerStatus
+public typealias DefaultBrowserServicing = DefaultHandlerServicing
+public typealias MacOSDefaultBrowserService = MacOSDefaultHandlerService
 
 @MainActor
 public protocol LoginItemServicing: AnyObject {

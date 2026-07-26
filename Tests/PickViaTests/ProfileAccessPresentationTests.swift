@@ -653,7 +653,7 @@ private enum ProfileAccessModelFixture {
       configStore: ProfileAccessConfigStoreStub(),
       browserCatalog: ProfileAccessCatalogStub(result: scan),
       preferences: ProfileAccessPreferencesStub(onboardingStep: onboardingStep),
-      defaultBrowser: ProfileAccessDefaultBrowserStub(),
+      defaultBrowser: ProfileAccessDefaultHandlerStub(),
       loginItem: ProfileAccessLoginItemStub(),
       routing: routing
     )
@@ -694,8 +694,8 @@ private final class ProfileAccessPreferencesStub: PreferencesStoring {
 }
 
 @MainActor
-private final class ProfileAccessDefaultBrowserStub: DefaultBrowserServicing {
-  func status() -> DefaultBrowserStatus { .unknown }
+private final class ProfileAccessDefaultHandlerStub: DefaultHandlerServicing {
+  func status() -> DefaultHandlerStatus { .unknown }
   func requestDefault(for schemes: [String]) async throws {}
 }
 

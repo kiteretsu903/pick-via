@@ -6,9 +6,10 @@ import PickViaCore
 @Observable
 public final class AppModel {
   public private(set) var config: PickViaConfig = .initial
-  public private(set) var defaultStatus: DefaultBrowserStatus = .unknown
+  public private(set) var defaultStatus: DefaultHandlerStatus = .unknown
   public private(set) var launchesAtLogin = false
   public private(set) var errorMessage: String?
+  public private(set) var mailErrorMessage: String?
   public private(set) var configurationRecovery: ConfigurationRecoveryState = .none
   public private(set) var profileAccessRows: [BrowserProfileAccessRow] = []
   public private(set) var profileAccessPresentation: ProfileAccessPresentationState = .idle
@@ -48,6 +49,12 @@ public final class AppModel {
 
   public var browsers: [BrowserApplication] { config.browsers }
   public var targets: [BrowserTarget] { config.targets }
+  public var mailApplications: [RoutedApplication] {
+    config.applications.filter { $0.supports(.mail) }
+  }
+  public var mailTargets: [RouteTarget] {
+    config.targets.filter { $0.routeKind == .mail }
+  }
   public var browserSettingsIssueSummary: BrowserSettingsIssueSummary {
     let overrides = targetedProfileAccessOverlays.reduce(
       into: [String: ProfileMetadataStatus]()
@@ -125,8 +132,9 @@ public final class AppModel {
 
   private let configStore: any ConfigStoring
   private let browserCatalog: any BrowserDiscovering
+  private let mailCatalog: any MailDiscovering
   private let preferences: any PreferencesStoring
-  private let defaultBrowser: any DefaultBrowserServicing
+  private let defaultBrowser: any DefaultHandlerServicing
   private let loginItem: any LoginItemServicing
   private let routing: any AppRouting
   private let targetSnapshot: MutableTargetSnapshot?
@@ -141,8 +149,9 @@ public final class AppModel {
   public init(
     configStore: any ConfigStoring,
     browserCatalog: any BrowserDiscovering,
+    mailCatalog: any MailDiscovering = MissingMailCatalog(),
     preferences: any PreferencesStoring,
-    defaultBrowser: any DefaultBrowserServicing,
+    defaultBrowser: any DefaultHandlerServicing,
     loginItem: any LoginItemServicing,
     routing: any AppRouting,
     targetSnapshot: MutableTargetSnapshot? = nil,
@@ -151,6 +160,7 @@ public final class AppModel {
   ) {
     self.configStore = configStore
     self.browserCatalog = browserCatalog
+    self.mailCatalog = mailCatalog
     self.preferences = preferences
     self.defaultBrowser = defaultBrowser
     self.loginItem = loginItem
@@ -179,34 +189,85 @@ public final class AppModel {
       configurationRecovery = .loadFailed
     }
 
-    let shouldPublishSnapshot = configurationRecovery != .loadFailed
-    let runtimeFallback = BrowserCatalog.runtimeSanitizedFallback(loadedConfig)
-    var didCommitAuthoritativeScan = false
+    let browserFallback = BrowserCatalog.runtimeSanitizedFallback(loadedConfig)
+    let runtimeFallback = mailCatalog.runtimeSanitizedFallback(browserFallback)
 
     if configurationRecovery != .loadFailed {
-      let scan = browserCatalog.scanResult()
-      if scan.isAuthoritative {
-        recordAuthoritativeScan(scan)
+      var candidate = runtimeFallback
+      var browserChanged = false
+      var mailChanged = false
+
+      let browserScan = browserCatalog.scanResult()
+      if browserScan.isAuthoritative {
+        recordAuthoritativeScan(browserScan)
         do {
-          try commitAuthoritativeScan(scan, base: loadedConfig, refreshRouting: false)
-          didCommitAuthoritativeScan = true
+          let reconciled = browserCatalog.reconcile(
+            discovered: browserScan.browsers,
+            with: candidate
+          )
+          let validated = try replacingRouteSlice(
+            .web,
+            in: candidate,
+            with: reconciled
+          ).validatedAndMigrated()
+          browserChanged = validated != candidate
+          candidate = validated
         } catch {
           errorMessage = "Browser discovery produced a configuration that could not be committed."
         }
-        if !scan.warnings.isEmpty, configurationRecovery == .none, errorMessage == nil {
+        if !browserScan.warnings.isEmpty,
+          configurationRecovery == .none,
+          errorMessage == nil
+        {
           errorMessage =
             "Some browser profile metadata could not be read. Existing targets were preserved."
         }
       } else if configurationRecovery == .none {
         errorMessage = "Browser discovery could not be completed. Existing targets were preserved."
       }
-      updateAutomaticProfileAccessRows(from: scan)
-    }
-    if !didCommitAuthoritativeScan {
-      config = runtimeFallback
-      if shouldPublishSnapshot {
-        targetSnapshot?.publish(runtimeFallback)
+      updateAutomaticProfileAccessRows(from: browserScan)
+
+      let mailScan = mailCatalog.scanResult()
+      if mailScan.isAuthoritative {
+        do {
+          let reconciled = mailCatalog.reconcile(mailScan, with: candidate)
+          let validated = try replacingRouteSlice(
+            .mail,
+            in: candidate,
+            with: reconciled
+          ).validatedAndMigrated()
+          mailChanged = validated != candidate
+          candidate = validated
+        } catch {
+          mailErrorMessage =
+            "Mail application discovery produced a configuration that could not be committed."
+        }
+      } else {
+        mailErrorMessage =
+          "Mail application discovery could not be completed. Existing choices were preserved."
       }
+
+      if browserChanged || mailChanged {
+        do {
+          try configStore.save(candidate)
+          config = candidate
+        } catch {
+          config = runtimeFallback
+          if browserChanged {
+            errorMessage =
+              "Browser discovery produced a configuration that could not be committed."
+          }
+          if mailChanged {
+            mailErrorMessage =
+              "Mail application discovery produced a configuration that could not be committed."
+          }
+        }
+      } else {
+        config = candidate
+      }
+      targetSnapshot?.publish(config)
+    } else {
+      config = .initial
     }
     showsURLInChooser = preferences.bool(forKey: PreferenceKey.showsURLInChooser) ?? true
     chooserDensity = .fromPersistedValue(
@@ -254,6 +315,33 @@ public final class AppModel {
       ? nil
       : "Some browser profile metadata could not be read. Existing targets were preserved."
     updateAutomaticProfileAccessRows(from: scan)
+  }
+
+  public func rescanMailApplications() throws {
+    let scan = mailCatalog.scanResult()
+    guard scan.isAuthoritative else {
+      mailErrorMessage =
+        "Mail application discovery could not be completed. Existing choices were preserved."
+      return
+    }
+
+    do {
+      let reconciled = mailCatalog.reconcile(scan, with: config)
+      let updated = try replacingRouteSlice(
+        .mail,
+        in: config,
+        with: reconciled
+      ).validatedAndMigrated()
+      try configStore.save(updated)
+      config = updated
+      targetSnapshot?.publish(updated)
+      routing.refreshCurrent()
+      mailErrorMessage = nil
+    } catch {
+      mailErrorMessage =
+        "Mail application discovery produced a configuration that could not be committed."
+      throw error
+    }
   }
 
   public func openProfileAccessManager() {
@@ -487,6 +575,9 @@ public final class AppModel {
 
   public func setTargetMode(id: BrowserTarget.ID, mode: BrowserMode) throws {
     try updateTarget(id: id) { [config] target in
+      guard target.routeKind == .web else {
+        throw TargetEditingError.routeKindMismatch
+      }
       guard target.origin == .manual || target.mode == mode else {
         throw TargetEditingError.detectedTargetIdentityIsImmutable
       }
@@ -505,6 +596,9 @@ public final class AppModel {
     profileIdentifier: String?
   ) throws {
     try updateTarget(id: id) { [config] target in
+      guard target.routeKind == .web else {
+        throw TargetEditingError.routeKindMismatch
+      }
       guard target.origin == .manual || target.profileIdentifier == profileIdentifier else {
         throw TargetEditingError.detectedTargetIdentityIsImmutable
       }
@@ -547,6 +641,45 @@ public final class AppModel {
         profileLaunchPath: candidate.profileLaunchPath
       )
     }
+  }
+
+  public func setMailTargetEnabled(
+    id: RouteTarget.ID,
+    isEnabled: Bool
+  ) throws {
+    try updateTarget(id: id) { target in
+      guard target.routeKind == .mail else {
+        throw TargetEditingError.routeKindMismatch
+      }
+      return copy(target, isEnabled: isEnabled)
+    }
+  }
+
+  public func moveMailTargets(
+    fromOffsets offsets: IndexSet,
+    toOffset destination: Int
+  ) throws {
+    var orderedMail = mailTargets.sorted(by: targetDisplayOrder)
+    guard
+      !offsets.isEmpty,
+      offsets.allSatisfy({ orderedMail.indices.contains($0) }),
+      (0...orderedMail.count).contains(destination)
+    else { throw TargetEditingError.invalidMove }
+
+    let moved = offsets.map { orderedMail[$0] }
+    for index in offsets.reversed() {
+      orderedMail.remove(at: index)
+    }
+    let insertionIndex = destination - offsets.filter { $0 < destination }.count
+    orderedMail.insert(contentsOf: moved, at: insertionIndex)
+    orderedMail = orderedMail.enumerated().map { index, target in
+      copy(target, sortOrder: index)
+    }
+
+    let updatedTargets =
+      config.targets.filter { $0.routeKind == .web }
+      + orderedMail
+    try persist(targets: updatedTargets)
   }
 
   public func moveTargets(fromOffsets offsets: IndexSet, toOffset destination: Int) throws {
@@ -659,13 +792,15 @@ public final class AppModel {
   private func persist(targets: [BrowserTarget]) throws {
     let updated = PickViaConfig(
       schemaVersion: config.schemaVersion,
-      browsers: config.browsers,
+      applications: config.applications,
       targets: targets
     )
-    try configStore.save(updated)
-    config = updated
-    targetSnapshot?.publish(config)
+    let validated = try updated.validatedAndMigrated()
+    try configStore.save(validated)
+    config = validated
+    targetSnapshot?.publish(validated)
     errorMessage = nil
+    mailErrorMessage = nil
   }
 
   private func commitAuthoritativeScan(
@@ -674,7 +809,11 @@ public final class AppModel {
     refreshRouting: Bool
   ) throws {
     let reconciled = browserCatalog.reconcile(discovered: scan.browsers, with: base)
-    let validated = try reconciled.validatedAndMigrated()
+    let validated = try replacingRouteSlice(
+      .web,
+      in: base,
+      with: reconciled
+    ).validatedAndMigrated()
     try configStore.save(validated)
     config = validated
     targetSnapshot?.publish(validated)
@@ -794,7 +933,7 @@ public final class AppModel {
   }
 
   private var hasConfirmedDefaultStatus: Bool {
-    defaultStatus.http == .isDefault && defaultStatus.https == .isDefault
+    defaultStatus.isDefaultBrowser
   }
 
   private func normalizedOnboardingStep(_ persistedStep: Int) -> Int {
@@ -813,6 +952,25 @@ private struct TargetedProfileAccessOverlay {
   let browser: DiscoveredBrowser?
 }
 
+public struct MissingMailCatalog: MailDiscovering {
+  public init() {}
+
+  public func scanResult() -> MailScanResult {
+    MailScanResult(applications: [], isAuthoritative: true)
+  }
+
+  public func reconcile(
+    _ scan: MailScanResult,
+    with config: PickViaConfig
+  ) -> PickViaConfig {
+    config
+  }
+
+  public func runtimeSanitizedFallback(_ config: PickViaConfig) -> PickViaConfig {
+    config
+  }
+}
+
 public enum TargetEditingError: Error, Equatable {
   case targetNotFound
   case browserNotFound
@@ -823,6 +981,7 @@ public enum TargetEditingError: Error, Equatable {
   case detectedTargetIdentityIsImmutable
   case detectedTargetCannotBeRemoved
   case invalidMove
+  case routeKindMismatch
 }
 
 public enum ProfileAccessFlowError: Error, Equatable {
@@ -844,21 +1003,33 @@ private func copy(
   sortOrder: Int? = nil,
   pendingDefaultMigration: Bool? = nil
 ) -> BrowserTarget {
-  BrowserTarget(
+  let capability: RouteTargetCapability
+  switch target.capability {
+  case .mail:
+    capability = .mail
+  case .browser(let options):
+    capability = .browser(
+      BrowserTargetOptions(
+        profileIdentifier: options.profileIdentifier,
+        profileDisplayName: options.profileDisplayName,
+        profileIdentity: options.profileIdentity,
+        profileLaunchPath: options.profileLaunchPath,
+        mode: mode ?? options.mode,
+        pendingDefaultMigration:
+          pendingDefaultMigration ?? options.pendingDefaultMigration,
+        validationError: options.validationError
+      )
+    )
+  }
+  return RouteTarget(
     id: target.id,
-    browserID: target.browserID,
+    applicationID: target.applicationID,
     label: label ?? target.label,
-    profileIdentifier: target.profileIdentifier,
-    profileDisplayName: target.profileDisplayName,
-    profileIdentity: target.profileIdentity,
-    profileLaunchPath: target.profileLaunchPath,
-    mode: mode ?? target.mode,
     isEnabled: isEnabled ?? target.isEnabled,
     sortOrder: sortOrder ?? target.sortOrder,
     origin: target.origin,
     availability: target.availability,
-    pendingDefaultMigration: pendingDefaultMigration ?? target.pendingDefaultMigration,
-    validationError: target.validationError
+    capability: capability
   )
 }
 
@@ -869,22 +1040,96 @@ private func copy(
   profileIdentity: String?,
   profileLaunchPath: String?
 ) -> BrowserTarget {
-  BrowserTarget(
+  guard case .browser(let options) = target.capability else {
+    return target
+  }
+  return RouteTarget(
     id: target.id,
-    browserID: target.browserID,
+    applicationID: target.applicationID,
     label: target.label,
-    profileIdentifier: profileIdentifier,
-    profileDisplayName: profileDisplayName,
-    profileIdentity: profileIdentity,
-    profileLaunchPath: profileLaunchPath,
-    mode: target.mode,
     isEnabled: target.isEnabled,
     sortOrder: target.sortOrder,
     origin: target.origin,
     availability: target.availability,
-    pendingDefaultMigration: false,
-    validationError: target.validationError
+    capability: .browser(
+      BrowserTargetOptions(
+        profileIdentifier: profileIdentifier,
+        profileDisplayName: profileDisplayName,
+        profileIdentity: profileIdentity,
+        profileLaunchPath: profileLaunchPath,
+        mode: options.mode,
+        pendingDefaultMigration: false,
+        validationError: options.validationError
+      )
+    )
   )
+}
+
+private func replacingRouteSlice(
+  _ routeKind: RouteKind,
+  in base: PickViaConfig,
+  with proposed: PickViaConfig
+) -> PickViaConfig {
+  let proposedByID = Dictionary(
+    uniqueKeysWithValues: proposed.applications
+      .filter { $0.supports(routeKind) }
+      .map { ($0.id, $0) }
+  )
+  var applications = base.applications.map { existing in
+    guard let replacement = proposedByID[existing.id] else { return existing }
+    return replacingCapability(
+      routeKind,
+      in: existing,
+      from: replacement
+    )
+  }
+  let existingApplicationIDs = Set(applications.map(\.id))
+  applications.append(
+    contentsOf: proposed.applications.filter {
+      $0.supports(routeKind) && !existingApplicationIDs.contains($0.id)
+    }
+  )
+
+  let webTargets =
+    (routeKind == .web ? proposed.targets : base.targets)
+    .filter { $0.routeKind == .web }
+  let mailTargets =
+    (routeKind == .mail ? proposed.targets : base.targets)
+    .filter { $0.routeKind == .mail }
+  return PickViaConfig(
+    schemaVersion: proposed.schemaVersion,
+    applications: applications,
+    targets: webTargets + mailTargets
+  )
+}
+
+private func replacingCapability(
+  _ routeKind: RouteKind,
+  in existing: RoutedApplication,
+  from replacement: RoutedApplication
+) -> RoutedApplication {
+  let replacementCapability = replacement.capabilities.first {
+    $0.routeKind == routeKind
+  }
+  var capabilities = existing.capabilities.filter {
+    $0.routeKind != routeKind
+  }
+  if let replacementCapability {
+    capabilities.append(replacementCapability)
+  }
+  return RoutedApplication(
+    id: replacement.id,
+    displayName: replacement.displayName,
+    bundleIdentifier: replacement.bundleIdentifier,
+    capabilities: capabilities,
+    applicationURL: replacement.applicationURL,
+    browserExecutableURL: replacement.browserExecutableURL
+  )
+}
+
+private func targetDisplayOrder(_ lhs: RouteTarget, _ rhs: RouteTarget) -> Bool {
+  if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder < rhs.sortOrder }
+  return lhs.id < rhs.id
 }
 
 private func supportedAvailableBrowser(

@@ -346,7 +346,7 @@ final class ProfileAccessWizardTests: XCTestCase {
         profileAccessRequired: profileAccessRequired
       ),
       preferences: ProfileAccessWizardPreferencesStub(step: step),
-      defaultBrowser: ProfileAccessWizardDefaultBrowserStub(),
+      defaultBrowser: ProfileAccessWizardDefaultHandlerStub(),
       loginItem: ProfileAccessWizardLoginItemStub(),
       routing: ProfileAccessWizardRoutingStub()
     )
@@ -490,8 +490,8 @@ private final class ProfileAccessWizardPreferencesStub: PreferencesStoring {
 }
 
 @MainActor
-private final class ProfileAccessWizardDefaultBrowserStub: DefaultBrowserServicing {
-  func status() -> DefaultBrowserStatus { .unknown }
+private final class ProfileAccessWizardDefaultHandlerStub: DefaultHandlerServicing {
+  func status() -> DefaultHandlerStatus { .unknown }
   func requestDefault(for schemes: [String]) async throws {}
 }
 
