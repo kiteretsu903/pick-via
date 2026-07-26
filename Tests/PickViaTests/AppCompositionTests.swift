@@ -20,6 +20,7 @@ final class AppCompositionTests: XCTestCase {
         scanResult: BrowserScanResult(browsers: [], warnings: [], isAuthoritative: true),
         reconciled: CompositionFixtures.config
       ),
+      mailCatalog: CompositionMailCatalogStub(),
       preferences: CompositionPreferencesStub(),
       defaultBrowser: CompositionDefaultBrowserStub(),
       loginItem: CompositionLoginItemStub(),
@@ -39,6 +40,7 @@ final class AppCompositionTests: XCTestCase {
     let model = AppComposition.makeModel(
       configStore: CompositionConfigStore(config: CompositionFixtures.config),
       browserCatalog: CompositionCatalogStub(),
+      mailCatalog: CompositionMailCatalogStub(),
       preferences: CompositionPreferencesStub(),
       defaultBrowser: CompositionDefaultBrowserStub(),
       loginItem: CompositionLoginItemStub(),
@@ -59,6 +61,7 @@ final class AppCompositionTests: XCTestCase {
     let model = AppComposition.makeModel(
       configStore: CompositionConfigStore(config: CompositionFixtures.config),
       browserCatalog: CompositionCatalogStub(),
+      mailCatalog: CompositionMailCatalogStub(),
       preferences: CompositionPreferencesStub(),
       defaultBrowser: CompositionDefaultBrowserStub(),
       loginItem: CompositionLoginItemStub(),
@@ -85,6 +88,7 @@ final class AppCompositionTests: XCTestCase {
     let model = AppComposition.makeModel(
       configStore: CompositionConfigStore(config: CompositionFixtures.config),
       browserCatalog: CompositionCatalogStub(),
+      mailCatalog: CompositionMailCatalogStub(),
       preferences: CompositionPreferencesStub(),
       defaultBrowser: CompositionDefaultBrowserStub(),
       loginItem: CompositionLoginItemStub(),
@@ -96,7 +100,7 @@ final class AppCompositionTests: XCTestCase {
     let subsequentURL = try XCTUnwrap(URL(string: "https://example.com/subsequent"))
 
     model.accept(url: liveURL)
-    model.previewChooser()
+    model.previewChooser(kind: .web)
 
     XCTAssertEqual(chooser.presentedRequests.map(\.url), [liveURL])
 
@@ -113,6 +117,7 @@ final class AppCompositionTests: XCTestCase {
     let model = AppComposition.makeModel(
       configStore: CompositionConfigStore(config: CompositionFixtures.config),
       browserCatalog: CompositionCatalogStub(),
+      mailCatalog: CompositionMailCatalogStub(),
       preferences: CompositionPreferencesStub(),
       defaultBrowser: CompositionDefaultBrowserStub(),
       loginItem: CompositionLoginItemStub(),
@@ -121,7 +126,7 @@ final class AppCompositionTests: XCTestCase {
     )
     try model.load()
 
-    model.previewChooser()
+    model.previewChooser(kind: .web)
     chooser.select(targetID: CompositionFixtures.target.id)
     await Task.yield()
 
@@ -140,6 +145,7 @@ final class AppCompositionTests: XCTestCase {
     let model = AppComposition.makeModel(
       configStore: CompositionConfigStore(config: CompositionFixtures.config),
       browserCatalog: CompositionCatalogStub(),
+      mailCatalog: CompositionMailCatalogStub(),
       preferences: CompositionPreferencesStub(),
       defaultBrowser: CompositionDefaultBrowserStub(),
       loginItem: CompositionLoginItemStub(),
@@ -149,7 +155,7 @@ final class AppCompositionTests: XCTestCase {
     try model.load()
     let liveURL = try XCTUnwrap(URL(string: "https://example.com/live-priority"))
 
-    model.previewChooser()
+    model.previewChooser(kind: .web)
     model.accept(url: liveURL)
 
     XCTAssertEqual(
@@ -170,6 +176,7 @@ final class AppCompositionTests: XCTestCase {
     let model = AppComposition.makeModel(
       configStore: CompositionConfigStore(config: CompositionFixtures.config),
       browserCatalog: CompositionCatalogStub(),
+      mailCatalog: CompositionMailCatalogStub(),
       preferences: preferences,
       defaultBrowser: CompositionDefaultBrowserStub(),
       loginItem: CompositionLoginItemStub(),
@@ -178,12 +185,12 @@ final class AppCompositionTests: XCTestCase {
     )
     try model.load()
 
-    model.previewChooser()
+    model.previewChooser(kind: .web)
     XCTAssertTrue(chooser.showsURLForCurrentPresentation)
     chooser.dismiss()
 
     model.showsURLInChooser = false
-    model.previewChooser()
+    model.previewChooser(kind: .web)
     XCTAssertFalse(chooser.showsURLForCurrentPresentation)
     chooser.dismiss()
   }
@@ -200,6 +207,7 @@ final class AppCompositionTests: XCTestCase {
     let model = AppComposition.makeModel(
       configStore: CompositionConfigStore(config: CompositionFixtures.config),
       browserCatalog: CompositionCatalogStub(),
+      mailCatalog: CompositionMailCatalogStub(),
       preferences: preferences,
       defaultBrowser: CompositionDefaultBrowserStub(),
       loginItem: CompositionLoginItemStub(),
@@ -208,12 +216,12 @@ final class AppCompositionTests: XCTestCase {
     )
     try model.load()
 
-    model.previewChooser()
+    model.previewChooser(kind: .web)
     XCTAssertEqual(chooser.densityForCurrentPresentation, .compact)
     chooser.dismiss()
 
     model.chooserDensity = .spacious
-    model.previewChooser()
+    model.previewChooser(kind: .web)
     XCTAssertEqual(chooser.densityForCurrentPresentation, .spacious)
     chooser.dismiss()
   }
@@ -227,6 +235,7 @@ final class AppCompositionTests: XCTestCase {
       browserCatalog: CompositionCatalogStub(
         scanResult: CompositionFixtures.loadedChromeScan
       ),
+      mailCatalog: CompositionMailCatalogStub(),
       preferences: CompositionPreferencesStub(),
       defaultBrowser: CompositionDefaultBrowserStub(),
       loginItem: CompositionLoginItemStub(),
@@ -243,6 +252,88 @@ final class AppCompositionTests: XCTestCase {
       model.profileAccessRows.first?.state,
       .granted(profileCount: 1, persistence: .persistent)
     )
+  }
+
+  func testWebRequestReceivesOnlyWebTargets() throws {
+    let chooser = CompositionChooserSpy()
+    let model = makeWebAndMailModel(chooser: chooser)
+    try model.load()
+
+    model.accept(url: try XCTUnwrap(URL(string: "https://example.com/web")))
+
+    XCTAssertEqual(chooser.presentedRequests.map(\.kind), [.web])
+    XCTAssertEqual(chooser.presentedTargetIDs, [[CompositionFixtures.target.id]])
+  }
+
+  func testMailRequestReceivesOnlyMailTargets() throws {
+    let chooser = CompositionChooserSpy()
+    let model = makeWebAndMailModel(chooser: chooser)
+    try model.load()
+
+    model.accept(url: try XCTUnwrap(URL(string: "mailto:person@example.com")))
+
+    XCTAssertEqual(chooser.presentedRequests.map(\.kind), [.mail])
+    XCTAssertEqual(chooser.presentedTargetIDs, [[CompositionFixtures.mailTarget.id]])
+  }
+
+  func testMixedWebAndMailRequestsRemainOrdered() throws {
+    let chooser = CompositionChooserSpy()
+    let model = makeWebAndMailModel(chooser: chooser)
+    try model.load()
+    let first = try XCTUnwrap(URL(string: "https://example.com/first"))
+    let second = try XCTUnwrap(URL(string: "mailto:second@example.com"))
+    let third = try XCTUnwrap(URL(string: "https://example.com/third"))
+
+    model.accept(url: first)
+    model.accept(url: second)
+    model.accept(url: third)
+    chooser.cancel()
+    chooser.cancel()
+
+    XCTAssertEqual(chooser.presentedRequests.map(\.url), [first, second, third])
+    XCTAssertEqual(
+      chooser.presentedTargetIDs,
+      [
+        [CompositionFixtures.target.id],
+        [CompositionFixtures.mailTarget.id],
+        [CompositionFixtures.target.id],
+      ]
+    )
+  }
+
+  func testContextualChooserSettingsOpenMatchingDestination() {
+    let navigation = SettingsNavigation()
+    var openedDestinations: [SettingsDestination] = []
+    let handler = AppComposition.makeChooserSettingsHandler(
+      navigation: navigation,
+      openSettings: { openedDestinations.append(navigation.destination) }
+    )
+    let controller = ChooserPanelController(openSettings: handler)
+
+    controller.showSettings(for: .web)
+    controller.showSettings(for: .mail)
+
+    XCTAssertEqual(openedDestinations, [.browsers, .mail])
+  }
+
+  func testMailPreviewSelectionDismissesWithoutLaunching() async throws {
+    let chooser = CompositionChooserSpy()
+    let launcher = CompositionLauncherSpy()
+    let model = makeWebAndMailModel(chooser: chooser, launcher: launcher)
+    try model.load()
+
+    model.previewChooser(kind: .mail)
+    chooser.select(targetID: CompositionFixtures.mailTarget.id)
+    await Task.yield()
+
+    XCTAssertEqual(chooser.presentedRequests.map(\.kind), [.mail])
+    XCTAssertEqual(
+      chooser.presentedRequests.map(\.url),
+      [URL(string: "mailto:pickvia-preview@invalid")!]
+    )
+    XCTAssertEqual(chooser.dismissCallCount, 1)
+    let launchCount = await launcher.launchCount
+    XCTAssertEqual(launchCount, 0)
   }
 
   func testProductionCreatesOneSharedProfileAccessDependencyGraph() throws {
@@ -266,6 +357,22 @@ final class AppCompositionTests: XCTestCase {
       .deletingLastPathComponent()
       .deletingLastPathComponent()
       .deletingLastPathComponent()
+  }
+
+  private func makeWebAndMailModel(
+    chooser: CompositionChooserSpy,
+    launcher: CompositionLauncherSpy = CompositionLauncherSpy()
+  ) -> AppModel {
+    AppComposition.makeModel(
+      configStore: CompositionConfigStore(config: CompositionFixtures.webAndMailConfig),
+      browserCatalog: CompositionCatalogStub(),
+      mailCatalog: CompositionMailCatalogStub(),
+      preferences: CompositionPreferencesStub(),
+      defaultBrowser: CompositionDefaultBrowserStub(),
+      loginItem: CompositionLoginItemStub(),
+      chooser: chooser,
+      launcher: launcher
+    )
   }
 }
 
@@ -304,6 +411,16 @@ private struct CompositionCatalogStub: BrowserDiscovering {
   }
 }
 
+private struct CompositionMailCatalogStub: MailDiscovering {
+  func scanResult() -> MailScanResult {
+    MailScanResult(applications: [], isAuthoritative: false)
+  }
+
+  func reconcile(_ scan: MailScanResult, with config: PickViaConfig) -> PickViaConfig {
+    config
+  }
+}
+
 @MainActor
 private final class CompositionPreferencesStub: PreferencesStoring {
   private var booleans: [String: Bool] = [:]
@@ -316,8 +433,8 @@ private final class CompositionPreferencesStub: PreferencesStoring {
 }
 
 @MainActor
-private final class CompositionDefaultBrowserStub: DefaultBrowserServicing {
-  func status() -> DefaultBrowserStatus { .unknown }
+private final class CompositionDefaultBrowserStub: DefaultHandlerServicing {
+  func status() -> DefaultHandlerStatus { .unknown }
   func requestDefault(for schemes: [String]) async throws {}
 }
 
@@ -364,7 +481,7 @@ private final class CompositionChooserSpy: ChooserPresenting {
   }
 }
 
-private actor CompositionLauncherSpy: BrowserLaunching {
+private actor CompositionLauncherSpy: RouteLaunching {
   private(set) var launchCount = 0
 
   func launch(
@@ -424,10 +541,32 @@ private enum CompositionFixtures {
     origin: .detected,
     availability: .available
   )
+  static let mailApplication = RoutedApplication(
+    id: "com.apple.mail",
+    displayName: "Mail",
+    bundleIdentifier: "com.apple.mail",
+    capabilities: [.mail(isAvailable: true)],
+    applicationURL: URL(fileURLWithPath: "/System/Applications/Mail.app")
+  )
+  static let mailTarget = RouteTarget(
+    id: RouteTarget.mailID(bundleIdentifier: mailApplication.bundleIdentifier),
+    applicationID: mailApplication.id,
+    label: mailApplication.displayName,
+    isEnabled: true,
+    sortOrder: 0,
+    origin: .detected,
+    availability: .available,
+    capability: .mail
+  )
   static let config = PickViaConfig(
     schemaVersion: PickViaConfig.currentSchemaVersion,
     browsers: [browser],
     targets: [target]
+  )
+  static let webAndMailConfig = PickViaConfig(
+    schemaVersion: PickViaConfig.currentSchemaVersion,
+    applications: [browser, mailApplication],
+    targets: [target, mailTarget]
   )
   static let loadedChromeScan = BrowserScanResult(
     browsers: [

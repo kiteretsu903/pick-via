@@ -34,12 +34,6 @@ public protocol TargetProviding: Sendable {
   func availableSnapshot(for kind: RouteKind) -> RoutingTargetSnapshot
 }
 
-extension TargetProviding {
-  public func availableSnapshot() -> RoutingTargetSnapshot {
-    availableSnapshot(for: .web)
-  }
-}
-
 public final class MutableTargetSnapshot: TargetProviding, @unchecked Sendable {
   private let lock = NSLock()
   private var config: PickViaConfig = .initial
@@ -95,8 +89,6 @@ public protocol RouteLaunching: Sendable {
     target: RouteTarget
   ) async throws
 }
-
-public typealias BrowserLaunching = RouteLaunching
 
 @MainActor
 public final class RoutingCoordinator {

@@ -99,10 +99,6 @@ public final class MacOSDefaultHandlerService: DefaultHandlerServicing {
   }
 }
 
-public typealias DefaultBrowserStatus = DefaultHandlerStatus
-public typealias DefaultBrowserServicing = DefaultHandlerServicing
-public typealias MacOSDefaultBrowserService = MacOSDefaultHandlerService
-
 @MainActor
 public protocol LoginItemServicing: AnyObject {
   var isEnabled: Bool { get }

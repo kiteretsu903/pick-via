@@ -315,9 +315,10 @@ final class ChooserPanelControllerTests: XCTestCase {
     var openedKinds: [RouteKind] = []
     let controller = ChooserPanelController(openSettings: { openedKinds.append($0) })
 
+    controller.showSettings(for: .web)
     controller.showSettings(for: .mail)
 
-    XCTAssertEqual(openedKinds, [.mail])
+    XCTAssertEqual(openedKinds, [.web, .mail])
   }
 
   func testPointerOutsideScreensCentersPanelOnMainVisibleFrame() throws {
@@ -855,9 +856,9 @@ final class ChooserPanelControllerTests: XCTestCase {
     )
   }
 
-  func testOpeningBrowserSettingsSuppressesResignCancellationAndRetainsPresentation() {
+  func testOpeningContextualSettingsSuppressesResignCancellationAndRetainsPresentation() {
     var cancelCount = 0
-    let controller = ChooserPanelController(openBrowserSettings: {})
+    let controller = ChooserPanelController(openSettings: { _ in })
     controller.present(
       request: Fixtures.request,
       applications: [],
@@ -867,7 +868,7 @@ final class ChooserPanelControllerTests: XCTestCase {
       onCancel: { cancelCount += 1 }
     )
 
-    controller.showBrowserSettings()
+    controller.showSettings(for: .mail)
     controller.resignKeyForTesting()
 
     XCTAssertEqual(cancelCount, 0)
@@ -1053,7 +1054,7 @@ private struct ChooserTargetProviderStub: TargetProviding {
   }
 }
 
-private struct ChooserLauncherStub: BrowserLaunching {
+private struct ChooserLauncherStub: RouteLaunching {
   func launch(
     url: URL,
     application: BrowserApplication,

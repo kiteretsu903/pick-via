@@ -591,7 +591,7 @@ private final class ChooserSpy: ChooserPresenting {
   }
 }
 
-private final class LauncherStub: BrowserLaunching, @unchecked Sendable {
+private final class LauncherStub: RouteLaunching, @unchecked Sendable {
   struct Launch {
     let url: URL
     let application: BrowserApplication
@@ -615,7 +615,7 @@ private final class LauncherStub: BrowserLaunching, @unchecked Sendable {
   }
 }
 
-private actor SuspendingFirstLauncher: BrowserLaunching {
+private actor SuspendingFirstLauncher: RouteLaunching {
   private(set) var launchCount = 0
   private var firstLaunchContinuation: CheckedContinuation<Void, Never>?
   private var firstLaunchStartWaiters: [CheckedContinuation<Void, Never>] = []
@@ -651,7 +651,7 @@ private actor SuspendingFirstLauncher: BrowserLaunching {
   }
 }
 
-private final class SequencedLauncherStub: BrowserLaunching, @unchecked Sendable {
+private final class SequencedLauncherStub: RouteLaunching, @unchecked Sendable {
   private var results: [Result<Void, Error>]
   private(set) var launchCount = 0
 

@@ -38,13 +38,23 @@ public struct StatusMenuView: View {
     .disabled(!settingsNavigationAction.isEnabled)
 
     Button("Test Browser Chooser…") {
-      model.previewChooser()
+      model.previewChooser(kind: .web)
     }
     .disabled(!model.canPresentOrdinaryAppSurface)
 
     Button("Rescan Browsers") {
       try? model.userRequestedRescan()
       profileAccessPresenter.requestIfPending(model: model)
+    }
+    .disabled(!model.canPresentOrdinaryAppSurface)
+
+    Button("Test Mail Chooser…") {
+      model.previewChooser(kind: .mail)
+    }
+    .disabled(!model.canPresentOrdinaryAppSurface)
+
+    Button("Rescan Mail Apps") {
+      try? model.rescanMailApplications()
     }
     .disabled(!model.canPresentOrdinaryAppSurface)
 

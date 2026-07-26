@@ -551,9 +551,16 @@ public final class AppModel {
     }
   }
 
-  public func previewChooser() {
+  public func previewChooser(kind: RouteKind) {
     guard canPresentOrdinaryAppSurface else { return }
-    routing.preview(URL(string: "https://pickvia.invalid/chooser-preview")!)
+    let previewURL =
+      switch kind {
+      case .web:
+        URL(string: "https://pickvia.invalid/chooser-preview")!
+      case .mail:
+        URL(string: "mailto:pickvia-preview@invalid")!
+      }
+    routing.preview(previewURL)
   }
 
   public func requestDefaultBrowser() async {

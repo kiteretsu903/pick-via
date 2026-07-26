@@ -300,7 +300,7 @@ final class AppModelTests: XCTestCase {
     try model.load()
 
     XCTAssertEqual(model.config, valid)
-    XCTAssertEqual(snapshot.availableSnapshot().targets.map(\.id), ["work"])
+    XCTAssertEqual(snapshot.availableSnapshot(for: .web).targets.map(\.id), ["work"])
     XCTAssertTrue(store.saved.isEmpty)
     XCTAssertNotNil(model.errorMessage)
   }
@@ -1000,7 +1000,7 @@ final class AppModelTests: XCTestCase {
     try model.load()
     store.resetSaved()
     catalog.resetTargetedScanCalls()
-    let publishedTargetIDs = snapshot.availableSnapshot().targets.map(\.id)
+    let publishedTargetIDs = snapshot.availableSnapshot(for: .web).targets.map(\.id)
 
     try model.grantProfileAccess(
       for: "com.google.Chrome",
@@ -1018,7 +1018,7 @@ final class AppModelTests: XCTestCase {
     XCTAssertTrue(store.saved.isEmpty)
     XCTAssertEqual(model.config, Fixtures.editableConfig)
     XCTAssertEqual(
-      snapshot.availableSnapshot().targets.map(\.id),
+      snapshot.availableSnapshot(for: .web).targets.map(\.id),
       publishedTargetIDs
     )
     XCTAssertEqual(routing.refreshCallCount, 0)
@@ -1212,7 +1212,7 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(store.saved, [Fixtures.profileEditConfig])
     XCTAssertEqual(model.config, Fixtures.profileEditConfig)
     XCTAssertEqual(
-      snapshot.availableSnapshot().targets.map(\.id),
+      snapshot.availableSnapshot(for: .web).targets.map(\.id),
       ["work", "personal"]
     )
     XCTAssertEqual(routing.refreshCallCount, 1)
@@ -1257,7 +1257,7 @@ final class AppModelTests: XCTestCase {
 
     XCTAssertEqual(model.config, Fixtures.editableConfig)
     XCTAssertEqual(
-      snapshot.availableSnapshot().targets.map(\.id),
+      snapshot.availableSnapshot(for: .web).targets.map(\.id),
       ["work"]
     )
     XCTAssertEqual(routing.refreshCallCount, 0)
@@ -1308,7 +1308,7 @@ final class AppModelTests: XCTestCase {
     XCTAssertTrue(model.profileAccessRows.first?.hasStoredGrant == true)
     XCTAssertFalse(model.canFinishProfileAccess)
     XCTAssertEqual(model.config, Fixtures.editableConfig)
-    XCTAssertEqual(snapshot.availableSnapshot().targets.map(\.id), ["work"])
+    XCTAssertEqual(snapshot.availableSnapshot(for: .web).targets.map(\.id), ["work"])
     XCTAssertEqual(routing.refreshCallCount, 0)
     XCTAssertTrue(store.saved.isEmpty)
     XCTAssertEqual(model.profileAccessPresentation, .presented)
@@ -1368,7 +1368,7 @@ final class AppModelTests: XCTestCase {
     XCTAssertTrue(model.profileAccessRows.first?.hasStoredGrant == true)
     XCTAssertTrue(model.canFinishProfileAccess)
     XCTAssertEqual(model.config, Fixtures.editableConfig)
-    XCTAssertEqual(snapshot.availableSnapshot().targets.map(\.id), ["work"])
+    XCTAssertEqual(snapshot.availableSnapshot(for: .web).targets.map(\.id), ["work"])
     XCTAssertEqual(routing.refreshCallCount, 0)
     XCTAssertTrue(store.saved.isEmpty)
     XCTAssertEqual(model.profileAccessPresentation, .presented)
@@ -1508,7 +1508,7 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(model.profileAccessRows.map(\.hasStoredGrant), [false, true])
     XCTAssertTrue(model.canFinishProfileAccess)
     XCTAssertEqual(model.config, Fixtures.editableConfig)
-    XCTAssertEqual(snapshot.availableSnapshot().targets.map(\.id), ["work"])
+    XCTAssertEqual(snapshot.availableSnapshot(for: .web).targets.map(\.id), ["work"])
     XCTAssertTrue(store.saved.isEmpty)
     XCTAssertEqual(routing.refreshCallCount, 0)
     XCTAssertEqual(model.profileAccessPresentation, .presented)
@@ -1587,7 +1587,7 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(model.profileAccessRows.map(\.hasStoredGrant), [false, true])
     XCTAssertTrue(model.canFinishProfileAccess)
     XCTAssertEqual(model.config, Fixtures.editableConfig)
-    XCTAssertEqual(snapshot.availableSnapshot().targets.map(\.id), ["work"])
+    XCTAssertEqual(snapshot.availableSnapshot(for: .web).targets.map(\.id), ["work"])
     XCTAssertTrue(store.saved.isEmpty)
     XCTAssertEqual(routing.refreshCallCount, 0)
     XCTAssertEqual(model.profileAccessPresentation, .presented)
@@ -1793,12 +1793,12 @@ final class AppModelTests: XCTestCase {
     try model.load()
     model.profileAccessDidPresent()
 
-    model.previewChooser()
+    model.previewChooser(kind: .web)
     XCTAssertTrue(routing.previewedURLs.isEmpty)
 
     model.closeProfileAccess()
     model.profileAccessDidDismiss()
-    model.previewChooser()
+    model.previewChooser(kind: .web)
     XCTAssertEqual(routing.previewedURLs.count, 1)
   }
 
@@ -1941,7 +1941,7 @@ final class AppModelTests: XCTestCase {
   }
 
   func testNonthrowingDefaultRequestThatRemainsNotDefaultDoesNotCompleteOnboarding() async throws {
-    let incomplete = DefaultBrowserStatus(http: .notDefault, https: .notDefault)
+    let incomplete = DefaultHandlerStatus(http: .notDefault, https: .notDefault)
     let preferences = PreferencesStub(integers: ["onboardingStep": 3])
     let defaults = DefaultBrowserSpy(statuses: [incomplete, incomplete])
     let model = makeModel(
@@ -1959,8 +1959,8 @@ final class AppModelTests: XCTestCase {
   }
 
   func testPartialDefaultStatusDoesNotCompleteOnboarding() async throws {
-    let incomplete = DefaultBrowserStatus(http: .notDefault, https: .notDefault)
-    let partial = DefaultBrowserStatus(http: .isDefault, https: .notDefault)
+    let incomplete = DefaultHandlerStatus(http: .notDefault, https: .notDefault)
+    let partial = DefaultHandlerStatus(http: .isDefault, https: .notDefault)
     let preferences = PreferencesStub(integers: ["onboardingStep": 3])
     let defaults = DefaultBrowserSpy(statuses: [incomplete, partial])
     let model = makeModel(
@@ -1979,8 +1979,8 @@ final class AppModelTests: XCTestCase {
   }
 
   func testDualSchemeDefaultStatusAdvancesToMailReview() async throws {
-    let incomplete = DefaultBrowserStatus(http: .notDefault, https: .notDefault)
-    let complete = DefaultBrowserStatus(http: .isDefault, https: .isDefault)
+    let incomplete = DefaultHandlerStatus(http: .notDefault, https: .notDefault)
+    let complete = DefaultHandlerStatus(http: .isDefault, https: .isDefault)
     let preferences = PreferencesStub(integers: [
       "onboardingVersion": 2,
       "onboardingStep": 3,
@@ -2559,7 +2559,7 @@ final class AppModelTests: XCTestCase {
     let model = makeModel(routing: routing)
     try model.load()
 
-    model.previewChooser()
+    model.previewChooser(kind: .web)
 
     XCTAssertEqual(routing.previewedURLs.count, 1)
     XCTAssertTrue(routing.acceptedURLs.isEmpty)
@@ -2681,7 +2681,7 @@ final class AppModelTests: XCTestCase {
     )
     try model.load()
     let before = model.config
-    let publishedBefore = snapshot.availableSnapshot()
+    let publishedBefore = snapshot.availableSnapshot(for: .web)
     store.saveError = TestError.denied
 
     XCTAssertThrowsError(
@@ -2689,7 +2689,7 @@ final class AppModelTests: XCTestCase {
     )
 
     XCTAssertEqual(model.config, before)
-    XCTAssertEqual(snapshot.availableSnapshot(), publishedBefore)
+    XCTAssertEqual(snapshot.availableSnapshot(for: .web), publishedBefore)
   }
 
   func testEveryCanonicalTargetEditClearsPendingDefaultMigration() throws {
@@ -3099,7 +3099,9 @@ final class AppModelTests: XCTestCase {
     try model.renameTarget(id: id, label: "Pinned Renamed")
 
     let manual = try XCTUnwrap(model.targets.first { $0.id == id })
-    let runtime = try XCTUnwrap(snapshot.availableSnapshot().targets.first { $0.id == id })
+    let runtime = try XCTUnwrap(
+      snapshot.availableSnapshot(for: .web).targets.first { $0.id == id }
+    )
     let saved = try XCTUnwrap(store.saved.last)
     let document = try XCTUnwrap(String(data: JSONEncoder().encode(saved), encoding: .utf8))
     XCTAssertEqual(manual.profileLaunchPath, path.path)
@@ -3428,7 +3430,10 @@ final class AppModelTests: XCTestCase {
     )
     XCTAssertFalse(model.targets[3].id.contains("/Users"))
 
-    XCTAssertEqual(snapshot.availableSnapshot().targets, Array(model.targets.prefix(2)))
+    XCTAssertEqual(
+      snapshot.availableSnapshot(for: .web).targets,
+      Array(model.targets.prefix(2))
+    )
 
     let runtimeJSON = try XCTUnwrap(
       String(data: JSONEncoder().encode(model.config), encoding: .utf8)
@@ -3960,27 +3965,27 @@ private final class PreferencesStub: PreferencesStoring {
 }
 
 @MainActor
-private final class DefaultBrowserSpy: DefaultBrowserServicing {
-  var statuses: [DefaultBrowserStatus]
+private final class DefaultBrowserSpy: DefaultHandlerServicing {
+  var statuses: [DefaultHandlerStatus]
   var requestError: Error?
   private(set) var statusCallCount = 0
   private(set) var requestedSchemes: [String] = []
 
   init(
-    status: DefaultBrowserStatus = .unknown,
+    status: DefaultHandlerStatus = .unknown,
     requestError: Error? = nil
   ) {
     statuses = [status]
     self.requestError = requestError
   }
 
-  init(statuses: [DefaultBrowserStatus], requestError: Error? = nil) {
+  init(statuses: [DefaultHandlerStatus], requestError: Error? = nil) {
     precondition(!statuses.isEmpty)
     self.statuses = statuses
     self.requestError = requestError
   }
 
-  func status() -> DefaultBrowserStatus {
+  func status() -> DefaultHandlerStatus {
     let index = min(statusCallCount, statuses.count - 1)
     statusCallCount += 1
     return statuses[index]

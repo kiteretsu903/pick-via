@@ -160,10 +160,6 @@ extension AppModel {
       selectionCoordinator: profileAccessSelectionCoordinator
     )
     let preferences = UserDefaultsPreferences()
-    let recovery = BrowserSettingsRecovery(
-      navigation: navigation,
-      openSettings: openSettings
-    )
     let chooser = ChooserPanelController(
       showsURLProvider: {
         preferences.bool(forKey: PreferenceKey.showsURLInChooser) ?? true
@@ -174,7 +170,10 @@ extension AppModel {
         )
       },
       clipboard: SystemClipboardWriter(),
-      openBrowserSettings: recovery.open,
+      openSettings: AppComposition.makeChooserSettingsHandler(
+        navigation: navigation,
+        openSettings: openSettings
+      ),
       onPresentationChange: { [weak profileAccessPresenter] _ in
         profileAccessPresenter?.environmentDidChange()
       }
@@ -183,11 +182,19 @@ extension AppModel {
     let model = AppComposition.makeModel(
       configStore: configStore,
       browserCatalog: BrowserCatalog(profileRootAccess: profileAccessCoordinator),
+      mailCatalog: MailCatalog(
+        pickViaBundleIdentifier: Bundle.main.bundleIdentifier!
+      ),
       preferences: preferences,
-      defaultBrowser: MacOSDefaultBrowserService(),
+      defaultBrowser: MacOSDefaultHandlerService(),
       loginItem: MacOSLoginItemService(),
       chooser: chooser,
-      launcher: RouteLauncher(),
+      launcher: RouteLauncher(
+        browserLauncher: BrowserLauncher(),
+        mailLauncher: MailLauncher(
+          pickViaBundleIdentifier: Bundle.main.bundleIdentifier!
+        )
+      ),
       profileAccess: profileAccessCoordinator,
       profileRootValidator: profileRootValidator
     )
@@ -216,11 +223,12 @@ enum AppComposition {
   static func makeModel(
     configStore: any ConfigStoring,
     browserCatalog: any BrowserDiscovering,
+    mailCatalog: any MailDiscovering,
     preferences: any PreferencesStoring,
-    defaultBrowser: any DefaultBrowserServicing,
+    defaultBrowser: any DefaultHandlerServicing,
     loginItem: any LoginItemServicing,
     chooser: any ChooserPresenting,
-    launcher: any BrowserLaunching,
+    launcher: any RouteLaunching,
     profileAccess: any ProfileAccessManaging = MissingProfileAccessManager(),
     profileRootValidator: BrowserProfileRootValidator = BrowserProfileRootValidator()
   ) -> AppModel {
@@ -244,6 +252,7 @@ enum AppComposition {
     return AppModel(
       configStore: configStore,
       browserCatalog: browserCatalog,
+      mailCatalog: mailCatalog,
       preferences: preferences,
       defaultBrowser: defaultBrowser,
       loginItem: loginItem,
@@ -252,6 +261,21 @@ enum AppComposition {
       profileAccess: profileAccess,
       profileRootValidator: profileRootValidator
     )
+  }
+
+  static func makeChooserSettingsHandler(
+    navigation: SettingsNavigation,
+    openSettings: @escaping @MainActor () -> Void
+  ) -> @MainActor (RouteKind) -> Void {
+    { kind in
+      switch kind {
+      case .web:
+        navigation.destination = .browsers
+      case .mail:
+        navigation.destination = .mail
+      }
+      openSettings()
+    }
   }
 }
 
@@ -273,9 +297,10 @@ private final class PreviewPresenter {
 
   func present(_ url: URL) {
     guard canPresent() else { return }
-    let snapshot = targetProvider.availableSnapshot(for: .web)
+    guard let validated = try? URLValidator.validate(url) else { return }
+    let snapshot = targetProvider.availableSnapshot(for: validated.kind)
     chooser.present(
-      request: RoutingRequest(kind: .web, url: url),
+      request: RoutingRequest(kind: validated.kind, url: validated.url),
       applications: snapshot.applications,
       targets: snapshot.targets,
       error: nil,

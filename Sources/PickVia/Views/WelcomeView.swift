@@ -254,7 +254,7 @@ struct WelcomeLifecycle {
 }
 
 struct BrowserDefaultStatusRows: View {
-  let status: DefaultBrowserStatus
+  let status: DefaultHandlerStatus
 
   var body: some View {
     Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {

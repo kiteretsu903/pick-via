@@ -244,7 +244,7 @@ final class ProfileAccessWizardTests: XCTestCase {
     XCTAssertEqual(
       statusMenu.components(separatedBy: ".disabled(!model.canPresentOrdinaryAppSurface)").count
         - 1,
-      2
+      4
     )
     XCTAssertEqual(
       statusMenu.components(separatedBy: ".disabled(!settingsNavigationAction.isEnabled)").count
