@@ -578,6 +578,175 @@ final class ConfigStoreTests: XCTestCase {
     }
   }
 
+  func testFirefoxPersistencePolicyDecodesPercentEncodingToFixedPoint() {
+    let forbidden = [
+      "%252FUsers%252Fprivate-user%252Fprofile",
+      "%25252FUsers%25252Fprivate-user%25252Fprofile",
+      "file%253A%252F%252F%252FUsers%252Fprivate-user%252Fprofile",
+      "%255CUsers%255Cprivate-user%255Cprofile",
+      "%257E%252FLibrary%252FApplication%2520Support",
+    ]
+    for value in forbidden {
+      XCTAssertTrue(
+        FirefoxPersistencePolicy.isForbiddenTargetID(value),
+        "Expected multiply encoded path to be forbidden: \(value)"
+      )
+    }
+
+    let benign = [
+      "100%25 Real",
+      "Discount%2525Profile",
+      "literal%zz",
+      "profile%20with%20spaces",
+    ]
+    for value in benign {
+      XCTAssertFalse(
+        FirefoxPersistencePolicy.isForbiddenTargetID(value),
+        "Expected benign percent text to remain allowed: \(value)"
+      )
+    }
+  }
+
+  func testFirefoxPersistencePolicyDecodesValidEscapesBesideMalformedPercentText() {
+    let forbidden = [
+      "%252FUsers%252Fprivate-user%252Fprofile%25zz",
+      "%252fUsers%252fprivate-user%252fprofile%25zZ",
+      "file%253a%252f%252f%252fUsers%252fprivate-user%25xy",
+      "%2525255cUsers%2525255cprivate-user%2525no",
+    ]
+    for value in forbidden {
+      XCTAssertTrue(
+        FirefoxPersistencePolicy.isForbiddenTargetID(value),
+        "Expected a mixed malformed value to expose its encoded path: \(value)"
+      )
+    }
+
+    let benign = [
+      "literal%zz",
+      "literal%2G",
+      "Discount%2525zz",
+      "100%25 Real%zz",
+      "profile%20with%20spaces%xy",
+    ]
+    for value in benign {
+      XCTAssertFalse(
+        FirefoxPersistencePolicy.isForbiddenTargetID(value),
+        "Expected malformed literal percent text without path material to remain allowed: \(value)"
+      )
+    }
+  }
+
+  func testFirefoxPersistencePolicyFailsClosedOnlyWhenDecodeDepthOrSizeLimitIsExceeded() {
+    let exactlyEightEncodedBenignValue = "%2525252525252541"
+    let nineTimesEncodedBenignValue = "%252525252525252541"
+
+    XCTAssertFalse(
+      FirefoxPersistencePolicy.isForbiddenTargetID(exactlyEightEncodedBenignValue)
+    )
+    XCTAssertTrue(
+      FirefoxPersistencePolicy.isForbiddenTargetID(nineTimesEncodedBenignValue)
+    )
+    XCTAssertFalse(
+      FirefoxPersistencePolicy.isForbiddenTargetID(String(repeating: "a", count: 65_536))
+    )
+    XCTAssertTrue(
+      FirefoxPersistencePolicy.isForbiddenTargetID(String(repeating: "a", count: 65_537))
+    )
+  }
+
+  func testStoreRefusesMultiplyEncodedFirefoxPathsAcrossPersistentFields() throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let firefox = BrowserApplication(
+      id: "org.mozilla.firefox",
+      family: .firefox,
+      displayName: "Firefox",
+      bundleIdentifier: "org.mozilla.firefox",
+      applicationURL: URL(fileURLWithPath: "/Applications/Firefox.app"),
+      executableURL: URL(fileURLWithPath: "/Applications/Firefox.app/Contents/MacOS/firefox"),
+      isAvailable: true
+    )
+    let identity = FirefoxProfileIdentity.identifier(
+      for: URL(fileURLWithPath: "/Users/private-user/Firefox/Profiles/work")
+    )
+    let forbiddenPath =
+      "%252fUsers%252fprivate-user%252fFirefox%252fProfiles%252fwork%25zz"
+    let targets = [
+      BrowserTarget(
+        id: forbiddenPath,
+        browserID: firefox.id,
+        label: "Encoded ID",
+        profileIdentifier: nil,
+        profileDisplayName: nil,
+        profileIdentity: nil,
+        mode: .normal,
+        isEnabled: true,
+        sortOrder: 0,
+        origin: .manual,
+        availability: .available
+      ),
+      BrowserTarget(
+        id: "manual-encoded-identifier",
+        browserID: firefox.id,
+        label: "Encoded Identifier",
+        profileIdentifier: forbiddenPath,
+        profileDisplayName: "Work",
+        profileIdentity: identity,
+        mode: .normal,
+        isEnabled: true,
+        sortOrder: 0,
+        origin: .manual,
+        availability: .available
+      ),
+      BrowserTarget(
+        id: "manual-encoded-display",
+        browserID: firefox.id,
+        label: "Encoded Display",
+        profileIdentifier: "Work",
+        profileDisplayName: forbiddenPath,
+        profileIdentity: identity,
+        mode: .normal,
+        isEnabled: true,
+        sortOrder: 0,
+        origin: .manual,
+        availability: .available
+      ),
+      BrowserTarget(
+        id: "manual-encoded-identity",
+        browserID: firefox.id,
+        label: "Encoded Identity",
+        profileIdentifier: "Work",
+        profileDisplayName: "Work",
+        profileIdentity: forbiddenPath,
+        mode: .normal,
+        isEnabled: true,
+        sortOrder: 0,
+        origin: .manual,
+        availability: .available
+      ),
+    ]
+
+    for (index, target) in targets.enumerated() {
+      let store = JSONConfigStore(directory: directory.appending(path: "case-\(index)"))
+      XCTAssertThrowsError(
+        try store.save(
+          PickViaConfig(
+            schemaVersion: PickViaConfig.currentSchemaVersion,
+            browsers: [firefox],
+            targets: [target]
+          )
+        )
+      ) { error in
+        XCTAssertEqual(error as? ConfigDocumentError, .invalidTarget)
+      }
+      XCTAssertFalse(
+        FileManager.default.fileExists(
+          atPath: store.directory.appending(path: "PickViaConfig.json").path
+        )
+      )
+    }
+  }
+
   func testStoreAcceptsOpaqueFirefoxIdentityWithManualUUIDTargetID() throws {
     let directory = try temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }

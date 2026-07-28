@@ -2500,12 +2500,22 @@ struct BrowserCatalogTests {
       ]
     )
 
-    let first = BrowserCatalog.runtimeSanitizedFallback(config)
-    let second = BrowserCatalog.runtimeSanitizedFallback(config)
+    let first = BrowserCatalog.runtimeSanitizedFallbackResult(config)
+    let second = BrowserCatalog.runtimeSanitizedFallbackResult(config)
 
-    #expect(Set(first.targets.map(\.id)).count == first.targets.count)
-    #expect(first.targets[2].id == secondFallbackID)
-    #expect(first.targets.map(\.id) == second.targets.map(\.id))
+    #expect(Set(first.config.targets.map(\.id)).count == first.config.targets.count)
+    #expect(first.config.targets[2].id == secondFallbackID)
+    #expect(first.config.targets.map(\.id) == second.config.targets.map(\.id))
+    #expect(
+      first.authoritativeTargetIDByRuntimeTargetID[secondFallbackID] == sensitiveTargetID
+    )
+    #expect(
+      first.authoritativeTargetIDByRuntimeTargetID[sanitizedID] == sanitizedID
+    )
+    #expect(
+      first.authoritativeTargetIDByRuntimeTargetID
+        == second.authoritativeTargetIDByRuntimeTargetID
+    )
   }
 }
 

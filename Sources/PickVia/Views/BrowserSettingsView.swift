@@ -164,7 +164,7 @@ public struct BrowserSettingsView: View {
   }
 
   private func move(browserTargets: [BrowserTarget], from offsets: IndexSet, to destination: Int) {
-    let all = model.targets.sorted {
+    let all = model.targets.filter { $0.routeKind == .web }.sorted {
       if $0.sortOrder != $1.sortOrder { return $0.sortOrder < $1.sortOrder }
       return $0.id < $1.id
     }

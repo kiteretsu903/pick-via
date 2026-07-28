@@ -133,6 +133,19 @@ public struct BrowserScanResult: Equatable, Sendable {
   public var warnings: [BrowserDiscoveryWarning] { profileAccessIssues }
 }
 
+public struct BrowserRuntimeFallback: Equatable, Sendable {
+  public let config: PickViaConfig
+  public let authoritativeTargetIDByRuntimeTargetID: [RouteTarget.ID: RouteTarget.ID]
+
+  public init(
+    config: PickViaConfig,
+    authoritativeTargetIDByRuntimeTargetID: [RouteTarget.ID: RouteTarget.ID]
+  ) {
+    self.config = config
+    self.authoritativeTargetIDByRuntimeTargetID = authoritativeTargetIDByRuntimeTargetID
+  }
+}
+
 public protocol ApplicationLocating: Sendable {
   func applicationURL(forBundleIdentifier bundleIdentifier: String) -> URL?
 }
@@ -389,11 +402,18 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   }
 
   public static func runtimeSanitizedFallback(_ config: PickViaConfig) -> PickViaConfig {
+    runtimeSanitizedFallbackResult(config).config
+  }
+
+  public static func runtimeSanitizedFallbackResult(
+    _ config: PickViaConfig
+  ) -> BrowserRuntimeFallback {
     let familyByApplicationID = Dictionary(
       uniqueKeysWithValues: config.applications.compactMap { application in
         application.browserFamily.map { (application.id, $0) }
       }
     )
+    var authoritativeTargetIDByRuntimeTargetID: [RouteTarget.ID: RouteTarget.ID] = [:]
     var usedTargetIDs = Set(
       config.targets.compactMap { target in
         target.routeKind == .web
@@ -405,6 +425,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
         target.routeKind == .web,
         familyByApplicationID[target.applicationID] == .firefox
       else {
+        authoritativeTargetIDByRuntimeTargetID[target.id] = target.id
         return target
       }
 
@@ -424,12 +445,16 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
           break
         }
       }
+      authoritativeTargetIDByRuntimeTargetID[sanitized.id] = target.id
       return sanitized
     }
-    return PickViaConfig(
-      schemaVersion: config.schemaVersion,
-      applications: config.applications,
-      targets: targets
+    return BrowserRuntimeFallback(
+      config: PickViaConfig(
+        schemaVersion: config.schemaVersion,
+        applications: config.applications,
+        targets: targets
+      ),
+      authoritativeTargetIDByRuntimeTargetID: authoritativeTargetIDByRuntimeTargetID
     )
   }
 
@@ -1147,9 +1172,6 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   }
 
   private static func isSensitivePathShaped(_ value: String) -> Bool {
-    let decoded = value.removingPercentEncoding ?? value
-    let lowercase = decoded.lowercased()
-    return decoded.contains("/") || decoded.contains("\\") || decoded.contains("~")
-      || lowercase.contains("file:")
+    FirefoxPersistencePolicy.isForbiddenTargetID(value)
   }
 }

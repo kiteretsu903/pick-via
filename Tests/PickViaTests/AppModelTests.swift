@@ -344,6 +344,823 @@ final class AppModelTests: XCTestCase {
     XCTAssertTrue(snapshot.availableSnapshot(for: .mail).targets.isEmpty)
   }
 
+  func testFirefoxRuntimeFallbackModeEditPreservesAuthoritativeProfileMetadata() throws {
+    let rawPath =
+      "/Users/private-user/Library/Application Support/Firefox/Profiles/authoritative-mode"
+    let target = BrowserTarget(
+      id: "manual-firefox-mode",
+      browserID: Fixtures.firefox.id,
+      label: "Authoritative Firefox",
+      profileIdentifier: "Authoritative Profile",
+      profileDisplayName: "Authoritative Display",
+      profileIdentity: rawPath,
+      profileLaunchPath: rawPath,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .manual,
+      availability: .available,
+      validationError: "Authoritative validation"
+    )
+    let authoritative = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: [Fixtures.firefox],
+      targets: [target]
+    )
+    let scenario = try makeFirefoxRuntimeFallbackModel(config: authoritative)
+    let runtimeBefore = try XCTUnwrap(scenario.fallback.targets.first)
+
+    try scenario.model.setTargetMode(id: runtimeBefore.id, mode: .private)
+
+    let saved = try XCTUnwrap(scenario.store.saved.last?.targets.first)
+    XCTAssertEqual(saved.id, target.id)
+    XCTAssertEqual(saved.mode, .private)
+    XCTAssertEqual(saved.profileIdentifier, target.profileIdentifier)
+    XCTAssertEqual(saved.profileDisplayName, target.profileDisplayName)
+    XCTAssertEqual(saved.profileIdentity, runtimeBefore.profileIdentity)
+    XCTAssertEqual(saved.profileLaunchPath, rawPath)
+    XCTAssertEqual(saved.validationError, "Authoritative validation")
+    XCTAssertEqual(saved.availability, .available)
+
+    let runtimeAfter = try XCTUnwrap(scenario.model.targets.first)
+    XCTAssertEqual(runtimeAfter.id, runtimeBefore.id)
+    XCTAssertEqual(runtimeAfter.mode, .private)
+    XCTAssertNotEqual(runtimeAfter.profileIdentity, rawPath)
+    XCTAssertNil(runtimeAfter.profileLaunchPath)
+    XCTAssertNil(runtimeAfter.validationError)
+    XCTAssertEqual(runtimeAfter.availability, .unavailable)
+  }
+
+  func testFirefoxRuntimeFallbackPendingRenamePreservesAuthoritativeMetadata() throws {
+    let rawPath =
+      "/Users/private-user/Library/Application Support/Firefox/Profiles/pending-rename"
+    let pending = Fixtures.pendingFirefoxProfileTarget(
+      rawPath: rawPath,
+      label: "Pending Firefox",
+      sortOrder: 0
+    )
+    let authoritative = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: [Fixtures.firefox],
+      targets: [pending]
+    )
+    let scenario = try makeFirefoxRuntimeFallbackModel(config: authoritative)
+    let runtimeID = try XCTUnwrap(scenario.fallback.targets.first?.id)
+
+    try scenario.model.renameTarget(id: runtimeID, label: "Renamed Firefox")
+
+    let saved = try XCTUnwrap(scenario.store.saved.last?.targets.first)
+    XCTAssertEqual(saved.id, runtimeID)
+    XCTAssertEqual(saved.label, "Renamed Firefox")
+    XCTAssertFalse(saved.pendingDefaultMigration)
+    XCTAssertEqual(saved.profileIdentifier, pending.profileIdentifier)
+    XCTAssertEqual(saved.profileDisplayName, pending.profileDisplayName)
+    XCTAssertEqual(saved.profileIdentity, scenario.fallback.targets.first?.profileIdentity)
+    XCTAssertEqual(saved.profileLaunchPath, rawPath)
+    XCTAssertEqual(saved.validationError, pending.validationError)
+    XCTAssertEqual(saved.availability, .available)
+  }
+
+  func testFirefoxRuntimeFallbackPendingReorderPreservesAuthoritativeMetadata() throws {
+    let rawPath =
+      "/Users/private-user/Library/Application Support/Firefox/Profiles/pending-reorder"
+    let pending = Fixtures.pendingFirefoxProfileTarget(
+      rawPath: rawPath,
+      label: "Pending Firefox",
+      sortOrder: 0
+    )
+    let other = BrowserTarget(
+      id: "manual-firefox-default",
+      browserID: Fixtures.firefox.id,
+      label: "Firefox Default",
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 1,
+      origin: .manual,
+      availability: .available
+    )
+    let authoritative = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: [Fixtures.firefox],
+      targets: [pending, other]
+    )
+    let scenario = try makeFirefoxRuntimeFallbackModel(config: authoritative)
+
+    try scenario.model.moveTargets(fromOffsets: IndexSet(integer: 0), toOffset: 2)
+
+    let runtimeID = try XCTUnwrap(scenario.fallback.targets.first?.id)
+    let saved = try XCTUnwrap(
+      scenario.store.saved.last?.targets.first { $0.id == runtimeID }
+    )
+    XCTAssertEqual(saved.sortOrder, 1)
+    XCTAssertFalse(saved.pendingDefaultMigration)
+    XCTAssertEqual(saved.profileIdentifier, pending.profileIdentifier)
+    XCTAssertEqual(saved.profileDisplayName, pending.profileDisplayName)
+    XCTAssertEqual(saved.profileIdentity, scenario.fallback.targets.first?.profileIdentity)
+    XCTAssertEqual(saved.profileLaunchPath, rawPath)
+    XCTAssertEqual(saved.validationError, pending.validationError)
+    XCTAssertEqual(saved.availability, .available)
+  }
+
+  func testFirefoxRuntimeFallbackProfileClearPreservesAuthoritativeValidationState() throws {
+    let rawPath =
+      "/Users/private-user/Library/Application Support/Firefox/Profiles/profile-clear"
+    let target = BrowserTarget(
+      id: "manual-firefox-profile-clear",
+      browserID: Fixtures.firefox.id,
+      label: "Firefox Profile",
+      profileIdentifier: "Authoritative Profile",
+      profileDisplayName: "Authoritative Display",
+      profileIdentity: rawPath,
+      profileLaunchPath: rawPath,
+      mode: .private,
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .manual,
+      availability: .available,
+      validationError: "Authoritative validation"
+    )
+    let authoritative = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: [Fixtures.firefox],
+      targets: [target]
+    )
+    let scenario = try makeFirefoxRuntimeFallbackModel(config: authoritative)
+    let runtimeID = try XCTUnwrap(scenario.fallback.targets.first?.id)
+
+    try scenario.model.setTargetProfile(id: runtimeID, profileIdentifier: nil)
+
+    let saved = try XCTUnwrap(scenario.store.saved.last?.targets.first)
+    XCTAssertEqual(saved.id, target.id)
+    XCTAssertNil(saved.profileIdentifier)
+    XCTAssertNil(saved.profileDisplayName)
+    XCTAssertNil(saved.profileIdentity)
+    XCTAssertNil(saved.profileLaunchPath)
+    XCTAssertEqual(saved.mode, .private)
+    XCTAssertEqual(saved.validationError, "Authoritative validation")
+    XCTAssertEqual(saved.availability, .available)
+  }
+
+  func testFirefoxRuntimeTargetIDCollisionMapsSemanticEditsToOriginalAuthoritativeTarget() throws {
+    let cases:
+      [(
+        name: String,
+        apply: (AppModel, RouteTarget.ID) throws -> Void,
+        assertFirst: (RouteTarget) -> Void
+      )] = [
+        (
+          "rename",
+          { model, id in try model.renameTarget(id: id, label: "Edited First") },
+          { XCTAssertEqual($0.label, "Edited First") }
+        ),
+        (
+          "enablement",
+          { model, id in try model.setTargetEnabled(id: id, isEnabled: false) },
+          { XCTAssertFalse($0.isEnabled) }
+        ),
+        (
+          "mode",
+          { model, id in try model.setTargetMode(id: id, mode: .private) },
+          { XCTAssertEqual($0.mode, .private) }
+        ),
+        (
+          "profile",
+          { model, id in try model.setTargetProfile(id: id, profileIdentifier: nil) },
+          {
+            XCTAssertNil($0.profileIdentifier)
+            XCTAssertNil($0.profileIdentity)
+          }
+        ),
+      ]
+
+    for testCase in cases {
+      let collision = Fixtures.firefoxRuntimeIDCollisionConfig()
+      let scenario = try makeFirefoxRuntimeFallbackModel(config: collision.config)
+      let firstRuntimeID = scenario.fallback.targets[0].id
+      XCTAssertEqual(
+        firstRuntimeID,
+        collision.second.id,
+        "\(testCase.name): fixture must exercise exact-ID collision"
+      )
+
+      do {
+        try testCase.apply(scenario.model, firstRuntimeID)
+      } catch {
+        XCTFail("\(testCase.name): unexpected edit failure: \(error)")
+        continue
+      }
+
+      let saved = try XCTUnwrap(scenario.store.saved.last)
+      let savedSecond = try XCTUnwrap(
+        saved.targets.first { $0.label == collision.second.label }
+      )
+      let savedFirst = try XCTUnwrap(
+        saved.targets.first { $0.id != savedSecond.id }
+      )
+      XCTAssertNotEqual(savedFirst.id, collision.first.id)
+      XCTAssertNotEqual(savedFirst.id, firstRuntimeID)
+      if testCase.name == "profile" {
+        XCTAssertNil(savedFirst.profileIdentity)
+      } else {
+        XCTAssertEqual(
+          savedFirst.profileIdentity,
+          scenario.fallback.targets[0].profileIdentity
+        )
+      }
+      testCase.assertFirst(savedFirst)
+      XCTAssertEqual(
+        savedSecond,
+        collision.second,
+        "\(testCase.name): the colliding authoritative target must remain unchanged"
+      )
+    }
+  }
+
+  func testFirefoxRuntimeTargetIDCollisionMapsReorderAndRemovalByExplicitIdentity() throws {
+    do {
+      let collision = Fixtures.firefoxRuntimeIDCollisionConfig()
+      let scenario = try makeFirefoxRuntimeFallbackModel(config: collision.config)
+
+      try scenario.model.moveTargets(fromOffsets: IndexSet(integer: 0), toOffset: 2)
+
+      let saved = try XCTUnwrap(scenario.store.saved.last)
+      let savedFirst = try XCTUnwrap(
+        saved.targets.first { $0.label == collision.first.label }
+      )
+      let savedSecond = try XCTUnwrap(
+        saved.targets.first { $0.label == collision.second.label }
+      )
+      XCTAssertNotEqual(savedFirst.id, collision.first.id)
+      XCTAssertNotEqual(savedFirst.id, scenario.fallback.targets[0].id)
+      XCTAssertEqual(savedFirst.sortOrder, 1)
+      XCTAssertEqual(savedSecond.sortOrder, 0)
+      XCTAssertEqual(savedFirst.profileIdentity, scenario.fallback.targets[0].profileIdentity)
+      XCTAssertEqual(savedSecond.label, collision.second.label)
+    }
+
+    do {
+      let collision = Fixtures.firefoxRuntimeIDCollisionConfig()
+      let scenario = try makeFirefoxRuntimeFallbackModel(config: collision.config)
+
+      try scenario.model.removeManualTarget(id: scenario.fallback.targets[0].id)
+
+      let saved = try XCTUnwrap(scenario.store.saved.last)
+      XCTAssertFalse(saved.targets.contains { $0.id == collision.first.id })
+      XCTAssertEqual(saved.targets, [collision.second])
+    }
+  }
+
+  func testLegacyFirefoxFallbackRealStoreSemanticEditsCanonicalizeOnlyForbiddenFields()
+    throws
+  {
+    let cases:
+      [(
+        name: String,
+        apply: (AppModel, RouteTarget.ID) throws -> Void,
+        assertEdit: (RouteTarget) -> Void
+      )] = [
+        (
+          "rename",
+          { model, id in try model.renameTarget(id: id, label: "Renamed Legacy Firefox") },
+          { XCTAssertEqual($0.label, "Renamed Legacy Firefox") }
+        ),
+        (
+          "enablement",
+          { model, id in try model.setTargetEnabled(id: id, isEnabled: false) },
+          { XCTAssertFalse($0.isEnabled) }
+        ),
+        (
+          "mode",
+          { model, id in try model.setTargetMode(id: id, mode: .private) },
+          { XCTAssertEqual($0.mode, .private) }
+        ),
+      ]
+
+    for testCase in cases {
+      let scenario = try makeLegacyFirefoxDiskScenario()
+      defer { try? FileManager.default.removeItem(at: scenario.directory) }
+
+      XCTAssertNoThrow(try testCase.apply(scenario.model, scenario.runtimeTargetID))
+
+      let reloaded = try scenario.store.load()
+      XCTAssertEqual(try reloaded.validatedAndMigrated(), reloaded)
+      let edited = try XCTUnwrap(
+        reloaded.targets.first { $0.label != "Collision Target" },
+        testCase.name
+      )
+      testCase.assertEdit(edited)
+      assertLegacyFirefoxCanonicalization(
+        edited,
+        originalRuntimeTargetID: scenario.runtimeTargetID,
+        file: #filePath,
+        line: #line
+      )
+
+      let collision = try XCTUnwrap(
+        reloaded.targets.first { $0.label == "Collision Target" },
+        testCase.name
+      )
+      XCTAssertEqual(collision.id, LegacyFirefoxDiskFixture.collidingTargetID, testCase.name)
+      XCTAssertEqual(collision.validationError, "Collision validation", testCase.name)
+
+      let document = try persistedDocument(in: scenario.directory)
+      XCTAssertFalse(document.contains(LegacyFirefoxDiskFixture.rawTargetID), testCase.name)
+      XCTAssertFalse(document.contains(LegacyFirefoxDiskFixture.rawProfilePath), testCase.name)
+      XCTAssertFalse(document.contains("private-user"), testCase.name)
+      XCTAssertFalse(document.contains("profileLaunchPath"), testCase.name)
+    }
+  }
+
+  func testLegacyFirefoxFallbackRealStoreReorderAndRemovalPersistThroughIDCollision() throws {
+    do {
+      let scenario = try makeLegacyFirefoxDiskScenario()
+      defer { try? FileManager.default.removeItem(at: scenario.directory) }
+
+      try scenario.model.moveTargets(fromOffsets: IndexSet(integer: 0), toOffset: 2)
+
+      let reloaded = try scenario.store.load()
+      XCTAssertEqual(try reloaded.validatedAndMigrated(), reloaded)
+      let edited = try XCTUnwrap(
+        reloaded.targets.first { $0.label == "Legacy Firefox" }
+      )
+      let collision = try XCTUnwrap(
+        reloaded.targets.first { $0.label == "Collision Target" }
+      )
+      XCTAssertEqual(edited.sortOrder, 1)
+      XCTAssertEqual(collision.sortOrder, 0)
+      assertLegacyFirefoxCanonicalization(
+        edited,
+        originalRuntimeTargetID: scenario.runtimeTargetID,
+        file: #filePath,
+        line: #line
+      )
+      XCTAssertEqual(collision.id, LegacyFirefoxDiskFixture.collidingTargetID)
+    }
+
+    do {
+      let scenario = try makeLegacyFirefoxDiskScenario()
+      defer { try? FileManager.default.removeItem(at: scenario.directory) }
+
+      try scenario.model.removeManualTarget(id: scenario.runtimeTargetID)
+
+      let reloaded = try scenario.store.load()
+      XCTAssertEqual(try reloaded.validatedAndMigrated(), reloaded)
+      XCTAssertEqual(reloaded.targets.map(\.label), ["Collision Target"])
+      XCTAssertEqual(reloaded.targets.first?.id, LegacyFirefoxDiskFixture.collidingTargetID)
+    }
+  }
+
+  func testLegacyFirefoxFallbackRealStoreProfileClearDoesNotRestoreFallbackIdentity() throws {
+    let scenario = try makeLegacyFirefoxDiskScenario()
+    defer { try? FileManager.default.removeItem(at: scenario.directory) }
+
+    try scenario.model.setTargetProfile(
+      id: scenario.runtimeTargetID,
+      profileIdentifier: nil
+    )
+
+    let reloaded = try scenario.store.load()
+    XCTAssertEqual(try reloaded.validatedAndMigrated(), reloaded)
+    let edited = try XCTUnwrap(
+      reloaded.targets.first { $0.label == "Legacy Firefox" }
+    )
+    XCTAssertNotEqual(edited.id, LegacyFirefoxDiskFixture.rawTargetID)
+    XCTAssertNotEqual(edited.id, LegacyFirefoxDiskFixture.collidingTargetID)
+    XCTAssertNil(edited.profileIdentifier)
+    XCTAssertNil(edited.profileDisplayName)
+    XCTAssertNil(edited.profileIdentity)
+    XCTAssertEqual(edited.validationError, "Authoritative validation")
+    XCTAssertEqual(edited.availability, .available)
+  }
+
+  func testLegacyDetectedNameOnlyFirefoxProfilesPersistEditsWithSafeShape() throws {
+    let safeID = BrowserCatalog.targetID(
+      bundleIdentifier: Fixtures.firefox.id,
+      profileIdentifier: "Legacy Name Only",
+      mode: .normal
+    )
+    let forbiddenID = "/Users/private-user/Firefox/Profiles/legacy-name-only"
+
+    for legacyID in [safeID, forbiddenID] {
+      let directory = FileManager.default.temporaryDirectory.appending(
+        path: "pick-via-name-only-firefox-\(UUID().uuidString)",
+        directoryHint: .isDirectory
+      )
+      defer { try? FileManager.default.removeItem(at: directory) }
+      try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+      try Data(
+        LegacyFirefoxDiskFixture.nameOnlyAvailableDetectedDocument(targetID: legacyID).utf8
+      ).write(to: directory.appending(path: "PickViaConfig.json"), options: .atomic)
+
+      let store = JSONConfigStore(directory: directory)
+      let model = makeModel(
+        store: store,
+        catalog: BrowserCatalogStub(
+          scanResult: BrowserScanResult(browsers: [], warnings: [], isAuthoritative: false)
+        )
+      )
+      try model.load()
+
+      let runtimeTarget = try XCTUnwrap(
+        model.targets.first { $0.profileIdentifier == "Legacy Name Only" }
+      )
+      XCTAssertEqual(runtimeTarget.availability, .unavailable)
+
+      try model.renameTarget(id: runtimeTarget.id, label: "Renamed Name Only")
+      try model.setTargetEnabled(id: runtimeTarget.id, isEnabled: false)
+      try model.moveTargets(fromOffsets: IndexSet(integer: 0), toOffset: 2)
+
+      let reloaded = try store.load()
+      XCTAssertEqual(try reloaded.validatedAndMigrated(), reloaded)
+      let edited = try XCTUnwrap(
+        reloaded.targets.first { $0.profileIdentifier == "Legacy Name Only" }
+      )
+      XCTAssertEqual(edited.id, safeID)
+      XCTAssertEqual(edited.label, "Renamed Name Only")
+      XCTAssertFalse(edited.isEnabled)
+      XCTAssertEqual(edited.sortOrder, 1)
+      XCTAssertEqual(edited.origin, .detected)
+      XCTAssertEqual(edited.availability, .unavailable)
+      XCTAssertNil(edited.profileIdentity)
+      XCTAssertNil(edited.profileLaunchPath)
+      XCTAssertNil(edited.validationError)
+
+      let document = try persistedDocument(in: directory)
+      XCTAssertFalse(document.contains(forbiddenID))
+      XCTAssertFalse(document.contains("private-user"))
+      XCTAssertFalse(document.contains("profileLaunchPath"))
+      XCTAssertFalse(document.contains("validationError"))
+    }
+  }
+
+  func testPathShapedDetectedFirefoxNamePersistsAsUnavailableOpaqueProfile() throws {
+    let directory = FileManager.default.temporaryDirectory.appending(
+      path: "pick-via-path-shaped-firefox-\(UUID().uuidString)",
+      directoryHint: .isDirectory
+    )
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let encodedPath = "%252FUsers%252Fprivate-user%252FFirefox%252FProfiles%252Flegacy"
+    try Data(
+      LegacyFirefoxDiskFixture.pathShapedNameOnlyDetectedDocument(
+        encodedProfilePath: encodedPath
+      ).utf8
+    ).write(to: directory.appending(path: "PickViaConfig.json"), options: .atomic)
+
+    let store = JSONConfigStore(directory: directory)
+    let model = makeModel(
+      store: store,
+      catalog: BrowserCatalogStub(
+        scanResult: BrowserScanResult(browsers: [], warnings: [], isAuthoritative: false)
+      )
+    )
+    try model.load()
+    let runtimeTarget = try XCTUnwrap(
+      model.targets.first { $0.label == "Path-shaped Profile" }
+    )
+    XCTAssertNotEqual(runtimeTarget.id, "org.mozilla.firefox||normal")
+    XCTAssertEqual(runtimeTarget.availability, .unavailable)
+
+    try model.renameTarget(id: runtimeTarget.id, label: "Saved Path-shaped Profile")
+
+    let reloaded = try store.load()
+    let saved = try XCTUnwrap(
+      reloaded.targets.first { $0.label == "Saved Path-shaped Profile" }
+    )
+    XCTAssertNotEqual(saved.id, "org.mozilla.firefox||normal")
+    XCTAssertEqual(saved.availability, .unavailable)
+    XCTAssertNil(saved.profileIdentifier)
+    XCTAssertNil(saved.profileDisplayName)
+    XCTAssertTrue(FirefoxProfileIdentity.isOpaqueIdentifier(try XCTUnwrap(saved.profileIdentity)))
+    XCTAssertEqual(
+      saved.id,
+      BrowserCatalog.targetID(
+        bundleIdentifier: Fixtures.firefox.id,
+        profileIdentifier: saved.profileIdentity,
+        mode: .normal
+      )
+    )
+    XCTAssertEqual(
+      try XCTUnwrap(reloaded.targets.first { $0.label == "Firefox Default" }).id,
+      "org.mozilla.firefox||normal"
+    )
+
+    let document = try persistedDocument(in: directory)
+    XCTAssertFalse(document.contains("private-user"))
+    XCTAssertFalse(document.contains(encodedPath))
+    XCTAssertFalse(document.contains("profileLaunchPath"))
+  }
+
+  func testDetectedPathShapedFirefoxProfileClearPreservesUnresolvedProfileEvidence() throws {
+    let encodedPath = "%252FUsers%252Fprivate-user%252FFirefox%252FProfiles%252Flegacy"
+
+    for includeBrowserDefault in [false, true] {
+      let directory = FileManager.default.temporaryDirectory.appending(
+        path: "pick-via-detected-profile-clear-\(UUID().uuidString)",
+        directoryHint: .isDirectory
+      )
+      defer { try? FileManager.default.removeItem(at: directory) }
+      try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+      try Data(
+        LegacyFirefoxDiskFixture.pathShapedNameOnlyDetectedDocument(
+          encodedProfilePath: encodedPath,
+          includeBrowserDefault: includeBrowserDefault
+        ).utf8
+      ).write(to: directory.appending(path: "PickViaConfig.json"), options: .atomic)
+
+      let store = JSONConfigStore(directory: directory)
+      let model = makeModel(
+        store: store,
+        catalog: BrowserCatalogStub(
+          scanResult: BrowserScanResult(browsers: [], warnings: [], isAuthoritative: false)
+        )
+      )
+      try model.load()
+      let runtimeTarget = try XCTUnwrap(
+        model.targets.first { $0.label == "Path-shaped Profile" }
+      )
+      XCTAssertNil(runtimeTarget.profileIdentifier)
+      XCTAssertNil(runtimeTarget.profileDisplayName)
+      XCTAssertEqual(runtimeTarget.availability, .unavailable)
+
+      try model.setTargetProfile(id: runtimeTarget.id, profileIdentifier: nil)
+
+      let reloaded = try store.load()
+      XCTAssertEqual(try reloaded.validatedAndMigrated(), reloaded)
+      let saved = try XCTUnwrap(
+        reloaded.targets.first { $0.label == "Path-shaped Profile" }
+      )
+      XCTAssertNotEqual(saved.id, "org.mozilla.firefox||normal")
+      XCTAssertEqual(saved.origin, .detected)
+      XCTAssertEqual(saved.availability, .unavailable)
+      XCTAssertNil(saved.profileIdentifier)
+      XCTAssertNil(saved.profileDisplayName)
+      XCTAssertTrue(
+        FirefoxProfileIdentity.isOpaqueIdentifier(try XCTUnwrap(saved.profileIdentity))
+      )
+      XCTAssertEqual(
+        saved.id,
+        BrowserCatalog.targetID(
+          bundleIdentifier: Fixtures.firefox.id,
+          profileIdentifier: saved.profileIdentity,
+          mode: .normal
+        )
+      )
+
+      if includeBrowserDefault {
+        let collisionOwner = try XCTUnwrap(
+          reloaded.targets.first { $0.label == "Firefox Default" }
+        )
+        XCTAssertEqual(collisionOwner.id, "org.mozilla.firefox||normal")
+        XCTAssertEqual(collisionOwner.origin, .detected)
+        XCTAssertEqual(collisionOwner.availability, .available)
+        XCTAssertNil(collisionOwner.profileIdentifier)
+        XCTAssertNil(collisionOwner.profileDisplayName)
+        XCTAssertNil(collisionOwner.profileIdentity)
+      } else {
+        XCTAssertEqual(reloaded.targets.count, 1)
+      }
+
+      let document = try persistedDocument(in: directory)
+      XCTAssertFalse(document.contains(encodedPath))
+      XCTAssertFalse(document.contains("private-user"))
+      XCTAssertFalse(document.contains("profileLaunchPath"))
+    }
+  }
+
+  func testDetectedPathShapedFirefoxProfileClearRetriesAfterFailedCanonicalSave() throws {
+    let directory = FileManager.default.temporaryDirectory.appending(
+      path: "pick-via-detected-profile-clear-retry-\(UUID().uuidString)",
+      directoryHint: .isDirectory
+    )
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let encodedPath = "%252FUsers%252Fprivate-user%252FFirefox%252FProfiles%252Flegacy"
+    try Data(
+      LegacyFirefoxDiskFixture.pathShapedNameOnlyDetectedDocument(
+        encodedProfilePath: encodedPath
+      ).utf8
+    ).write(to: directory.appending(path: "PickViaConfig.json"), options: .atomic)
+
+    let diskStore = JSONConfigStore(directory: directory)
+    let failOnceStore = FailOnceConfigStore(
+      wrapping: diskStore,
+      error: TestError.denied
+    )
+    let model = makeModel(
+      store: failOnceStore,
+      catalog: BrowserCatalogStub(
+        scanResult: BrowserScanResult(browsers: [], warnings: [], isAuthoritative: false)
+      )
+    )
+    try model.load()
+    let runtimeTarget = try XCTUnwrap(
+      model.targets.first { $0.label == "Path-shaped Profile" }
+    )
+    let runtimeBeforeSave = model.config
+
+    XCTAssertThrowsError(
+      try model.setTargetProfile(id: runtimeTarget.id, profileIdentifier: nil)
+    )
+    XCTAssertEqual(model.config, runtimeBeforeSave)
+    XCTAssertTrue(try persistedDocument(in: directory).contains(encodedPath))
+
+    try model.setTargetProfile(id: runtimeTarget.id, profileIdentifier: nil)
+
+    let reloaded = try diskStore.load()
+    XCTAssertEqual(try reloaded.validatedAndMigrated(), reloaded)
+    let saved = try XCTUnwrap(
+      reloaded.targets.first { $0.label == "Path-shaped Profile" }
+    )
+    XCTAssertNotEqual(saved.id, "org.mozilla.firefox||normal")
+    XCTAssertEqual(saved.availability, .unavailable)
+    XCTAssertTrue(
+      FirefoxProfileIdentity.isOpaqueIdentifier(try XCTUnwrap(saved.profileIdentity))
+    )
+    XCTAssertEqual(
+      try XCTUnwrap(reloaded.targets.first { $0.label == "Firefox Default" }).id,
+      "org.mozilla.firefox||normal"
+    )
+    XCTAssertFalse(try persistedDocument(in: directory).contains(encodedPath))
+  }
+
+  func testDetectedFirefoxCanonicalIDCollisionsPersistAcrossSemanticSaves() throws {
+    let directory = FileManager.default.temporaryDirectory.appending(
+      path: "pick-via-detected-firefox-collisions-\(UUID().uuidString)",
+      directoryHint: .isDirectory
+    )
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let rawIdentityPath = "/Users/private-user/Firefox/Profiles/raw-collision"
+    let rawIdentity = FirefoxProfileIdentity.identifier(
+      for: URL(fileURLWithPath: rawIdentityPath, isDirectory: true)
+    )
+    let rawCanonicalID = BrowserCatalog.targetID(
+      bundleIdentifier: Fixtures.firefox.id,
+      profileIdentifier: rawIdentity,
+      mode: .normal
+    )
+    let nameCanonicalID = BrowserCatalog.targetID(
+      bundleIdentifier: Fixtures.firefox.id,
+      profileIdentifier: "Legacy Name Collision",
+      mode: .private
+    )
+    try Data(
+      LegacyFirefoxDiskFixture.detectedCanonicalCollisionDocument(
+        rawIdentityPath: rawIdentityPath,
+        rawIdentityCanonicalTargetID: rawCanonicalID,
+        nameOnlyCanonicalTargetID: nameCanonicalID
+      ).utf8
+    ).write(to: directory.appending(path: "PickViaConfig.json"), options: .atomic)
+
+    let store = JSONConfigStore(directory: directory)
+    let model = makeModel(
+      store: store,
+      catalog: BrowserCatalogStub(
+        scanResult: BrowserScanResult(browsers: [], warnings: [], isAuthoritative: false)
+      )
+    )
+    try model.load()
+    let rawRuntimeID = try XCTUnwrap(
+      model.targets.first { $0.label == "Raw Identity Profile" }
+    ).id
+    let nameRuntimeID = try XCTUnwrap(
+      model.targets.first { $0.label == "Name Only Profile" }
+    ).id
+
+    try model.renameTarget(id: rawRuntimeID, label: "Renamed Raw Identity")
+    try model.setTargetEnabled(id: nameRuntimeID, isEnabled: false)
+    try model.moveTargets(fromOffsets: IndexSet(integer: 0), toOffset: 5)
+    try model.removeManualTarget(id: "unrelated-removable")
+
+    let reloaded = try store.load()
+    XCTAssertEqual(try reloaded.validatedAndMigrated(), reloaded)
+    let raw = try XCTUnwrap(reloaded.targets.first { $0.label == "Renamed Raw Identity" })
+    let name = try XCTUnwrap(reloaded.targets.first { $0.label == "Name Only Profile" })
+    let rawOwner = try XCTUnwrap(reloaded.targets.first { $0.label == "Raw Collision Owner" })
+    let nameOwner = try XCTUnwrap(reloaded.targets.first { $0.label == "Name Collision Owner" })
+    XCTAssertNotEqual(raw.id, rawCanonicalID)
+    XCTAssertNotEqual(name.id, nameCanonicalID)
+    XCTAssertNotEqual(raw.id, name.id)
+    XCTAssertTrue(FirefoxProfileIdentity.isOpaqueIdentifier(try XCTUnwrap(raw.profileIdentity)))
+    XCTAssertTrue(FirefoxProfileIdentity.isOpaqueIdentifier(try XCTUnwrap(name.profileIdentity)))
+    XCTAssertEqual(name.availability, .unavailable)
+    XCTAssertFalse(name.isEnabled)
+    XCTAssertEqual(rawOwner.id, rawCanonicalID)
+    XCTAssertEqual(rawOwner.validationError, "Raw collision validation")
+    XCTAssertEqual(nameOwner.id, nameCanonicalID)
+    XCTAssertEqual(nameOwner.validationError, "Name collision validation")
+    XCTAssertFalse(reloaded.targets.contains { $0.id == "unrelated-removable" })
+
+    let document = try persistedDocument(in: directory)
+    XCTAssertFalse(document.contains("private-user"))
+    XCTAssertFalse(document.contains("profileLaunchPath"))
+  }
+
+  func testSchemaTwoFirefoxProfileChangePersistsSelectedSafeMetadata() throws {
+    let directory = FileManager.default.temporaryDirectory.appending(
+      path: "pick-via-schema-two-firefox-profile-change-\(UUID().uuidString)",
+      directoryHint: .isDirectory
+    )
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let selectedIdentity = FirefoxProfileIdentity.identifier(
+      for: URL(fileURLWithPath: "/Firefox/Profiles/selected", isDirectory: true)
+    )
+    let encodedLegacyPath = "%252FUsers%252Fprivate-user%252FFirefox%252FProfiles%252Flegacy"
+    try Data(
+      LegacyFirefoxDiskFixture.firefoxProfileChangeDocument(
+        selectedIdentity: selectedIdentity,
+        encodedLegacyPath: encodedLegacyPath
+      ).utf8
+    ).write(to: directory.appending(path: "PickViaConfig.json"), options: .atomic)
+
+    let store = JSONConfigStore(directory: directory)
+    let model = makeModel(
+      store: store,
+      catalog: BrowserCatalogStub(
+        scanResult: BrowserScanResult(
+          browsers: [
+            DiscoveredBrowser(
+              application: Fixtures.firefox,
+              profiles: [
+                DiscoveredProfile(
+                  identifier: selectedIdentity,
+                  displayName: "Selected Display",
+                  directoryURL: nil,
+                  launchIdentifier: "selected-launch"
+                )
+              ]
+            )
+          ],
+          warnings: [],
+          isAuthoritative: true
+        ),
+        reconciler: { $0 }
+      )
+    )
+    try model.load()
+
+    try model.setTargetProfile(
+      id: "manual-profile-change",
+      profileIdentifier: "selected-launch"
+    )
+
+    let reloaded = try store.load()
+    XCTAssertEqual(try reloaded.validatedAndMigrated(), reloaded)
+    let manual = try XCTUnwrap(reloaded.targets.first { $0.id == "manual-profile-change" })
+    XCTAssertEqual(manual.profileIdentifier, "selected-launch")
+    XCTAssertEqual(manual.profileDisplayName, "Selected Display")
+    XCTAssertEqual(manual.profileIdentity, selectedIdentity)
+    XCTAssertEqual(manual.mode, .private)
+    XCTAssertNil(manual.profileLaunchPath)
+    XCTAssertNil(manual.validationError)
+
+    let document = try persistedDocument(in: directory)
+    XCTAssertFalse(document.contains("private-user"))
+    XCTAssertFalse(document.contains(encodedLegacyPath))
+    XCTAssertFalse(document.contains("profileLaunchPath"))
+  }
+
+  func testRealStoreProfileChangeStillUsesSelectedAuthoritativeProfileMetadata() throws {
+    let directory = FileManager.default.temporaryDirectory.appending(
+      path: "pick-via-profile-change-\(UUID().uuidString)",
+      directoryHint: .isDirectory
+    )
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let manual = BrowserTarget(
+      id: "manual-edit",
+      browserID: Fixtures.chrome.id,
+      label: "Manual",
+      profileIdentifier: "Profile 1",
+      profileDisplayName: "Work",
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 30,
+      origin: .manual,
+      availability: .available
+    )
+    let config = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: Fixtures.profileEditConfig.browsers,
+      targets: Fixtures.profileEditConfig.targets + [manual]
+    )
+    let store = JSONConfigStore(directory: directory)
+    try store.save(config)
+    let model = makeModel(store: store)
+    try model.load()
+
+    try model.setTargetProfile(id: manual.id, profileIdentifier: "Profile 2")
+
+    let reloaded = try store.load()
+    let edited = try XCTUnwrap(reloaded.targets.first { $0.id == manual.id })
+    XCTAssertEqual(edited.profileIdentifier, "Profile 2")
+    XCTAssertEqual(edited.profileDisplayName, "Personal")
+    XCTAssertEqual(edited.mode, .normal)
+  }
+
   func testLoadAppliesMailRuntimeFallbackBeforeEitherDiscoveryPass() throws {
     let unavailableMail = Fixtures.copy(
       Fixtures.appleMail,
@@ -3582,7 +4399,7 @@ final class AppModelTests: XCTestCase {
   }
 
   private func makeModel(
-    store: ConfigStoreStub = ConfigStoreStub(config: .initial),
+    store: any ConfigStoring = ConfigStoreStub(config: .initial),
     catalog: BrowserCatalogStub = BrowserCatalogStub(),
     mailCatalog: MailCatalogStub = .missing,
     preferences: PreferencesStub = PreferencesStub(),
@@ -3605,6 +4422,146 @@ final class AppModelTests: XCTestCase {
       profileAccess: access,
       profileRootValidator: profileRootValidator
     )
+  }
+
+  private func makeLegacyFirefoxDiskScenario() throws -> (
+    directory: URL,
+    store: JSONConfigStore,
+    model: AppModel,
+    runtimeTargetID: RouteTarget.ID
+  ) {
+    let directory = FileManager.default.temporaryDirectory.appending(
+      path: "pick-via-legacy-firefox-\(UUID().uuidString)",
+      directoryHint: .isDirectory
+    )
+    try FileManager.default.createDirectory(
+      at: directory,
+      withIntermediateDirectories: true
+    )
+    try Data(LegacyFirefoxDiskFixture.document.utf8).write(
+      to: directory.appending(path: "PickViaConfig.json"),
+      options: .atomic
+    )
+    let store = JSONConfigStore(directory: directory)
+    let model = makeModel(
+      store: store,
+      catalog: BrowserCatalogStub(
+        scanResult: BrowserScanResult(
+          browsers: [],
+          warnings: [],
+          isAuthoritative: false
+        )
+      )
+    )
+
+    try model.load()
+
+    let runtimeTarget = try XCTUnwrap(
+      model.targets.first { $0.label == "Legacy Firefox" }
+    )
+    XCTAssertNotEqual(runtimeTarget.id, LegacyFirefoxDiskFixture.rawTargetID)
+    XCTAssertEqual(
+      runtimeTarget.id,
+      LegacyFirefoxDiskFixture.collidingTargetID,
+      "Fixture must exercise a runtime ID that collides with another authoritative target"
+    )
+    XCTAssertEqual(
+      runtimeTarget.profileIdentity,
+      LegacyFirefoxDiskFixture.canonicalProfileIdentity
+    )
+    XCTAssertNil(runtimeTarget.profileLaunchPath)
+    XCTAssertNil(runtimeTarget.validationError)
+    XCTAssertEqual(runtimeTarget.availability, .unavailable)
+    XCTAssertTrue(
+      try persistedDocument(in: directory).contains(LegacyFirefoxDiskFixture.rawProfilePath),
+      "Load alone must not rewrite the legacy disk document"
+    )
+    return (directory, store, model, runtimeTarget.id)
+  }
+
+  private func assertLegacyFirefoxCanonicalization(
+    _ target: RouteTarget,
+    originalRuntimeTargetID: RouteTarget.ID,
+    file: StaticString,
+    line: UInt
+  ) {
+    XCTAssertNotEqual(
+      target.id,
+      LegacyFirefoxDiskFixture.rawTargetID,
+      file: file,
+      line: line
+    )
+    XCTAssertNotEqual(
+      target.id,
+      LegacyFirefoxDiskFixture.collidingTargetID,
+      file: file,
+      line: line
+    )
+    XCTAssertNotEqual(
+      target.id,
+      originalRuntimeTargetID,
+      "The colliding runtime ID cannot replace an existing authoritative ID",
+      file: file,
+      line: line
+    )
+    XCTAssertEqual(
+      target.profileIdentifier,
+      "Authoritative Profile",
+      file: file,
+      line: line
+    )
+    XCTAssertEqual(
+      target.profileDisplayName,
+      "Authoritative Display",
+      file: file,
+      line: line
+    )
+    XCTAssertEqual(
+      target.profileIdentity,
+      LegacyFirefoxDiskFixture.canonicalProfileIdentity,
+      file: file,
+      line: line
+    )
+    XCTAssertEqual(
+      target.validationError,
+      "Authoritative validation",
+      file: file,
+      line: line
+    )
+    XCTAssertEqual(target.availability, .available, file: file, line: line)
+    XCTAssertEqual(target.origin, .manual, file: file, line: line)
+  }
+
+  private func persistedDocument(in directory: URL) throws -> String {
+    try XCTUnwrap(
+      String(
+        data: Data(contentsOf: directory.appending(path: "PickViaConfig.json")),
+        encoding: .utf8
+      )
+    )
+  }
+
+  private func makeFirefoxRuntimeFallbackModel(
+    config: PickViaConfig
+  ) throws -> (model: AppModel, store: ConfigStoreStub, fallback: PickViaConfig) {
+    let store = ConfigStoreStub(config: config)
+    let fallback = BrowserCatalog.runtimeSanitizedFallback(config)
+    let model = makeModel(
+      store: store,
+      catalog: BrowserCatalogStub(
+        scanResult: BrowserScanResult(
+          browsers: [],
+          warnings: [],
+          isAuthoritative: false
+        )
+      )
+    )
+
+    try model.load()
+
+    XCTAssertEqual(model.config, fallback)
+    XCTAssertTrue(store.saved.isEmpty)
+    return (model, store, fallback)
   }
 
   private func assertStartupFirefoxMigrationSaveFailure(_ saveError: any Error) throws {
@@ -3845,6 +4802,91 @@ private enum Fixtures {
       fileURLWithPath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
     isAvailable: true
   )
+
+  static let firefox = BrowserApplication(
+    id: "org.mozilla.firefox",
+    family: .firefox,
+    displayName: "Firefox",
+    bundleIdentifier: "org.mozilla.firefox",
+    applicationURL: URL(fileURLWithPath: "/Applications/Firefox.app"),
+    executableURL: URL(fileURLWithPath: "/Applications/Firefox.app/Contents/MacOS/firefox"),
+    isAvailable: true
+  )
+
+  static func pendingFirefoxProfileTarget(
+    rawPath: String,
+    label: String,
+    sortOrder: Int
+  ) -> BrowserTarget {
+    BrowserTarget(
+      id: BrowserCatalog.targetID(
+        bundleIdentifier: firefox.id,
+        profileIdentifier: rawPath,
+        mode: .private
+      ),
+      browserID: firefox.id,
+      label: label,
+      profileIdentifier: "Authoritative Profile",
+      profileDisplayName: "Authoritative Display",
+      profileIdentity: rawPath,
+      profileLaunchPath: rawPath,
+      mode: .private,
+      isEnabled: true,
+      sortOrder: sortOrder,
+      origin: .detected,
+      availability: .available,
+      pendingDefaultMigration: true,
+      validationError: "Authoritative validation"
+    )
+  }
+
+  static func firefoxRuntimeIDCollisionConfig() -> (
+    config: PickViaConfig,
+    first: BrowserTarget,
+    second: BrowserTarget
+  ) {
+    let rawTargetID =
+      "/Users/private-user/Library/Application Support/Firefox/Profiles/collision-first"
+    let collidingAuthoritativeID =
+      "firefox-runtime-target|\(FirefoxProfileIdentity.identifier(forLegacyValue: rawTargetID))"
+    let first = BrowserTarget(
+      id: rawTargetID,
+      browserID: firefox.id,
+      label: "First Authoritative",
+      profileIdentifier: "First Profile",
+      profileDisplayName: "First Display",
+      profileIdentity: rawTargetID,
+      profileLaunchPath: rawTargetID,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .manual,
+      availability: .available,
+      validationError: "First validation"
+    )
+    let second = BrowserTarget(
+      id: collidingAuthoritativeID,
+      browserID: firefox.id,
+      label: "Second Authoritative",
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 1,
+      origin: .manual,
+      availability: .available,
+      validationError: "Second validation"
+    )
+    return (
+      PickViaConfig(
+        schemaVersion: PickViaConfig.currentSchemaVersion,
+        browsers: [firefox],
+        targets: [first, second]
+      ),
+      first,
+      second
+    )
+  }
 
   static let discoveredChrome = DiscoveredBrowser(
     application: chrome,
@@ -4107,6 +5149,32 @@ private final class ConfigStoreStub: ConfigStoring, @unchecked Sendable {
     saved.append(config)
   }
   func resetSaved() { saved.removeAll() }
+}
+
+private final class FailOnceConfigStore: ConfigStoring, @unchecked Sendable {
+  private let wrapped: any ConfigStoring
+  private var error: Error?
+
+  init(wrapping wrapped: any ConfigStoring, error: any Error) {
+    self.wrapped = wrapped
+    self.error = error
+  }
+
+  func load() throws -> PickViaConfig {
+    try wrapped.load()
+  }
+
+  func loadOutcome() -> ConfigLoadOutcome {
+    wrapped.loadOutcome()
+  }
+
+  func save(_ config: PickViaConfig) throws {
+    if let error {
+      self.error = nil
+      throw error
+    }
+    try wrapped.save(config)
+  }
 }
 
 private final class BrowserCatalogStub: BrowserDiscovering, @unchecked Sendable {

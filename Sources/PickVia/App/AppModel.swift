@@ -155,6 +155,7 @@ public final class AppModel {
   private let profileAccess: any ProfileAccessManaging
   private let profileRootValidator: BrowserProfileRootValidator
   private var authoritativeConfig: PickViaConfig = .initial
+  private var authoritativeTargetIDByRuntimeTargetID: [RouteTarget.ID: RouteTarget.ID] = [:]
   private var isLoaded = false
   private var latestAuthoritativeBrowserScan: BrowserScanResult?
   private var targetedProfileAccessOverlays: [String: TargetedProfileAccessOverlay] = [:]
@@ -206,12 +207,14 @@ public final class AppModel {
     }
     authoritativeConfig = loadedConfig
 
-    let browserFallback = BrowserCatalog.runtimeSanitizedFallback(loadedConfig)
-    let runtimeFallback = mailCatalog.runtimeSanitizedFallback(browserFallback)
+    let browserFallback = BrowserCatalog.runtimeSanitizedFallbackResult(loadedConfig)
+    let runtimeFallback = mailCatalog.runtimeSanitizedFallback(browserFallback.config)
+    let fallbackTargetIdentities = browserFallback.authoritativeTargetIDByRuntimeTargetID
 
     if configurationRecovery != .loadFailed {
       var persistedCandidate = loadedConfig
       var runtimeCandidate = runtimeFallback
+      var candidateTargetIdentities = fallbackTargetIdentities
       var browserChanged = false
       var mailChanged = false
 
@@ -236,6 +239,11 @@ public final class AppModel {
           browserChanged = validatedPersisted != persistedCandidate
           runtimeCandidate = validatedRuntime
           persistedCandidate = validatedPersisted
+          candidateTargetIdentities = replacingTargetIdentityMapping(
+            for: .web,
+            current: candidateTargetIdentities,
+            runtime: validatedRuntime
+          )
         } catch {
           errorMessage = "Browser discovery produced a configuration that could not be committed."
         }
@@ -268,6 +276,11 @@ public final class AppModel {
           mailChanged = validatedPersisted != persistedCandidate
           runtimeCandidate = validatedRuntime
           persistedCandidate = validatedPersisted
+          candidateTargetIdentities = replacingTargetIdentityMapping(
+            for: .mail,
+            current: candidateTargetIdentities,
+            runtime: validatedRuntime
+          )
         } catch {
           mailErrorMessage =
             "Mail application discovery produced a configuration that could not be committed."
@@ -282,8 +295,10 @@ public final class AppModel {
           try configStore.save(persistedCandidate)
           authoritativeConfig = persistedCandidate
           config = runtimeCandidate
+          authoritativeTargetIDByRuntimeTargetID = candidateTargetIdentities
         } catch {
           config = runtimeFallback
+          authoritativeTargetIDByRuntimeTargetID = fallbackTargetIdentities
           if browserChanged {
             errorMessage =
               "Browser discovery produced a configuration that could not be committed."
@@ -296,10 +311,12 @@ public final class AppModel {
       } else {
         authoritativeConfig = persistedCandidate
         config = runtimeCandidate
+        authoritativeTargetIDByRuntimeTargetID = candidateTargetIdentities
       }
       targetSnapshot?.publish(config)
     } else {
       config = .initial
+      authoritativeTargetIDByRuntimeTargetID = [:]
     }
     showsURLInChooser = preferences.bool(forKey: PreferenceKey.showsURLInChooser) ?? true
     chooserDensity = .fromPersistedValue(
@@ -383,6 +400,11 @@ public final class AppModel {
       try configStore.save(authoritativeUpdate)
       authoritativeConfig = authoritativeUpdate
       config = runtimeUpdate
+      authoritativeTargetIDByRuntimeTargetID = replacingTargetIdentityMapping(
+        for: .mail,
+        current: authoritativeTargetIDByRuntimeTargetID,
+        runtime: runtimeUpdate
+      )
       targetSnapshot?.publish(runtimeUpdate)
       refreshRoutingUnlessContextualSettings()
       mailErrorMessage = nil
@@ -660,68 +682,74 @@ public final class AppModel {
   public func renameTarget(id: BrowserTarget.ID, label: String) throws {
     let label = label.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !label.isEmpty else { throw TargetEditingError.blankLabel }
-    try updateTarget(id: id) { target in
-      copy(target, label: label, pendingDefaultMigration: false)
-    }
+    try persistTargetUpdates([
+      TargetUpdate(runtimeTargetID: id, edit: .rename(label))
+    ])
   }
 
   public func setTargetEnabled(id: BrowserTarget.ID, isEnabled: Bool) throws {
-    try updateTarget(id: id) { target in
-      copy(target, isEnabled: isEnabled, pendingDefaultMigration: false)
-    }
+    try persistTargetUpdates([
+      TargetUpdate(
+        runtimeTargetID: id,
+        edit: .setEnabled(isEnabled, clearsPendingDefaultMigration: true)
+      )
+    ])
   }
 
   public func setTargetMode(id: BrowserTarget.ID, mode: BrowserMode) throws {
-    try updateTarget(id: id) { [config] target in
-      guard target.routeKind == .web else {
-        throw TargetEditingError.routeKindMismatch
-      }
-      guard target.origin == .manual || target.mode == mode else {
-        throw TargetEditingError.detectedTargetIdentityIsImmutable
-      }
-      guard let browser = config.browsers.first(where: { $0.id == target.browserID }) else {
-        throw TargetEditingError.browserNotFound
-      }
-      guard browser.family != .safari || mode == .normal else {
-        throw TargetEditingError.safariPrivateModeUnsupported
-      }
-      return copy(target, mode: mode, pendingDefaultMigration: false)
+    guard let target = config.targets.first(where: { $0.id == id }) else {
+      throw TargetEditingError.targetNotFound
     }
+    guard target.routeKind == .web else {
+      throw TargetEditingError.routeKindMismatch
+    }
+    guard target.origin == .manual || target.mode == mode else {
+      throw TargetEditingError.detectedTargetIdentityIsImmutable
+    }
+    guard let browser = config.browsers.first(where: { $0.id == target.browserID }) else {
+      throw TargetEditingError.browserNotFound
+    }
+    guard browser.family != .safari || mode == .normal else {
+      throw TargetEditingError.safariPrivateModeUnsupported
+    }
+    try persistTargetUpdates([
+      TargetUpdate(runtimeTargetID: id, edit: .setBrowserMode(mode))
+    ])
   }
 
   public func setTargetProfile(
     id: BrowserTarget.ID,
     profileIdentifier: String?
   ) throws {
-    try updateTarget(id: id) { [config] target in
-      guard target.routeKind == .web else {
-        throw TargetEditingError.routeKindMismatch
-      }
-      guard target.origin == .manual || target.profileIdentifier == profileIdentifier else {
-        throw TargetEditingError.detectedTargetIdentityIsImmutable
-      }
-      guard let browser = supportedAvailableBrowser(id: target.browserID, in: config) else {
-        throw TargetEditingError.browserUnavailableOrUnsupported
-      }
-      if browser.family == .safari {
-        guard profileIdentifier == nil else { throw TargetEditingError.invalidProfileIdentity }
-        return copy(
-          target,
-          profileIdentifier: nil,
-          profileDisplayName: nil,
-          profileIdentity: nil,
-          profileLaunchPath: nil
+    guard let target = config.targets.first(where: { $0.id == id }) else {
+      throw TargetEditingError.targetNotFound
+    }
+    guard target.routeKind == .web else {
+      throw TargetEditingError.routeKindMismatch
+    }
+    guard target.origin == .manual || target.profileIdentifier == profileIdentifier else {
+      throw TargetEditingError.detectedTargetIdentityIsImmutable
+    }
+    guard let browser = supportedAvailableBrowser(id: target.browserID, in: config) else {
+      throw TargetEditingError.browserUnavailableOrUnsupported
+    }
+    if target.origin == .detected {
+      try persistTargetUpdates([
+        TargetUpdate(
+          runtimeTargetID: id,
+          edit: .clearBrowserPendingDefaultMigration
         )
-      }
-      if profileIdentifier == nil {
-        return copy(
-          target,
-          profileIdentifier: nil,
-          profileDisplayName: nil,
-          profileIdentity: nil,
-          profileLaunchPath: nil
-        )
-      }
+      ])
+      return
+    }
+
+    let selectedRuntimeTargetID: RouteTarget.ID?
+    if browser.family == .safari {
+      guard profileIdentifier == nil else { throw TargetEditingError.invalidProfileIdentity }
+      selectedRuntimeTargetID = nil
+    } else if profileIdentifier == nil {
+      selectedRuntimeTargetID = nil
+    } else {
       guard
         let profileIdentifier,
         !profileIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -731,26 +759,33 @@ public final class AppModel {
           in: config
         )
       else { throw TargetEditingError.invalidProfileIdentity }
-      return copy(
-        target,
-        profileIdentifier: candidate.profileIdentifier,
-        profileDisplayName: candidate.profileDisplayName,
-        profileIdentity: candidate.profileIdentity,
-        profileLaunchPath: candidate.profileLaunchPath
-      )
+      selectedRuntimeTargetID = candidate.id
     }
+
+    try persistTargetUpdates([
+      TargetUpdate(
+        runtimeTargetID: id,
+        edit: .setBrowserProfile(selectedRuntimeTargetID: selectedRuntimeTargetID)
+      )
+    ])
   }
 
   public func setMailTargetEnabled(
     id: RouteTarget.ID,
     isEnabled: Bool
   ) throws {
-    try updateTarget(id: id) { target in
-      guard target.routeKind == .mail else {
-        throw TargetEditingError.routeKindMismatch
-      }
-      return copy(target, isEnabled: isEnabled)
+    guard let target = config.targets.first(where: { $0.id == id }) else {
+      throw TargetEditingError.targetNotFound
     }
+    guard target.routeKind == .mail else {
+      throw TargetEditingError.routeKindMismatch
+    }
+    try persistTargetUpdates([
+      TargetUpdate(
+        runtimeTargetID: id,
+        edit: .setEnabled(isEnabled, clearsPendingDefaultMigration: false)
+      )
+    ])
   }
 
   public func moveMailTargets(
@@ -770,21 +805,20 @@ public final class AppModel {
     }
     let insertionIndex = destination - offsets.filter { $0 < destination }.count
     orderedMail.insert(contentsOf: moved, at: insertionIndex)
-    orderedMail = orderedMail.enumerated().map { index, target in
-      copy(target, sortOrder: index)
-    }
-
-    let updatedTargets =
-      config.targets.filter { $0.routeKind == .web }
-      + orderedMail
-    try persist(targets: updatedTargets)
+    try persistTargetUpdates(
+      orderedMail.enumerated().map { index, target in
+        TargetUpdate(
+          runtimeTargetID: target.id,
+          edit: .setSortOrder(index, clearsPendingDefaultMigration: false)
+        )
+      },
+      ordering: .mail,
+      by: orderedMail.map(\.id)
+    )
   }
 
   public func moveTargets(fromOffsets offsets: IndexSet, toOffset destination: Int) throws {
-    var ordered = config.targets.sorted {
-      if $0.sortOrder != $1.sortOrder { return $0.sortOrder < $1.sortOrder }
-      return $0.id < $1.id
-    }
+    var ordered = config.targets.filter { $0.routeKind == .web }.sorted(by: targetDisplayOrder)
     guard
       !offsets.isEmpty,
       offsets.allSatisfy({ ordered.indices.contains($0) }),
@@ -801,16 +835,20 @@ public final class AppModel {
     }
     let insertionIndex = destination - offsets.filter { $0 < destination }.count
     ordered.insert(contentsOf: moved, at: insertionIndex)
-    ordered = ordered.enumerated().map { index, target in
-      copy(
-        target,
-        sortOrder: index,
-        pendingDefaultMigration:
-          originalIndexByID[target.id] == index && !movedIDs.contains(target.id)
-          ? target.pendingDefaultMigration : false
-      )
-    }
-    try persist(targets: ordered)
+    try persistTargetUpdates(
+      ordered.enumerated().map { index, target in
+        TargetUpdate(
+          runtimeTargetID: target.id,
+          edit: .setSortOrder(
+            index,
+            clearsPendingDefaultMigration:
+              originalIndexByID[target.id] != index || movedIDs.contains(target.id)
+          )
+        )
+      },
+      ordering: .web,
+      by: ordered.map(\.id)
+    )
   }
 
   @discardableResult
@@ -848,8 +886,24 @@ public final class AppModel {
       selectedProfile = profileTarget
     }
 
+    let authoritativeSelectedProfile: BrowserTarget?
+    if let selectedProfile {
+      guard
+        let authoritativeSelectedID =
+          authoritativeTargetIDByRuntimeTargetID[selectedProfile.id],
+        let target = authoritativeConfig.targets.first(where: {
+          $0.id == authoritativeSelectedID
+        })
+      else { throw TargetEditingError.targetNotFound }
+      authoritativeSelectedProfile = target
+    } else {
+      authoritativeSelectedProfile = nil
+    }
+
     let id = UUID().uuidString
-    let target = BrowserTarget(
+    let sortOrder =
+      (config.targets.lazy.filter { $0.routeKind == .web }.map(\.sortOrder).max() ?? -1) + 1
+    let runtimeTarget = BrowserTarget(
       id: id,
       browserID: browserID,
       label: label,
@@ -859,11 +913,28 @@ public final class AppModel {
       profileLaunchPath: selectedProfile?.profileLaunchPath,
       mode: mode,
       isEnabled: true,
-      sortOrder: (config.targets.map(\.sortOrder).max() ?? -1) + 1,
+      sortOrder: sortOrder,
       origin: .manual,
       availability: .available
     )
-    try persist(targets: config.targets + [target])
+    let authoritativeTarget = BrowserTarget(
+      id: id,
+      browserID: browserID,
+      label: label,
+      profileIdentifier: authoritativeSelectedProfile?.profileIdentifier,
+      profileDisplayName: authoritativeSelectedProfile?.profileDisplayName,
+      profileIdentity: authoritativeSelectedProfile?.profileIdentity,
+      profileLaunchPath: authoritativeSelectedProfile?.profileLaunchPath,
+      mode: mode,
+      isEnabled: true,
+      sortOrder: sortOrder,
+      origin: .manual,
+      availability: .available
+    )
+    try persistInsertedTarget(
+      runtime: runtimeTarget,
+      authoritative: authoritativeTarget
+    )
     return id
   }
 
@@ -872,38 +943,7 @@ public final class AppModel {
       throw TargetEditingError.targetNotFound
     }
     guard target.origin == .manual else { throw TargetEditingError.detectedTargetCannotBeRemoved }
-    try persist(targets: config.targets.filter { $0.id != id })
-  }
-
-  private func updateTarget(
-    id: BrowserTarget.ID,
-    transform: (BrowserTarget) throws -> BrowserTarget
-  ) throws {
-    guard let index = config.targets.firstIndex(where: { $0.id == id }) else {
-      throw TargetEditingError.targetNotFound
-    }
-    var targets = config.targets
-    targets[index] = try transform(targets[index])
-    try persist(targets: targets)
-  }
-
-  private func persist(targets: [BrowserTarget]) throws {
-    let runtimeUpdate = try PickViaConfig(
-      schemaVersion: config.schemaVersion,
-      applications: config.applications,
-      targets: targets
-    ).validatedAndMigrated()
-    let authoritativeUpdate = try PickViaConfig(
-      schemaVersion: authoritativeConfig.schemaVersion,
-      applications: authoritativeConfig.applications,
-      targets: authoritativeTargets(applying: targets)
-    ).validatedAndMigrated()
-    try configStore.save(authoritativeUpdate)
-    authoritativeConfig = authoritativeUpdate
-    config = runtimeUpdate
-    targetSnapshot?.publish(runtimeUpdate)
-    errorMessage = nil
-    mailErrorMessage = nil
+    try persistRemovedTarget(runtimeTargetID: id)
   }
 
   private func commitAuthoritativeScan(
@@ -927,6 +967,11 @@ public final class AppModel {
     try configStore.save(authoritativeUpdate)
     authoritativeConfig = authoritativeUpdate
     config = runtimeUpdate
+    authoritativeTargetIDByRuntimeTargetID = replacingTargetIdentityMapping(
+      for: .web,
+      current: authoritativeTargetIDByRuntimeTargetID,
+      runtime: runtimeUpdate
+    )
     targetSnapshot?.publish(runtimeUpdate)
     if refreshRouting {
       refreshRoutingUnlessContextualSettings()
@@ -938,41 +983,492 @@ public final class AppModel {
     routing.refreshCurrent()
   }
 
-  private func authoritativeTargets(
-    applying runtimeTargets: [RouteTarget]
-  ) throws -> [RouteTarget] {
-    try runtimeTargets.map { updatedRuntimeTarget in
+  private func persistTargetUpdates(
+    _ updates: [TargetUpdate],
+    ordering routeKind: RouteKind? = nil,
+    by orderedRuntimeTargetIDs: [RouteTarget.ID] = []
+  ) throws {
+    var runtimeTargets = config.targets
+    var authoritativeTargets = authoritativeConfig.targets
+    for update in updates {
       guard
-        let runtimeIndex = config.targets.firstIndex(where: {
-          $0.id == updatedRuntimeTarget.id
+        let runtimeIndex = runtimeTargets.firstIndex(where: {
+          $0.id == update.runtimeTargetID
+        }),
+        let authoritativeTargetID =
+          authoritativeTargetIDByRuntimeTargetID[update.runtimeTargetID],
+        let authoritativeIndex = authoritativeTargets.firstIndex(where: {
+          $0.id == authoritativeTargetID
         })
-      else {
-        return updatedRuntimeTarget
-      }
-      let currentRuntimeTarget = config.targets[runtimeIndex]
-      let authoritativeTarget: RouteTarget?
-      if let exactMatch = authoritativeConfig.targets.first(where: {
-        $0.id == currentRuntimeTarget.id
-      }) {
-        authoritativeTarget = exactMatch
-      } else if authoritativeConfig.targets.indices.contains(runtimeIndex) {
-        authoritativeTarget = authoritativeConfig.targets[runtimeIndex]
-      } else {
-        authoritativeTarget = nil
-      }
+      else { throw TargetEditingError.targetNotFound }
+
+      let currentRuntimeTarget = runtimeTargets[runtimeIndex]
+      let currentAuthoritativeTarget = authoritativeTargets[authoritativeIndex]
       guard
-        let authoritativeTarget,
-        authoritativeTarget.routeKind == currentRuntimeTarget.routeKind,
-        authoritativeTarget.applicationID == currentRuntimeTarget.applicationID
-      else {
-        throw TargetEditingError.targetNotFound
-      }
-      return applyingTargetChanges(
-        from: currentRuntimeTarget,
-        to: updatedRuntimeTarget,
-        on: authoritativeTarget
+        currentAuthoritativeTarget.routeKind == currentRuntimeTarget.routeKind,
+        currentAuthoritativeTarget.applicationID == currentRuntimeTarget.applicationID
+      else { throw TargetEditingError.targetNotFound }
+
+      runtimeTargets[runtimeIndex] = try applying(
+        update.edit,
+        to: currentRuntimeTarget,
+        in: config,
+        role: .runtime
+      )
+      authoritativeTargets[authoritativeIndex] = try applying(
+        update.edit,
+        to: currentAuthoritativeTarget,
+        in: authoritativeConfig,
+        role: .authoritative
       )
     }
+
+    if let routeKind {
+      let orderedRuntimeTargets = try orderedRuntimeTargetIDs.map { runtimeTargetID in
+        guard
+          let target = runtimeTargets.first(where: { $0.id == runtimeTargetID }),
+          target.routeKind == routeKind
+        else { throw TargetEditingError.targetNotFound }
+        return target
+      }
+      let orderedAuthoritativeTargets = try orderedRuntimeTargetIDs.map { runtimeTargetID in
+        guard
+          let authoritativeTargetID =
+            authoritativeTargetIDByRuntimeTargetID[runtimeTargetID],
+          let target = authoritativeTargets.first(where: {
+            $0.id == authoritativeTargetID
+          }),
+          target.routeKind == routeKind
+        else { throw TargetEditingError.targetNotFound }
+        return target
+      }
+      let otherRuntimeTargets = runtimeTargets.filter {
+        $0.routeKind != routeKind
+      }
+      let otherAuthoritativeTargets = authoritativeTargets.filter {
+        $0.routeKind != routeKind
+      }
+      if routeKind == .web {
+        runtimeTargets = orderedRuntimeTargets + otherRuntimeTargets
+        authoritativeTargets = orderedAuthoritativeTargets + otherAuthoritativeTargets
+      } else {
+        runtimeTargets = otherRuntimeTargets + orderedRuntimeTargets
+        authoritativeTargets = otherAuthoritativeTargets + orderedAuthoritativeTargets
+      }
+    }
+
+    try commitTargets(
+      runtime: runtimeTargets,
+      authoritative: authoritativeTargets,
+      identities: authoritativeTargetIDByRuntimeTargetID
+    )
+  }
+
+  private func persistInsertedTarget(
+    runtime runtimeTarget: RouteTarget,
+    authoritative authoritativeTarget: RouteTarget
+  ) throws {
+    guard
+      runtimeTarget.id == authoritativeTarget.id,
+      runtimeTarget.routeKind == authoritativeTarget.routeKind,
+      runtimeTarget.applicationID == authoritativeTarget.applicationID
+    else { throw TargetEditingError.targetNotFound }
+
+    var identities = authoritativeTargetIDByRuntimeTargetID
+    identities[runtimeTarget.id] = authoritativeTarget.id
+    try commitTargets(
+      runtime: config.targets + [runtimeTarget],
+      authoritative: authoritativeConfig.targets + [authoritativeTarget],
+      identities: identities
+    )
+  }
+
+  private func persistRemovedTarget(runtimeTargetID: RouteTarget.ID) throws {
+    guard
+      let currentRuntimeTarget = config.targets.first(where: {
+        $0.id == runtimeTargetID
+      }),
+      let authoritativeTargetID =
+        authoritativeTargetIDByRuntimeTargetID[runtimeTargetID],
+      let currentAuthoritativeTarget = authoritativeConfig.targets.first(where: {
+        $0.id == authoritativeTargetID
+      }),
+      currentAuthoritativeTarget.routeKind == currentRuntimeTarget.routeKind,
+      currentAuthoritativeTarget.applicationID == currentRuntimeTarget.applicationID
+    else { throw TargetEditingError.targetNotFound }
+
+    var identities = authoritativeTargetIDByRuntimeTargetID
+    identities[runtimeTargetID] = nil
+    try commitTargets(
+      runtime: config.targets.filter { $0.id != runtimeTargetID },
+      authoritative: authoritativeConfig.targets.filter {
+        $0.id != authoritativeTargetID
+      },
+      identities: identities
+    )
+  }
+
+  private func commitTargets(
+    runtime runtimeTargets: [RouteTarget],
+    authoritative authoritativeTargets: [RouteTarget],
+    identities: [RouteTarget.ID: RouteTarget.ID]
+  ) throws {
+    let canonicalizedPersistence = try canonicalizingLegacyFirefoxPersistence(
+      runtime: runtimeTargets,
+      authoritative: authoritativeTargets,
+      identities: identities
+    )
+    let runtimeUpdate = try PickViaConfig(
+      schemaVersion: config.schemaVersion,
+      applications: config.applications,
+      targets: runtimeTargets
+    ).validatedAndMigrated()
+    let authoritativeUpdate = try PickViaConfig(
+      schemaVersion: authoritativeConfig.schemaVersion,
+      applications: authoritativeConfig.applications,
+      targets: canonicalizedPersistence.targets
+    ).validatedAndMigrated()
+    try configStore.save(authoritativeUpdate)
+    authoritativeConfig = authoritativeUpdate
+    config = runtimeUpdate
+    authoritativeTargetIDByRuntimeTargetID = canonicalizedPersistence.identities
+    targetSnapshot?.publish(runtimeUpdate)
+    errorMessage = nil
+    mailErrorMessage = nil
+  }
+
+  private func canonicalizingLegacyFirefoxPersistence(
+    runtime runtimeTargets: [RouteTarget],
+    authoritative authoritativeTargets: [RouteTarget],
+    identities: [RouteTarget.ID: RouteTarget.ID]
+  ) throws -> (
+    targets: [RouteTarget],
+    identities: [RouteTarget.ID: RouteTarget.ID]
+  ) {
+    let firefoxApplicationIDs = Set(
+      authoritativeConfig.applications.compactMap { application in
+        application.browserFamily == .firefox ? application.id : nil
+      }
+    )
+    let runtimeTargetsByID = Dictionary(
+      uniqueKeysWithValues: runtimeTargets.map { ($0.id, $0) }
+    )
+    var runtimeTargetIDByAuthoritativeTargetID: [RouteTarget.ID: RouteTarget.ID] = [:]
+    for (runtimeTargetID, authoritativeTargetID) in identities {
+      guard runtimeTargetIDByAuthoritativeTargetID[authoritativeTargetID] == nil else {
+        throw TargetEditingError.targetNotFound
+      }
+      runtimeTargetIDByAuthoritativeTargetID[authoritativeTargetID] = runtimeTargetID
+    }
+
+    let needsCanonicalization = authoritativeTargets.map { target in
+      guard
+        target.routeKind == .web,
+        firefoxApplicationIDs.contains(target.applicationID)
+      else { return false }
+      return !FirefoxPersistencePolicy.isPersistenceSafe(target)
+    }
+    var usedTargetIDs = Set(
+      zip(authoritativeTargets, needsCanonicalization).compactMap {
+        target, needsCanonicalization in
+        needsCanonicalization ? nil : target.id
+      }
+    )
+    var canonicalTargetIDByOriginalTargetID: [RouteTarget.ID: RouteTarget.ID] = [:]
+    var canonicalTargets: [RouteTarget] = []
+
+    for (index, target) in authoritativeTargets.enumerated() {
+      guard
+        target.routeKind == .web,
+        firefoxApplicationIDs.contains(target.applicationID)
+      else {
+        canonicalTargetIDByOriginalTargetID[target.id] = target.id
+        canonicalTargets.append(target)
+        continue
+      }
+
+      guard needsCanonicalization[index] else {
+        canonicalTargetIDByOriginalTargetID[target.id] = target.id
+        canonicalTargets.append(target)
+        continue
+      }
+      guard
+        let runtimeTargetID = runtimeTargetIDByAuthoritativeTargetID[target.id],
+        let runtimeTarget = runtimeTargetsByID[runtimeTargetID],
+        runtimeTarget.routeKind == target.routeKind,
+        runtimeTarget.applicationID == target.applicationID
+      else { throw TargetEditingError.targetNotFound }
+
+      let canonicalIdentity: String?
+      if let targetIdentity = target.profileIdentity,
+        !FirefoxProfileIdentity.isOpaqueIdentifier(targetIdentity)
+      {
+        if let runtimeIdentity = runtimeTarget.profileIdentity {
+          guard FirefoxProfileIdentity.isOpaqueIdentifier(runtimeIdentity) else {
+            throw TargetEditingError.invalidProfileIdentity
+          }
+        }
+        canonicalIdentity = runtimeTarget.profileIdentity
+      } else {
+        canonicalIdentity = target.profileIdentity
+      }
+      var shape = FirefoxPersistencePolicy.canonicalShape(
+        for: target,
+        profileIdentity: canonicalIdentity
+      )
+
+      let canonicalID: RouteTarget.ID
+      if FirefoxPersistencePolicy.isForbiddenTargetID(shape.targetID) {
+        canonicalID = uniquePersistenceTargetID(
+          preferred: runtimeTarget.id,
+          legacyTargetID: target.id,
+          usedTargetIDs: &usedTargetIDs
+        )
+      } else if usedTargetIDs.insert(shape.targetID).inserted {
+        canonicalID = shape.targetID
+      } else if target.origin == .detected {
+        let collisionIdentity = uniquePersistenceProfileIdentity(
+          applicationID: target.applicationID,
+          mode: target.mode,
+          legacyTargetID: target.id,
+          usedTargetIDs: &usedTargetIDs
+        )
+        let collisionShape = FirefoxPersistencePolicy.canonicalShape(
+          for: target,
+          profileIdentity: collisionIdentity
+        )
+        shape = FirefoxPersistenceShape(
+          targetID: collisionShape.targetID,
+          profileIdentifier: collisionShape.profileIdentifier,
+          profileDisplayName: collisionShape.profileDisplayName,
+          profileIdentity: collisionShape.profileIdentity,
+          availability: shape.availability
+        )
+        canonicalID = shape.targetID
+      } else {
+        canonicalID = uniquePersistenceTargetID(
+          preferred: runtimeTarget.id,
+          legacyTargetID: target.id,
+          usedTargetIDs: &usedTargetIDs
+        )
+      }
+
+      let canonicalTarget = RouteTarget(
+        id: canonicalID,
+        applicationID: target.applicationID,
+        label: target.label,
+        isEnabled: target.isEnabled,
+        sortOrder: target.sortOrder,
+        origin: target.origin,
+        availability: shape.availability,
+        capability: .browser(
+          BrowserTargetOptions(
+            profileIdentifier: shape.profileIdentifier,
+            profileDisplayName: shape.profileDisplayName,
+            profileIdentity: shape.profileIdentity,
+            profileLaunchPath: target.profileLaunchPath,
+            mode: target.mode,
+            pendingDefaultMigration: target.pendingDefaultMigration,
+            validationError: target.validationError
+          )
+        )
+      )
+      guard FirefoxPersistencePolicy.isPersistenceSafe(canonicalTarget) else {
+        throw TargetEditingError.invalidProfileIdentity
+      }
+      canonicalTargetIDByOriginalTargetID[target.id] = canonicalTarget.id
+      canonicalTargets.append(canonicalTarget)
+    }
+
+    let canonicalIdentities = try Dictionary(
+      uniqueKeysWithValues: identities.map { runtimeTargetID, authoritativeTargetID in
+        guard
+          let canonicalTargetID =
+            canonicalTargetIDByOriginalTargetID[authoritativeTargetID]
+        else { throw TargetEditingError.targetNotFound }
+        return (runtimeTargetID, canonicalTargetID)
+      }
+    )
+    return (canonicalTargets, canonicalIdentities)
+  }
+
+  private func uniquePersistenceTargetID(
+    preferred: RouteTarget.ID,
+    legacyTargetID: RouteTarget.ID,
+    usedTargetIDs: inout Set<RouteTarget.ID>
+  ) -> RouteTarget.ID {
+    guard !usedTargetIDs.contains(preferred) else {
+      var attempt = 0
+      while true {
+        let seed = "\(legacyTargetID)#persistence#\(attempt)"
+        let identifier = FirefoxProfileIdentity.identifier(
+          for: URL(fileURLWithPath: seed, isDirectory: true)
+        )
+        let candidate = "firefox-persisted-target|\(identifier)"
+        attempt += 1
+        guard usedTargetIDs.insert(candidate).inserted else { continue }
+        return candidate
+      }
+    }
+    usedTargetIDs.insert(preferred)
+    return preferred
+  }
+
+  private func uniquePersistenceProfileIdentity(
+    applicationID: BrowserApplication.ID,
+    mode: BrowserMode,
+    legacyTargetID: RouteTarget.ID,
+    usedTargetIDs: inout Set<RouteTarget.ID>
+  ) -> String {
+    var attempt = 0
+    while true {
+      let seed = "\(legacyTargetID)#persistence-profile#\(attempt)"
+      let identity = FirefoxProfileIdentity.identifier(
+        for: URL(fileURLWithPath: seed, isDirectory: true)
+      )
+      let candidate = BrowserCatalog.targetID(
+        bundleIdentifier: applicationID,
+        profileIdentifier: identity,
+        mode: mode
+      )
+      attempt += 1
+      guard usedTargetIDs.insert(candidate).inserted else { continue }
+      return identity
+    }
+  }
+
+  private func applying(
+    _ edit: TargetSemanticEdit,
+    to target: RouteTarget,
+    in sourceConfig: PickViaConfig,
+    role: TargetConfigurationRole
+  ) throws -> RouteTarget {
+    var label = target.label
+    var isEnabled = target.isEnabled
+    var sortOrder = target.sortOrder
+    var capability = target.capability
+
+    switch edit {
+    case .rename(let value):
+      label = value
+      capability = clearingPendingDefaultMigration(in: capability)
+    case .setEnabled(let value, let clearsPendingDefaultMigration):
+      isEnabled = value
+      if clearsPendingDefaultMigration {
+        capability = clearingPendingDefaultMigration(in: capability)
+      }
+    case .setSortOrder(let value, let clearsPendingDefaultMigration):
+      sortOrder = value
+      if clearsPendingDefaultMigration {
+        capability = clearingPendingDefaultMigration(in: capability)
+      }
+    case .setBrowserMode(let mode):
+      guard case .browser(let options) = capability else {
+        throw TargetEditingError.routeKindMismatch
+      }
+      capability = .browser(
+        BrowserTargetOptions(
+          profileIdentifier: options.profileIdentifier,
+          profileDisplayName: options.profileDisplayName,
+          profileIdentity: options.profileIdentity,
+          profileLaunchPath: options.profileLaunchPath,
+          mode: mode,
+          pendingDefaultMigration: false,
+          validationError: options.validationError
+        )
+      )
+    case .clearBrowserPendingDefaultMigration:
+      guard case .browser = capability else {
+        throw TargetEditingError.routeKindMismatch
+      }
+      capability = clearingPendingDefaultMigration(in: capability)
+    case .setBrowserProfile(let selectedRuntimeTargetID):
+      guard case .browser(let options) = capability else {
+        throw TargetEditingError.routeKindMismatch
+      }
+      let selectedTarget: RouteTarget?
+      if let selectedRuntimeTargetID {
+        let selectedTargetID: RouteTarget.ID
+        switch role {
+        case .runtime:
+          selectedTargetID = selectedRuntimeTargetID
+        case .authoritative:
+          guard
+            let authoritativeID =
+              authoritativeTargetIDByRuntimeTargetID[selectedRuntimeTargetID]
+          else { throw TargetEditingError.targetNotFound }
+          selectedTargetID = authoritativeID
+        }
+        guard
+          let candidate = sourceConfig.targets.first(where: {
+            $0.id == selectedTargetID
+          }),
+          candidate.routeKind == .web,
+          candidate.applicationID == target.applicationID,
+          candidate.origin == .detected,
+          candidate.availability == .available
+        else { throw TargetEditingError.invalidProfileIdentity }
+        selectedTarget = candidate
+      } else {
+        selectedTarget = nil
+      }
+      capability = .browser(
+        BrowserTargetOptions(
+          profileIdentifier: selectedTarget?.profileIdentifier,
+          profileDisplayName: selectedTarget?.profileDisplayName,
+          profileIdentity: selectedTarget?.profileIdentity,
+          profileLaunchPath: selectedTarget?.profileLaunchPath,
+          mode: options.mode,
+          pendingDefaultMigration: false,
+          validationError: options.validationError
+        )
+      )
+    }
+
+    return RouteTarget(
+      id: target.id,
+      applicationID: target.applicationID,
+      label: label,
+      isEnabled: isEnabled,
+      sortOrder: sortOrder,
+      origin: target.origin,
+      availability: target.availability,
+      capability: capability
+    )
+  }
+
+  private func clearingPendingDefaultMigration(
+    in capability: RouteTargetCapability
+  ) -> RouteTargetCapability {
+    guard case .browser(let options) = capability else { return capability }
+    return .browser(
+      BrowserTargetOptions(
+        profileIdentifier: options.profileIdentifier,
+        profileDisplayName: options.profileDisplayName,
+        profileIdentity: options.profileIdentity,
+        profileLaunchPath: options.profileLaunchPath,
+        mode: options.mode,
+        pendingDefaultMigration: false,
+        validationError: options.validationError
+      )
+    )
+  }
+
+  private func replacingTargetIdentityMapping(
+    for routeKind: RouteKind,
+    current: [RouteTarget.ID: RouteTarget.ID],
+    runtime: PickViaConfig
+  ) -> [RouteTarget.ID: RouteTarget.ID] {
+    let retainedRuntimeTargetIDs = Set(
+      runtime.targets.lazy.filter { $0.routeKind != routeKind }.map(\.id)
+    )
+    var result = current.filter {
+      retainedRuntimeTargetIDs.contains($0.key)
+    }
+    for target in runtime.targets where target.routeKind == routeKind {
+      result[target.id] = target.id
+    }
+    return result
   }
 
   private func targetedProfileAccessState(
@@ -1164,105 +1660,23 @@ public enum ConfigurationRecoveryState: Equatable {
   case loadFailed
 }
 
-private func copy(
-  _ target: BrowserTarget,
-  label: String? = nil,
-  mode: BrowserMode? = nil,
-  isEnabled: Bool? = nil,
-  sortOrder: Int? = nil,
-  pendingDefaultMigration: Bool? = nil
-) -> BrowserTarget {
-  let capability: RouteTargetCapability
-  switch target.capability {
-  case .mail:
-    capability = .mail
-  case .browser(let options):
-    capability = .browser(
-      BrowserTargetOptions(
-        profileIdentifier: options.profileIdentifier,
-        profileDisplayName: options.profileDisplayName,
-        profileIdentity: options.profileIdentity,
-        profileLaunchPath: options.profileLaunchPath,
-        mode: mode ?? options.mode,
-        pendingDefaultMigration:
-          pendingDefaultMigration ?? options.pendingDefaultMigration,
-        validationError: options.validationError
-      )
-    )
-  }
-  return RouteTarget(
-    id: target.id,
-    applicationID: target.applicationID,
-    label: label ?? target.label,
-    isEnabled: isEnabled ?? target.isEnabled,
-    sortOrder: sortOrder ?? target.sortOrder,
-    origin: target.origin,
-    availability: target.availability,
-    capability: capability
-  )
+private struct TargetUpdate {
+  let runtimeTargetID: RouteTarget.ID
+  let edit: TargetSemanticEdit
 }
 
-private func copy(
-  _ target: BrowserTarget,
-  profileIdentifier: String?,
-  profileDisplayName: String?,
-  profileIdentity: String?,
-  profileLaunchPath: String?
-) -> BrowserTarget {
-  guard case .browser(let options) = target.capability else {
-    return target
-  }
-  return RouteTarget(
-    id: target.id,
-    applicationID: target.applicationID,
-    label: target.label,
-    isEnabled: target.isEnabled,
-    sortOrder: target.sortOrder,
-    origin: target.origin,
-    availability: target.availability,
-    capability: .browser(
-      BrowserTargetOptions(
-        profileIdentifier: profileIdentifier,
-        profileDisplayName: profileDisplayName,
-        profileIdentity: profileIdentity,
-        profileLaunchPath: profileLaunchPath,
-        mode: options.mode,
-        pendingDefaultMigration: false,
-        validationError: options.validationError
-      )
-    )
-  )
+private enum TargetSemanticEdit {
+  case rename(String)
+  case setEnabled(Bool, clearsPendingDefaultMigration: Bool)
+  case setSortOrder(Int, clearsPendingDefaultMigration: Bool)
+  case setBrowserMode(BrowserMode)
+  case clearBrowserPendingDefaultMigration
+  case setBrowserProfile(selectedRuntimeTargetID: RouteTarget.ID?)
 }
 
-private func applyingTargetChanges(
-  from currentRuntimeTarget: RouteTarget,
-  to updatedRuntimeTarget: RouteTarget,
-  on authoritativeTarget: RouteTarget
-) -> RouteTarget {
-  RouteTarget(
-    id: authoritativeTarget.id,
-    applicationID:
-      updatedRuntimeTarget.applicationID == currentRuntimeTarget.applicationID
-      ? authoritativeTarget.applicationID : updatedRuntimeTarget.applicationID,
-    label:
-      updatedRuntimeTarget.label == currentRuntimeTarget.label
-      ? authoritativeTarget.label : updatedRuntimeTarget.label,
-    isEnabled:
-      updatedRuntimeTarget.isEnabled == currentRuntimeTarget.isEnabled
-      ? authoritativeTarget.isEnabled : updatedRuntimeTarget.isEnabled,
-    sortOrder:
-      updatedRuntimeTarget.sortOrder == currentRuntimeTarget.sortOrder
-      ? authoritativeTarget.sortOrder : updatedRuntimeTarget.sortOrder,
-    origin:
-      updatedRuntimeTarget.origin == currentRuntimeTarget.origin
-      ? authoritativeTarget.origin : updatedRuntimeTarget.origin,
-    availability:
-      updatedRuntimeTarget.availability == currentRuntimeTarget.availability
-      ? authoritativeTarget.availability : updatedRuntimeTarget.availability,
-    capability:
-      updatedRuntimeTarget.capability == currentRuntimeTarget.capability
-      ? authoritativeTarget.capability : updatedRuntimeTarget.capability
-  )
+private enum TargetConfigurationRole {
+  case runtime
+  case authoritative
 }
 
 private func replacingRouteSlice(
