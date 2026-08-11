@@ -9,7 +9,7 @@ When macOS delivers an HTTP or HTTPS link to PickVia, the chooser initially appe
 desktop where the link was triggered, but macOS can then switch to the desktop containing an
 open PickVia Settings or Welcome window.
 
-Temporary lifecycle instrumentation established this event order:
+Initial lifecycle instrumentation established this event order:
 
 1. `applicationWillBecomeActive`
 2. `applicationDidBecomeActive`
@@ -23,6 +23,14 @@ the later Space transition.
 
 The user approved moving an open PickVia Settings or Welcome window to the current desktop behind
 the chooser.
+
+Follow-up instrumentation after the first implementation exposed a second, later race. A SwiftUI
+Welcome window can become main before AppKit reports it visible. The notification callback queued
+an asynchronous main-actor task, and the shared policy then rejected the window because it was no
+longer visible after chooser presentation hid ordinary surfaces. In the reproduced failure, the
+chooser was on the current desktop and the unprepared Welcome window retained its old-Space
+behavior; 354 milliseconds later macOS switched desktops. The correction must therefore prepare a
+newly main ordinary window synchronously, before visibility and chooser state can change.
 
 ## Goals
 
@@ -53,7 +61,10 @@ windows. The coordinator handles two lifecycle boundaries:
 
 Applying the policy at both boundaries covers windows created by SwiftUI after launch once they
 become main and windows that were already open on another Space when a link was triggered. The
-operation is idempotent.
+operation is idempotent. The main-window notification path must run synchronously on the main
+thread and must not require the window to be visible, because SwiftUI can post the lifecycle
+notification immediately before ordering the window onscreen. The activation scan remains limited
+to visible windows.
 Because AppKit reports the incoming URL only after activation begins, this is an intrinsic policy
 for ordinary PickVia windows: they may move to the current desktop on any PickVia activation, not
 only link delivery.
@@ -61,9 +72,10 @@ only link delivery.
 ### Eligible Windows
 
 The coordinator applies the policy to normal application surfaces such as Settings and Welcome.
-It excludes:
+For the activation scan it excludes windows that are not visible. For the synchronous main-window
+notification it permits a not-yet-visible ordinary window so the policy is installed before
+ordering. Both paths exclude:
 
-- windows that are not visible
 - `NSPanel` instances, including the chooser, profile-access panel, and About panel
 - sheets
 - non-normal-level windows such as status-bar infrastructure
@@ -88,8 +100,8 @@ A focused AppKit component will:
 - receive the application window list through an injected provider
 - determine whether a window is an eligible ordinary PickVia surface
 - add `.moveToActiveSpace` to eligible windows
-- observe `NSWindow.didBecomeMainNotification` and apply the same policy to newly main eligible
-  windows
+- observe `NSWindow.didBecomeMainNotification` on the main queue and synchronously apply the same
+  policy to newly main eligible windows, including windows not yet visible
 - remove its notification observer during teardown
 
 The component will not know about URLs, routing, chooser models, or SwiftUI destinations.
@@ -106,22 +118,25 @@ No additional Space workaround is added. Its existing `.nonactivatingPanel`,
 
 ## Event Flow
 
-1. A link is triggered on Desktop A while PickVia Settings is open on Desktop B.
-2. Launch Services begins activating PickVia.
-3. `applicationWillBecomeActive` asks the coordinator to prepare ordinary PickVia windows.
-4. Settings receives `.moveToActiveSpace`, so AppKit moves it to Desktop A instead of switching to
-   Desktop B.
+1. When SwiftUI makes Settings or Welcome main, the main-queue observer synchronously installs the
+   active-Space policy, even if the window is not visible yet.
+2. A link is triggered on Desktop A while that ordinary window is assigned to Desktop B.
+3. Launch Services begins activating PickVia.
+4. `applicationWillBecomeActive` asks the coordinator to prepare all visible ordinary PickVia
+   windows again.
 5. AppKit calls `application(_:open:)` with the URL.
 6. PickVia presents the chooser on Desktop A at the pointer-selected screen.
-7. The moved Settings window remains behind the floating chooser.
+7. Any Settings or Welcome window that is shown remains behind the chooser on Desktop A instead of
+   pulling macOS to Desktop B.
 8. Selection or cancellation follows the existing routing lifecycle.
 
 ## Failure Handling
 
 Applying a window collection behavior is synchronous and nonthrowing. If no ordinary window exists
 during activation, the coordinator performs no work; the main-window observer applies the policy
-if SwiftUI creates a main window later. Repeated application is safe and must not alter URL data or
-persist window contents.
+if SwiftUI creates a main window later. The observer executes synchronously on the main queue rather
+than scheduling a task, so later visibility changes cannot invalidate the decision. Repeated
+application is safe and must not alter URL data or persist window contents.
 
 No diagnostic logging of URLs will be added. The temporary activation instrumentation used during
 root-cause analysis is not part of the implementation.
@@ -134,7 +149,9 @@ root-cause analysis is not part of the implementation.
 - Existing unrelated collection behaviors remain present.
 - An `NSPanel` is not modified.
 - A non-normal-level infrastructure window is not modified.
-- A newly main eligible window receives the policy through the notification boundary.
+- A not-yet-visible newly main eligible window receives the policy synchronously through the
+  notification boundary.
+- The activation-wide scan continues to ignore hidden windows.
 - `AppDelegate.applicationWillBecomeActive` asks the coordinator to prepare existing windows.
 - Existing chooser regression tests continue to verify that the chooser itself does not activate
   PickVia and cannot become the main window.
