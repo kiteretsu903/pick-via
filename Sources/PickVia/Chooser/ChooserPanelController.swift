@@ -25,6 +25,9 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
   private let densityProvider: @MainActor () -> ChooserDensity
   private let onPresentationChange: @MainActor (Bool) -> Void
   private let pointerLocationProvider: @MainActor () -> NSPoint
+  private let orderPanelFront: @MainActor (NSPanel) -> Void
+  private let activateApplication: @MainActor () -> Void
+  private let makePanelKey: @MainActor (NSPanel) -> Void
 
   private(set) var showsURLForCurrentPresentation = true
   private(set) var densityForCurrentPresentation: ChooserDensity = .compact
@@ -59,7 +62,12 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     densityProvider: @escaping @MainActor () -> ChooserDensity = { .compact },
     openBrowserSettings: @escaping @MainActor () -> Void = {},
     onPresentationChange: @escaping @MainActor (Bool) -> Void = { _ in },
-    pointerLocationProvider: @escaping @MainActor () -> NSPoint = { NSEvent.mouseLocation }
+    pointerLocationProvider: @escaping @MainActor () -> NSPoint = { NSEvent.mouseLocation },
+    orderPanelFront: @escaping @MainActor (NSPanel) -> Void = { $0.orderFrontRegardless() },
+    activateApplication: @escaping @MainActor () -> Void = {
+      NSApp.activate(ignoringOtherApps: true)
+    },
+    makePanelKey: @escaping @MainActor (NSPanel) -> Void = { $0.makeKey() }
   ) {
     self.clipboard = clipboard
     self.showsURLProvider = { showsURL }
@@ -67,6 +75,9 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     self.openBrowserSettings = openBrowserSettings
     self.onPresentationChange = onPresentationChange
     self.pointerLocationProvider = pointerLocationProvider
+    self.orderPanelFront = orderPanelFront
+    self.activateApplication = activateApplication
+    self.makePanelKey = makePanelKey
     super.init()
   }
 
@@ -76,7 +87,12 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     clipboard: any ClipboardWriting = SystemClipboardWriter(),
     openBrowserSettings: @escaping @MainActor () -> Void = {},
     onPresentationChange: @escaping @MainActor (Bool) -> Void = { _ in },
-    pointerLocationProvider: @escaping @MainActor () -> NSPoint = { NSEvent.mouseLocation }
+    pointerLocationProvider: @escaping @MainActor () -> NSPoint = { NSEvent.mouseLocation },
+    orderPanelFront: @escaping @MainActor (NSPanel) -> Void = { $0.orderFrontRegardless() },
+    activateApplication: @escaping @MainActor () -> Void = {
+      NSApp.activate(ignoringOtherApps: true)
+    },
+    makePanelKey: @escaping @MainActor (NSPanel) -> Void = { $0.makeKey() }
   ) {
     self.clipboard = clipboard
     self.showsURLProvider = showsURLProvider
@@ -84,6 +100,9 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     self.openBrowserSettings = openBrowserSettings
     self.onPresentationChange = onPresentationChange
     self.pointerLocationProvider = pointerLocationProvider
+    self.orderPanelFront = orderPanelFront
+    self.activateApplication = activateApplication
+    self.makePanelKey = makePanelKey
     super.init()
   }
 
@@ -192,8 +211,9 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
         )
       }
     }
-    NSApp.activate(ignoringOtherApps: true)
-    panel.makeKeyAndOrderFront(nil)
+    orderPanelFront(panel)
+    activateApplication()
+    makePanelKey(panel)
     if !hasReportedPresentation {
       hasReportedPresentation = true
       onPresentationChange(true)

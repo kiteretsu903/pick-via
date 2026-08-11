@@ -263,6 +263,35 @@ final class ChooserModelsTests: XCTestCase {
 
 @MainActor
 final class ChooserPanelControllerTests: XCTestCase {
+  func testPresentationOrdersPanelBeforeActivatingApplication() {
+    var lifecycleEvents: [String] = []
+    let controller = ChooserPanelController(
+      orderPanelFront: { panel in
+        lifecycleEvents.append("order")
+        panel.orderFrontRegardless()
+      },
+      activateApplication: {
+        lifecycleEvents.append("activate")
+      },
+      makePanelKey: { panel in
+        lifecycleEvents.append("key")
+        panel.makeKey()
+      }
+    )
+
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work],
+      error: nil,
+      onSelection: { _ in },
+      onCancel: {}
+    )
+    defer { controller.dismiss() }
+
+    XCTAssertEqual(lifecycleEvents, ["order", "activate", "key"])
+  }
+
   func testPointerOutsideScreensCentersPanelOnMainVisibleFrame() throws {
     let mainScreen = try XCTUnwrap(NSScreen.main)
     let frames = NSScreen.screens.map(\.frame)
