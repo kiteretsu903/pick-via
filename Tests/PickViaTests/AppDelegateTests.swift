@@ -25,6 +25,21 @@ final class AppDelegateTests: XCTestCase {
     XCTAssertEqual(presenter.environmentDidChangeCallCount, 1)
   }
 
+  func testWillBecomeActivePreparesVisibleWindowsForCurrentSpace() {
+    let windowSpaceCoordinator = AppWindowSpaceCoordinatorSpy()
+    let delegate = AppDelegate(
+      model: makeModel(),
+      windowSpaceCoordinator: windowSpaceCoordinator,
+      openSettings: {}
+    )
+
+    delegate.applicationWillBecomeActive(
+      Notification(name: NSApplication.willBecomeActiveNotification)
+    )
+
+    XCTAssertEqual(windowSpaceCoordinator.prepareVisibleWindowsForActivationCallCount, 1)
+  }
+
   func testRecoveredConfigurationOpensBrowserSettingsAfterLaunch() throws {
     let model = AppModel(
       configStore: AppDelegateConfigStoreStub(
@@ -457,6 +472,15 @@ private final class AppDelegateLaunchSchedulerSpy: AppLaunchScheduling {
     let action = scheduledAction
     scheduledAction = nil
     action?()
+  }
+}
+
+@MainActor
+private final class AppWindowSpaceCoordinatorSpy: AppWindowSpaceCoordinating {
+  private(set) var prepareVisibleWindowsForActivationCallCount = 0
+
+  func prepareVisibleWindowsForActivation() {
+    prepareVisibleWindowsForActivationCallCount += 1
   }
 }
 

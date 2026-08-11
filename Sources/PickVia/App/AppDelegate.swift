@@ -22,6 +22,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
   public let profileAccessPresenter: any ProfileAccessPresenting
   let settingsSceneOpener: SettingsSceneOpener
 
+  private let windowSpaceCoordinator: any AppWindowSpaceCoordinating
   private let launchScheduler: any AppLaunchScheduling
   private let openSettings: @MainActor () -> Void
   private let showAbout: @MainActor () -> Void
@@ -72,6 +73,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     profileAccessPresenter: any ProfileAccessPresenting = InactiveAppDelegateProfileAccessPresenter
       .shared,
     settingsSceneOpener: SettingsSceneOpener = SettingsSceneOpener(),
+    windowSpaceCoordinator: any AppWindowSpaceCoordinating = AppWindowSpaceCoordinator(),
     launchScheduler: any AppLaunchScheduling = MainRunLoopAppLaunchScheduler(),
     openSettings: @escaping @MainActor () -> Void,
     showAbout: @escaping @MainActor () -> Void = {
@@ -83,6 +85,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     self.navigation = navigation
     self.profileAccessPresenter = profileAccessPresenter
     self.settingsSceneOpener = settingsSceneOpener
+    self.windowSpaceCoordinator = windowSpaceCoordinator
     self.launchScheduler = launchScheduler
     self.openSettings = openSettings
     self.showAbout = showAbout
@@ -114,6 +117,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
   public func applicationDidBecomeActive(_ notification: Notification) {
     model.refreshDefaultStatus()
     profileAccessPresenter.environmentDidChange()
+  }
+
+  public func applicationWillBecomeActive(_ notification: Notification) {
+    windowSpaceCoordinator.prepareVisibleWindowsForActivation()
   }
 
   public func applicationShouldHandleReopen(
