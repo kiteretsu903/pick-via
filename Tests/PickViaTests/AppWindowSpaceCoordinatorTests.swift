@@ -7,6 +7,7 @@ import XCTest
 final class AppWindowSpaceCoordinatorTests: XCTestCase {
   func testPrepareMovesVisibleOrdinaryWindowAndPreservesUnrelatedBehavior() {
     let window = makeVisibleWindow()
+    defer { window.orderOut(nil) }
     window.collectionBehavior = [.managed, .canJoinAllSpaces]
 
     AppWindowSpaceCoordinator(windowsProvider: { [window] })
@@ -40,6 +41,7 @@ final class AppWindowSpaceCoordinatorTests: XCTestCase {
       backing: .buffered,
       defer: false
     )
+    defer { panel.orderOut(nil) }
     panel.collectionBehavior = [.canJoinAllSpaces]
     panel.orderFrontRegardless()
     XCTAssertTrue(panel.isVisible)
@@ -52,6 +54,7 @@ final class AppWindowSpaceCoordinatorTests: XCTestCase {
 
   func testPrepareDoesNotModifyNonNormalLevelWindow() {
     let window = makeVisibleWindow(level: .floating)
+    defer { window.orderOut(nil) }
     window.collectionBehavior = [.canJoinAllSpaces]
 
     AppWindowSpaceCoordinator(windowsProvider: { [window] })
