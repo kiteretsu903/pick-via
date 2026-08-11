@@ -5,6 +5,25 @@ import XCTest
 
 @MainActor
 final class AppWindowSpaceCoordinatorTests: XCTestCase {
+  func testMainWindowNotificationAppliesPolicyToNewOrdinaryWindow() async {
+    let notificationCenter = NotificationCenter()
+    let window = makeVisibleWindow()
+    defer { window.orderOut(nil) }
+    window.collectionBehavior = [.managed, .canJoinAllSpaces]
+
+    let coordinator = AppWindowSpaceCoordinator(
+      notificationCenter: notificationCenter,
+      windowsProvider: { [] }
+    )
+    notificationCenter.post(name: NSWindow.didBecomeMainNotification, object: window)
+    await Task.yield()
+    withExtendedLifetime(coordinator) {}
+
+    XCTAssertTrue(window.collectionBehavior.contains(.moveToActiveSpace))
+    XCTAssertTrue(window.collectionBehavior.contains(.managed))
+    XCTAssertFalse(window.collectionBehavior.contains(.canJoinAllSpaces))
+  }
+
   func testPrepareMovesVisibleOrdinaryWindowAndPreservesUnrelatedBehavior() {
     let window = makeVisibleWindow()
     defer { window.orderOut(nil) }

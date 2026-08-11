@@ -7,10 +7,33 @@ protocol AppWindowSpaceCoordinating: AnyObject {
 
 @MainActor
 final class AppWindowSpaceCoordinator: AppWindowSpaceCoordinating {
+  private let notificationCenter: NotificationCenter
   private let windowsProvider: @MainActor () -> [NSWindow]
+  nonisolated(unsafe) private var mainWindowObserver: NSObjectProtocol?
 
-  init(windowsProvider: @escaping @MainActor () -> [NSWindow] = { NSApp.windows }) {
+  init(
+    notificationCenter: NotificationCenter = .default,
+    windowsProvider: @escaping @MainActor () -> [NSWindow] = { NSApp.windows }
+  ) {
+    self.notificationCenter = notificationCenter
     self.windowsProvider = windowsProvider
+    mainWindowObserver = notificationCenter.addObserver(
+      forName: NSWindow.didBecomeMainNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] notification in
+      let window = notification.object as? NSWindow
+      Task { @MainActor [weak self, window] in
+        guard let window else { return }
+        self?.applyPolicy(to: window)
+      }
+    }
+  }
+
+  deinit {
+    if let mainWindowObserver {
+      notificationCenter.removeObserver(mainWindowObserver)
+    }
   }
 
   func prepareVisibleWindowsForActivation() {
