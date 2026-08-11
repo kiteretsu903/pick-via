@@ -22,9 +22,8 @@ final class AppWindowSpaceCoordinator: AppWindowSpaceCoordinating {
       object: nil,
       queue: .main
     ) { [weak self] notification in
-      let window = notification.object as? NSWindow
-      Task { @MainActor [weak self, window] in
-        guard let window else { return }
+      guard let window = notification.object as? NSWindow else { return }
+      MainActor.assumeIsolated { [weak self] in
         self?.applyPolicy(to: window)
       }
     }
@@ -37,12 +36,11 @@ final class AppWindowSpaceCoordinator: AppWindowSpaceCoordinating {
   }
 
   func prepareVisibleWindowsForActivation() {
-    windowsProvider().forEach(applyPolicy)
+    windowsProvider().filter(\.isVisible).forEach(applyPolicy)
   }
 
   private func applyPolicy(to window: NSWindow) {
-    guard window.isVisible,
-      !(window is NSPanel),
+    guard !(window is NSPanel),
       !window.isSheet,
       window.level == .normal
     else {
