@@ -54,17 +54,34 @@ public final class MacOSDefaultBrowserService: DefaultBrowserServicing {
   }
 
   private func status(for scheme: String) -> SchemeStatus {
-    guard
-      let sampleURL = URL(string: "\(scheme)://pickvia.invalid"),
-      let handlerURL = workspace.urlForApplication(toOpen: sampleURL)
-    else {
-      return .unknown
-    }
+    guard let sampleURL = URL(string: "\(scheme)://pickvia.invalid") else { return .unknown }
 
-    return normalized(handlerURL) == normalized(applicationURL) ? .isDefault : .notDefault
+    return Self.status(
+      handlerURL: workspace.urlForApplication(toOpen: sampleURL),
+      applicationURL: applicationURL,
+      bundleIdentifierForURL: { Bundle(url: $0)?.bundleIdentifier }
+    )
   }
 
-  private func normalized(_ url: URL) -> URL {
+  static func status(
+    handlerURL: URL?,
+    applicationURL: URL,
+    bundleIdentifierForURL: (URL) -> String?
+  ) -> SchemeStatus {
+    guard let handlerURL else { return .unknown }
+    if normalized(handlerURL) == normalized(applicationURL) {
+      return .isDefault
+    }
+    guard
+      let handlerBundleIdentifier = bundleIdentifierForURL(handlerURL),
+      let applicationBundleIdentifier = bundleIdentifierForURL(applicationURL)
+    else {
+      return .notDefault
+    }
+    return handlerBundleIdentifier == applicationBundleIdentifier ? .isDefault : .notDefault
+  }
+
+  private static func normalized(_ url: URL) -> URL {
     url.standardizedFileURL.resolvingSymlinksInPath()
   }
 
