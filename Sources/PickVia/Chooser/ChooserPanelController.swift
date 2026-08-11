@@ -18,7 +18,18 @@ public final class SystemClipboardWriter: ClipboardWriting {
 }
 
 @MainActor
-public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindowDelegate {
+protocol ChooserPrewarming: AnyObject {
+  func prepare(applications: [BrowserApplication], targets: [BrowserTarget])
+}
+
+@MainActor
+public final class ChooserPanelController: NSObject,
+  ChooserPresenting,
+  ChooserPrewarming,
+  NSWindowDelegate
+{
+  private static let prewarmRequestURL = URL(string: "https://chooser-prewarm.invalid/")!
+
   private let clipboard: any ClipboardWriting
   private let openBrowserSettings: @MainActor () -> Void
   private let showsURLProvider: @MainActor () -> Bool
@@ -50,6 +61,10 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
   var hasActivePresentation: Bool { presentation != nil }
   var isKeyboardMonitorInstalled: Bool { keyMonitor != nil }
   var pointerAnchorForCurrentPresentation: NSPoint? { pointerAnchor }
+  var isPanelPreparedForTesting: Bool { panel != nil && hostingView != nil }
+  var isPanelVisibleForTesting: Bool { panel?.isVisible == true }
+  var panelIdentifierForTesting: ObjectIdentifier? { panel.map(ObjectIdentifier.init) }
+  var currentRequestURLForTesting: URL? { presentation?.request.url }
   var panelContentSizeForTesting: NSSize {
     panel.map { $0.contentRect(forFrameRect: $0.frame).size } ?? .zero
   }
@@ -103,6 +118,18 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     }
   }
 
+  func prepare(applications: [BrowserApplication], targets: [BrowserTarget]) {
+    guard panel == nil, hostingView == nil else { return }
+    showsURLForCurrentPresentation = showsURLProvider()
+    densityForCurrentPresentation = densityProvider()
+    let preparedPresentation = ChooserPresentation.make(
+      request: RoutingRequest(url: Self.prewarmRequestURL),
+      applications: applications,
+      targets: targets
+    )
+    render(presentation: preparedPresentation, maximumContentHeight: nil)
+  }
+
   public func present(
     request: RoutingRequest,
     applications: [BrowserApplication],
@@ -137,6 +164,7 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
       error: error,
       preservingSelection: preservedTargetID
     )
+    guard let presentation else { return }
     self.onSelection = onSelection
     self.onCancel = onCancel
     isDismissing = false
@@ -177,7 +205,7 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
       maximumHeight = visibleFrame.map { ChooserPanelLayout.maximumPanelHeight(in: $0) }
     }
     maximumContentHeightForCurrentPresentation = maximumHeight
-    render(maximumContentHeight: maximumHeight)
+    render(presentation: presentation, maximumContentHeight: maximumHeight)
     if let retainedOrigin {
       panel?.setFrameOrigin(retainedOrigin)
     }
@@ -250,8 +278,10 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     handleResignKey()
   }
 
-  private func render(maximumContentHeight: CGFloat?) {
-    guard let presentation else { return }
+  private func render(
+    presentation: ChooserPresentation,
+    maximumContentHeight: CGFloat?
+  ) {
     let view = ChooserView(
       presentation: presentation,
       showsURL: showsURLForCurrentPresentation,
@@ -338,10 +368,20 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     switch key {
     case .up:
       presentation?.moveSelection(.up)
-      render(maximumContentHeight: maximumContentHeightForCurrentPresentation)
+      if let presentation {
+        render(
+          presentation: presentation,
+          maximumContentHeight: maximumContentHeightForCurrentPresentation
+        )
+      }
     case .down:
       presentation?.moveSelection(.down)
-      render(maximumContentHeight: maximumContentHeightForCurrentPresentation)
+      if let presentation {
+        render(
+          presentation: presentation,
+          maximumContentHeight: maximumContentHeightForCurrentPresentation
+        )
+      }
     default:
       guard let action = presentation?.handle(key) else { return false }
       perform(action)

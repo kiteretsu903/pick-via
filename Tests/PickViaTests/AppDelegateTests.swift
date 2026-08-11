@@ -56,10 +56,12 @@ final class AppDelegateTests: XCTestCase {
     let scheduler = AppDelegateLaunchSchedulerSpy()
     var destinationWhenOpened: SettingsDestination?
     let presenter = AppDelegateProfileAccessPresenterSpy()
+    let prewarmer = AppDelegateChooserPrewarmerSpy()
     let delegate = AppDelegate(
       model: model,
       navigation: navigation,
       profileAccessPresenter: presenter,
+      chooserPrewarmer: prewarmer,
       launchScheduler: scheduler,
       openSettings: { destinationWhenOpened = navigation.destination }
     )
@@ -71,6 +73,7 @@ final class AppDelegateTests: XCTestCase {
     XCTAssertEqual(destinationWhenOpened, .browsers)
     XCTAssertEqual(presenter.requestIfPendingCallCount, 0)
     XCTAssertEqual(scheduler.scheduleCallCount, 0)
+    XCTAssertEqual(prewarmer.prepareCallCount, 0)
   }
 
   func testClosingRecoveredSettingsQueuesAutomaticProfileAccessAfterReview() throws {
@@ -107,8 +110,14 @@ final class AppDelegateTests: XCTestCase {
   }
 
   func testLaunchDefersPendingProfileAccessUntilNextMainRunLoopTurn() throws {
-    let presenter = AppDelegateProfileAccessPresenterSpy()
     let scheduler = AppDelegateLaunchSchedulerSpy()
+    var lifecycleEvents: [String] = []
+    let presenter = AppDelegateProfileAccessPresenterSpy {
+      lifecycleEvents.append("profile-access")
+    }
+    let prewarmer = AppDelegateChooserPrewarmerSpy {
+      lifecycleEvents.append("prewarm")
+    }
     let model = makeModel(
       catalog: AppDelegateCatalogStub(
         scanResult: AppDelegateFixtures.profileAccessRequiredScan
@@ -119,6 +128,7 @@ final class AppDelegateTests: XCTestCase {
     let delegate = AppDelegate(
       model: model,
       profileAccessPresenter: presenter,
+      chooserPrewarmer: prewarmer,
       launchScheduler: scheduler,
       openSettings: {}
     )
@@ -129,16 +139,22 @@ final class AppDelegateTests: XCTestCase {
 
     XCTAssertEqual(scheduler.scheduleCallCount, 1)
     XCTAssertEqual(presenter.requestIfPendingCallCount, 0)
+    XCTAssertEqual(prewarmer.prepareCallCount, 0)
 
     scheduler.runNext()
 
     XCTAssertEqual(presenter.requestIfPendingCallCount, 1)
     XCTAssertTrue(presenter.lastModel === model)
+    XCTAssertEqual(prewarmer.prepareCallCount, 1)
+    XCTAssertEqual(prewarmer.lastApplications, model.browsers)
+    XCTAssertEqual(prewarmer.lastTargets, model.targets)
+    XCTAssertEqual(lifecycleEvents, ["prewarm", "profile-access"])
   }
 
   func testLaunchKeepsProfileAccessPendingDuringOnboardingReview() throws {
     let presenter = AppDelegateProfileAccessPresenterSpy()
     let scheduler = AppDelegateLaunchSchedulerSpy()
+    let prewarmer = AppDelegateChooserPrewarmerSpy()
     let model = makeModel(
       catalog: AppDelegateCatalogStub(
         scanResult: AppDelegateFixtures.profileAccessRequiredScan
@@ -149,6 +165,7 @@ final class AppDelegateTests: XCTestCase {
     let delegate = AppDelegate(
       model: model,
       profileAccessPresenter: presenter,
+      chooserPrewarmer: prewarmer,
       launchScheduler: scheduler,
       openSettings: {}
     )
@@ -159,12 +176,21 @@ final class AppDelegateTests: XCTestCase {
 
     XCTAssertEqual(model.profileAccessPresentation, .automaticPending)
     XCTAssertEqual(presenter.requestIfPendingCallCount, 0)
-    XCTAssertEqual(scheduler.scheduleCallCount, 0)
+    XCTAssertEqual(scheduler.scheduleCallCount, 1)
+    XCTAssertEqual(prewarmer.prepareCallCount, 0)
+
+    scheduler.runNext()
+
+    XCTAssertEqual(prewarmer.prepareCallCount, 1)
+    XCTAssertEqual(prewarmer.lastApplications, model.browsers)
+    XCTAssertEqual(prewarmer.lastTargets, model.targets)
+    XCTAssertEqual(presenter.requestIfPendingCallCount, 0)
   }
 
-  func testLaunchDoesNotScheduleWithoutPendingProfileAccess() throws {
+  func testLaunchPrewarmsWithoutPendingProfileAccess() throws {
     let presenter = AppDelegateProfileAccessPresenterSpy()
     let scheduler = AppDelegateLaunchSchedulerSpy()
+    let prewarmer = AppDelegateChooserPrewarmerSpy()
     let model = makeModel(
       preferences: AppDelegatePreferencesStub(onboardingStep: 3)
     )
@@ -172,6 +198,7 @@ final class AppDelegateTests: XCTestCase {
     let delegate = AppDelegate(
       model: model,
       profileAccessPresenter: presenter,
+      chooserPrewarmer: prewarmer,
       launchScheduler: scheduler,
       openSettings: {}
     )
@@ -182,7 +209,15 @@ final class AppDelegateTests: XCTestCase {
 
     XCTAssertEqual(model.profileAccessPresentation, .idle)
     XCTAssertEqual(presenter.requestIfPendingCallCount, 0)
-    XCTAssertEqual(scheduler.scheduleCallCount, 0)
+    XCTAssertEqual(scheduler.scheduleCallCount, 1)
+    XCTAssertEqual(prewarmer.prepareCallCount, 0)
+
+    scheduler.runNext()
+
+    XCTAssertEqual(prewarmer.prepareCallCount, 1)
+    XCTAssertEqual(prewarmer.lastApplications, model.browsers)
+    XCTAssertEqual(prewarmer.lastTargets, model.targets)
+    XCTAssertEqual(presenter.requestIfPendingCallCount, 0)
   }
 
   func testOpenURLsPassesEachURLThroughModelValidation() throws {
@@ -456,6 +491,25 @@ private final class AppDelegateProfileAccessPresenterSpy: ProfileAccessPresentin
     environmentDidChangeCallCount += 1
   }
   func dismiss() {}
+}
+
+@MainActor
+private final class AppDelegateChooserPrewarmerSpy: ChooserPrewarming {
+  private(set) var prepareCallCount = 0
+  private(set) var lastApplications: [BrowserApplication]?
+  private(set) var lastTargets: [BrowserTarget]?
+  private let onPrepare: @MainActor () -> Void
+
+  init(onPrepare: @escaping @MainActor () -> Void = {}) {
+    self.onPrepare = onPrepare
+  }
+
+  func prepare(applications: [BrowserApplication], targets: [BrowserTarget]) {
+    prepareCallCount += 1
+    lastApplications = applications
+    lastTargets = targets
+    onPrepare()
+  }
 }
 
 @MainActor

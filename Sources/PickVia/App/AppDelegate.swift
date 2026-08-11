@@ -23,6 +23,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
   let settingsSceneOpener: SettingsSceneOpener
 
   private let windowSpaceCoordinator: any AppWindowSpaceCoordinating
+  private let chooserPrewarmer: any ChooserPrewarming
   private let launchScheduler: any AppLaunchScheduling
   private let openSettings: @MainActor () -> Void
   private let showAbout: @MainActor () -> Void
@@ -62,6 +63,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
       navigation: navigation,
       profileAccessPresenter: production.profileAccessPresenter,
       settingsSceneOpener: settingsSceneOpener,
+      chooserPrewarmer: production.chooserPrewarmer,
       openSettings: openSettings,
       showAbout: showAbout
     )
@@ -74,6 +76,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
       .shared,
     settingsSceneOpener: SettingsSceneOpener = SettingsSceneOpener(),
     windowSpaceCoordinator: any AppWindowSpaceCoordinating = AppWindowSpaceCoordinator(),
+    chooserPrewarmer: any ChooserPrewarming = InactiveChooserPrewarmer.shared,
     launchScheduler: any AppLaunchScheduling = MainRunLoopAppLaunchScheduler(),
     openSettings: @escaping @MainActor () -> Void,
     showAbout: @escaping @MainActor () -> Void = {
@@ -86,6 +89,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     self.profileAccessPresenter = profileAccessPresenter
     self.settingsSceneOpener = settingsSceneOpener
     self.windowSpaceCoordinator = windowSpaceCoordinator
+    self.chooserPrewarmer = chooserPrewarmer
     self.launchScheduler = launchScheduler
     self.openSettings = openSettings
     self.showAbout = showAbout
@@ -104,13 +108,18 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
       openSettings()
       return
     }
-    guard model.onboardingStep >= 3,
-      model.shouldAutomaticallyPresentProfileAccess
-    else { return }
+    let shouldRequestPendingProfileAccess =
+      model.onboardingStep >= 3 && model.shouldAutomaticallyPresentProfileAccess
 
     launchScheduler.schedule { [weak self] in
       guard let self else { return }
-      self.profileAccessPresenter.requestIfPending(model: self.model)
+      self.chooserPrewarmer.prepare(
+        applications: self.model.browsers,
+        targets: self.model.targets
+      )
+      if shouldRequestPendingProfileAccess {
+        self.profileAccessPresenter.requestIfPending(model: self.model)
+      }
     }
   }
 
@@ -141,11 +150,22 @@ private final class InactiveAppDelegateProfileAccessPresenter: ProfileAccessPres
   func dismiss() {}
 }
 
+@MainActor
+private final class InactiveChooserPrewarmer: ChooserPrewarming {
+  static let shared = InactiveChooserPrewarmer()
+
+  func prepare(applications: [BrowserApplication], targets: [BrowserTarget]) {}
+}
+
 extension AppModel {
   static func production(
     navigation: SettingsNavigation,
     openSettings: @escaping @MainActor () -> Void
-  ) -> (model: AppModel, profileAccessPresenter: any ProfileAccessPresenting) {
+  ) -> (
+    model: AppModel,
+    profileAccessPresenter: any ProfileAccessPresenting,
+    chooserPrewarmer: any ChooserPrewarming
+  ) {
     let applicationSupportDirectory = FileManager.default.urls(
       for: .applicationSupportDirectory,
       in: .userDomainMask
@@ -209,7 +229,7 @@ extension AppModel {
     }
 
     try? model.load()
-    return (model, profileAccessPresenter)
+    return (model, profileAccessPresenter, chooser)
   }
 }
 

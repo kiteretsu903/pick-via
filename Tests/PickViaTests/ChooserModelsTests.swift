@@ -263,6 +263,106 @@ final class ChooserModelsTests: XCTestCase {
 
 @MainActor
 final class ChooserPanelControllerTests: XCTestCase {
+  func testPrepareCreatesAnInactiveReusablePanelWithoutPresentationSideEffects() {
+    var showsURLReadCount = 0
+    var densityReadCount = 0
+    var pointerReadCount = 0
+    var lifecycleEvents: [String] = []
+    var presentationChanges: [Bool] = []
+    let controller = ChooserPanelController(
+      showsURLProvider: {
+        showsURLReadCount += 1
+        return false
+      },
+      densityProvider: {
+        densityReadCount += 1
+        return .balanced
+      },
+      onPresentationChange: { presentationChanges.append($0) },
+      pointerLocationProvider: {
+        pointerReadCount += 1
+        return .zero
+      },
+      orderPanelFront: { _ in lifecycleEvents.append("order") },
+      makePanelKey: { _ in lifecycleEvents.append("key") }
+    )
+
+    controller.prepare(applications: [Fixtures.chrome], targets: [Fixtures.work])
+
+    XCTAssertTrue(controller.isPanelPreparedForTesting)
+    XCTAssertFalse(controller.isPanelVisibleForTesting)
+    XCTAssertFalse(controller.hasActivePresentation)
+    XCTAssertFalse(controller.isKeyboardMonitorInstalled)
+    XCTAssertNil(controller.pointerAnchorForCurrentPresentation)
+    XCTAssertNil(controller.currentRequestURLForTesting)
+    XCTAssertEqual(showsURLReadCount, 1)
+    XCTAssertEqual(densityReadCount, 1)
+    XCTAssertEqual(pointerReadCount, 0)
+    XCTAssertTrue(lifecycleEvents.isEmpty)
+    XCTAssertTrue(presentationChanges.isEmpty)
+  }
+
+  func testPrepareIsIdempotentAndFirstPresentationReusesPanelWithCurrentPreferences() throws {
+    var showsURLReadCount = 0
+    var densityReadCount = 0
+    var lifecycleEvents: [String] = []
+    var selectedTargetIDs: [BrowserTarget.ID] = []
+    let controller = ChooserPanelController(
+      showsURLProvider: {
+        showsURLReadCount += 1
+        return showsURLReadCount.isMultiple(of: 2)
+      },
+      densityProvider: {
+        densityReadCount += 1
+        return densityReadCount.isMultiple(of: 2) ? .spacious : .compact
+      },
+      orderPanelFront: { _ in lifecycleEvents.append("order") },
+      makePanelKey: { _ in lifecycleEvents.append("key") }
+    )
+
+    controller.prepare(applications: [Fixtures.chrome], targets: [Fixtures.work])
+    let preparedPanelIdentifier = try XCTUnwrap(controller.panelIdentifierForTesting)
+    controller.prepare(applications: [Fixtures.chrome], targets: [Fixtures.work])
+
+    XCTAssertEqual(controller.panelIdentifierForTesting, preparedPanelIdentifier)
+    XCTAssertEqual(showsURLReadCount, 1)
+    XCTAssertEqual(densityReadCount, 1)
+
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work],
+      error: nil,
+      onSelection: { selectedTargetIDs.append($0) },
+      onCancel: {}
+    )
+    defer { controller.dismiss() }
+
+    XCTAssertEqual(controller.panelIdentifierForTesting, preparedPanelIdentifier)
+    XCTAssertEqual(controller.currentRequestURLForTesting, Fixtures.request.url)
+    XCTAssertTrue(controller.showsURLForCurrentPresentation)
+    XCTAssertEqual(controller.densityForCurrentPresentation, .spacious)
+    XCTAssertEqual(showsURLReadCount, 2)
+    XCTAssertEqual(densityReadCount, 2)
+    XCTAssertEqual(lifecycleEvents, ["order", "key"])
+    XCTAssertTrue(controller.isKeyboardMonitorInstalled)
+
+    NSApp.sendEvent(try makeKeyEvent(keyCode: 125, characters: ""))
+    NSApp.sendEvent(try makeKeyEvent(keyCode: 36, characters: "\r"))
+    XCTAssertEqual(selectedTargetIDs, [Fixtures.work.id])
+  }
+
+  func testPrepareWithNoApplicationsOrTargetsCreatesUsableInactivePanel() {
+    let controller = ChooserPanelController()
+
+    controller.prepare(applications: [], targets: [])
+
+    XCTAssertTrue(controller.isPanelPreparedForTesting)
+    XCTAssertGreaterThan(controller.panelContentSizeForTesting.height, 0)
+    XCTAssertFalse(controller.hasActivePresentation)
+    XCTAssertFalse(controller.isPanelVisibleForTesting)
+  }
+
   func testPresentationOrdersPanelBeforeKeyRequestWithoutActivatingApplication() {
     var lifecycleEvents: [String] = []
     let controller = ChooserPanelController(
