@@ -29,4 +29,26 @@ final class DefaultBrowserServiceTests: XCTestCase {
 
     XCTAssertEqual(status, .isDefault)
   }
+
+  func testDifferentBundleIdentifierIsNotDefault() {
+    let status = MacOSDefaultBrowserService.status(
+      handlerURL: URL(fileURLWithPath: "/Applications/Safari.app"),
+      applicationURL: URL(fileURLWithPath: "/Applications/PickVia.app"),
+      bundleIdentifierForURL: { url in
+        url.lastPathComponent == "Safari.app" ? "com.apple.Safari" : "dev.bozhenpeng.PickVia"
+      }
+    )
+
+    XCTAssertEqual(status, .notDefault)
+  }
+
+  func testMissingHandlerIsUnknown() {
+    let status = MacOSDefaultBrowserService.status(
+      handlerURL: nil,
+      applicationURL: URL(fileURLWithPath: "/Applications/PickVia.app"),
+      bundleIdentifierForURL: { _ in "dev.bozhenpeng.PickVia" }
+    )
+
+    XCTAssertEqual(status, .unknown)
+  }
 }

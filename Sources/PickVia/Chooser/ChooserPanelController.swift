@@ -26,7 +26,6 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
   private let onPresentationChange: @MainActor (Bool) -> Void
   private let pointerLocationProvider: @MainActor () -> NSPoint
   private let orderPanelFront: @MainActor (NSPanel) -> Void
-  private let activateApplication: @MainActor () -> Void
   private let makePanelKey: @MainActor (NSPanel) -> Void
 
   private(set) var showsURLForCurrentPresentation = true
@@ -64,9 +63,6 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     onPresentationChange: @escaping @MainActor (Bool) -> Void = { _ in },
     pointerLocationProvider: @escaping @MainActor () -> NSPoint = { NSEvent.mouseLocation },
     orderPanelFront: @escaping @MainActor (NSPanel) -> Void = { $0.orderFrontRegardless() },
-    activateApplication: @escaping @MainActor () -> Void = {
-      NSApp.activate(ignoringOtherApps: true)
-    },
     makePanelKey: @escaping @MainActor (NSPanel) -> Void = { $0.makeKey() }
   ) {
     self.clipboard = clipboard
@@ -76,7 +72,6 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     self.onPresentationChange = onPresentationChange
     self.pointerLocationProvider = pointerLocationProvider
     self.orderPanelFront = orderPanelFront
-    self.activateApplication = activateApplication
     self.makePanelKey = makePanelKey
     super.init()
   }
@@ -89,9 +84,6 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     onPresentationChange: @escaping @MainActor (Bool) -> Void = { _ in },
     pointerLocationProvider: @escaping @MainActor () -> NSPoint = { NSEvent.mouseLocation },
     orderPanelFront: @escaping @MainActor (NSPanel) -> Void = { $0.orderFrontRegardless() },
-    activateApplication: @escaping @MainActor () -> Void = {
-      NSApp.activate(ignoringOtherApps: true)
-    },
     makePanelKey: @escaping @MainActor (NSPanel) -> Void = { $0.makeKey() }
   ) {
     self.clipboard = clipboard
@@ -101,7 +93,6 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
     self.onPresentationChange = onPresentationChange
     self.pointerLocationProvider = pointerLocationProvider
     self.orderPanelFront = orderPanelFront
-    self.activateApplication = activateApplication
     self.makePanelKey = makePanelKey
     super.init()
   }

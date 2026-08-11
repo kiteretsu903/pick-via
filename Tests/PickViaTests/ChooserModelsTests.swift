@@ -270,9 +270,6 @@ final class ChooserPanelControllerTests: XCTestCase {
         lifecycleEvents.append("order")
         panel.orderFrontRegardless()
       },
-      activateApplication: {
-        lifecycleEvents.append("activate")
-      },
       makePanelKey: { panel in
         lifecycleEvents.append("key")
         panel.makeKey()
@@ -299,7 +296,6 @@ final class ChooserPanelControllerTests: XCTestCase {
         presentedPanel = panel
         panel.orderFrontRegardless()
       },
-      activateApplication: {},
       makePanelKey: { _ in }
     )
 
