@@ -263,7 +263,7 @@ final class ChooserModelsTests: XCTestCase {
 
 @MainActor
 final class ChooserPanelControllerTests: XCTestCase {
-  func testPresentationOrdersPanelBeforeActivatingApplication() {
+  func testPresentationOrdersPanelBeforeKeyRequestWithoutActivatingApplication() {
     var lifecycleEvents: [String] = []
     let controller = ChooserPanelController(
       orderPanelFront: { panel in
@@ -289,7 +289,33 @@ final class ChooserPanelControllerTests: XCTestCase {
     )
     defer { controller.dismiss() }
 
-    XCTAssertEqual(lifecycleEvents, ["order", "activate", "key"])
+    XCTAssertEqual(lifecycleEvents, ["order", "key"])
+  }
+
+  func testChooserPanelIsNonactivatingAndCannotBecomeMain() throws {
+    var presentedPanel: NSPanel?
+    let controller = ChooserPanelController(
+      orderPanelFront: { panel in
+        presentedPanel = panel
+        panel.orderFrontRegardless()
+      },
+      activateApplication: {},
+      makePanelKey: { _ in }
+    )
+
+    controller.present(
+      request: Fixtures.request,
+      applications: [Fixtures.chrome],
+      targets: [Fixtures.work],
+      error: nil,
+      onSelection: { _ in },
+      onCancel: {}
+    )
+    defer { controller.dismiss() }
+
+    let panel = try XCTUnwrap(presentedPanel)
+    XCTAssertTrue(panel.styleMask.contains(.nonactivatingPanel))
+    XCTAssertFalse(panel.canBecomeMain)
   }
 
   func testPointerOutsideScreensCentersPanelOnMainVisibleFrame() throws {

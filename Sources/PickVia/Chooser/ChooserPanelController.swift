@@ -212,7 +212,6 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
       }
     }
     orderPanelFront(panel)
-    activateApplication()
     makePanelKey(panel)
     if !hasReportedPresentation {
       hasReportedPresentation = true
@@ -286,7 +285,7 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
           width: contentWidth,
           height: 300
         ),
-        styleMask: [.borderless],
+        styleMask: [.borderless, .nonactivatingPanel],
         backing: .buffered,
         defer: false
       )
@@ -417,5 +416,5 @@ public final class ChooserPanelController: NSObject, ChooserPresenting, NSWindow
 
 private final class ChooserPanel: NSPanel {
   override var canBecomeKey: Bool { true }
-  override var canBecomeMain: Bool { true }
+  override var canBecomeMain: Bool { false }
 }
