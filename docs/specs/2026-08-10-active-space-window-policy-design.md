@@ -47,12 +47,13 @@ the chooser.
 Add a small AppKit window-space coordinator that applies `.moveToActiveSpace` to ordinary PickVia
 windows. The coordinator handles two lifecycle boundaries:
 
-1. When an ordinary PickVia window becomes visible, it receives the policy immediately.
+1. When an ordinary PickVia window becomes main, it receives the policy immediately.
 2. In `applicationWillBecomeActive`, all currently visible ordinary PickVia windows receive the
    policy again before macOS completes application activation.
 
-Applying the policy at both boundaries covers windows created by SwiftUI after launch and windows
-that were already open on another Space when a link was triggered. The operation is idempotent.
+Applying the policy at both boundaries covers windows created by SwiftUI after launch once they
+become main and windows that were already open on another Space when a link was triggered. The
+operation is idempotent.
 Because AppKit reports the incoming URL only after activation begins, this is an intrinsic policy
 for ordinary PickVia windows: they may move to the current desktop on any PickVia activation, not
 only link delivery.
@@ -87,8 +88,8 @@ A focused AppKit component will:
 - receive the application window list through an injected provider
 - determine whether a window is an eligible ordinary PickVia surface
 - add `.moveToActiveSpace` to eligible windows
-- observe `NSWindow.didBecomeVisibleNotification` and apply the same policy to newly visible
-  eligible windows
+- observe `NSWindow.didBecomeMainNotification` and apply the same policy to newly main eligible
+  windows
 - remove its notification observer during teardown
 
 The component will not know about URLs, routing, chooser models, or SwiftUI destinations.
@@ -118,9 +119,9 @@ No additional Space workaround is added. Its existing `.nonactivatingPanel`,
 ## Failure Handling
 
 Applying a window collection behavior is synchronous and nonthrowing. If no ordinary window exists
-during activation, the coordinator performs no work; the visibility observer applies the policy if
-SwiftUI creates a window later. Repeated application is safe and must not alter URL data or persist
-window contents.
+during activation, the coordinator performs no work; the main-window observer applies the policy
+if SwiftUI creates a main window later. Repeated application is safe and must not alter URL data or
+persist window contents.
 
 No diagnostic logging of URLs will be added. The temporary activation instrumentation used during
 root-cause analysis is not part of the implementation.
@@ -133,7 +134,7 @@ root-cause analysis is not part of the implementation.
 - Existing unrelated collection behaviors remain present.
 - An `NSPanel` is not modified.
 - A non-normal-level infrastructure window is not modified.
-- A newly visible eligible window receives the policy through the notification boundary.
+- A newly main eligible window receives the policy through the notification boundary.
 - `AppDelegate.applicationWillBecomeActive` asks the coordinator to prepare existing windows.
 - Existing chooser regression tests continue to verify that the chooser itself does not activate
   PickVia and cannot become the main window.
