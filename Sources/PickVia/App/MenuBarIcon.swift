@@ -3,6 +3,7 @@ import SwiftUI
 
 enum PickViaMenuBarIcon {
   static let fallbackSystemName = "arrow.triangle.branch"
+  static let displaySize = NSSize(width: 18, height: 18)
 
   static func load(bundle: Bundle = .main) -> NSImage? {
     load(from: bundle.url(forResource: "PickViaMenuBarTemplate", withExtension: "png"))
@@ -10,7 +11,7 @@ enum PickViaMenuBarIcon {
 
   static func load(from url: URL?) -> NSImage? {
     guard let url, let image = NSImage(contentsOf: url) else { return nil }
-    image.size = NSSize(width: 22, height: 22)
+    image.size = displaySize
     image.isTemplate = true
     return image
   }

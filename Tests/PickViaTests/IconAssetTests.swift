@@ -45,16 +45,29 @@ final class IconAssetTests: XCTestCase {
     XCTAssertLessThan(maxY, bitmap.pixelsHigh - 1)
   }
 
-  func testGeneratorContainsApprovedPaletteAndNativeToolingOnly() throws {
+  func testGeneratorUsesCheckedInArtworkAndNativeICNSContainer() throws {
     let source = try String(
       contentsOf: repositoryRoot.appending(path: "scripts/generate-icons.swift"))
 
-    XCTAssertTrue(source.contains("0x8177F2"))
-    XCTAssertTrue(source.contains("0x545DD3"))
-    XCTAssertTrue(source.contains("0x30387F"))
-    XCTAssertTrue(source.contains("/usr/bin/iconutil"))
+    XCTAssertTrue(source.contains("PickViaArtwork.png"))
+    XCTAssertTrue(source.contains("ic10"))
     XCTAssertFalse(source.contains("http://"))
     XCTAssertFalse(source.contains("https://"))
+  }
+
+  func testApplicationArtworkHasTransparentCornersAndEnoughResolution() throws {
+    let data = try Data(contentsOf: assetURL("PickViaArtwork.png"))
+    let representation = try XCTUnwrap(
+      NSBitmapImageRep(data: data))
+
+    XCTAssertGreaterThanOrEqual(representation.pixelsWide, 1024)
+    XCTAssertGreaterThanOrEqual(representation.pixelsHigh, 1024)
+    XCTAssertTrue(representation.hasAlpha)
+    XCTAssertEqual(
+      try XCTUnwrap(representation.colorAt(x: 0, y: 0)).alphaComponent,
+      0,
+      accuracy: 0.01
+    )
   }
 
   func testGeneratorValidatesBothStagedAssetsBeforeReplacingOutputs() throws {
@@ -120,10 +133,11 @@ final class IconAssetTests: XCTestCase {
     let generator = Process()
     let output = Pipe()
     generator.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-    generator.arguments = [
-      "swift",
-      repositoryRoot.appending(path: "scripts/generate-icons.swift").path,
-    ] + arguments
+    generator.arguments =
+      [
+        "swift",
+        repositoryRoot.appending(path: "scripts/generate-icons.swift").path,
+      ] + arguments
     generator.standardOutput = output
     generator.standardError = output
     try generator.run()

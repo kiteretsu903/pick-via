@@ -4,11 +4,11 @@ import XCTest
 @testable import PickVia
 
 final class MenuBarIconTests: XCTestCase {
-  func testCheckedInMenuIconLoadsAsTwentyTwoPointTemplate() throws {
+  func testCheckedInMenuIconLoadsAsCompactTemplate() throws {
     let image = try XCTUnwrap(PickViaMenuBarIcon.load(from: menuAssetURL))
 
     XCTAssertTrue(image.isTemplate)
-    XCTAssertEqual(image.size, NSSize(width: 22, height: 22))
+    XCTAssertEqual(image.size, NSSize(width: 18, height: 18))
   }
 
   func testMissingMenuIconUsesStableSystemFallbackName() {

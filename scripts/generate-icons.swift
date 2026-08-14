@@ -5,28 +5,27 @@ import Foundation
 enum IconGenerationError: Error {
   case bitmapAllocationFailed(Int)
   case pngEncodingFailed(Int)
-  case iconutilFailed(Int32)
   case invalidGeneratedAsset(String)
+  case invalidSourceArtwork(String)
   case invalidArguments
 }
 
 struct IconRepresentation {
   let pixels: Int
-  let filename: String
+  let icnsType: String
 }
 
 let iconRepresentations = [
-  IconRepresentation(pixels: 16, filename: "icon_16x16.png"),
-  IconRepresentation(pixels: 32, filename: "icon_16x16@2x.png"),
-  IconRepresentation(pixels: 32, filename: "icon_32x32.png"),
-  IconRepresentation(pixels: 64, filename: "icon_32x32@2x.png"),
-  IconRepresentation(pixels: 128, filename: "icon_128x128.png"),
-  IconRepresentation(pixels: 256, filename: "icon_128x128@2x.png"),
-  IconRepresentation(pixels: 256, filename: "icon_256x256.png"),
-  IconRepresentation(pixels: 512, filename: "icon_256x256@2x.png"),
-  IconRepresentation(pixels: 512, filename: "icon_512x512.png"),
-  IconRepresentation(pixels: 1024, filename: "icon_512x512@2x.png"),
+  IconRepresentation(pixels: 16, icnsType: "icp4"),
+  IconRepresentation(pixels: 32, icnsType: "icp5"),
+  IconRepresentation(pixels: 64, icnsType: "icp6"),
+  IconRepresentation(pixels: 128, icnsType: "ic07"),
+  IconRepresentation(pixels: 256, icnsType: "ic08"),
+  IconRepresentation(pixels: 512, icnsType: "ic09"),
+  IconRepresentation(pixels: 1024, icnsType: "ic10"),
 ]
+
+let applicationArtworkFilename = "PickViaArtwork.png"
 
 func color(_ hexadecimal: UInt32, alpha: CGFloat = 1) -> CGColor {
   CGColor(
@@ -66,101 +65,48 @@ func pngData(_ representation: NSBitmapImageRep, size: Int) throws -> Data {
   return data
 }
 
-func drawApplicationIcon(size: Int) throws -> Data {
+func loadApplicationArtwork(repositoryRoot: URL) throws -> CGImage {
+  let artworkURL = repositoryRoot.appending(path: "Support/Icons/\(applicationArtworkFilename)")
+  guard let data = try? Data(contentsOf: artworkURL),
+    let representation = NSBitmapImageRep(data: data),
+    representation.pixelsWide >= 1024,
+    representation.pixelsHigh >= 1024,
+    representation.hasAlpha,
+    let artwork = representation.cgImage
+  else {
+    throw IconGenerationError.invalidSourceArtwork(applicationArtworkFilename)
+  }
+  return artwork
+}
+
+func drawApplicationIcon(size: Int, artwork: CGImage) throws -> Data {
   let representation = try bitmap(size: size) { context in
-    let scale = CGFloat(size) / 1024
-    context.scaleBy(x: scale, y: scale)
-    context.translateBy(x: 0, y: 1024)
-    context.scaleBy(x: 1, y: -1)
-
-    let squircle = CGPath(
-      roundedRect: CGRect(x: 35.84, y: 35.84, width: 952.32, height: 952.32),
-      cornerWidth: 225.28,
-      cornerHeight: 225.28,
-      transform: nil
-    )
-    context.saveGState()
-    context.addPath(squircle)
-    context.clip()
-    let background = CGGradient(
-      colorsSpace: CGColorSpaceCreateDeviceRGB(),
-      colors: [color(0x8177F2), color(0x545DD3), color(0x30387F)] as CFArray,
-      locations: [0, 0.48, 1]
-    )!
-    context.drawLinearGradient(
-      background,
-      start: CGPoint(x: 164, y: 52),
-      end: CGPoint(x: 860, y: 982),
-      options: []
-    )
-    let highlight = CGGradient(
-      colorsSpace: CGColorSpaceCreateDeviceRGB(),
-      colors: [color(0xffffff, alpha: 0.26), color(0xffffff, alpha: 0)] as CFArray,
-      locations: [0, 1]
-    )!
-    context.drawRadialGradient(
-      highlight,
-      startCenter: CGPoint(x: 348, y: 246),
-      startRadius: 0,
-      endCenter: CGPoint(x: 348, y: 246),
-      endRadius: 680,
-      options: []
-    )
-    context.restoreGState()
-
-    context.addPath(squircle)
-    context.setStrokeColor(color(0xffffff, alpha: 0.18))
-    context.setLineWidth(10.24)
-    context.strokePath()
-
-    let small = size <= 48
-    context.addEllipse(in: CGRect(x: 204.8, y: 204.8, width: 614.4, height: 614.4))
-    context.setFillColor(color(0xffffff, alpha: 0.09))
-    context.setStrokeColor(color(0xffffff, alpha: 0.34))
-    context.setLineWidth(small ? 30.72 : 25.6)
-    context.drawPath(using: .fillStroke)
-
-    let route = CGMutablePath()
-    route.move(to: CGPoint(x: 512, y: 773.12))
-    route.addLine(to: CGPoint(x: 512, y: 573.44))
-    route.addLine(to: CGPoint(x: 337.92, y: 373.76))
-    route.move(to: CGPoint(x: 512, y: 573.44))
-    route.addLine(to: CGPoint(x: 686.08, y: 373.76))
-    context.addPath(route)
-    context.setStrokeColor(color(0xffffff))
-    context.setLineWidth(small ? 87.04 : 76.8)
-    context.setLineCap(.round)
-    context.setLineJoin(.round)
-    context.strokePath()
-
-    let endpointRadius: CGFloat = small ? 66.56 : 61.44
-    for point in [
-      CGPoint(x: 337.92, y: 373.76),
-      CGPoint(x: 686.08, y: 373.76),
-      CGPoint(x: 512, y: 773.12),
-    ] {
-      context.addEllipse(
-        in: CGRect(
-          x: point.x - endpointRadius,
-          y: point.y - endpointRadius,
-          width: endpointRadius * 2,
-          height: endpointRadius * 2
-        ))
-      context.setFillColor(color(0xffffff))
-      context.fillPath()
-    }
-    let decisionRadius: CGFloat = small ? 51.2 : 46.08
-    context.addEllipse(
-      in: CGRect(
-        x: 512 - decisionRadius,
-        y: 573.44 - decisionRadius,
-        width: decisionRadius * 2,
-        height: decisionRadius * 2
-      ))
-    context.setFillColor(color(0xD4D7FF))
-    context.fillPath()
+    context.interpolationQuality = .high
+    context.draw(artwork, in: CGRect(x: 0, y: 0, width: size, height: size))
   }
   return try pngData(representation, size: size)
+}
+
+func appendBigEndian(_ value: UInt32, to data: inout Data) {
+  var bigEndianValue = value.bigEndian
+  withUnsafeBytes(of: &bigEndianValue) { data.append(contentsOf: $0) }
+}
+
+func makeICNSData(representations: [(type: String, data: Data)]) throws -> Data {
+  var chunks = Data()
+  for representation in representations {
+    guard let type = representation.type.data(using: .ascii), type.count == 4 else {
+      throw IconGenerationError.invalidGeneratedAsset("PickVia.icns")
+    }
+    chunks.append(type)
+    appendBigEndian(UInt32(representation.data.count + 8), to: &chunks)
+    chunks.append(representation.data)
+  }
+
+  var result = Data("icns".utf8)
+  appendBigEndian(UInt32(chunks.count + 8), to: &result)
+  result.append(chunks)
+  return result
 }
 
 func drawMenuTemplate() throws -> Data {
@@ -168,30 +114,39 @@ func drawMenuTemplate() throws -> Data {
     context.scaleBy(x: 2, y: 2)
     context.translateBy(x: 0, y: 22)
     context.scaleBy(x: 1, y: -1)
+    context.translateBy(x: 1, y: -1)
     context.setStrokeColor(color(0x000000))
     context.setFillColor(color(0x000000))
     context.setLineCap(.round)
     context.setLineJoin(.round)
 
-    context.addEllipse(in: CGRect(x: 2, y: 2, width: 18, height: 18))
-    context.setLineWidth(1.8)
-    context.strokePath()
     let route = CGMutablePath()
-    route.move(to: CGPoint(x: 11, y: 18))
-    route.addLine(to: CGPoint(x: 11, y: 12))
-    route.addLine(to: CGPoint(x: 6.3, y: 6.5))
-    route.move(to: CGPoint(x: 11, y: 12))
-    route.addLine(to: CGPoint(x: 15.7, y: 6.5))
+    route.move(to: CGPoint(x: 3, y: 11))
+    route.addLine(to: CGPoint(x: 8.1, y: 11))
+    route.addCurve(
+      to: CGPoint(x: 17.1, y: 4),
+      control1: CGPoint(x: 10.1, y: 11),
+      control2: CGPoint(x: 10.8, y: 7.9)
+    )
+    route.move(to: CGPoint(x: 8.1, y: 11))
+    route.addCurve(
+      to: CGPoint(x: 17.1, y: 20),
+      control1: CGPoint(x: 10.1, y: 11),
+      control2: CGPoint(x: 10.8, y: 16.1)
+    )
     context.addPath(route)
-    context.setLineWidth(2)
+    context.setLineWidth(2.15)
     context.strokePath()
-    for point in [CGPoint(x: 6.3, y: 6.5), CGPoint(x: 15.7, y: 6.5)] {
-      context.addEllipse(in: CGRect(x: point.x - 1.4, y: point.y - 1.4, width: 2.8, height: 2.8))
-      context.fillPath()
-    }
-    context.addEllipse(in: CGRect(x: 9.6, y: 16.6, width: 2.8, height: 2.8))
-    context.fillPath()
-    context.addEllipse(in: CGRect(x: 10, y: 11, width: 2, height: 2))
+    let arrowheads = CGMutablePath()
+    arrowheads.move(to: CGPoint(x: 14.2, y: 4))
+    arrowheads.addLine(to: CGPoint(x: 17.1, y: 4))
+    arrowheads.addLine(to: CGPoint(x: 17.1, y: 6.9))
+    arrowheads.move(to: CGPoint(x: 14.2, y: 20))
+    arrowheads.addLine(to: CGPoint(x: 17.1, y: 20))
+    arrowheads.addLine(to: CGPoint(x: 17.1, y: 17.1))
+    context.addPath(arrowheads)
+    context.strokePath()
+    context.addEllipse(in: CGRect(x: 6.55, y: 9.45, width: 3.1, height: 3.1))
     context.fillPath()
   }
   return try pngData(representation, size: 44)
@@ -242,29 +197,23 @@ func main() throws {
     from: CommandLine.arguments,
     repositoryRoot: repositoryRoot
   )
+  let applicationArtwork = try loadApplicationArtwork(repositoryRoot: repositoryRoot)
   let temporary = FileManager.default.temporaryDirectory
     .appending(path: "pickvia-icons-\(UUID().uuidString)", directoryHint: .isDirectory)
-  let iconset = temporary.appending(path: "PickVia.iconset", directoryHint: .isDirectory)
   defer { try? FileManager.default.removeItem(at: temporary) }
-  try FileManager.default.createDirectory(at: iconset, withIntermediateDirectories: true)
+  try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true)
 
+  var icnsRepresentations: [(type: String, data: Data)] = []
   for representation in iconRepresentations {
-    let data = try drawApplicationIcon(size: representation.pixels)
-    try data.write(to: iconset.appending(path: representation.filename), options: .atomic)
+    let data = try drawApplicationIcon(size: representation.pixels, artwork: applicationArtwork)
+    icnsRepresentations.append((representation.icnsType, data))
   }
   let menuData = try drawMenuTemplate()
   let stagedMenu = temporary.appending(path: "PickViaMenuBarTemplate.png")
   try menuData.write(to: stagedMenu, options: .atomic)
 
   let stagedICNS = temporary.appending(path: "PickVia.icns")
-  let iconutil = Process()
-  iconutil.executableURL = URL(fileURLWithPath: "/usr/bin/iconutil")
-  iconutil.arguments = ["-c", "icns", "-o", stagedICNS.path, iconset.path]
-  try iconutil.run()
-  iconutil.waitUntilExit()
-  guard iconutil.terminationStatus == 0 else {
-    throw IconGenerationError.iconutilFailed(iconutil.terminationStatus)
-  }
+  try makeICNSData(representations: icnsRepresentations).write(to: stagedICNS, options: .atomic)
 
   try validateMenuTemplate(at: stagedMenu)
   try validateApplicationIcon(at: stagedICNS)
