@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Release notes for PickVia, the native macOS link chooser." />
+    <meta name="theme-color" content="#f4f3ee" />
+    <title>Changelog - PickVia</title>
+    <style>
+      :root { --paper: #f4f3ee; --ink: #151515; --muted: #696963; --rule: #d9d8d0; --violet: #6149d7; --soft-violet: #eceaff; --radius: 28px; }
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body { margin: 0; background: var(--paper); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif; }
+      a { color: inherit; text-decoration: none; }
+      .shell { width: min(980px, calc(100% - 48px)); margin: 0 auto; }
+      .site-header { height: 82px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--rule); }
+      .brand { display: inline-flex; gap: 10px; align-items: center; font-size: 19px; letter-spacing: -.045em; font-weight: 740; }
+      .brand img { width: 31px; height: 31px; border-radius: 8px; }
+      nav { display: flex; align-items: center; gap: 27px; color: #55554f; font-size: 14px; font-weight: 560; }
+      nav a:hover, .site-footer a:hover { color: var(--violet); }
+      .button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 16px; border: 1px solid var(--ink); border-radius: 999px; font-size: 14px; font-weight: 650; transition: transform .18s ease, background .18s ease; }
+      .button:hover { transform: translateY(-1px); background: white; }
+      .page-intro { padding: 106px 0 80px; }
+      .eyebrow { margin: 0; color: var(--violet); font-size: 11px; font-weight: 760; letter-spacing: .13em; text-transform: uppercase; }
+      h1, h2, p { margin-top: 0; }
+      h1 { max-width: 680px; margin: 16px 0 20px; font-size: clamp(60px, 9vw, 106px); line-height: .9; letter-spacing: -.085em; }
+      h1 em { font-style: normal; color: var(--violet); }
+      .intro-copy { max-width: 515px; margin: 0; color: var(--muted); font-size: 19px; letter-spacing: -.028em; line-height: 1.48; }
+      .release-list { padding-bottom: 86px; }
+      .release { display: grid; grid-template-columns: 168px 1fr; gap: 38px; padding: 40px 0 52px; border-top: 1px solid var(--ink); }
+      .release-meta { color: var(--muted); font-size: 13px; line-height: 1.45; }
+      .release-meta strong { display: block; margin-bottom: 4px; color: var(--violet); font-size: 12px; letter-spacing: .09em; }
+      h2 { margin: 0; font-size: clamp(38px, 5.2vw, 58px); line-height: .94; letter-spacing: -.07em; }
+      .release-summary { max-width: 600px; margin: 18px 0 27px; color: var(--muted); font-size: 17px; line-height: 1.55; }
+      .release ul { max-width: 650px; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--rule); }
+      .release li { position: relative; padding: 14px 0 14px 19px; border-bottom: 1px solid var(--rule); color: #3b3b37; font-size: 15px; line-height: 1.45; }
+      .release li::before { position: absolute; left: 0; color: var(--violet); content: "•"; }
+      .release-links { display: flex; gap: 19px; margin-top: 24px; color: var(--violet); font-size: 14px; font-weight: 650; }
+      .release-links a:hover { text-decoration: underline; text-underline-offset: 4px; }
+      .release-current { padding: 6px 10px; border-radius: 999px; color: #39299c; background: var(--soft-violet); font-size: 11px; font-weight: 760; letter-spacing: .08em; text-transform: uppercase; }
+      .site-footer { display: flex; justify-content: space-between; padding: 25px 0 38px; border-top: 1px solid var(--rule); color: #76766f; font-size: 13px; }
+      @media (max-width: 680px) {
+        .shell { width: min(100% - 32px, 980px); }
+        .site-header { height: 72px; } nav { display: none; }
+        .page-intro { padding: 72px 0 58px; }
+        .release { grid-template-columns: 1fr; gap: 18px; padding: 32px 0 42px; }
+        .site-footer { flex-direction: column; gap: 13px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="shell site-header">
+      <a class="brand" href="index.html" aria-label="PickVia home"><img src="assets/icon.png" alt="" /><span>PickVia</span></a>
+      <nav aria-label="Primary navigation"><a href="index.html#features">Features</a><a href="changelog.html" aria-current="page">Changelog</a><a href="index.html#download">Download</a></nav>
+      <a class="button" href="https://github.com/kiteretsu903/pick-via">Source <span aria-hidden="true">↗</span></a>
+    </header>
+    <main>
+      <section class="shell page-intro">
+        <p class="eyebrow">Release notes</p>
+        <h1>What is <em>new</em><br />in PickVia.</h1>
+        <p class="intro-copy">A concise record of every public PickVia release. Download the latest version from GitHub.</p>
+      </section>
+      <section class="shell release-list" aria-label="PickVia releases">
+        <article class="release">
+          <div class="release-meta"><strong>15 AUG 2026</strong><span class="release-current">Current release</span></div>
+          <div>
+            <h2>Version 1.1</h2>
+            <p class="release-summary">Email links now get the same intentional choice as web links, with private, app-level routing for the mail apps already on your Mac.</p>
+            <ul>
+              <li>Choose an installed mail app whenever you open a <code>mailto:</code> link.</li>
+              <li>Discover, enable, disable, reorder, and rescan registered mail applications in Mail Settings.</li>
+              <li>Configure mail routing during onboarding, or keep your existing default mail application.</li>
+              <li>Keep recipients, subjects, message bodies, and the original mail request out of the chooser, clipboard, logs, and saved configuration.</li>
+              <li>Preserve browser and mail configuration through rescans, onboarding, Settings sessions, and launch recovery.</li>
+            </ul>
+            <div class="release-links"><a href="https://github.com/kiteretsu903/pick-via/releases/tag/v1.1">Full release notes <span aria-hidden="true">↗</span></a><a href="https://github.com/kiteretsu903/pick-via/releases/latest">Download v1.1 <span aria-hidden="true">↓</span></a></div>
+          </div>
+        </article>
+        <article class="release">
+          <div class="release-meta"><strong>14 AUG 2026</strong><span>First public release</span></div>
+          <div>
+            <h2>Version 1.0</h2>
+            <p class="release-summary">The first public release of PickVia: a native macOS chooser for browser targets, profiles, and supported private modes.</p>
+            <ul>
+              <li>Choose a browser target for every HTTP and HTTPS link.</li>
+              <li>Support Safari, Chrome, Chromium, Edge, Brave, Vivaldi, and Firefox.</li>
+              <li>Use discovered Chromium-family and Firefox profiles, plus normal and private targets where supported.</li>
+              <li>Keep the chooser on the current macOS Desktop and prepare it after launch for faster first use.</li>
+              <li>Install with a drag-to-Applications DMG.</li>
+            </ul>
+            <div class="release-links"><a href="https://github.com/kiteretsu903/pick-via/releases/tag/v1.0">Full release notes <span aria-hidden="true">↗</span></a></div>
+          </div>
+        </article>
+      </section>
+    </main>
+    <footer class="shell site-footer"><span>© 2026 PickVia · MIT License</span><span><a href="index.html">Home</a> · <a href="https://github.com/kiteretsu903/pick-via">Source code on GitHub <span aria-hidden="true">↗</span></a></span></footer>
+  </body>
+</html>
