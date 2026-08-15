@@ -9,6 +9,12 @@
 PickVia is a fast, local menu-bar app for macOS. Choose the exact browser,
 profile, or mail application you want whenever you open a web or email link.
 
+<p align="center">
+  <img src="docs/screenshots/pickvia-browser-chooser-backdrop@2x.png" alt="PickVia browser chooser with native macOS translucent material" width="900">
+</p>
+
+<p align="center"><sub>Pick the right browser and profile without breaking your flow.</sub></p>
+
 ## Download
 
 **[Download PickVia v1.0 for macOS](https://github.com/kiteretsu903/pick-via/releases/latest)**
@@ -33,6 +39,42 @@ integrated on `main` for the next release.
 - **Keep profile access deliberate.** If macOS protects a browser's profile
   folder, PickVia asks only for that browser's exact data root. You can remove
   the grant at any time in Browser Settings.
+
+## Native, focused, and fast
+
+PickVia uses a compact native macOS chooser with real translucent material,
+keyboard shortcuts, and the application icons already installed on your Mac.
+Browser and email links share the same focused interaction without exposing the
+contents of the link.
+
+<p align="center">
+  <img src="docs/screenshots/pickvia-mail-chooser-backdrop@2x.png" alt="PickVia mail chooser with native macOS translucent material" width="900">
+</p>
+
+### The choosers on their own
+
+<table>
+  <tr>
+    <td align="center" valign="top" width="50%">
+      <img src="docs/screenshots/pickvia-browser-chooser@2x.png" alt="Standalone PickVia browser chooser" width="360">
+      <br><sub>Browser profiles and private targets</sub>
+    </td>
+    <td align="center" valign="top" width="50%">
+      <img src="docs/screenshots/pickvia-mail-chooser@2x.png" alt="Standalone PickVia mail chooser" width="360">
+      <br><sub>Installed email applications</sub>
+    </td>
+  </tr>
+</table>
+
+## Configure once
+
+Enable only the browsers, profiles, private modes, and mail applications you
+want to see. Reorder targets so your everyday choices get the fastest keyboard
+shortcuts.
+
+<p align="center">
+  <img src="docs/screenshots/pickvia-settings@2x.png" alt="PickVia browser settings with synthetic browser profiles" width="900">
+</p>
 
 ## Install
 
