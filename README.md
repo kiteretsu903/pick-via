@@ -1,63 +1,81 @@
 # PickVia
 
-PickVia is a local, menu-bar-only macOS browser chooser. It handles HTTP and HTTPS links and lets you choose an installed Safari, Chromium-family, or Firefox target each time.
+<p align="center">
+  <img src="Support/Icons/PickViaArtwork.png" alt="PickVia app icon" width="128">
+</p>
 
-## Requirements
+<p align="center"><strong>Choose where every link opens.</strong></p>
 
-- macOS 14 Sonoma or newer
-- Xcode and the Swift 6 toolchain
-- A locally built, non-sandboxed app bundle
+PickVia is a fast, local menu-bar app for macOS. Make it your default browser,
+then choose the exact browser, profile, and normal or private window you want
+every time you open an HTTP or HTTPS link.
 
-## Test and build
+## Download
 
-```zsh
-swift test
-zsh scripts/build-app.sh
-zsh scripts/smoke-test.sh build/PickVia.app
-```
+**[Download PickVia v1.0 for macOS](https://github.com/kiteretsu903/pick-via/releases/latest)**
 
-The checked-in Via Compass icon assets are generated deterministically with
-macOS-native tools. Regenerate them after intentional artwork changes with:
+PickVia requires **macOS 14 Sonoma or later** on **Apple Silicon**.
 
-```zsh
-swift scripts/generate-icons.swift
-```
+## What it does
 
-The build script creates and ad-hoc signs `build/PickVia.app`. Start it with:
+- **Choose at the moment it matters.** Every web link opens a focused chooser
+  beside your pointer instead of silently taking over an existing browser.
+- **Use the browser and profile you mean.** Pick Safari, Chrome, Chromium,
+  Edge, Brave, Vivaldi, or Firefox; supported browsers can expose their normal,
+  private, and discovered profile targets.
+- **Stay out of the way.** PickVia lives in the menu bar and has no Dock icon.
+- **Keep link handling local.** PickVia does not send, log, or persist opened
+  URLs. Its configuration stays in your Application Support folder.
+- **Keep profile access deliberate.** If macOS protects a browser's profile
+  folder, PickVia asks only for that browser's exact data root. You can remove
+  the grant at any time in Browser Settings.
 
-```zsh
-open build/PickVia.app
-```
+## Install
 
-On first run, scan the installed browsers, review the resulting targets, and use **Set as Default**. macOS asks for consent to handle HTTP and HTTPS; PickVia does not change the default handler during build or automated tests.
+1. Download and open `PickVia-v1.0.dmg` from the
+   [GitHub release](https://github.com/kiteretsu903/pick-via/releases/latest).
+2. Drag **PickVia** to the **Applications** folder shown in the installer.
+3. Open **PickVia** from Applications and follow the welcome flow.
+4. Choose **Set as Default**. macOS asks separately for permission to handle
+   HTTP and HTTPS links.
 
-## Browser capabilities
+### First launch and Gatekeeper
 
-| Browser family | Profiles | Normal | Private | Launch method |
-|---|---:|---:|---:|---|
-| Safari | No | Yes | No | macOS workspace |
-| Chrome, Chromium, Edge, Brave, Vivaldi | Yes | Yes | Yes | Direct executable arguments |
-| Firefox | Yes | Yes | Yes | Direct executable arguments |
+PickVia v1.0 is ad-hoc signed and not notarized. macOS will block the first
+launch of the downloaded app. If you have downloaded it from this GitHub
+release and choose to trust it:
 
-Configuration is stored at `~/Library/Application Support/PickVia/PickViaConfig.json`. Small preferences are stored in the app's user defaults domain. PickVia does not persist opened URLs.
+1. Try to open PickVia once and dismiss the warning.
+2. Open **System Settings → Privacy & Security** and scroll to **Security**.
+3. Click **Open Anyway**, then confirm **Open**. The button is available for
+   about one hour after the blocked launch attempt.
 
-## Browser Profile Access
+Apple documents this Gatekeeper override and its security implications in
+[Safely open apps on your Mac](https://support.apple.com/en-asia/102445).
 
-macOS can protect browser profile folders from automatic access. When profile discovery is blocked, PickVia asks for one exact data root per affected browser: `~/Library/Application Support/Google/Chrome`, `~/Library/Application Support/Chromium`, `~/Library/Application Support/Microsoft Edge`, `~/Library/Application Support/BraveSoftware/Brave-Browser`, `~/Library/Application Support/Vivaldi`, or `~/Library/Application Support/Firefox`. Chromium-family roots are validated and scanned by reading only their `Local State` marker; the Firefox root is validated and scanned by reading only `profiles.ini`. PickVia does not read browsing history, cookies, sessions, saved passwords, or page content.
+## Browser support
 
-Each installed Chromium-family or Firefox browser has a browser-level Default
-target that launches without a profile-selection argument. Default remains
-usable without profile-folder access; granting the browser root adds its named
-profiles.
+| Browser family | Profiles | Normal | Private |
+|---|---:|---:|---:|
+| Safari | No | Yes | No |
+| Chrome, Chromium, Edge, Brave, Vivaldi | Yes | Yes | Yes |
+| Firefox | Yes | Yes | Yes |
 
-The chooser opens beside the current pointer, flips away from display edges,
-and grows to show every target when the display has room. Browser Settings uses
-the labeled Profile Access action to show or repair browser-root grants.
+Safari has one normal-window target. Chromium-family browsers and Firefox keep
+a browser-level Default target even if you choose not to grant profile access;
+granting access adds discovered profiles.
 
-The selected grant is stored as read-only security-scoped bookmark bytes in `~/Library/Application Support/PickVia/ProfileAccessBookmarks.json`, keyed separately for each browser. The signed local bundle has been verified to restore these grants after an ordinary quit and relaunch. Routing configuration remains separate in `~/Library/Application Support/PickVia/PickViaConfig.json`.
+## Privacy
 
-To revoke a grant, open **Browser Settings**, choose **Profile Access**, and use **Remove Access** for that browser. If you skip access, remove it, or a saved grant can no longer be resolved, PickVia falls back to browser-level normal and private targets; detected profile-specific targets may remain listed but unavailable until access is restored. Existing manual targets are preserved.
+PickVia stores browser target configuration in
+`~/Library/Application Support/PickVia/PickViaConfig.json`. It does not persist
+the links you open. When you grant profile access, the app stores only a
+read-only security-scoped bookmark for the browser data root; it does not read
+browsing history, cookies, sessions, saved passwords, or page content.
 
-## Current MVP exclusions
+To remove a profile-access grant, open **Browser Settings → Profile Access**
+and choose **Remove Access** for that browser.
 
-PickVia does not include routing rules, remembered domain choices, URL rewriting, browser extensions, Safari profiles/private windows, mail or file routing, sync, analytics, updates, or App Store distribution.
+## License
+
+MIT. See [LICENSE](LICENSE).

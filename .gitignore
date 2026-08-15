@@ -6,4 +6,5 @@ docs/*dex*/
 .worktrees/
 .build/
 build/
+dist/
 .vscode/
