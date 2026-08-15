@@ -9,6 +9,9 @@
 PickVia is a fast, local menu-bar app for macOS. Choose the exact browser,
 profile, or mail application you want whenever you open a web or email link.
 
+**[Visit the PickVia website](https://kiteretsu903.github.io/pick-via/)** for
+screenshots, release highlights, and the [changelog](https://kiteretsu903.github.io/pick-via/changelog.html).
+
 <p align="center">
   <img src="docs/screenshots/pickvia-browser-chooser-backdrop@2x.png" alt="PickVia browser chooser with native macOS translucent material" width="900">
 </p>
