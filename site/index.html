@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="PickVia gives every web and email link a precise, native macOS destination chooser." />
+    <meta name="theme-color" content="#f4f3ee" />
+    <title>PickVia - A better way to open links on macOS</title>
+    <style>
+      :root {
+        --paper: #f4f3ee;
+        --ink: #151515;
+        --muted: #696963;
+        --rule: #d9d8d0;
+        --violet: #6149d7;
+        --soft-violet: #eceaff;
+        --soft-peach: #fff0e8;
+        --radius: 28px;
+      }
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body { margin: 0; overflow-x: hidden; background: var(--paper); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif; }
+      a { color: inherit; text-decoration: none; }
+      .shell { width: min(1180px, calc(100% - 48px)); margin: 0 auto; }
+      .site-header { height: 82px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--rule); }
+      .brand { display: inline-flex; gap: 10px; align-items: center; font-size: 19px; letter-spacing: -.045em; font-weight: 740; }
+      .brand img { width: 31px; height: 31px; border-radius: 8px; }
+      nav { display: flex; align-items: center; gap: 27px; color: #55554f; font-size: 14px; font-weight: 560; }
+      nav a:hover { color: var(--violet); }
+      .button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 43px; padding: 0 17px; border: 1px solid var(--ink); border-radius: 999px; font-size: 14px; font-weight: 650; transition: transform .18s ease, background .18s ease, color .18s ease; }
+      .button:hover { transform: translateY(-1px); }
+      .button-dark { background: var(--ink); color: white; }
+      .button-dark:hover { background: var(--violet); border-color: var(--violet); }
+      .button-light { background: transparent; }
+      .button-light:hover { background: white; }
+
+      .hero { padding: 76px 0 94px; }
+      .hero-top { display: grid; grid-template-columns: .92fr 1.08fr; gap: 48px; align-items: end; }
+      .kicker, .section-label { margin: 0; color: var(--violet); font-size: 11px; font-weight: 760; letter-spacing: .13em; text-transform: uppercase; }
+      h1, h2, h3, p { margin-top: 0; }
+      h1 { max-width: 650px; margin: 17px 0 0; font-size: clamp(57px, 6.8vw, 91px); line-height: .91; letter-spacing: -.08em; font-weight: 740; }
+      h1 em, h2 em { font-style: normal; color: var(--violet); }
+      .hero-intro { padding-bottom: 8px; }
+      .hero-intro p { max-width: 425px; margin: 0; color: var(--muted); font-size: 19px; letter-spacing: -.03em; line-height: 1.48; }
+      .hero-actions { display: flex; gap: 11px; flex-wrap: wrap; margin-top: 26px; }
+      .subline { margin: 0; padding-top: 29px; color: #7d7d76; font-size: 13px; }
+      .product-frame { position: relative; margin-top: 58px; overflow: hidden; border: 1px solid rgba(21,21,21,.14); border-radius: var(--radius); background: #d9d6e8; box-shadow: 0 22px 50px rgba(26,22,65,.12); }
+      .product-frame::before { content: "PICKVIA / OPEN WITH INTENTION"; position: absolute; z-index: 1; top: 18px; left: 20px; padding: 7px 9px; border-radius: 7px; color: rgba(255,255,255,.84); background: rgba(23,22,34,.44); font-size: 10px; font-weight: 700; letter-spacing: .1em; backdrop-filter: blur(14px); }
+      .product-frame img { display: block; width: 100%; }
+
+      .feature-section { padding: 96px 0; }
+      .section-head { display: grid; grid-template-columns: .85fr 1.15fr; gap: 48px; align-items: end; }
+      h2 { margin: 13px 0 0; max-width: 620px; font-size: clamp(42px, 5.4vw, 70px); line-height: .96; letter-spacing: -.07em; }
+      .section-lede { max-width: 540px; margin: 0; color: var(--muted); font-size: 18px; letter-spacing: -.025em; line-height: 1.55; }
+      .feature-list { margin-top: 58px; border-top: 1px solid var(--ink); }
+      .feature-row { display: grid; grid-template-columns: 82px 1.1fr 1fr; gap: 25px; min-height: 144px; padding: 27px 0; align-items: start; border-bottom: 1px solid var(--rule); }
+      .feature-number { color: var(--violet); font-size: 13px; font-weight: 750; letter-spacing: .1em; }
+      .feature-row h3 { margin: 0; font-size: 25px; line-height: 1.08; letter-spacing: -.05em; }
+      .feature-row p { max-width: 400px; margin: 0; color: var(--muted); font-size: 15px; line-height: 1.52; }
+
+      .mail-section { padding: 0 0 96px; }
+      .mail-layout { display: grid; grid-template-columns: 1.02fr .98fr; gap: 20px; align-items: stretch; }
+      .mail-copy { display: flex; flex-direction: column; justify-content: space-between; min-height: 507px; padding: 43px; border-radius: var(--radius); background: var(--ink); color: white; }
+      .mail-copy h2 { margin-top: 13px; color: white; font-size: clamp(43px, 4.8vw, 64px); }
+      .mail-copy h2 em { color: #d9ceff; }
+      .mail-copy p:not(.section-label) { max-width: 385px; margin: 20px 0 0; color: #c6c5ca; font-size: 17px; line-height: 1.55; }
+      .privacy-note { display: flex; gap: 12px; padding-top: 24px; border-top: 1px solid #4e4d54; color: #d6d5da; font-size: 13px; line-height: 1.42; }
+      .privacy-note strong { display: block; margin-bottom: 3px; color: white; font-size: 12px; letter-spacing: .08em; }
+      .mail-shot { overflow: hidden; border-radius: var(--radius); border: 1px solid rgba(21,21,21,.12); background: #e4d7ea; }
+      .mail-shot img { display: block; width: 100%; min-height: 507px; object-fit: cover; }
+
+      .setup { padding: 106px 0; background: #e9e8e2; }
+      .setup-grid { display: grid; grid-template-columns: .82fr 1.18fr; gap: 54px; align-items: center; }
+      .setup-copy > p:not(.section-label) { max-width: 380px; margin: 22px 0 0; color: var(--muted); font-size: 17px; line-height: 1.55; }
+      .settings-window { overflow: hidden; padding: 10px; border-radius: 20px; background: #dedde4; box-shadow: 0 22px 40px rgba(21,21,21,.12); }
+      .settings-window img { display: block; width: 100%; border-radius: 13px; }
+
+      .download { padding-bottom: 62px; }
+      .download-inner { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 40px; padding: 52px 58px; overflow: hidden; border-radius: var(--radius); color: white; background: var(--violet); }
+      .download-inner .section-label { color: #e0dbff; }
+      .download-inner h2 { margin-top: 11px; max-width: 690px; color: white; font-size: clamp(41px, 5vw, 64px); }
+      .download-inner h2 em { color: #d7d0ff; }
+      .download-inner .button { margin-top: 24px; border-color: white; background: white; color: #3d2b99; }
+      .download-inner img { width: 128px; border-radius: 28px; box-shadow: 0 22px 28px rgba(30,18,85,.25); }
+      .site-footer { display: flex; justify-content: space-between; padding: 25px 0 38px; border-top: 1px solid var(--rule); color: #76766f; font-size: 13px; }
+      .site-footer a:hover { color: var(--violet); }
+
+      @media (max-width: 780px) {
+        .site-header { height: 72px; } nav { display: none; }
+        .hero { padding: 55px 0 66px; } .hero-top, .section-head, .mail-layout, .setup-grid { grid-template-columns: 1fr; gap: 30px; }
+        .product-frame { margin-top: 40px; border-radius: 18px; }
+        .feature-section { padding: 76px 0; } .mail-section { padding-bottom: 76px; }
+        .mail-copy, .mail-shot img { min-height: auto; } .mail-copy { padding: 34px; }
+        .setup { padding: 80px 0; }
+        .download-inner { grid-template-columns: 1fr; padding: 40px 34px; } .download-inner img { width: 88px; }
+      }
+      @media (max-width: 500px) {
+        .shell { width: min(100% - 32px, 1180px); } .brand { font-size: 18px; }
+        .site-header .button { min-height: 36px; padding: 0 12px; font-size: 12px; }
+        h1 { font-size: 54px; } .hero-intro p, .section-lede { font-size: 17px; }
+        .feature-row { grid-template-columns: 48px 1fr; gap: 12px; } .feature-row p { grid-column: 2; }
+        .mail-copy { min-height: 470px; } .mail-shot { min-height: 285px; } .mail-shot img { min-height: 285px; }
+        .download-inner { padding: 34px 28px; }
+        .site-footer { flex-direction: column; gap: 13px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="shell site-header">
+      <a class="brand" href="#top" aria-label="PickVia home"><img src="assets/icon.png" alt="" /><span>PickVia</span></a>
+      <nav aria-label="Primary navigation"><a href="#features">Features</a><a href="#download">Download</a></nav>
+      <a class="button button-light" href="https://github.com/kiteretsu903/pick-via">Source <span aria-hidden="true">↗</span></a>
+    </header>
+    <main id="top">
+      <section class="shell hero">
+        <div class="hero-top">
+          <div><p class="kicker">A native link chooser for macOS</p><h1>Open links<br />with <em>intent.</em></h1></div>
+          <div class="hero-intro"><p>PickVia gives every web and email link a better second question: where do you actually want this to open?</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">Download v1.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Give PickVia a star on GitHub"><span aria-hidden="true">★</span> Star on GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Free &amp; open source</p></div>
+        </div>
+        <div class="product-frame"><img src="assets/browser-chooser.png" alt="PickVia browser chooser displaying browser profiles, private targets, and keyboard shortcuts" /></div>
+      </section>
+
+      <section class="shell feature-section" id="features">
+        <div class="section-head"><div><p class="section-label">01 / At the moment it matters</p><h2>Your tools.<br /><em>Your choice.</em></h2></div><p class="section-lede">PickVia puts the app, profile, or mode you meant one click or one key away.</p></div>
+        <div class="feature-list">
+          <article class="feature-row"><span class="feature-number">01</span><h3>Browser profiles.</h3><p>Choose Chrome, Edge, Brave, Vivaldi, Chromium, Firefox, Safari, and the profile or private mode you need.</p></article>
+          <article class="feature-row"><span class="feature-number">02</span><h3>Mail apps.</h3><p>PickVia discovers your registered <code>mailto:</code> handlers and lets you keep just the ones you use.</p></article>
+          <article class="feature-row"><span class="feature-number">03</span><h3>Keyboard shortcuts.</h3><p>Order targets once; PickVia keeps your common choices immediately reachable.</p></article>
+        </div>
+      </section>
+
+      <section class="shell mail-section"><div class="mail-layout"><article class="mail-copy"><div><p class="section-label">02 / Email gets the same care</p><h2>Mail links,<br /><em>without the guesswork.</em></h2><p>Choose between the mail apps already registered on your Mac. The chooser never previews the recipient, subject, body, or the original mail link.</p></div><div class="privacy-note"><span aria-hidden="true">◌</span><div><strong>PRIVATE BY DESIGN</strong>PickVia routes the original request directly to your choice. It does not log or persist mail content.</div></div></article><figure class="mail-shot"><img src="assets/mail-chooser.png" alt="PickVia email chooser offering installed mail applications" /></figure></div></section>
+
+      <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Make it yours</p><h2>Configured once.<br /><em>Ready whenever.</em></h2><p>Enable your browsers, profiles, and mail apps. Reorder the targets you use most.</p></div><div class="settings-window"><img src="assets/settings.png" alt="PickVia browser settings with browsers and profile examples" /></div></div></section>
+
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.1</p><h2>Let every link<br /><em>go somewhere on purpose.</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">Download for macOS <span aria-hidden="true">↓</span></a></div><img src="assets/icon.png" alt="PickVia app icon" /></div></section>
+    </main>
+    <footer class="shell site-footer"><span>© 2026 PickVia · MIT License</span><a href="https://github.com/kiteretsu903/pick-via">Source code on GitHub <span aria-hidden="true">↗</span></a></footer>
+  </body>
+</html>
