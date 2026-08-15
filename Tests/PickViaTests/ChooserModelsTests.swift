@@ -4,6 +4,88 @@ import XCTest
 @testable import PickVia
 
 final class ChooserModelsTests: XCTestCase {
+  func testMailPresentationUsesDirectApplicationRowsAndNoRequestPreview() {
+    let presentation = ChooserPresentation.make(
+      request: Fixtures.mailRequest,
+      applications: [Fixtures.appleMail, Fixtures.outlook],
+      targets: [Fixtures.appleMailTarget, Fixtures.outlookTarget]
+    )
+
+    XCTAssertEqual(presentation.kind, .mail)
+    XCTAssertEqual(presentation.heading, "Open email with")
+    XCTAssertNil(presentation.displayURL)
+    XCTAssertFalse(presentation.showsCopyAction)
+    XCTAssertEqual(presentation.groups.count, 2)
+    XCTAssertTrue(
+      presentation.groups.allSatisfy {
+        if case .direct = $0 { true } else { false }
+      })
+    XCTAssertNil(presentation.selectedIndex)
+  }
+
+  func testMailPresentationFollowsTargetOrderWhenApplicationOrderIsOpposite() {
+    let outlookFirst = RouteTarget(
+      id: Fixtures.outlookTarget.id,
+      applicationID: Fixtures.outlookTarget.applicationID,
+      label: Fixtures.outlookTarget.label,
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .detected,
+      availability: .available,
+      capability: .mail
+    )
+    let appleMailSecond = RouteTarget(
+      id: Fixtures.appleMailTarget.id,
+      applicationID: Fixtures.appleMailTarget.applicationID,
+      label: Fixtures.appleMailTarget.label,
+      isEnabled: true,
+      sortOrder: 1,
+      origin: .detected,
+      availability: .available,
+      capability: .mail
+    )
+
+    let presentation = ChooserPresentation.make(
+      request: Fixtures.mailRequest,
+      applications: [Fixtures.appleMail, Fixtures.outlook],
+      targets: [outlookFirst, appleMailSecond]
+    )
+
+    XCTAssertEqual(
+      presentation.rows.map(\.targetID),
+      [Fixtures.outlookTarget.id, Fixtures.appleMailTarget.id]
+    )
+  }
+
+  func testMailPresentationNeverLeaksURLIntoVisibleStrings() {
+    let presentation = Fixtures.mailPresentation(
+      "mailto:person@example.com?subject=Secret&body=Private"
+    )
+    let visible = [
+      presentation.heading,
+      presentation.displayURL ?? "",
+      presentation.emptyStateMessage,
+      presentation.errorMessage ?? "",
+    ].joined(separator: " ")
+
+    XCTAssertFalse(visible.contains("person@example.com"))
+    XCTAssertFalse(visible.contains("Secret"))
+    XCTAssertFalse(visible.contains("Private"))
+  }
+
+  func testDualCapabilityApplicationOmitsEnabledMailTarget() {
+    let presentation = makePresentation(
+      applications: [Fixtures.dualCapabilityChrome],
+      targets: [Fixtures.mail, Fixtures.work]
+    )
+
+    XCTAssertEqual(presentation.rows, [.target("work", shortcut: .number(1))])
+    XCTAssertEqual(
+      presentation.groups,
+      [.direct(browserID: "chrome", row: .target("work", shortcut: .number(1)))]
+    )
+  }
+
   func testBrowserWithOneTargetIsDirectRow() {
     let presentation = makePresentation(
       applications: [Fixtures.chrome],
@@ -238,6 +320,7 @@ final class ChooserModelsTests: XCTestCase {
 
   func testDisplayURLRemovesCredentials() throws {
     let request = RoutingRequest(
+      kind: .web,
       url: try XCTUnwrap(URL(string: "https://person:secret@example.com/private?q=1")))
 
     let presentation = ChooserPresentation.make(
@@ -475,6 +558,16 @@ final class ChooserPanelControllerTests: XCTestCase {
     XCTAssertFalse(panel.canBecomeMain)
   }
 
+  func testSettingsCallbackUsesCurrentRouteKind() {
+    var openedKinds: [RouteKind] = []
+    let controller = ChooserPanelController(openSettings: { openedKinds.append($0) })
+
+    controller.showSettings(for: .web)
+    controller.showSettings(for: .mail)
+
+    XCTAssertEqual(openedKinds, [.web, .mail])
+  }
+
   func testPointerOutsideScreensCentersPanelOnMainVisibleFrame() throws {
     let mainScreen = try XCTUnwrap(NSScreen.main)
     let frames = NSScreen.screens.map(\.frame)
@@ -686,7 +779,10 @@ final class ChooserPanelControllerTests: XCTestCase {
 
     controller.dismiss()
     controller.present(
-      request: RoutingRequest(url: URL(string: "https://example.com/new")!),
+      request: RoutingRequest(
+        kind: .web,
+        url: URL(string: "https://example.com/new")!
+      ),
       applications: [Fixtures.chrome],
       targets: [Fixtures.work],
       error: nil,
@@ -699,7 +795,10 @@ final class ChooserPanelControllerTests: XCTestCase {
 
     preference.value = .spacious
     controller.present(
-      request: RoutingRequest(url: URL(string: "https://example.com/spacious")!),
+      request: RoutingRequest(
+        kind: .web,
+        url: URL(string: "https://example.com/spacious")!
+      ),
       applications: [Fixtures.chrome],
       targets: [Fixtures.work],
       error: nil,
@@ -827,7 +926,10 @@ final class ChooserPanelControllerTests: XCTestCase {
       onSelection: { _ in },
       onCancel: {}
     )
-    let nextRequest = RoutingRequest(url: URL(string: "https://example.com/next")!)
+    let nextRequest = RoutingRequest(
+      kind: .web,
+      url: URL(string: "https://example.com/next")!
+    )
     controller.present(
       request: nextRequest,
       applications: [Fixtures.chrome],
@@ -1001,9 +1103,9 @@ final class ChooserPanelControllerTests: XCTestCase {
     )
   }
 
-  func testOpeningBrowserSettingsSuppressesResignCancellationAndRetainsPresentation() {
+  func testOpeningContextualSettingsSuppressesResignCancellationAndRetainsPresentation() {
     var cancelCount = 0
-    let controller = ChooserPanelController(openBrowserSettings: {})
+    let controller = ChooserPanelController(openSettings: { _ in })
     controller.present(
       request: Fixtures.request,
       applications: [],
@@ -1013,7 +1115,7 @@ final class ChooserPanelControllerTests: XCTestCase {
       onCancel: { cancelCount += 1 }
     )
 
-    controller.showBrowserSettings()
+    controller.showSettings(for: .mail)
     controller.resignKeyForTesting()
 
     XCTAssertEqual(cancelCount, 0)
@@ -1109,6 +1211,24 @@ final class ChooserPanelControllerTests: XCTestCase {
     XCTAssertEqual(settingsCallCount, 1)
   }
 
+  func testMailPresentationDoesNotCopyRequestURL() {
+    let clipboard = ClipboardSpy()
+    let controller = ChooserPanelController(clipboard: clipboard)
+    controller.present(
+      request: Fixtures.mailRequest,
+      applications: [Fixtures.appleMail, Fixtures.outlook],
+      targets: [Fixtures.appleMailTarget, Fixtures.outlookTarget],
+      error: nil,
+      onSelection: { _ in },
+      onCancel: {}
+    )
+
+    controller.copyCurrentURL()
+
+    XCTAssertTrue(clipboard.strings.isEmpty)
+    controller.dismiss()
+  }
+
   func testURLVisibilityIsResolvedForEachPresentation() {
     let preference = URLVisibilityPreference(value: true)
     let controller = ChooserPanelController(showsURLProvider: { preference.value })
@@ -1173,7 +1293,7 @@ private final class ProfileAccessRetryObserver {
 }
 
 private struct ChooserTargetProviderStub: TargetProviding {
-  func availableSnapshot() -> RoutingTargetSnapshot {
+  func availableSnapshot(for kind: RouteKind) -> RoutingTargetSnapshot {
     RoutingTargetSnapshot(
       applications: [Fixtures.chrome],
       targets: [Fixtures.work]
@@ -1181,7 +1301,7 @@ private struct ChooserTargetProviderStub: TargetProviding {
   }
 }
 
-private struct ChooserLauncherStub: BrowserLaunching {
+private struct ChooserLauncherStub: RouteLaunching {
   func launch(
     url: URL,
     application: BrowserApplication,
@@ -1217,7 +1337,15 @@ private final class ClipboardSpy: ClipboardWriting {
 }
 
 private enum Fixtures {
-  static let request = RoutingRequest(url: URL(string: "https://example.com/a")!)
+  static let request = RoutingRequest(
+    kind: .web,
+    url: URL(string: "https://example.com/a")!
+  )
+
+  static let mailRequest = RoutingRequest(
+    kind: .mail,
+    url: URL(string: "mailto:person@example.com")!
+  )
 
   static let chrome = BrowserApplication(
     id: "chrome",
@@ -1227,6 +1355,55 @@ private enum Fixtures {
     applicationURL: URL(fileURLWithPath: "/Applications/Google Chrome.app"),
     executableURL: nil,
     isAvailable: true
+  )
+
+  static let appleMail = RoutedApplication(
+    id: "apple-mail",
+    displayName: "Mail",
+    bundleIdentifier: "com.apple.mail",
+    capabilities: [.mail(isAvailable: true)],
+    applicationURL: URL(fileURLWithPath: "/System/Applications/Mail.app")
+  )
+
+  static let outlook = RoutedApplication(
+    id: "outlook",
+    displayName: "Microsoft Outlook",
+    bundleIdentifier: "com.microsoft.Outlook",
+    capabilities: [.mail(isAvailable: true)],
+    applicationURL: URL(fileURLWithPath: "/Applications/Microsoft Outlook.app")
+  )
+
+  static let appleMailTarget = RouteTarget(
+    id: RouteTarget.mailID(bundleIdentifier: appleMail.bundleIdentifier),
+    applicationID: appleMail.id,
+    label: appleMail.displayName,
+    isEnabled: true,
+    sortOrder: 0,
+    origin: .detected,
+    availability: .available,
+    capability: .mail
+  )
+
+  static let outlookTarget = RouteTarget(
+    id: RouteTarget.mailID(bundleIdentifier: outlook.bundleIdentifier),
+    applicationID: outlook.id,
+    label: outlook.displayName,
+    isEnabled: true,
+    sortOrder: 1,
+    origin: .detected,
+    availability: .available,
+    capability: .mail
+  )
+
+  static let dualCapabilityChrome = RoutedApplication(
+    id: chrome.id,
+    displayName: chrome.displayName,
+    bundleIdentifier: chrome.bundleIdentifier,
+    capabilities: [
+      .browser(family: .chromium, isAvailable: true),
+      .mail(isAvailable: true),
+    ],
+    applicationURL: chrome.applicationURL
   )
 
   static let missingBrowser = BrowserApplication(
@@ -1241,6 +1418,24 @@ private enum Fixtures {
 
   static let work = target(id: "work", label: "Work", sortOrder: 0)
   static let personal = target(id: "personal", label: "Personal", sortOrder: 1)
+  static let mail = RouteTarget(
+    id: RouteTarget.mailID(bundleIdentifier: dualCapabilityChrome.bundleIdentifier),
+    applicationID: dualCapabilityChrome.id,
+    label: "Google Chrome Mail",
+    isEnabled: true,
+    sortOrder: 2,
+    origin: .detected,
+    availability: .available,
+    capability: .mail
+  )
+
+  static func mailPresentation(_ url: String) -> ChooserPresentation {
+    ChooserPresentation.make(
+      request: RoutingRequest(kind: .mail, url: URL(string: url)!),
+      applications: [appleMail, outlook],
+      targets: [appleMailTarget, outlookTarget]
+    )
+  }
 
   static func target(
     id: String,

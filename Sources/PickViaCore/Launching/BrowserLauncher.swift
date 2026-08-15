@@ -18,7 +18,7 @@ public protocol ExecutableValidating: Sendable {
   func isExecutableFile(at url: URL) -> Bool
 }
 
-public protocol TrustedBrowserResolving: Sendable {
+public protocol TrustedApplicationResolving: Sendable {
   func applicationURL(forBundleIdentifier bundleIdentifier: String) -> URL?
 }
 
@@ -63,7 +63,7 @@ public struct SystemWorkspace: WorkspaceOpening {
   }
 }
 
-public struct BrowserLauncher: BrowserLaunching, Sendable {
+public struct BrowserLauncher: RouteLaunching, Sendable {
   private static let launchFailure = LaunchFailure(
     message: "Could not open the selected browser target."
   )
@@ -71,15 +71,15 @@ public struct BrowserLauncher: BrowserLaunching, Sendable {
   private let processRunner: any ProcessRunning
   private let workspace: any WorkspaceOpening
   private let executableValidator: any ExecutableValidating
-  private let trustedBrowserResolver: any TrustedBrowserResolving
+  private let trustedApplicationResolver: any TrustedApplicationResolving
 
   public init(
-    trustedBrowserResolver: any TrustedBrowserResolving = WorkspaceApplicationLocator(),
+    trustedApplicationResolver: any TrustedApplicationResolving = WorkspaceApplicationLocator(),
     processRunner: any ProcessRunning = SystemProcessRunner(),
     workspace: any WorkspaceOpening = SystemWorkspace(),
     executableValidator: any ExecutableValidating = FoundationExecutableValidator()
   ) {
-    self.trustedBrowserResolver = trustedBrowserResolver
+    self.trustedApplicationResolver = trustedApplicationResolver
     self.processRunner = processRunner
     self.workspace = workspace
     self.executableValidator = executableValidator
@@ -91,26 +91,28 @@ public struct BrowserLauncher: BrowserLaunching, Sendable {
     target: BrowserTarget
   ) throws -> LaunchPlan {
     guard
-      application.id == target.browserID,
+      case .browser(let options) = target.capability,
+      application.id == target.applicationID,
       application.id == application.bundleIdentifier,
+      let browserFamily = application.browserFamily,
       let descriptor = BrowserDescriptor.descriptor(
         forBundleIdentifier: application.bundleIdentifier),
-      descriptor.family == application.family,
-      let trustedApplicationURL = trustedBrowserResolver.applicationURL(
+      descriptor.family == browserFamily,
+      let trustedApplicationURL = trustedApplicationResolver.applicationURL(
         forBundleIdentifier: application.bundleIdentifier),
-      application.isAvailable,
+      application.isAvailable(for: .web),
       target.availability == .available
     else {
       throw Self.launchFailure
     }
 
-    switch application.family {
+    switch browserFamily {
     case .safari:
       guard
-        target.profileIdentifier == nil,
-        target.profileDisplayName == nil,
-        target.profileIdentity == nil,
-        target.mode == .normal
+        options.profileIdentifier == nil,
+        options.profileDisplayName == nil,
+        options.profileIdentity == nil,
+        options.mode == .normal
       else {
         throw Self.launchFailure
       }
@@ -127,10 +129,10 @@ public struct BrowserLauncher: BrowserLaunching, Sendable {
         throw Self.launchFailure
       }
       var arguments: [String] = []
-      if let profile = target.profileIdentifier {
+      if let profile = options.profileIdentifier {
         arguments.append("--profile-directory=\(profile)")
       }
-      if target.mode == .private {
+      if options.mode == .private {
         arguments.append("--incognito")
       }
       arguments.append(url.absoluteString)
@@ -148,13 +150,13 @@ public struct BrowserLauncher: BrowserLaunching, Sendable {
       }
       var arguments: [String] = []
       let isProfiled = BrowserCatalog.isProfileBearingFirefoxTarget(target)
-      if let profilePath = target.profileLaunchPath {
+      if let profilePath = options.profileLaunchPath {
         guard (profilePath as NSString).isAbsolutePath else { throw Self.launchFailure }
         arguments.append(contentsOf: ["-profile", profilePath])
       } else if isProfiled {
         throw Self.launchFailure
       }
-      arguments.append(target.mode == .private ? "-private-window" : "-new-tab")
+      arguments.append(options.mode == .private ? "-private-window" : "-new-tab")
       arguments.append(url.absoluteString)
       return .executable(application: executable, arguments: arguments)
     }

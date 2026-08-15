@@ -6,6 +6,37 @@ import Testing
 struct BrowserLauncherTests {
   private let url = URL(string: "https://example.com")!
 
+  @Test func mailTargetIsRejectedWithoutReadingBrowserOptions() {
+    let application = RoutedApplication(
+      id: "com.google.Chrome",
+      displayName: "Google Chrome",
+      bundleIdentifier: "com.google.Chrome",
+      capabilities: [
+        .browser(family: .chromium, isAvailable: true),
+        .mail(isAvailable: true),
+      ],
+      applicationURL: applicationURL
+    )
+    let mailTarget = RouteTarget(
+      id: RouteTarget.mailID(bundleIdentifier: application.bundleIdentifier),
+      applicationID: application.id,
+      label: "Google Chrome Mail",
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .detected,
+      availability: .available,
+      capability: .mail
+    )
+
+    #expect(throws: LaunchFailure.self) {
+      try testLauncher().makePlan(
+        url: url,
+        application: application,
+        target: mailTarget
+      )
+    }
+  }
+
   @Test func chromiumNormalPlanUsesExactProfileAndURLTokens() throws {
     let launcher = testLauncher()
 
@@ -36,7 +67,7 @@ struct BrowserLauncherTests {
       isAvailable: true
     )
     let launcher = BrowserLauncher(
-      trustedBrowserResolver: StubTrustedBrowserResolver(urls: [
+      trustedApplicationResolver: StubTrustedApplicationResolver(urls: [
         "com.google.Chrome": trustedApplication
       ]),
       processRunner: RecordingProcessRunner(),
@@ -62,7 +93,7 @@ struct BrowserLauncherTests {
 
   @Test func launchFailsWhenSupportedBundleCannotBeResolvedCurrently() {
     let launcher = BrowserLauncher(
-      trustedBrowserResolver: StubTrustedBrowserResolver(urls: [:]),
+      trustedApplicationResolver: StubTrustedApplicationResolver(urls: [:]),
       processRunner: RecordingProcessRunner(),
       workspace: RecordingWorkspace(),
       executableValidator: StubExecutableValidator(isExecutable: true)
@@ -338,7 +369,7 @@ struct BrowserLauncherTests {
   @Test func missingPersistedExecutableDoesNotBlockTrustedLaunchResolution() async throws {
     let process = RecordingProcessRunner()
     let launcher = BrowserLauncher(
-      trustedBrowserResolver: StubTrustedBrowserResolver(urls: [
+      trustedApplicationResolver: StubTrustedApplicationResolver(urls: [
         "com.google.Chrome": applicationURL
       ]),
       processRunner: process,
@@ -362,7 +393,7 @@ struct BrowserLauncherTests {
     let process = RecordingProcessRunner()
     let validator = StubExecutableValidator(isExecutable: false)
     let launcher = BrowserLauncher(
-      trustedBrowserResolver: StubTrustedBrowserResolver(urls: [
+      trustedApplicationResolver: StubTrustedApplicationResolver(urls: [
         "com.google.Chrome": applicationURL
       ]),
       processRunner: process,
@@ -472,7 +503,7 @@ struct BrowserLauncherTests {
     try fileManager.createSymbolicLink(at: bundleSymlink, withDestinationURL: realBundle)
 
     let launcher = BrowserLauncher(
-      trustedBrowserResolver: StubTrustedBrowserResolver(urls: [
+      trustedApplicationResolver: StubTrustedApplicationResolver(urls: [
         "com.google.Chrome": bundleSymlink
       ]),
       processRunner: RecordingProcessRunner(),
@@ -603,7 +634,7 @@ private func bundleID(for family: BrowserFamily) -> String {
 
 private func testLauncher() -> BrowserLauncher {
   BrowserLauncher(
-    trustedBrowserResolver: StubTrustedBrowserResolver(urls: [
+    trustedApplicationResolver: StubTrustedApplicationResolver(urls: [
       "com.apple.Safari": applicationURL,
       "com.google.Chrome": applicationURL,
       "org.mozilla.firefox": applicationURL,
@@ -614,7 +645,7 @@ private func testLauncher() -> BrowserLauncher {
   )
 }
 
-private struct StubTrustedBrowserResolver: TrustedBrowserResolving {
+private struct StubTrustedApplicationResolver: TrustedApplicationResolving {
   let urls: [String: URL]
 
   func applicationURL(forBundleIdentifier bundleIdentifier: String) -> URL? {

@@ -227,10 +227,16 @@ final class AppDelegateTests: XCTestCase {
     let http = try XCTUnwrap(URL(string: "http://example.com/one"))
     let file = URL(fileURLWithPath: "/tmp/not-a-web-link")
     let https = try XCTUnwrap(URL(string: "https://example.com/two"))
+    let mailto = try XCTUnwrap(URL(string: "mailto:person@example.com"))
 
-    delegate.application(NSApplication.shared, open: [http, file, https])
+    delegate.application(NSApplication.shared, open: [http, file, https, mailto])
 
-    XCTAssertEqual(routing.acceptedURLs, [http, https])
+    XCTAssertEqual(routing.acceptedURLs, [http, https, mailto])
+  }
+
+  func testInfoPlistRegistersExactlySupportedSchemes() throws {
+    let schemes = try infoPlistURLSchemes()
+    XCTAssertEqual(Set(schemes), ["http", "https", "mailto"])
   }
 
   func testReopenOpensSettingsAndReportsHandled() {
@@ -395,6 +401,23 @@ final class AppDelegateTests: XCTestCase {
       routing: routing
     )
   }
+
+  private func infoPlistURLSchemes() throws -> [String] {
+    let repositoryRoot = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+    let data = try Data(contentsOf: repositoryRoot.appending(path: "Support/Info.plist"))
+    let plist = try XCTUnwrap(
+      try PropertyListSerialization.propertyList(
+        from: data,
+        options: [],
+        format: nil
+      ) as? [String: Any]
+    )
+    let urlTypes = try XCTUnwrap(plist["CFBundleURLTypes"] as? [[String: Any]])
+    return urlTypes.flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }
+  }
 }
 
 private struct AppDelegateConfigStoreStub: ConfigStoring {
@@ -444,9 +467,9 @@ private final class AppDelegatePreferencesStub: PreferencesStoring {
 }
 
 @MainActor
-private final class AppDelegateDefaultBrowserStub: DefaultBrowserServicing {
+private final class AppDelegateDefaultBrowserStub: DefaultHandlerServicing {
   private(set) var statusCallCount = 0
-  func status() -> DefaultBrowserStatus {
+  func status() -> DefaultHandlerStatus {
     statusCallCount += 1
     return .unknown
   }

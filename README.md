@@ -6,15 +6,16 @@
 
 <p align="center"><strong>Choose where every link opens.</strong></p>
 
-PickVia is a fast, local menu-bar app for macOS. Make it your default browser,
-then choose the exact browser, profile, and normal or private window you want
-every time you open an HTTP or HTTPS link.
+PickVia is a fast, local menu-bar app for macOS. Choose the exact browser,
+profile, or mail application you want whenever you open a web or email link.
 
 ## Download
 
 **[Download PickVia v1.0 for macOS](https://github.com/kiteretsu903/pick-via/releases/latest)**
 
 PickVia requires **macOS 14 Sonoma or later** on **Apple Silicon**.
+The published v1.0 release supports HTTP and HTTPS links. `mailto:` support is
+integrated on `main` for the next release.
 
 ## What it does
 
@@ -23,6 +24,9 @@ PickVia requires **macOS 14 Sonoma or later** on **Apple Silicon**.
 - **Use the browser and profile you mean.** Pick Safari, Chrome, Chromium,
   Edge, Brave, Vivaldi, or Firefox; supported browsers can expose their normal,
   private, and discovered profile targets.
+- **Choose your mail application.** PickVia discovers applications registered
+  for `mailto:` links and presents direct app-level choices without exposing
+  recipients, subjects, or message bodies in the chooser.
 - **Stay out of the way.** PickVia lives in the menu bar and has no Dock icon.
 - **Keep link handling local.** PickVia does not send, log, or persist opened
   URLs. Its configuration stays in your Application Support folder.
@@ -65,6 +69,17 @@ Safari has one normal-window target. Chromium-family browsers and Firefox keep
 a browser-level Default target even if you choose not to grant profile access;
 granting access adds discovered profiles.
 
+## Mail support
+
+PickVia handles `mailto:` links only. It automatically discovers installed
+applications that macOS registers for email links and presents app-level
+choices—never mail accounts, profiles, identities, or compose modes.
+
+Use **Mail Settings** to enable or disable applications, change their order,
+and rescan registered handlers. Mail setup is optional during onboarding;
+choose **Skip Mail Setup** to keep your current default mail handler and
+configure PickVia later.
+
 ## Privacy
 
 PickVia stores browser target configuration in
@@ -72,6 +87,9 @@ PickVia stores browser target configuration in
 the links you open. When you grant profile access, the app stores only a
 read-only security-scoped bookmark for the browser data root; it does not read
 browsing history, cookies, sessions, saved passwords, or page content.
+
+The mail chooser does not preview, rewrite, log, or persist recipients,
+subjects, message bodies, or the original `mailto:` request.
 
 To remove a profile-access grant, open **Browser Settings → Profile Access**
 and choose **Remove Access** for that browser.

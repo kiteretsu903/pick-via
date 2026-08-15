@@ -88,6 +88,1131 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(store.saved, [reconciled])
   }
 
+  func testDefaultHandlerStatusIncludesMailAndRetainsBrowserSummary() {
+    let status = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .notDefault
+    )
+
+    XCTAssertEqual(status.http, .isDefault)
+    XCTAssertEqual(status.https, .isDefault)
+    XCTAssertEqual(status.mailto, .notDefault)
+    XCTAssertTrue(status.isDefaultBrowser)
+    XCTAssertEqual(
+      DefaultHandlerStatus.unknown,
+      DefaultHandlerStatus(http: .unknown, https: .unknown, mailto: .unknown)
+    )
+  }
+
+  func testLoadReconcilesMailWithoutChangingBrowserTargets() throws {
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.browserConfig),
+      mailCatalog: .authoritative([Fixtures.appleMailDiscovery])
+    )
+
+    try model.load()
+
+    XCTAssertEqual(
+      model.targets.filter { $0.routeKind == .web }.map(\.id),
+      Fixtures.browserConfig.targets.map(\.id)
+    )
+    XCTAssertEqual(model.mailTargets.map(\.id), ["mailto|com.apple.mail"])
+    XCTAssertEqual(model.mailApplications.map(\.id), ["com.apple.mail"])
+  }
+
+  func testLoadReconcilesBrowserWithoutChangingMailTargets() throws {
+    let browserReconciled = BrowserCatalog.reconcile(
+      discovered: [Fixtures.discoveredChrome],
+      with: Fixtures.mailConfig
+    )
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.mailConfig),
+      catalog: BrowserCatalogStub(
+        discovered: [Fixtures.discoveredChrome],
+        reconciled: browserReconciled
+      ),
+      mailCatalog: .nonAuthoritative
+    )
+
+    try model.load()
+
+    XCTAssertFalse(model.browsers.isEmpty)
+    XCTAssertEqual(model.mailTargets, Fixtures.mailConfig.targets)
+    XCTAssertEqual(
+      model.mailApplications.map(\.id),
+      Fixtures.mailConfig.applications.map(\.id)
+    )
+  }
+
+  func testNonAuthoritativeBrowserScanStillCommitsAuthoritativeMailSlice() throws {
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.browserConfig),
+      catalog: BrowserCatalogStub(
+        scanResult: BrowserScanResult(
+          browsers: [],
+          warnings: [],
+          isAuthoritative: false
+        )
+      ),
+      mailCatalog: .authoritative([Fixtures.appleMailDiscovery])
+    )
+
+    try model.load()
+
+    XCTAssertEqual(
+      model.targets.filter { $0.routeKind == .web },
+      Fixtures.browserConfig.targets
+    )
+    XCTAssertEqual(model.mailTargets.map(\.id), ["mailto|com.apple.mail"])
+    XCTAssertEqual(
+      model.errorMessage,
+      "Browser discovery could not be completed. Existing targets were preserved."
+    )
+    XCTAssertNil(model.mailErrorMessage)
+  }
+
+  func testNonAuthoritativeMailScanStillCommitsAuthoritativeBrowserSlice() throws {
+    let browserReconciled = BrowserCatalog.reconcile(
+      discovered: [Fixtures.discoveredChromeWithProfiles],
+      with: Fixtures.mailConfig
+    )
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.mailConfig),
+      catalog: BrowserCatalogStub(
+        discovered: [Fixtures.discoveredChromeWithProfiles],
+        reconciled: browserReconciled
+      ),
+      mailCatalog: .nonAuthoritative
+    )
+
+    try model.load()
+
+    XCTAssertEqual(
+      model.targets.filter { $0.routeKind == .web },
+      browserReconciled.targets.filter { $0.routeKind == .web }
+    )
+    XCTAssertEqual(model.mailTargets, Fixtures.mailConfig.targets)
+    XCTAssertEqual(
+      model.mailErrorMessage,
+      "Mail application discovery could not be completed. Existing choices were preserved."
+    )
+  }
+
+  func testBrowserStartupChangePersistsAuthoritativeMailWhileRuntimeUsesMailFallback() throws {
+    let persisted = Fixtures.webAndMailConfig
+    let unavailableMail = Fixtures.copy(
+      Fixtures.appleMail,
+      mailIsAvailable: false
+    )
+    let runtimeFallback = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      applications: Fixtures.editableConfig.applications + [unavailableMail],
+      targets: persisted.targets
+    )
+    let browserReconciled = BrowserCatalog.reconcile(
+      discovered: [Fixtures.discoveredChromeWithProfiles],
+      with: persisted
+    )
+    let store = ConfigStoreStub(config: persisted)
+    let snapshot = MutableTargetSnapshot()
+    let model = makeModel(
+      store: store,
+      catalog: BrowserCatalogStub(
+        discovered: [Fixtures.discoveredChromeWithProfiles],
+        reconciled: browserReconciled
+      ),
+      mailCatalog: MailCatalogStub(
+        scan: MailScanResult(applications: [], isAuthoritative: false),
+        runtimeFallback: runtimeFallback
+      ),
+      targetSnapshot: snapshot
+    )
+
+    try model.load()
+
+    let saved = try XCTUnwrap(store.saved.last)
+    XCTAssertEqual(saved.mailApplications, persisted.mailApplications)
+    XCTAssertEqual(
+      saved.targets.filter { $0.routeKind == .mail },
+      persisted.targets.filter { $0.routeKind == .mail }
+    )
+    XCTAssertEqual(
+      saved.targets.filter { $0.routeKind == .web },
+      browserReconciled.targets.filter { $0.routeKind == .web }
+    )
+    XCTAssertFalse(try XCTUnwrap(model.mailApplications.first).isAvailable(for: .mail))
+    XCTAssertTrue(snapshot.availableSnapshot(for: .mail).targets.isEmpty)
+  }
+
+  func testBrowserTargetEditAfterMailFallbackPersistsAuthoritativeMailState() throws {
+    let persisted = Fixtures.webAndMailConfig
+    let runtimeFallback = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      applications: Fixtures.editableConfig.applications + [
+        Fixtures.copy(Fixtures.appleMail, mailIsAvailable: false)
+      ],
+      targets: persisted.targets
+    )
+    let store = ConfigStoreStub(config: persisted)
+    let snapshot = MutableTargetSnapshot()
+    let model = makeModel(
+      store: store,
+      catalog: BrowserCatalogStub(
+        scanResult: BrowserScanResult(
+          browsers: [],
+          warnings: [],
+          isAuthoritative: false
+        )
+      ),
+      mailCatalog: MailCatalogStub(
+        scan: MailScanResult(applications: [], isAuthoritative: false),
+        runtimeFallback: runtimeFallback
+      ),
+      targetSnapshot: snapshot
+    )
+    try model.load()
+    store.resetSaved()
+
+    try model.renameTarget(id: "work", label: "Edited Work")
+
+    let saved = try XCTUnwrap(store.saved.last)
+    XCTAssertEqual(saved.mailApplications, persisted.mailApplications)
+    XCTAssertEqual(
+      saved.targets.filter { $0.routeKind == .mail },
+      persisted.targets.filter { $0.routeKind == .mail }
+    )
+    XCTAssertEqual(
+      saved.targets.first { $0.id == "work" }?.label,
+      "Edited Work"
+    )
+    XCTAssertFalse(try XCTUnwrap(model.mailApplications.first).isAvailable(for: .mail))
+    XCTAssertTrue(snapshot.availableSnapshot(for: .mail).targets.isEmpty)
+  }
+
+  func testAuthoritativeBrowserRescanAfterMailFallbackPersistsAuthoritativeMailState() throws {
+    let persisted = Fixtures.webAndMailConfig
+    let runtimeFallback = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      applications: Fixtures.editableConfig.applications + [
+        Fixtures.copy(Fixtures.appleMail, mailIsAvailable: false)
+      ],
+      targets: persisted.targets
+    )
+    let browserScan = BrowserScanResult(
+      browsers: [Fixtures.discoveredChromeWithProfiles],
+      warnings: [],
+      isAuthoritative: true
+    )
+    let browserCatalog = BrowserCatalogStub(
+      scanResult: BrowserScanResult(
+        browsers: [],
+        warnings: [],
+        isAuthoritative: false
+      ),
+      reconciler: { config in
+        BrowserCatalog.reconcile(
+          discovered: browserScan.browsers,
+          with: config
+        )
+      }
+    )
+    let store = ConfigStoreStub(config: persisted)
+    let snapshot = MutableTargetSnapshot()
+    let model = makeModel(
+      store: store,
+      catalog: browserCatalog,
+      mailCatalog: MailCatalogStub(
+        scan: MailScanResult(applications: [], isAuthoritative: false),
+        runtimeFallback: runtimeFallback
+      ),
+      targetSnapshot: snapshot
+    )
+    try model.load()
+    store.resetSaved()
+    browserCatalog.setScanResult(browserScan)
+
+    try model.rescan()
+
+    let saved = try XCTUnwrap(store.saved.last)
+    XCTAssertEqual(saved.mailApplications, persisted.mailApplications)
+    XCTAssertEqual(
+      saved.targets.filter { $0.routeKind == .mail },
+      persisted.targets.filter { $0.routeKind == .mail }
+    )
+    XCTAssertFalse(try XCTUnwrap(model.mailApplications.first).isAvailable(for: .mail))
+    XCTAssertTrue(snapshot.availableSnapshot(for: .mail).targets.isEmpty)
+  }
+
+  func testFirefoxRuntimeFallbackModeEditPreservesAuthoritativeProfileMetadata() throws {
+    let rawPath =
+      "/Users/private-user/Library/Application Support/Firefox/Profiles/authoritative-mode"
+    let target = BrowserTarget(
+      id: "manual-firefox-mode",
+      browserID: Fixtures.firefox.id,
+      label: "Authoritative Firefox",
+      profileIdentifier: "Authoritative Profile",
+      profileDisplayName: "Authoritative Display",
+      profileIdentity: rawPath,
+      profileLaunchPath: rawPath,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .manual,
+      availability: .available,
+      validationError: "Authoritative validation"
+    )
+    let authoritative = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: [Fixtures.firefox],
+      targets: [target]
+    )
+    let scenario = try makeFirefoxRuntimeFallbackModel(config: authoritative)
+    let runtimeBefore = try XCTUnwrap(scenario.fallback.targets.first)
+
+    try scenario.model.setTargetMode(id: runtimeBefore.id, mode: .private)
+
+    let saved = try XCTUnwrap(scenario.store.saved.last?.targets.first)
+    XCTAssertEqual(saved.id, target.id)
+    XCTAssertEqual(saved.mode, .private)
+    XCTAssertEqual(saved.profileIdentifier, target.profileIdentifier)
+    XCTAssertEqual(saved.profileDisplayName, target.profileDisplayName)
+    XCTAssertEqual(saved.profileIdentity, runtimeBefore.profileIdentity)
+    XCTAssertEqual(saved.profileLaunchPath, rawPath)
+    XCTAssertEqual(saved.validationError, "Authoritative validation")
+    XCTAssertEqual(saved.availability, .available)
+
+    let runtimeAfter = try XCTUnwrap(scenario.model.targets.first)
+    XCTAssertEqual(runtimeAfter.id, runtimeBefore.id)
+    XCTAssertEqual(runtimeAfter.mode, .private)
+    XCTAssertNotEqual(runtimeAfter.profileIdentity, rawPath)
+    XCTAssertNil(runtimeAfter.profileLaunchPath)
+    XCTAssertNil(runtimeAfter.validationError)
+    XCTAssertEqual(runtimeAfter.availability, .unavailable)
+  }
+
+  func testFirefoxRuntimeFallbackPendingRenamePreservesAuthoritativeMetadata() throws {
+    let rawPath =
+      "/Users/private-user/Library/Application Support/Firefox/Profiles/pending-rename"
+    let pending = Fixtures.pendingFirefoxProfileTarget(
+      rawPath: rawPath,
+      label: "Pending Firefox",
+      sortOrder: 0
+    )
+    let authoritative = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: [Fixtures.firefox],
+      targets: [pending]
+    )
+    let scenario = try makeFirefoxRuntimeFallbackModel(config: authoritative)
+    let runtimeID = try XCTUnwrap(scenario.fallback.targets.first?.id)
+
+    try scenario.model.renameTarget(id: runtimeID, label: "Renamed Firefox")
+
+    let saved = try XCTUnwrap(scenario.store.saved.last?.targets.first)
+    XCTAssertEqual(saved.id, runtimeID)
+    XCTAssertEqual(saved.label, "Renamed Firefox")
+    XCTAssertFalse(saved.pendingDefaultMigration)
+    XCTAssertEqual(saved.profileIdentifier, pending.profileIdentifier)
+    XCTAssertEqual(saved.profileDisplayName, pending.profileDisplayName)
+    XCTAssertEqual(saved.profileIdentity, scenario.fallback.targets.first?.profileIdentity)
+    XCTAssertEqual(saved.profileLaunchPath, rawPath)
+    XCTAssertEqual(saved.validationError, pending.validationError)
+    XCTAssertEqual(saved.availability, .available)
+  }
+
+  func testFirefoxRuntimeFallbackPendingReorderPreservesAuthoritativeMetadata() throws {
+    let rawPath =
+      "/Users/private-user/Library/Application Support/Firefox/Profiles/pending-reorder"
+    let pending = Fixtures.pendingFirefoxProfileTarget(
+      rawPath: rawPath,
+      label: "Pending Firefox",
+      sortOrder: 0
+    )
+    let other = BrowserTarget(
+      id: "manual-firefox-default",
+      browserID: Fixtures.firefox.id,
+      label: "Firefox Default",
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 1,
+      origin: .manual,
+      availability: .available
+    )
+    let authoritative = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: [Fixtures.firefox],
+      targets: [pending, other]
+    )
+    let scenario = try makeFirefoxRuntimeFallbackModel(config: authoritative)
+
+    try scenario.model.moveTargets(fromOffsets: IndexSet(integer: 0), toOffset: 2)
+
+    let runtimeID = try XCTUnwrap(scenario.fallback.targets.first?.id)
+    let saved = try XCTUnwrap(
+      scenario.store.saved.last?.targets.first { $0.id == runtimeID }
+    )
+    XCTAssertEqual(saved.sortOrder, 1)
+    XCTAssertFalse(saved.pendingDefaultMigration)
+    XCTAssertEqual(saved.profileIdentifier, pending.profileIdentifier)
+    XCTAssertEqual(saved.profileDisplayName, pending.profileDisplayName)
+    XCTAssertEqual(saved.profileIdentity, scenario.fallback.targets.first?.profileIdentity)
+    XCTAssertEqual(saved.profileLaunchPath, rawPath)
+    XCTAssertEqual(saved.validationError, pending.validationError)
+    XCTAssertEqual(saved.availability, .available)
+  }
+
+  func testFirefoxRuntimeFallbackProfileClearPreservesAuthoritativeValidationState() throws {
+    let rawPath =
+      "/Users/private-user/Library/Application Support/Firefox/Profiles/profile-clear"
+    let target = BrowserTarget(
+      id: "manual-firefox-profile-clear",
+      browserID: Fixtures.firefox.id,
+      label: "Firefox Profile",
+      profileIdentifier: "Authoritative Profile",
+      profileDisplayName: "Authoritative Display",
+      profileIdentity: rawPath,
+      profileLaunchPath: rawPath,
+      mode: .private,
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .manual,
+      availability: .available,
+      validationError: "Authoritative validation"
+    )
+    let authoritative = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: [Fixtures.firefox],
+      targets: [target]
+    )
+    let scenario = try makeFirefoxRuntimeFallbackModel(config: authoritative)
+    let runtimeID = try XCTUnwrap(scenario.fallback.targets.first?.id)
+
+    try scenario.model.setTargetProfile(id: runtimeID, profileIdentifier: nil)
+
+    let saved = try XCTUnwrap(scenario.store.saved.last?.targets.first)
+    XCTAssertEqual(saved.id, target.id)
+    XCTAssertNil(saved.profileIdentifier)
+    XCTAssertNil(saved.profileDisplayName)
+    XCTAssertNil(saved.profileIdentity)
+    XCTAssertNil(saved.profileLaunchPath)
+    XCTAssertEqual(saved.mode, .private)
+    XCTAssertEqual(saved.validationError, "Authoritative validation")
+    XCTAssertEqual(saved.availability, .available)
+  }
+
+  func testFirefoxRuntimeTargetIDCollisionMapsSemanticEditsToOriginalAuthoritativeTarget() throws {
+    let cases:
+      [(
+        name: String,
+        apply: (AppModel, RouteTarget.ID) throws -> Void,
+        assertFirst: (RouteTarget) -> Void
+      )] = [
+        (
+          "rename",
+          { model, id in try model.renameTarget(id: id, label: "Edited First") },
+          { XCTAssertEqual($0.label, "Edited First") }
+        ),
+        (
+          "enablement",
+          { model, id in try model.setTargetEnabled(id: id, isEnabled: false) },
+          { XCTAssertFalse($0.isEnabled) }
+        ),
+        (
+          "mode",
+          { model, id in try model.setTargetMode(id: id, mode: .private) },
+          { XCTAssertEqual($0.mode, .private) }
+        ),
+        (
+          "profile",
+          { model, id in try model.setTargetProfile(id: id, profileIdentifier: nil) },
+          {
+            XCTAssertNil($0.profileIdentifier)
+            XCTAssertNil($0.profileIdentity)
+          }
+        ),
+      ]
+
+    for testCase in cases {
+      let collision = Fixtures.firefoxRuntimeIDCollisionConfig()
+      let scenario = try makeFirefoxRuntimeFallbackModel(config: collision.config)
+      let firstRuntimeID = scenario.fallback.targets[0].id
+      XCTAssertEqual(
+        firstRuntimeID,
+        collision.second.id,
+        "\(testCase.name): fixture must exercise exact-ID collision"
+      )
+
+      do {
+        try testCase.apply(scenario.model, firstRuntimeID)
+      } catch {
+        XCTFail("\(testCase.name): unexpected edit failure: \(error)")
+        continue
+      }
+
+      let saved = try XCTUnwrap(scenario.store.saved.last)
+      let savedSecond = try XCTUnwrap(
+        saved.targets.first { $0.label == collision.second.label }
+      )
+      let savedFirst = try XCTUnwrap(
+        saved.targets.first { $0.id != savedSecond.id }
+      )
+      XCTAssertNotEqual(savedFirst.id, collision.first.id)
+      XCTAssertNotEqual(savedFirst.id, firstRuntimeID)
+      if testCase.name == "profile" {
+        XCTAssertNil(savedFirst.profileIdentity)
+      } else {
+        XCTAssertEqual(
+          savedFirst.profileIdentity,
+          scenario.fallback.targets[0].profileIdentity
+        )
+      }
+      testCase.assertFirst(savedFirst)
+      XCTAssertEqual(
+        savedSecond,
+        collision.second,
+        "\(testCase.name): the colliding authoritative target must remain unchanged"
+      )
+    }
+  }
+
+  func testFirefoxRuntimeTargetIDCollisionMapsReorderAndRemovalByExplicitIdentity() throws {
+    do {
+      let collision = Fixtures.firefoxRuntimeIDCollisionConfig()
+      let scenario = try makeFirefoxRuntimeFallbackModel(config: collision.config)
+
+      try scenario.model.moveTargets(fromOffsets: IndexSet(integer: 0), toOffset: 2)
+
+      let saved = try XCTUnwrap(scenario.store.saved.last)
+      let savedFirst = try XCTUnwrap(
+        saved.targets.first { $0.label == collision.first.label }
+      )
+      let savedSecond = try XCTUnwrap(
+        saved.targets.first { $0.label == collision.second.label }
+      )
+      XCTAssertNotEqual(savedFirst.id, collision.first.id)
+      XCTAssertNotEqual(savedFirst.id, scenario.fallback.targets[0].id)
+      XCTAssertEqual(savedFirst.sortOrder, 1)
+      XCTAssertEqual(savedSecond.sortOrder, 0)
+      XCTAssertEqual(savedFirst.profileIdentity, scenario.fallback.targets[0].profileIdentity)
+      XCTAssertEqual(savedSecond.label, collision.second.label)
+    }
+
+    do {
+      let collision = Fixtures.firefoxRuntimeIDCollisionConfig()
+      let scenario = try makeFirefoxRuntimeFallbackModel(config: collision.config)
+
+      try scenario.model.removeManualTarget(id: scenario.fallback.targets[0].id)
+
+      let saved = try XCTUnwrap(scenario.store.saved.last)
+      XCTAssertFalse(saved.targets.contains { $0.id == collision.first.id })
+      XCTAssertEqual(saved.targets, [collision.second])
+    }
+  }
+
+  func testLegacyFirefoxFallbackRealStoreSemanticEditsCanonicalizeOnlyForbiddenFields()
+    throws
+  {
+    let cases:
+      [(
+        name: String,
+        apply: (AppModel, RouteTarget.ID) throws -> Void,
+        assertEdit: (RouteTarget) -> Void
+      )] = [
+        (
+          "rename",
+          { model, id in try model.renameTarget(id: id, label: "Renamed Legacy Firefox") },
+          { XCTAssertEqual($0.label, "Renamed Legacy Firefox") }
+        ),
+        (
+          "enablement",
+          { model, id in try model.setTargetEnabled(id: id, isEnabled: false) },
+          { XCTAssertFalse($0.isEnabled) }
+        ),
+        (
+          "mode",
+          { model, id in try model.setTargetMode(id: id, mode: .private) },
+          { XCTAssertEqual($0.mode, .private) }
+        ),
+      ]
+
+    for testCase in cases {
+      let scenario = try makeLegacyFirefoxDiskScenario()
+      defer { try? FileManager.default.removeItem(at: scenario.directory) }
+
+      XCTAssertNoThrow(try testCase.apply(scenario.model, scenario.runtimeTargetID))
+
+      let reloaded = try scenario.store.load()
+      XCTAssertEqual(try reloaded.validatedAndMigrated(), reloaded)
+      let edited = try XCTUnwrap(
+        reloaded.targets.first { $0.label != "Collision Target" },
+        testCase.name
+      )
+      testCase.assertEdit(edited)
+      assertLegacyFirefoxCanonicalization(
+        edited,
+        originalRuntimeTargetID: scenario.runtimeTargetID,
+        file: #filePath,
+        line: #line
+      )
+
+      let collision = try XCTUnwrap(
+        reloaded.targets.first { $0.label == "Collision Target" },
+        testCase.name
+      )
+      XCTAssertEqual(collision.id, LegacyFirefoxDiskFixture.collidingTargetID, testCase.name)
+      XCTAssertEqual(collision.validationError, "Collision validation", testCase.name)
+
+      let document = try persistedDocument(in: scenario.directory)
+      XCTAssertFalse(document.contains(LegacyFirefoxDiskFixture.rawTargetID), testCase.name)
+      XCTAssertFalse(document.contains(LegacyFirefoxDiskFixture.rawProfilePath), testCase.name)
+      XCTAssertFalse(document.contains("private-user"), testCase.name)
+      XCTAssertFalse(document.contains("profileLaunchPath"), testCase.name)
+    }
+  }
+
+  func testLegacyFirefoxFallbackRealStoreReorderAndRemovalPersistThroughIDCollision() throws {
+    do {
+      let scenario = try makeLegacyFirefoxDiskScenario()
+      defer { try? FileManager.default.removeItem(at: scenario.directory) }
+
+      try scenario.model.moveTargets(fromOffsets: IndexSet(integer: 0), toOffset: 2)
+
+      let reloaded = try scenario.store.load()
+      XCTAssertEqual(try reloaded.validatedAndMigrated(), reloaded)
+      let edited = try XCTUnwrap(
+        reloaded.targets.first { $0.label == "Legacy Firefox" }
+      )
+      let collision = try XCTUnwrap(
+        reloaded.targets.first { $0.label == "Collision Target" }
+      )
+      XCTAssertEqual(edited.sortOrder, 1)
+      XCTAssertEqual(collision.sortOrder, 0)
+      assertLegacyFirefoxCanonicalization(
+        edited,
+        originalRuntimeTargetID: scenario.runtimeTargetID,
+        file: #filePath,
+        line: #line
+      )
+      XCTAssertEqual(collision.id, LegacyFirefoxDiskFixture.collidingTargetID)
+    }
+
+    do {
+      let scenario = try makeLegacyFirefoxDiskScenario()
+      defer { try? FileManager.default.removeItem(at: scenario.directory) }
+
+      try scenario.model.removeManualTarget(id: scenario.runtimeTargetID)
+
+      let reloaded = try scenario.store.load()
+      XCTAssertEqual(try reloaded.validatedAndMigrated(), reloaded)
+      XCTAssertEqual(reloaded.targets.map(\.label), ["Collision Target"])
+      XCTAssertEqual(reloaded.targets.first?.id, LegacyFirefoxDiskFixture.collidingTargetID)
+    }
+  }
+
+  func testLegacyFirefoxFallbackRealStoreProfileClearDoesNotRestoreFallbackIdentity() throws {
+    let scenario = try makeLegacyFirefoxDiskScenario()
+    defer { try? FileManager.default.removeItem(at: scenario.directory) }
+
+    try scenario.model.setTargetProfile(
+      id: scenario.runtimeTargetID,
+      profileIdentifier: nil
+    )
+
+    let reloaded = try scenario.store.load()
+    XCTAssertEqual(try reloaded.validatedAndMigrated(), reloaded)
+    let edited = try XCTUnwrap(
+      reloaded.targets.first { $0.label == "Legacy Firefox" }
+    )
+    XCTAssertNotEqual(edited.id, LegacyFirefoxDiskFixture.rawTargetID)
+    XCTAssertNotEqual(edited.id, LegacyFirefoxDiskFixture.collidingTargetID)
+    XCTAssertNil(edited.profileIdentifier)
+    XCTAssertNil(edited.profileDisplayName)
+    XCTAssertNil(edited.profileIdentity)
+    XCTAssertEqual(edited.validationError, "Authoritative validation")
+    XCTAssertEqual(edited.availability, .available)
+  }
+
+  func testLegacyDetectedNameOnlyFirefoxProfilesPersistEditsWithSafeShape() throws {
+    let safeID = BrowserCatalog.targetID(
+      bundleIdentifier: Fixtures.firefox.id,
+      profileIdentifier: "Legacy Name Only",
+      mode: .normal
+    )
+    let forbiddenID = "/Users/private-user/Firefox/Profiles/legacy-name-only"
+
+    for legacyID in [safeID, forbiddenID] {
+      let directory = FileManager.default.temporaryDirectory.appending(
+        path: "pick-via-name-only-firefox-\(UUID().uuidString)",
+        directoryHint: .isDirectory
+      )
+      defer { try? FileManager.default.removeItem(at: directory) }
+      try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+      try Data(
+        LegacyFirefoxDiskFixture.nameOnlyAvailableDetectedDocument(targetID: legacyID).utf8
+      ).write(to: directory.appending(path: "PickViaConfig.json"), options: .atomic)
+
+      let store = JSONConfigStore(directory: directory)
+      let model = makeModel(
+        store: store,
+        catalog: BrowserCatalogStub(
+          scanResult: BrowserScanResult(browsers: [], warnings: [], isAuthoritative: false)
+        )
+      )
+      try model.load()
+
+      let runtimeTarget = try XCTUnwrap(
+        model.targets.first { $0.profileIdentifier == "Legacy Name Only" }
+      )
+      XCTAssertEqual(runtimeTarget.availability, .unavailable)
+
+      try model.renameTarget(id: runtimeTarget.id, label: "Renamed Name Only")
+      try model.setTargetEnabled(id: runtimeTarget.id, isEnabled: false)
+      try model.moveTargets(fromOffsets: IndexSet(integer: 0), toOffset: 2)
+
+      let reloaded = try store.load()
+      XCTAssertEqual(try reloaded.validatedAndMigrated(), reloaded)
+      let edited = try XCTUnwrap(
+        reloaded.targets.first { $0.profileIdentifier == "Legacy Name Only" }
+      )
+      XCTAssertEqual(edited.id, safeID)
+      XCTAssertEqual(edited.label, "Renamed Name Only")
+      XCTAssertFalse(edited.isEnabled)
+      XCTAssertEqual(edited.sortOrder, 1)
+      XCTAssertEqual(edited.origin, .detected)
+      XCTAssertEqual(edited.availability, .unavailable)
+      XCTAssertNil(edited.profileIdentity)
+      XCTAssertNil(edited.profileLaunchPath)
+      XCTAssertNil(edited.validationError)
+
+      let document = try persistedDocument(in: directory)
+      XCTAssertFalse(document.contains(forbiddenID))
+      XCTAssertFalse(document.contains("private-user"))
+      XCTAssertFalse(document.contains("profileLaunchPath"))
+      XCTAssertFalse(document.contains("validationError"))
+    }
+  }
+
+  func testPathShapedDetectedFirefoxNamePersistsAsUnavailableOpaqueProfile() throws {
+    let directory = FileManager.default.temporaryDirectory.appending(
+      path: "pick-via-path-shaped-firefox-\(UUID().uuidString)",
+      directoryHint: .isDirectory
+    )
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let encodedPath = "%252FUsers%252Fprivate-user%252FFirefox%252FProfiles%252Flegacy"
+    try Data(
+      LegacyFirefoxDiskFixture.pathShapedNameOnlyDetectedDocument(
+        encodedProfilePath: encodedPath
+      ).utf8
+    ).write(to: directory.appending(path: "PickViaConfig.json"), options: .atomic)
+
+    let store = JSONConfigStore(directory: directory)
+    let model = makeModel(
+      store: store,
+      catalog: BrowserCatalogStub(
+        scanResult: BrowserScanResult(browsers: [], warnings: [], isAuthoritative: false)
+      )
+    )
+    try model.load()
+    let runtimeTarget = try XCTUnwrap(
+      model.targets.first { $0.label == "Path-shaped Profile" }
+    )
+    XCTAssertNotEqual(runtimeTarget.id, "org.mozilla.firefox||normal")
+    XCTAssertEqual(runtimeTarget.availability, .unavailable)
+
+    try model.renameTarget(id: runtimeTarget.id, label: "Saved Path-shaped Profile")
+
+    let reloaded = try store.load()
+    let saved = try XCTUnwrap(
+      reloaded.targets.first { $0.label == "Saved Path-shaped Profile" }
+    )
+    XCTAssertNotEqual(saved.id, "org.mozilla.firefox||normal")
+    XCTAssertEqual(saved.availability, .unavailable)
+    XCTAssertNil(saved.profileIdentifier)
+    XCTAssertNil(saved.profileDisplayName)
+    XCTAssertTrue(FirefoxProfileIdentity.isOpaqueIdentifier(try XCTUnwrap(saved.profileIdentity)))
+    XCTAssertEqual(
+      saved.id,
+      BrowserCatalog.targetID(
+        bundleIdentifier: Fixtures.firefox.id,
+        profileIdentifier: saved.profileIdentity,
+        mode: .normal
+      )
+    )
+    XCTAssertEqual(
+      try XCTUnwrap(reloaded.targets.first { $0.label == "Firefox Default" }).id,
+      "org.mozilla.firefox||normal"
+    )
+
+    let document = try persistedDocument(in: directory)
+    XCTAssertFalse(document.contains("private-user"))
+    XCTAssertFalse(document.contains(encodedPath))
+    XCTAssertFalse(document.contains("profileLaunchPath"))
+  }
+
+  func testDetectedPathShapedFirefoxProfileClearPreservesUnresolvedProfileEvidence() throws {
+    let encodedPath = "%252FUsers%252Fprivate-user%252FFirefox%252FProfiles%252Flegacy"
+
+    for includeBrowserDefault in [false, true] {
+      let directory = FileManager.default.temporaryDirectory.appending(
+        path: "pick-via-detected-profile-clear-\(UUID().uuidString)",
+        directoryHint: .isDirectory
+      )
+      defer { try? FileManager.default.removeItem(at: directory) }
+      try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+      try Data(
+        LegacyFirefoxDiskFixture.pathShapedNameOnlyDetectedDocument(
+          encodedProfilePath: encodedPath,
+          includeBrowserDefault: includeBrowserDefault
+        ).utf8
+      ).write(to: directory.appending(path: "PickViaConfig.json"), options: .atomic)
+
+      let store = JSONConfigStore(directory: directory)
+      let model = makeModel(
+        store: store,
+        catalog: BrowserCatalogStub(
+          scanResult: BrowserScanResult(browsers: [], warnings: [], isAuthoritative: false)
+        )
+      )
+      try model.load()
+      let runtimeTarget = try XCTUnwrap(
+        model.targets.first { $0.label == "Path-shaped Profile" }
+      )
+      XCTAssertNil(runtimeTarget.profileIdentifier)
+      XCTAssertNil(runtimeTarget.profileDisplayName)
+      XCTAssertEqual(runtimeTarget.availability, .unavailable)
+
+      try model.setTargetProfile(id: runtimeTarget.id, profileIdentifier: nil)
+
+      let reloaded = try store.load()
+      XCTAssertEqual(try reloaded.validatedAndMigrated(), reloaded)
+      let saved = try XCTUnwrap(
+        reloaded.targets.first { $0.label == "Path-shaped Profile" }
+      )
+      XCTAssertNotEqual(saved.id, "org.mozilla.firefox||normal")
+      XCTAssertEqual(saved.origin, .detected)
+      XCTAssertEqual(saved.availability, .unavailable)
+      XCTAssertNil(saved.profileIdentifier)
+      XCTAssertNil(saved.profileDisplayName)
+      XCTAssertTrue(
+        FirefoxProfileIdentity.isOpaqueIdentifier(try XCTUnwrap(saved.profileIdentity))
+      )
+      XCTAssertEqual(
+        saved.id,
+        BrowserCatalog.targetID(
+          bundleIdentifier: Fixtures.firefox.id,
+          profileIdentifier: saved.profileIdentity,
+          mode: .normal
+        )
+      )
+
+      if includeBrowserDefault {
+        let collisionOwner = try XCTUnwrap(
+          reloaded.targets.first { $0.label == "Firefox Default" }
+        )
+        XCTAssertEqual(collisionOwner.id, "org.mozilla.firefox||normal")
+        XCTAssertEqual(collisionOwner.origin, .detected)
+        XCTAssertEqual(collisionOwner.availability, .available)
+        XCTAssertNil(collisionOwner.profileIdentifier)
+        XCTAssertNil(collisionOwner.profileDisplayName)
+        XCTAssertNil(collisionOwner.profileIdentity)
+      } else {
+        XCTAssertEqual(reloaded.targets.count, 1)
+      }
+
+      let document = try persistedDocument(in: directory)
+      XCTAssertFalse(document.contains(encodedPath))
+      XCTAssertFalse(document.contains("private-user"))
+      XCTAssertFalse(document.contains("profileLaunchPath"))
+    }
+  }
+
+  func testDetectedPathShapedFirefoxProfileClearRetriesAfterFailedCanonicalSave() throws {
+    let directory = FileManager.default.temporaryDirectory.appending(
+      path: "pick-via-detected-profile-clear-retry-\(UUID().uuidString)",
+      directoryHint: .isDirectory
+    )
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let encodedPath = "%252FUsers%252Fprivate-user%252FFirefox%252FProfiles%252Flegacy"
+    try Data(
+      LegacyFirefoxDiskFixture.pathShapedNameOnlyDetectedDocument(
+        encodedProfilePath: encodedPath
+      ).utf8
+    ).write(to: directory.appending(path: "PickViaConfig.json"), options: .atomic)
+
+    let diskStore = JSONConfigStore(directory: directory)
+    let failOnceStore = FailOnceConfigStore(
+      wrapping: diskStore,
+      error: TestError.denied
+    )
+    let model = makeModel(
+      store: failOnceStore,
+      catalog: BrowserCatalogStub(
+        scanResult: BrowserScanResult(browsers: [], warnings: [], isAuthoritative: false)
+      )
+    )
+    try model.load()
+    let runtimeTarget = try XCTUnwrap(
+      model.targets.first { $0.label == "Path-shaped Profile" }
+    )
+    let runtimeBeforeSave = model.config
+
+    XCTAssertThrowsError(
+      try model.setTargetProfile(id: runtimeTarget.id, profileIdentifier: nil)
+    )
+    XCTAssertEqual(model.config, runtimeBeforeSave)
+    XCTAssertTrue(try persistedDocument(in: directory).contains(encodedPath))
+
+    try model.setTargetProfile(id: runtimeTarget.id, profileIdentifier: nil)
+
+    let reloaded = try diskStore.load()
+    XCTAssertEqual(try reloaded.validatedAndMigrated(), reloaded)
+    let saved = try XCTUnwrap(
+      reloaded.targets.first { $0.label == "Path-shaped Profile" }
+    )
+    XCTAssertNotEqual(saved.id, "org.mozilla.firefox||normal")
+    XCTAssertEqual(saved.availability, .unavailable)
+    XCTAssertTrue(
+      FirefoxProfileIdentity.isOpaqueIdentifier(try XCTUnwrap(saved.profileIdentity))
+    )
+    XCTAssertEqual(
+      try XCTUnwrap(reloaded.targets.first { $0.label == "Firefox Default" }).id,
+      "org.mozilla.firefox||normal"
+    )
+    XCTAssertFalse(try persistedDocument(in: directory).contains(encodedPath))
+  }
+
+  func testDetectedFirefoxCanonicalIDCollisionsPersistAcrossSemanticSaves() throws {
+    let directory = FileManager.default.temporaryDirectory.appending(
+      path: "pick-via-detected-firefox-collisions-\(UUID().uuidString)",
+      directoryHint: .isDirectory
+    )
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let rawIdentityPath = "/Users/private-user/Firefox/Profiles/raw-collision"
+    let rawIdentity = FirefoxProfileIdentity.identifier(
+      for: URL(fileURLWithPath: rawIdentityPath, isDirectory: true)
+    )
+    let rawCanonicalID = BrowserCatalog.targetID(
+      bundleIdentifier: Fixtures.firefox.id,
+      profileIdentifier: rawIdentity,
+      mode: .normal
+    )
+    let nameCanonicalID = BrowserCatalog.targetID(
+      bundleIdentifier: Fixtures.firefox.id,
+      profileIdentifier: "Legacy Name Collision",
+      mode: .private
+    )
+    try Data(
+      LegacyFirefoxDiskFixture.detectedCanonicalCollisionDocument(
+        rawIdentityPath: rawIdentityPath,
+        rawIdentityCanonicalTargetID: rawCanonicalID,
+        nameOnlyCanonicalTargetID: nameCanonicalID
+      ).utf8
+    ).write(to: directory.appending(path: "PickViaConfig.json"), options: .atomic)
+
+    let store = JSONConfigStore(directory: directory)
+    let model = makeModel(
+      store: store,
+      catalog: BrowserCatalogStub(
+        scanResult: BrowserScanResult(browsers: [], warnings: [], isAuthoritative: false)
+      )
+    )
+    try model.load()
+    let rawRuntimeID = try XCTUnwrap(
+      model.targets.first { $0.label == "Raw Identity Profile" }
+    ).id
+    let nameRuntimeID = try XCTUnwrap(
+      model.targets.first { $0.label == "Name Only Profile" }
+    ).id
+
+    try model.renameTarget(id: rawRuntimeID, label: "Renamed Raw Identity")
+    try model.setTargetEnabled(id: nameRuntimeID, isEnabled: false)
+    try model.moveTargets(fromOffsets: IndexSet(integer: 0), toOffset: 5)
+    try model.removeManualTarget(id: "unrelated-removable")
+
+    let reloaded = try store.load()
+    XCTAssertEqual(try reloaded.validatedAndMigrated(), reloaded)
+    let raw = try XCTUnwrap(reloaded.targets.first { $0.label == "Renamed Raw Identity" })
+    let name = try XCTUnwrap(reloaded.targets.first { $0.label == "Name Only Profile" })
+    let rawOwner = try XCTUnwrap(reloaded.targets.first { $0.label == "Raw Collision Owner" })
+    let nameOwner = try XCTUnwrap(reloaded.targets.first { $0.label == "Name Collision Owner" })
+    XCTAssertNotEqual(raw.id, rawCanonicalID)
+    XCTAssertNotEqual(name.id, nameCanonicalID)
+    XCTAssertNotEqual(raw.id, name.id)
+    XCTAssertTrue(FirefoxProfileIdentity.isOpaqueIdentifier(try XCTUnwrap(raw.profileIdentity)))
+    XCTAssertTrue(FirefoxProfileIdentity.isOpaqueIdentifier(try XCTUnwrap(name.profileIdentity)))
+    XCTAssertEqual(name.availability, .unavailable)
+    XCTAssertFalse(name.isEnabled)
+    XCTAssertEqual(rawOwner.id, rawCanonicalID)
+    XCTAssertEqual(rawOwner.validationError, "Raw collision validation")
+    XCTAssertEqual(nameOwner.id, nameCanonicalID)
+    XCTAssertEqual(nameOwner.validationError, "Name collision validation")
+    XCTAssertFalse(reloaded.targets.contains { $0.id == "unrelated-removable" })
+
+    let document = try persistedDocument(in: directory)
+    XCTAssertFalse(document.contains("private-user"))
+    XCTAssertFalse(document.contains("profileLaunchPath"))
+  }
+
+  func testSchemaTwoFirefoxProfileChangePersistsSelectedSafeMetadata() throws {
+    let directory = FileManager.default.temporaryDirectory.appending(
+      path: "pick-via-schema-two-firefox-profile-change-\(UUID().uuidString)",
+      directoryHint: .isDirectory
+    )
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let selectedIdentity = FirefoxProfileIdentity.identifier(
+      for: URL(fileURLWithPath: "/Firefox/Profiles/selected", isDirectory: true)
+    )
+    let encodedLegacyPath = "%252FUsers%252Fprivate-user%252FFirefox%252FProfiles%252Flegacy"
+    try Data(
+      LegacyFirefoxDiskFixture.firefoxProfileChangeDocument(
+        selectedIdentity: selectedIdentity,
+        encodedLegacyPath: encodedLegacyPath
+      ).utf8
+    ).write(to: directory.appending(path: "PickViaConfig.json"), options: .atomic)
+
+    let store = JSONConfigStore(directory: directory)
+    let model = makeModel(
+      store: store,
+      catalog: BrowserCatalogStub(
+        scanResult: BrowserScanResult(
+          browsers: [
+            DiscoveredBrowser(
+              application: Fixtures.firefox,
+              profiles: [
+                DiscoveredProfile(
+                  identifier: selectedIdentity,
+                  displayName: "Selected Display",
+                  directoryURL: nil,
+                  launchIdentifier: "selected-launch"
+                )
+              ]
+            )
+          ],
+          warnings: [],
+          isAuthoritative: true
+        ),
+        reconciler: { $0 }
+      )
+    )
+    try model.load()
+
+    try model.setTargetProfile(
+      id: "manual-profile-change",
+      profileIdentifier: "selected-launch"
+    )
+
+    let reloaded = try store.load()
+    XCTAssertEqual(try reloaded.validatedAndMigrated(), reloaded)
+    let manual = try XCTUnwrap(reloaded.targets.first { $0.id == "manual-profile-change" })
+    XCTAssertEqual(manual.profileIdentifier, "selected-launch")
+    XCTAssertEqual(manual.profileDisplayName, "Selected Display")
+    XCTAssertEqual(manual.profileIdentity, selectedIdentity)
+    XCTAssertEqual(manual.mode, .private)
+    XCTAssertNil(manual.profileLaunchPath)
+    XCTAssertNil(manual.validationError)
+
+    let document = try persistedDocument(in: directory)
+    XCTAssertFalse(document.contains("private-user"))
+    XCTAssertFalse(document.contains(encodedLegacyPath))
+    XCTAssertFalse(document.contains("profileLaunchPath"))
+  }
+
+  func testRealStoreProfileChangeStillUsesSelectedAuthoritativeProfileMetadata() throws {
+    let directory = FileManager.default.temporaryDirectory.appending(
+      path: "pick-via-profile-change-\(UUID().uuidString)",
+      directoryHint: .isDirectory
+    )
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let manual = BrowserTarget(
+      id: "manual-edit",
+      browserID: Fixtures.chrome.id,
+      label: "Manual",
+      profileIdentifier: "Profile 1",
+      profileDisplayName: "Work",
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 30,
+      origin: .manual,
+      availability: .available
+    )
+    let config = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: Fixtures.profileEditConfig.browsers,
+      targets: Fixtures.profileEditConfig.targets + [manual]
+    )
+    let store = JSONConfigStore(directory: directory)
+    try store.save(config)
+    let model = makeModel(store: store)
+    try model.load()
+
+    try model.setTargetProfile(id: manual.id, profileIdentifier: "Profile 2")
+
+    let reloaded = try store.load()
+    let edited = try XCTUnwrap(reloaded.targets.first { $0.id == manual.id })
+    XCTAssertEqual(edited.profileIdentifier, "Profile 2")
+    XCTAssertEqual(edited.profileDisplayName, "Personal")
+    XCTAssertEqual(edited.mode, .normal)
+  }
+
+  func testLoadAppliesMailRuntimeFallbackBeforeEitherDiscoveryPass() throws {
+    let unavailableMail = Fixtures.copy(
+      Fixtures.appleMail,
+      mailIsAvailable: false
+    )
+    let fallback = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      applications: [Fixtures.chrome, unavailableMail],
+      targets: Fixtures.webAndMailConfig.targets
+    )
+    let mailCatalog = MailCatalogStub(
+      scan: MailScanResult(applications: [], isAuthoritative: false),
+      runtimeFallback: fallback
+    )
+    let browserCatalog = BrowserCatalogStub(
+      scanResult: BrowserScanResult(
+        browsers: [],
+        warnings: [],
+        isAuthoritative: false
+      )
+    )
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.webAndMailConfig),
+      catalog: browserCatalog,
+      mailCatalog: mailCatalog
+    )
+
+    try model.load()
+
+    XCTAssertEqual(mailCatalog.runtimeFallbackInputs, [Fixtures.webAndMailConfig])
+    XCTAssertEqual(browserCatalog.reconcileInputs, [])
+    XCTAssertEqual(model.config, fallback)
+    XCTAssertFalse(try XCTUnwrap(model.mailApplications.first).isAvailable(for: .mail))
+  }
+
+  func testLoadPublishesOneFinalSnapshotContainingBothRouteKinds() throws {
+    let snapshot = MutableTargetSnapshot()
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.browserConfig),
+      mailCatalog: .authoritative([Fixtures.appleMailDiscovery]),
+      targetSnapshot: snapshot
+    )
+
+    try model.load()
+
+    XCTAssertFalse(snapshot.availableSnapshot(for: .web).targets.isEmpty)
+    XCTAssertEqual(
+      snapshot.availableSnapshot(for: .mail).targets.map(\.id),
+      [Fixtures.appleMailTarget.id]
+    )
+  }
+
   func testRecoveredCorruptionPublishesVisibleRecoveryState() throws {
     let store = ConfigStoreStub(
       config: .initial,
@@ -137,7 +1262,7 @@ final class AppModelTests: XCTestCase {
     try model.load()
 
     XCTAssertEqual(model.config, valid)
-    XCTAssertEqual(snapshot.availableSnapshot().targets.map(\.id), ["work"])
+    XCTAssertEqual(snapshot.availableSnapshot(for: .web).targets.map(\.id), ["work"])
     XCTAssertTrue(store.saved.isEmpty)
     XCTAssertNotNil(model.errorMessage)
   }
@@ -415,6 +1540,307 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(model.config, reconciled)
     XCTAssertEqual(catalog.reconcileInputs, [reconciled])
     XCTAssertEqual(store.saved, [reconciled])
+  }
+
+  func testRescanMailApplicationsDoesNotRescanOrChangeBrowserState() throws {
+    let store = ConfigStoreStub(config: Fixtures.webAndMailConfig)
+    let browserCatalog = BrowserCatalogStub(
+      scanResult: BrowserScanResult(
+        browsers: [],
+        warnings: [],
+        isAuthoritative: false
+      )
+    )
+    let mailCatalog = MailCatalogStub.authoritative([Fixtures.appleMailDiscovery])
+    let model = makeModel(
+      store: store,
+      catalog: browserCatalog,
+      mailCatalog: mailCatalog
+    )
+    try model.load()
+    browserCatalog.resetScanCalls()
+    mailCatalog.setScan(
+      MailScanResult(
+        applications: [Fixtures.outlookDiscovery],
+        isAuthoritative: true
+      )
+    )
+
+    try model.rescanMailApplications()
+
+    XCTAssertEqual(browserCatalog.scanResultCallCount, 0)
+    XCTAssertEqual(mailCatalog.scanResultCallCount, 2)
+    XCTAssertEqual(
+      model.targets.filter { $0.routeKind == .web },
+      Fixtures.webAndMailConfig.targets.filter { $0.routeKind == .web }
+    )
+    XCTAssertEqual(
+      Set(model.mailTargets.map(\.id)),
+      Set(["mailto|com.apple.mail", "mailto|com.microsoft.Outlook"])
+    )
+  }
+
+  func testMailRescanPreservesBrowserMetadataForDualCapabilityApplication() throws {
+    let originalApplication = RoutedApplication(
+      id: Fixtures.chrome.id,
+      displayName: Fixtures.chrome.displayName,
+      bundleIdentifier: Fixtures.chrome.bundleIdentifier,
+      capabilities: [
+        .browser(family: .chromium, isAvailable: true),
+        .mail(isAvailable: true),
+      ],
+      applicationURL: Fixtures.chrome.applicationURL,
+      browserExecutableURL: Fixtures.chrome.browserExecutableURL
+    )
+    let mailTarget = RouteTarget(
+      id: RouteTarget.mailID(bundleIdentifier: originalApplication.bundleIdentifier),
+      applicationID: originalApplication.id,
+      label: "Chrome Mail",
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .detected,
+      availability: .available,
+      capability: .mail
+    )
+    let config = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      applications: [originalApplication],
+      targets: Fixtures.editableConfig.targets + [mailTarget]
+    )
+    let mailCatalog = MailCatalogStub.nonAuthoritative
+    let model = makeModel(
+      store: ConfigStoreStub(config: config),
+      catalog: BrowserCatalogStub(
+        scanResult: BrowserScanResult(
+          browsers: [],
+          warnings: [],
+          isAuthoritative: false
+        )
+      ),
+      mailCatalog: mailCatalog
+    )
+    try model.load()
+    let browserBefore = try XCTUnwrap(model.browsers.first)
+    let webTargetsBefore = model.targets.filter { $0.routeKind == .web }
+    mailCatalog.setScan(
+      MailScanResult(
+        applications: [
+          DiscoveredMailApplication(
+            bundleIdentifier: originalApplication.bundleIdentifier,
+            displayName: "Mail Discovery Alias",
+            applicationURL: URL(fileURLWithPath: "/Applications/Mail Discovery Alias.app")
+          )
+        ],
+        isAuthoritative: true
+      )
+    )
+
+    try model.rescanMailApplications()
+
+    XCTAssertEqual(try XCTUnwrap(model.browsers.first), browserBefore)
+    XCTAssertEqual(
+      model.targets.filter { $0.routeKind == .web },
+      webTargetsBefore
+    )
+  }
+
+  func testMailRescanFailurePreservesConfigurationAndShowsMailError() throws {
+    let store = ConfigStoreStub(config: Fixtures.webAndMailConfig)
+    let model = makeModel(store: store, mailCatalog: .nonAuthoritative)
+    try model.load()
+    let before = model.config
+
+    try model.rescanMailApplications()
+
+    XCTAssertEqual(model.config, before)
+    XCTAssertEqual(
+      model.mailErrorMessage,
+      "Mail application discovery could not be completed. Existing choices were preserved."
+    )
+  }
+
+  func testChooserMailSettingsRescanDefersRefreshUntilSettingsClose() throws {
+    let routing = RoutingSpy()
+    let mailCatalog = MailCatalogStub.authoritative([Fixtures.appleMailDiscovery])
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.webAndMailConfig),
+      catalog: BrowserCatalogStub(
+        scanResult: BrowserScanResult(
+          browsers: [],
+          warnings: [],
+          isAuthoritative: false
+        )
+      ),
+      mailCatalog: mailCatalog,
+      routing: routing
+    )
+    try model.load()
+    mailCatalog.setScan(
+      MailScanResult(
+        applications: [Fixtures.appleMailDiscovery, Fixtures.outlookDiscovery],
+        isAuthoritative: true
+      )
+    )
+    let navigation = SettingsNavigation()
+    let settingsHandler = AppComposition.makeChooserSettingsHandler(
+      navigation: navigation,
+      openSettings: {},
+      chooserSettingsDidOpen: { model.chooserSettingsDidOpen(for: $0) }
+    )
+    let chooser = ChooserPanelController(openSettings: settingsHandler)
+
+    chooser.showSettings(for: .mail)
+    try model.rescanMailApplications()
+
+    XCTAssertEqual(navigation.destination, .mail)
+    XCTAssertEqual(routing.refreshCallCount, 0)
+
+    model.settingsDidClose()
+
+    XCTAssertEqual(routing.refreshCallCount, 1)
+  }
+
+  func testWebChooserSettingsDefersMailRescanRefreshUntilSettingsClose() throws {
+    let routing = RoutingSpy()
+    let mailCatalog = MailCatalogStub.authoritative([Fixtures.appleMailDiscovery])
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.webAndMailConfig),
+      catalog: BrowserCatalogStub(
+        scanResult: BrowserScanResult(
+          browsers: [],
+          warnings: [],
+          isAuthoritative: false
+        )
+      ),
+      mailCatalog: mailCatalog,
+      routing: routing
+    )
+    try model.load()
+    mailCatalog.setScan(
+      MailScanResult(
+        applications: [Fixtures.appleMailDiscovery, Fixtures.outlookDiscovery],
+        isAuthoritative: true
+      )
+    )
+    let navigation = SettingsNavigation()
+    let settingsHandler = AppComposition.makeChooserSettingsHandler(
+      navigation: navigation,
+      openSettings: {},
+      chooserSettingsDidOpen: { model.chooserSettingsDidOpen(for: $0) }
+    )
+    let chooser = ChooserPanelController(openSettings: settingsHandler)
+
+    chooser.showSettings(for: .web)
+    try model.rescanMailApplications()
+
+    XCTAssertEqual(navigation.destination, .browsers)
+    XCTAssertEqual(routing.refreshCallCount, 0)
+
+    model.settingsDidClose()
+
+    XCTAssertEqual(routing.refreshCallCount, 1)
+  }
+
+  func testMailChooserSettingsDefersBrowserRescanRefreshUntilSettingsClose() throws {
+    let routing = RoutingSpy()
+    let browserCatalog = BrowserCatalogStub(
+      discovered: [Fixtures.discoveredChrome],
+      reconciled: Fixtures.webAndMailConfig
+    )
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.webAndMailConfig),
+      catalog: browserCatalog,
+      mailCatalog: .nonAuthoritative,
+      routing: routing
+    )
+    try model.load()
+    let navigation = SettingsNavigation()
+    let settingsHandler = AppComposition.makeChooserSettingsHandler(
+      navigation: navigation,
+      openSettings: {},
+      chooserSettingsDidOpen: { model.chooserSettingsDidOpen(for: $0) }
+    )
+    let chooser = ChooserPanelController(openSettings: settingsHandler)
+
+    chooser.showSettings(for: .mail)
+    try model.rescan()
+
+    XCTAssertEqual(navigation.destination, .mail)
+    XCTAssertEqual(routing.refreshCallCount, 0)
+
+    model.settingsDidClose()
+
+    XCTAssertEqual(routing.refreshCallCount, 1)
+  }
+
+  func testWebChooserSettingsDefersBrowserRescanRefreshUntilSettingsClose() throws {
+    let routing = RoutingSpy()
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.webAndMailConfig),
+      catalog: BrowserCatalogStub(
+        discovered: [Fixtures.discoveredChrome],
+        reconciled: Fixtures.webAndMailConfig
+      ),
+      mailCatalog: .nonAuthoritative,
+      routing: routing
+    )
+    try model.load()
+    let navigation = SettingsNavigation()
+    let settingsHandler = AppComposition.makeChooserSettingsHandler(
+      navigation: navigation,
+      openSettings: {},
+      chooserSettingsDidOpen: { model.chooserSettingsDidOpen(for: $0) }
+    )
+    let chooser = ChooserPanelController(openSettings: settingsHandler)
+
+    chooser.showSettings(for: .web)
+    try model.rescan()
+
+    XCTAssertEqual(navigation.destination, .browsers)
+    XCTAssertEqual(routing.refreshCallCount, 0)
+
+    model.settingsDidClose()
+
+    XCTAssertEqual(routing.refreshCallCount, 1)
+  }
+
+  func testMailRescanOutsideContextualSettingsRefreshesImmediately() throws {
+    let routing = RoutingSpy()
+    let mailCatalog = MailCatalogStub.authoritative([Fixtures.appleMailDiscovery])
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.webAndMailConfig),
+      mailCatalog: mailCatalog,
+      routing: routing
+    )
+    try model.load()
+    mailCatalog.setScan(
+      MailScanResult(
+        applications: [Fixtures.appleMailDiscovery, Fixtures.outlookDiscovery],
+        isAuthoritative: true
+      )
+    )
+
+    try model.rescanMailApplications()
+
+    XCTAssertEqual(routing.refreshCallCount, 1)
+  }
+
+  func testBrowserRescanOutsideContextualSettingsRefreshesImmediately() throws {
+    let routing = RoutingSpy()
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.webAndMailConfig),
+      catalog: BrowserCatalogStub(
+        discovered: [Fixtures.discoveredChrome],
+        reconciled: Fixtures.webAndMailConfig
+      ),
+      mailCatalog: .nonAuthoritative,
+      routing: routing
+    )
+    try model.load()
+
+    try model.rescan()
+
+    XCTAssertEqual(routing.refreshCallCount, 1)
   }
 
   func testAutomaticWizardContainsOnlyAccessFailuresAndSuppressesAfterSkip() throws {
@@ -720,7 +2146,7 @@ final class AppModelTests: XCTestCase {
     try model.load()
     store.resetSaved()
     catalog.resetTargetedScanCalls()
-    let publishedTargetIDs = snapshot.availableSnapshot().targets.map(\.id)
+    let publishedTargetIDs = snapshot.availableSnapshot(for: .web).targets.map(\.id)
 
     try model.grantProfileAccess(
       for: "com.google.Chrome",
@@ -738,7 +2164,7 @@ final class AppModelTests: XCTestCase {
     XCTAssertTrue(store.saved.isEmpty)
     XCTAssertEqual(model.config, Fixtures.editableConfig)
     XCTAssertEqual(
-      snapshot.availableSnapshot().targets.map(\.id),
+      snapshot.availableSnapshot(for: .web).targets.map(\.id),
       publishedTargetIDs
     )
     XCTAssertEqual(routing.refreshCallCount, 0)
@@ -932,7 +2358,7 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(store.saved, [Fixtures.profileEditConfig])
     XCTAssertEqual(model.config, Fixtures.profileEditConfig)
     XCTAssertEqual(
-      snapshot.availableSnapshot().targets.map(\.id),
+      snapshot.availableSnapshot(for: .web).targets.map(\.id),
       ["work", "personal"]
     )
     XCTAssertEqual(routing.refreshCallCount, 1)
@@ -977,7 +2403,7 @@ final class AppModelTests: XCTestCase {
 
     XCTAssertEqual(model.config, Fixtures.editableConfig)
     XCTAssertEqual(
-      snapshot.availableSnapshot().targets.map(\.id),
+      snapshot.availableSnapshot(for: .web).targets.map(\.id),
       ["work"]
     )
     XCTAssertEqual(routing.refreshCallCount, 0)
@@ -1028,7 +2454,7 @@ final class AppModelTests: XCTestCase {
     XCTAssertTrue(model.profileAccessRows.first?.hasStoredGrant == true)
     XCTAssertFalse(model.canFinishProfileAccess)
     XCTAssertEqual(model.config, Fixtures.editableConfig)
-    XCTAssertEqual(snapshot.availableSnapshot().targets.map(\.id), ["work"])
+    XCTAssertEqual(snapshot.availableSnapshot(for: .web).targets.map(\.id), ["work"])
     XCTAssertEqual(routing.refreshCallCount, 0)
     XCTAssertTrue(store.saved.isEmpty)
     XCTAssertEqual(model.profileAccessPresentation, .presented)
@@ -1088,7 +2514,7 @@ final class AppModelTests: XCTestCase {
     XCTAssertTrue(model.profileAccessRows.first?.hasStoredGrant == true)
     XCTAssertTrue(model.canFinishProfileAccess)
     XCTAssertEqual(model.config, Fixtures.editableConfig)
-    XCTAssertEqual(snapshot.availableSnapshot().targets.map(\.id), ["work"])
+    XCTAssertEqual(snapshot.availableSnapshot(for: .web).targets.map(\.id), ["work"])
     XCTAssertEqual(routing.refreshCallCount, 0)
     XCTAssertTrue(store.saved.isEmpty)
     XCTAssertEqual(model.profileAccessPresentation, .presented)
@@ -1228,7 +2654,7 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(model.profileAccessRows.map(\.hasStoredGrant), [false, true])
     XCTAssertTrue(model.canFinishProfileAccess)
     XCTAssertEqual(model.config, Fixtures.editableConfig)
-    XCTAssertEqual(snapshot.availableSnapshot().targets.map(\.id), ["work"])
+    XCTAssertEqual(snapshot.availableSnapshot(for: .web).targets.map(\.id), ["work"])
     XCTAssertTrue(store.saved.isEmpty)
     XCTAssertEqual(routing.refreshCallCount, 0)
     XCTAssertEqual(model.profileAccessPresentation, .presented)
@@ -1307,7 +2733,7 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(model.profileAccessRows.map(\.hasStoredGrant), [false, true])
     XCTAssertTrue(model.canFinishProfileAccess)
     XCTAssertEqual(model.config, Fixtures.editableConfig)
-    XCTAssertEqual(snapshot.availableSnapshot().targets.map(\.id), ["work"])
+    XCTAssertEqual(snapshot.availableSnapshot(for: .web).targets.map(\.id), ["work"])
     XCTAssertTrue(store.saved.isEmpty)
     XCTAssertEqual(routing.refreshCallCount, 0)
     XCTAssertEqual(model.profileAccessPresentation, .presented)
@@ -1513,12 +2939,12 @@ final class AppModelTests: XCTestCase {
     try model.load()
     model.profileAccessDidPresent()
 
-    model.previewChooser()
+    model.previewChooser(kind: .web)
     XCTAssertTrue(routing.previewedURLs.isEmpty)
 
     model.closeProfileAccess()
     model.profileAccessDidDismiss()
-    model.previewChooser()
+    model.previewChooser(kind: .web)
     XCTAssertEqual(routing.previewedURLs.count, 1)
   }
 
@@ -1594,6 +3020,38 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(defaults.requestedSchemes, ["http", "https"])
   }
 
+  func testConfirmedBrowserDefaultAdvancesNewUserToMailReview() async throws {
+    let incomplete = DefaultHandlerStatus(
+      http: .notDefault,
+      https: .notDefault,
+      mailto: .notDefault
+    )
+    let confirmed = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .notDefault
+    )
+    let defaults = DefaultBrowserSpy(
+      statuses: [incomplete, confirmed]
+    )
+    let preferences = PreferencesStub(integers: [
+      "onboardingVersion": 2,
+      "onboardingStep": 3,
+    ])
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.config),
+      preferences: preferences,
+      defaultBrowser: defaults
+    )
+    try model.load()
+
+    await model.requestDefaultBrowser()
+
+    XCTAssertEqual(defaults.requestedSchemes, ["http", "https"])
+    XCTAssertEqual(model.onboardingStep, 4)
+    XCTAssertFalse(model.isOnboardingComplete)
+  }
+
   func testDefaultRequestDoesNothingWithoutValidEnabledTarget() async throws {
     let defaults = DefaultBrowserSpy()
     let model = makeModel(
@@ -1629,7 +3087,7 @@ final class AppModelTests: XCTestCase {
   }
 
   func testNonthrowingDefaultRequestThatRemainsNotDefaultDoesNotCompleteOnboarding() async throws {
-    let incomplete = DefaultBrowserStatus(http: .notDefault, https: .notDefault)
+    let incomplete = DefaultHandlerStatus(http: .notDefault, https: .notDefault)
     let preferences = PreferencesStub(integers: ["onboardingStep": 3])
     let defaults = DefaultBrowserSpy(statuses: [incomplete, incomplete])
     let model = makeModel(
@@ -1647,8 +3105,8 @@ final class AppModelTests: XCTestCase {
   }
 
   func testPartialDefaultStatusDoesNotCompleteOnboarding() async throws {
-    let incomplete = DefaultBrowserStatus(http: .notDefault, https: .notDefault)
-    let partial = DefaultBrowserStatus(http: .isDefault, https: .notDefault)
+    let incomplete = DefaultHandlerStatus(http: .notDefault, https: .notDefault)
+    let partial = DefaultHandlerStatus(http: .isDefault, https: .notDefault)
     let preferences = PreferencesStub(integers: ["onboardingStep": 3])
     let defaults = DefaultBrowserSpy(statuses: [incomplete, partial])
     let model = makeModel(
@@ -1666,10 +3124,13 @@ final class AppModelTests: XCTestCase {
     XCTAssertNotNil(model.errorMessage)
   }
 
-  func testDualSchemeDefaultStatusCompletesOnboarding() async throws {
-    let incomplete = DefaultBrowserStatus(http: .notDefault, https: .notDefault)
-    let complete = DefaultBrowserStatus(http: .isDefault, https: .isDefault)
-    let preferences = PreferencesStub(integers: ["onboardingStep": 3])
+  func testDualSchemeDefaultStatusAdvancesToMailReview() async throws {
+    let incomplete = DefaultHandlerStatus(http: .notDefault, https: .notDefault)
+    let complete = DefaultHandlerStatus(http: .isDefault, https: .isDefault)
+    let preferences = PreferencesStub(integers: [
+      "onboardingVersion": 2,
+      "onboardingStep": 3,
+    ])
     let defaults = DefaultBrowserSpy(statuses: [incomplete, complete])
     let model = makeModel(
       store: ConfigStoreStub(config: Fixtures.config),
@@ -1682,12 +3143,31 @@ final class AppModelTests: XCTestCase {
 
     XCTAssertEqual(model.defaultStatus, complete)
     XCTAssertEqual(model.onboardingStep, 4)
-    XCTAssertTrue(model.isOnboardingComplete)
+    XCTAssertFalse(model.isOnboardingComplete)
     XCTAssertNil(model.errorMessage)
     XCTAssertEqual(preferences.setIntegers["onboardingStep"], 4)
   }
 
-  func testPersistedCompletionIsClampedWhenDefaultStatusIsIncomplete() throws {
+  func testLegacyCompletedUserMigratesDirectlyToNewCompletedStep() throws {
+    let preferences = PreferencesStub(integers: ["onboardingStep": 4])
+    let defaults = DefaultBrowserSpy(
+      status: .init(http: .isDefault, https: .isDefault, mailto: .notDefault)
+    )
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.config),
+      preferences: preferences,
+      defaultBrowser: defaults
+    )
+
+    try model.load()
+
+    XCTAssertEqual(model.onboardingStep, 6)
+    XCTAssertTrue(model.isOnboardingComplete)
+    XCTAssertEqual(preferences.setIntegers["onboardingVersion"], 2)
+    XCTAssertEqual(preferences.setIntegers["onboardingStep"], 6)
+  }
+
+  func testLegacyCompletionWithoutConfirmedBrowserReturnsToDefaultBrowserStep() throws {
     let preferences = PreferencesStub(integers: ["onboardingStep": 4])
     let defaults = DefaultBrowserSpy(
       status: .init(http: .isDefault, https: .notDefault)
@@ -1703,6 +3183,444 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(model.onboardingStep, 3)
     XCTAssertFalse(model.isOnboardingComplete)
     XCTAssertEqual(preferences.setIntegers["onboardingStep"], 3)
+  }
+
+  func testIncompleteLegacyStepsArePreservedDuringVersionMigration() throws {
+    for step in 1...3 {
+      let preferences = PreferencesStub(integers: ["onboardingStep": step])
+      let model = makeModel(preferences: preferences)
+
+      try model.load()
+
+      XCTAssertEqual(model.onboardingStep, step)
+      XCTAssertEqual(preferences.setIntegers["onboardingVersion"], 2)
+      XCTAssertEqual(preferences.setIntegers["onboardingStep"], step)
+    }
+  }
+
+  func testVersionTwoMailReviewWithoutConfirmedBrowserReturnsToDefaultBrowserStep() throws {
+    let preferences = PreferencesStub(integers: [
+      "onboardingVersion": 2,
+      "onboardingStep": 4,
+    ])
+    let defaults = DefaultBrowserSpy(
+      status: .init(http: .isDefault, https: .notDefault, mailto: .notDefault)
+    )
+    let model = makeModel(
+      preferences: preferences,
+      defaultBrowser: defaults
+    )
+
+    try model.load()
+
+    XCTAssertEqual(model.onboardingStep, 3)
+    XCTAssertFalse(model.isOnboardingComplete)
+    XCTAssertEqual(preferences.setIntegers["onboardingStep"], 3)
+
+    model.skipMailSetup()
+
+    XCTAssertEqual(model.onboardingStep, 3)
+    XCTAssertFalse(model.isOnboardingComplete)
+    XCTAssertTrue(defaults.requestedSchemes.isEmpty)
+  }
+
+  func testVersionTwoDefaultMailWithoutConfirmedBrowserReturnsToDefaultBrowserStep()
+    async throws
+  {
+    let unconfirmed = DefaultHandlerStatus(
+      http: .notDefault,
+      https: .isDefault,
+      mailto: .notDefault
+    )
+    let mailConfirmed = DefaultHandlerStatus(
+      http: .notDefault,
+      https: .isDefault,
+      mailto: .isDefault
+    )
+    let preferences = PreferencesStub(integers: [
+      "onboardingVersion": 2,
+      "onboardingStep": 5,
+    ])
+    let defaults = DefaultBrowserSpy(statuses: [unconfirmed, mailConfirmed])
+    let model = makeModel(
+      preferences: preferences,
+      defaultBrowser: defaults
+    )
+
+    try model.load()
+
+    XCTAssertEqual(model.onboardingStep, 3)
+    XCTAssertFalse(model.isOnboardingComplete)
+    XCTAssertEqual(preferences.setIntegers["onboardingStep"], 3)
+
+    await model.requestDefaultMail()
+
+    XCTAssertEqual(defaults.requestedSchemes, ["mailto"])
+    XCTAssertEqual(model.onboardingStep, 3)
+    XCTAssertFalse(model.isOnboardingComplete)
+  }
+
+  func testRefreshLosingBrowserDefaultFromMailReviewPreventsSkipCompletingOnboarding()
+    throws
+  {
+    let confirmed = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .notDefault
+    )
+    let browserUnconfirmed = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .notDefault,
+      mailto: .notDefault
+    )
+    let defaults = DefaultBrowserSpy(statuses: [confirmed, browserUnconfirmed])
+    let model = makeModel(
+      preferences: PreferencesStub(integers: [
+        "onboardingVersion": 2,
+        "onboardingStep": 4,
+      ]),
+      defaultBrowser: defaults
+    )
+    try model.load()
+    XCTAssertEqual(model.onboardingStep, 4)
+
+    model.refreshDefaultStatus()
+    model.skipMailSetup()
+
+    XCTAssertEqual(model.defaultStatus, browserUnconfirmed)
+    XCTAssertEqual(model.onboardingStep, 3)
+    XCTAssertFalse(model.isOnboardingComplete)
+    XCTAssertTrue(defaults.requestedSchemes.isEmpty)
+  }
+
+  func testRefreshLosingBrowserDefaultFromDefaultMailPreventsMailConfirmationCompletingOnboarding()
+    async throws
+  {
+    let confirmed = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .notDefault
+    )
+    let browserUnconfirmed = DefaultHandlerStatus(
+      http: .notDefault,
+      https: .isDefault,
+      mailto: .notDefault
+    )
+    let mailConfirmedWithoutBrowser = DefaultHandlerStatus(
+      http: .notDefault,
+      https: .isDefault,
+      mailto: .isDefault
+    )
+    let defaults = DefaultBrowserSpy(
+      statuses: [confirmed, browserUnconfirmed, mailConfirmedWithoutBrowser]
+    )
+    let model = makeModel(
+      preferences: PreferencesStub(integers: [
+        "onboardingVersion": 2,
+        "onboardingStep": 5,
+      ]),
+      defaultBrowser: defaults
+    )
+    try model.load()
+    XCTAssertEqual(model.onboardingStep, 5)
+
+    model.refreshDefaultStatus()
+    await model.requestDefaultMail()
+
+    XCTAssertEqual(model.defaultStatus, mailConfirmedWithoutBrowser)
+    XCTAssertEqual(defaults.requestedSchemes, ["mailto"])
+    XCTAssertEqual(model.onboardingStep, 3)
+    XCTAssertFalse(model.isOnboardingComplete)
+  }
+
+  func testContinueMailReviewRequiresEnabledAvailableMailTarget() throws {
+    let preferences = PreferencesStub(integers: [
+      "onboardingVersion": 2,
+      "onboardingStep": 4,
+    ])
+    let model = makeModel(
+      store: ConfigStoreStub(config: Fixtures.webAndMailConfig),
+      catalog: BrowserCatalogStub(reconciled: Fixtures.webAndMailConfig),
+      mailCatalog: .authoritative([Fixtures.appleMailDiscovery]),
+      preferences: preferences,
+      defaultBrowser: DefaultBrowserSpy(
+        status: .init(http: .isDefault, https: .isDefault)
+      )
+    )
+    try model.load()
+
+    model.continueMailReview()
+
+    XCTAssertEqual(model.onboardingStep, 5)
+  }
+
+  func testContinueMailReviewDoesNothingWithoutEnabledAvailableMailTarget() throws {
+    let disabledTarget = RouteTarget(
+      id: Fixtures.appleMailTarget.id,
+      applicationID: Fixtures.appleMailTarget.applicationID,
+      label: Fixtures.appleMailTarget.label,
+      isEnabled: false,
+      sortOrder: Fixtures.appleMailTarget.sortOrder,
+      origin: Fixtures.appleMailTarget.origin,
+      availability: .available,
+      capability: .mail
+    )
+    let unavailableTarget = RouteTarget(
+      id: Fixtures.appleMailTarget.id,
+      applicationID: Fixtures.appleMailTarget.applicationID,
+      label: Fixtures.appleMailTarget.label,
+      isEnabled: true,
+      sortOrder: Fixtures.appleMailTarget.sortOrder,
+      origin: Fixtures.appleMailTarget.origin,
+      availability: .unavailable,
+      capability: .mail
+    )
+    let invalidConfigs = [
+      Fixtures.config,
+      PickViaConfig(
+        schemaVersion: PickViaConfig.currentSchemaVersion,
+        applications: Fixtures.webAndMailConfig.applications,
+        targets: Fixtures.config.targets + [disabledTarget]
+      ),
+      PickViaConfig(
+        schemaVersion: PickViaConfig.currentSchemaVersion,
+        applications: Fixtures.webAndMailConfig.applications,
+        targets: Fixtures.config.targets + [unavailableTarget]
+      ),
+    ]
+
+    for config in invalidConfigs {
+      let model = makeModel(
+        store: ConfigStoreStub(config: config),
+        catalog: BrowserCatalogStub(reconciled: config),
+        mailCatalog: MailCatalogStub(
+          scan: .init(applications: [], isAuthoritative: false),
+          runtimeFallback: config
+        ),
+        preferences: PreferencesStub(integers: [
+          "onboardingVersion": 2,
+          "onboardingStep": 4,
+        ]),
+        defaultBrowser: DefaultBrowserSpy(
+          status: .init(http: .isDefault, https: .isDefault)
+        )
+      )
+      try model.load()
+
+      model.continueMailReview()
+
+      XCTAssertEqual(model.onboardingStep, 4)
+    }
+  }
+
+  func testSkipMailSetupFromReviewCompletesWithoutDefaultRequest() throws {
+    let defaults = DefaultBrowserSpy(
+      status: .init(http: .isDefault, https: .isDefault, mailto: .notDefault)
+    )
+    let model = makeModel(
+      preferences: PreferencesStub(integers: [
+        "onboardingVersion": 2,
+        "onboardingStep": 4,
+      ]),
+      defaultBrowser: defaults
+    )
+    try model.load()
+
+    model.skipMailSetup()
+
+    XCTAssertEqual(model.onboardingStep, 6)
+    XCTAssertTrue(model.isOnboardingComplete)
+    XCTAssertTrue(defaults.requestedSchemes.isEmpty)
+  }
+
+  func testSkipMailSetupFromDefaultStepClearsMailErrorAndCompletes() async throws {
+    let status = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .notDefault
+    )
+    let defaults = DefaultBrowserSpy(
+      statuses: [status, status],
+      requestError: TestError.declined
+    )
+    let model = makeModel(
+      preferences: PreferencesStub(integers: [
+        "onboardingVersion": 2,
+        "onboardingStep": 5,
+      ]),
+      defaultBrowser: defaults
+    )
+    try model.load()
+
+    await model.requestDefaultMail()
+    XCTAssertNotNil(model.mailErrorMessage)
+
+    model.skipMailSetup()
+
+    XCTAssertEqual(model.onboardingStep, 6)
+    XCTAssertTrue(model.isOnboardingComplete)
+    XCTAssertNil(model.mailErrorMessage)
+    XCTAssertEqual(defaults.requestedSchemes, ["mailto"])
+  }
+
+  func testMailDefaultRequestOutsideOnboardingRefreshesWithoutChangingCompletion() async throws {
+    let before = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .notDefault
+    )
+    let refreshed = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .isDefault
+    )
+    let defaults = DefaultBrowserSpy(statuses: [before, refreshed])
+    let model = makeModel(
+      preferences: PreferencesStub(integers: [
+        "onboardingVersion": 2,
+        "onboardingStep": 6,
+      ]),
+      defaultBrowser: defaults
+    )
+    try model.load()
+
+    await model.requestDefaultMail()
+
+    XCTAssertEqual(defaults.requestedSchemes, ["mailto"])
+    XCTAssertEqual(model.defaultStatus, refreshed)
+    XCTAssertEqual(model.onboardingStep, 6)
+    XCTAssertTrue(model.isOnboardingComplete)
+  }
+
+  func testSkipMailSetupOutsideMailStepsDoesNothing() throws {
+    let defaults = DefaultBrowserSpy(
+      status: .init(http: .isDefault, https: .isDefault, mailto: .notDefault)
+    )
+    let model = makeModel(
+      preferences: PreferencesStub(integers: [
+        "onboardingVersion": 2,
+        "onboardingStep": 3,
+      ]),
+      defaultBrowser: defaults
+    )
+    try model.load()
+
+    model.skipMailSetup()
+
+    XCTAssertEqual(model.onboardingStep, 3)
+    XCTAssertTrue(defaults.requestedSchemes.isEmpty)
+  }
+
+  func testConfirmedMailDefaultCompletesOnboarding() async throws {
+    let before = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .notDefault
+    )
+    let confirmed = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .isDefault
+    )
+    let defaults = DefaultBrowserSpy(statuses: [before, confirmed])
+    let model = makeModel(
+      preferences: PreferencesStub(integers: [
+        "onboardingVersion": 2,
+        "onboardingStep": 5,
+      ]),
+      defaultBrowser: defaults
+    )
+    try model.load()
+
+    await model.requestDefaultMail()
+
+    XCTAssertEqual(defaults.requestedSchemes, ["mailto"])
+    XCTAssertEqual(model.onboardingStep, 6)
+    XCTAssertTrue(model.isOnboardingComplete)
+    XCTAssertNil(model.mailErrorMessage)
+  }
+
+  func testDeclinedMailDefaultRequestRefreshesAndRemainsAtDefaultMailStep() async throws {
+    let status = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .notDefault
+    )
+    let defaults = DefaultBrowserSpy(
+      statuses: [status, status],
+      requestError: TestError.declined
+    )
+    let model = makeModel(
+      preferences: PreferencesStub(integers: [
+        "onboardingVersion": 2,
+        "onboardingStep": 5,
+      ]),
+      defaultBrowser: defaults
+    )
+    try model.load()
+
+    await model.requestDefaultMail()
+
+    XCTAssertEqual(defaults.requestedSchemes, ["mailto"])
+    XCTAssertEqual(defaults.statusCallCount, 2)
+    XCTAssertEqual(model.onboardingStep, 5)
+    XCTAssertFalse(model.isOnboardingComplete)
+    XCTAssertNotNil(model.mailErrorMessage)
+  }
+
+  func testUnknownMailConfirmationRemainsAtDefaultMailStep() async throws {
+    let before = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .notDefault
+    )
+    let unknown = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .unknown
+    )
+    let model = makeModel(
+      preferences: PreferencesStub(integers: [
+        "onboardingVersion": 2,
+        "onboardingStep": 5,
+      ]),
+      defaultBrowser: DefaultBrowserSpy(statuses: [before, unknown])
+    )
+    try model.load()
+
+    await model.requestDefaultMail()
+
+    XCTAssertEqual(model.defaultStatus.mailto, .unknown)
+    XCTAssertEqual(model.onboardingStep, 5)
+    XCTAssertFalse(model.isOnboardingComplete)
+    XCTAssertNotNil(model.mailErrorMessage)
+  }
+
+  func testCompletedVersionTwoUserRemainsCompleteAfterMailDefaultChanges() throws {
+    let initial = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .isDefault
+    )
+    let changed = DefaultHandlerStatus(
+      http: .isDefault,
+      https: .isDefault,
+      mailto: .notDefault
+    )
+    let model = makeModel(
+      preferences: PreferencesStub(integers: [
+        "onboardingVersion": 2,
+        "onboardingStep": 6,
+      ]),
+      defaultBrowser: DefaultBrowserSpy(statuses: [initial, changed])
+    )
+    try model.load()
+
+    model.refreshDefaultStatus()
+
+    XCTAssertEqual(model.defaultStatus.mailto, .notDefault)
+    XCTAssertEqual(model.onboardingStep, 6)
+    XCTAssertTrue(model.isOnboardingComplete)
   }
 
   func testAdvanceOnboardingAllowsOrdinaryEarlierStepProgression() throws {
@@ -1745,11 +3663,21 @@ final class AppModelTests: XCTestCase {
 
     model.accept(url: URL(string: "file:///tmp/private")!)
     XCTAssertTrue(routing.acceptedURLs.isEmpty)
-    XCTAssertNotNil(model.errorMessage)
+    XCTAssertEqual(
+      model.errorMessage,
+      "Only valid HTTP, HTTPS, and mailto URLs can be opened."
+    )
 
     model.accept(url: URL(string: "https://example.com/path")!)
+    model.accept(url: URL(string: "mailto:person@example.com?subject=Private")!)
 
-    XCTAssertEqual(routing.acceptedURLs, [URL(string: "https://example.com/path")!])
+    XCTAssertEqual(
+      routing.acceptedURLs,
+      [
+        URL(string: "https://example.com/path")!,
+        URL(string: "mailto:person@example.com?subject=Private")!,
+      ]
+    )
     XCTAssertNil(model.errorMessage)
   }
 
@@ -1777,7 +3705,7 @@ final class AppModelTests: XCTestCase {
     let model = makeModel(routing: routing)
     try model.load()
 
-    model.previewChooser()
+    model.previewChooser(kind: .web)
 
     XCTAssertEqual(routing.previewedURLs.count, 1)
     XCTAssertTrue(routing.acceptedURLs.isEmpty)
@@ -1806,6 +3734,108 @@ final class AppModelTests: XCTestCase {
     try model.renameTarget(id: "work", label: "Client Work")
 
     XCTAssertEqual(routing.refreshCallCount, 0)
+  }
+
+  func testMailTargetCanBeRenamedAndEnabledWithoutLosingCapability() throws {
+    let store = ConfigStoreStub(config: Fixtures.webAndMailConfig)
+    let snapshot = MutableTargetSnapshot()
+    let model = makeModel(
+      store: store,
+      mailCatalog: .nonAuthoritative,
+      targetSnapshot: snapshot
+    )
+    try model.load()
+
+    try model.setMailTargetEnabled(id: Fixtures.appleMailTarget.id, isEnabled: false)
+    XCTAssertTrue(snapshot.availableSnapshot(for: .mail).targets.isEmpty)
+    try model.setMailTargetEnabled(id: Fixtures.appleMailTarget.id, isEnabled: true)
+    try model.renameTarget(id: Fixtures.appleMailTarget.id, label: "Personal Mail")
+
+    let edited = try XCTUnwrap(
+      model.mailTargets.first { $0.id == Fixtures.appleMailTarget.id }
+    )
+    XCTAssertTrue(edited.isEnabled)
+    XCTAssertEqual(edited.label, "Personal Mail")
+    XCTAssertEqual(edited.capability, .mail)
+    XCTAssertEqual(
+      snapshot.availableSnapshot(for: .mail).targets.first {
+        $0.id == Fixtures.appleMailTarget.id
+      },
+      edited
+    )
+    XCTAssertNil(model.mailErrorMessage)
+    XCTAssertEqual(store.saved.last, model.config)
+  }
+
+  func testMailEditingRejectsWebTargetsAndBrowserEditingRejectsMailTargets() throws {
+    let store = ConfigStoreStub(config: Fixtures.webAndMailConfig)
+    let model = makeModel(store: store, mailCatalog: .nonAuthoritative)
+    try model.load()
+    let before = model.config
+
+    XCTAssertThrowsError(
+      try model.setMailTargetEnabled(id: Fixtures.browserConfig.targets[0].id, isEnabled: false)
+    )
+    XCTAssertThrowsError(
+      try model.setTargetMode(id: Fixtures.appleMailTarget.id, mode: .private)
+    )
+    XCTAssertThrowsError(
+      try model.setTargetProfile(
+        id: Fixtures.appleMailTarget.id,
+        profileIdentifier: nil
+      )
+    )
+
+    XCTAssertEqual(model.config, before)
+  }
+
+  func testMoveMailTargetsReordersOnlyMailAndPreservesWebSortOrders() throws {
+    let store = ConfigStoreStub(config: Fixtures.webAndTwoMailConfig)
+    let model = makeModel(store: store, mailCatalog: .nonAuthoritative)
+    try model.load()
+    let webSortOrders = Dictionary(
+      uniqueKeysWithValues: model.targets
+        .filter { $0.routeKind == .web }
+        .map { ($0.id, $0.sortOrder) }
+    )
+
+    try model.moveMailTargets(fromOffsets: IndexSet(integer: 0), toOffset: 2)
+
+    XCTAssertEqual(
+      model.mailTargets.map(\.id),
+      [Fixtures.outlookTarget.id, Fixtures.appleMailTarget.id]
+    )
+    XCTAssertEqual(model.mailTargets.map(\.sortOrder), [0, 1])
+    XCTAssertEqual(
+      Dictionary(
+        uniqueKeysWithValues: model.targets
+          .filter { $0.routeKind == .web }
+          .map { ($0.id, $0.sortOrder) }
+      ),
+      webSortOrders
+    )
+    XCTAssertEqual(store.saved.last, model.config)
+  }
+
+  func testMailEditSaveFailureLeavesModelAndPublishedSnapshotUnchanged() throws {
+    let store = ConfigStoreStub(config: Fixtures.webAndMailConfig)
+    let snapshot = MutableTargetSnapshot()
+    let model = makeModel(
+      store: store,
+      mailCatalog: .nonAuthoritative,
+      targetSnapshot: snapshot
+    )
+    try model.load()
+    let before = model.config
+    let publishedBefore = snapshot.availableSnapshot(for: .web)
+    store.saveError = TestError.denied
+
+    XCTAssertThrowsError(
+      try model.setMailTargetEnabled(id: Fixtures.appleMailTarget.id, isEnabled: false)
+    )
+
+    XCTAssertEqual(model.config, before)
+    XCTAssertEqual(snapshot.availableSnapshot(for: .web), publishedBefore)
   }
 
   func testEveryCanonicalTargetEditClearsPendingDefaultMigration() throws {
@@ -1895,7 +3925,8 @@ final class AppModelTests: XCTestCase {
       executableURL: URL(fileURLWithPath: "/Applications/Example.app/Contents/MacOS/Example"),
       isAvailable: true
     )
-    let config = PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [unsupported], targets: [])
+    let config = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [unsupported], targets: [])
     let store = ConfigStoreStub(config: config)
     let model = makeModel(store: store)
     try model.load()
@@ -2064,7 +4095,9 @@ final class AppModelTests: XCTestCase {
       origin: .manual,
       availability: .available
     )
-    let config = PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [Fixtures.chrome], targets: [manualOnly])
+    let config = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [Fixtures.chrome],
+      targets: [manualOnly])
     let store = ConfigStoreStub(config: config)
     let model = makeModel(store: store)
     try model.load()
@@ -2215,7 +4248,9 @@ final class AppModelTests: XCTestCase {
     try model.renameTarget(id: id, label: "Pinned Renamed")
 
     let manual = try XCTUnwrap(model.targets.first { $0.id == id })
-    let runtime = try XCTUnwrap(snapshot.availableSnapshot().targets.first { $0.id == id })
+    let runtime = try XCTUnwrap(
+      snapshot.availableSnapshot(for: .web).targets.first { $0.id == id }
+    )
     let saved = try XCTUnwrap(store.saved.last)
     let document = try XCTUnwrap(String(data: JSONEncoder().encode(saved), encoding: .utf8))
     XCTAssertEqual(manual.profileLaunchPath, path.path)
@@ -2364,8 +4399,9 @@ final class AppModelTests: XCTestCase {
   }
 
   private func makeModel(
-    store: ConfigStoreStub = ConfigStoreStub(config: .initial),
+    store: any ConfigStoring = ConfigStoreStub(config: .initial),
     catalog: BrowserCatalogStub = BrowserCatalogStub(),
+    mailCatalog: MailCatalogStub = .missing,
     preferences: PreferencesStub = PreferencesStub(),
     defaultBrowser: DefaultBrowserSpy = DefaultBrowserSpy(),
     loginItem: LoginItemStub = LoginItemStub(),
@@ -2377,6 +4413,7 @@ final class AppModelTests: XCTestCase {
     AppModel(
       configStore: store,
       browserCatalog: catalog,
+      mailCatalog: mailCatalog,
       preferences: preferences,
       defaultBrowser: defaultBrowser,
       loginItem: loginItem,
@@ -2385,6 +4422,146 @@ final class AppModelTests: XCTestCase {
       profileAccess: access,
       profileRootValidator: profileRootValidator
     )
+  }
+
+  private func makeLegacyFirefoxDiskScenario() throws -> (
+    directory: URL,
+    store: JSONConfigStore,
+    model: AppModel,
+    runtimeTargetID: RouteTarget.ID
+  ) {
+    let directory = FileManager.default.temporaryDirectory.appending(
+      path: "pick-via-legacy-firefox-\(UUID().uuidString)",
+      directoryHint: .isDirectory
+    )
+    try FileManager.default.createDirectory(
+      at: directory,
+      withIntermediateDirectories: true
+    )
+    try Data(LegacyFirefoxDiskFixture.document.utf8).write(
+      to: directory.appending(path: "PickViaConfig.json"),
+      options: .atomic
+    )
+    let store = JSONConfigStore(directory: directory)
+    let model = makeModel(
+      store: store,
+      catalog: BrowserCatalogStub(
+        scanResult: BrowserScanResult(
+          browsers: [],
+          warnings: [],
+          isAuthoritative: false
+        )
+      )
+    )
+
+    try model.load()
+
+    let runtimeTarget = try XCTUnwrap(
+      model.targets.first { $0.label == "Legacy Firefox" }
+    )
+    XCTAssertNotEqual(runtimeTarget.id, LegacyFirefoxDiskFixture.rawTargetID)
+    XCTAssertEqual(
+      runtimeTarget.id,
+      LegacyFirefoxDiskFixture.collidingTargetID,
+      "Fixture must exercise a runtime ID that collides with another authoritative target"
+    )
+    XCTAssertEqual(
+      runtimeTarget.profileIdentity,
+      LegacyFirefoxDiskFixture.canonicalProfileIdentity
+    )
+    XCTAssertNil(runtimeTarget.profileLaunchPath)
+    XCTAssertNil(runtimeTarget.validationError)
+    XCTAssertEqual(runtimeTarget.availability, .unavailable)
+    XCTAssertTrue(
+      try persistedDocument(in: directory).contains(LegacyFirefoxDiskFixture.rawProfilePath),
+      "Load alone must not rewrite the legacy disk document"
+    )
+    return (directory, store, model, runtimeTarget.id)
+  }
+
+  private func assertLegacyFirefoxCanonicalization(
+    _ target: RouteTarget,
+    originalRuntimeTargetID: RouteTarget.ID,
+    file: StaticString,
+    line: UInt
+  ) {
+    XCTAssertNotEqual(
+      target.id,
+      LegacyFirefoxDiskFixture.rawTargetID,
+      file: file,
+      line: line
+    )
+    XCTAssertNotEqual(
+      target.id,
+      LegacyFirefoxDiskFixture.collidingTargetID,
+      file: file,
+      line: line
+    )
+    XCTAssertNotEqual(
+      target.id,
+      originalRuntimeTargetID,
+      "The colliding runtime ID cannot replace an existing authoritative ID",
+      file: file,
+      line: line
+    )
+    XCTAssertEqual(
+      target.profileIdentifier,
+      "Authoritative Profile",
+      file: file,
+      line: line
+    )
+    XCTAssertEqual(
+      target.profileDisplayName,
+      "Authoritative Display",
+      file: file,
+      line: line
+    )
+    XCTAssertEqual(
+      target.profileIdentity,
+      LegacyFirefoxDiskFixture.canonicalProfileIdentity,
+      file: file,
+      line: line
+    )
+    XCTAssertEqual(
+      target.validationError,
+      "Authoritative validation",
+      file: file,
+      line: line
+    )
+    XCTAssertEqual(target.availability, .available, file: file, line: line)
+    XCTAssertEqual(target.origin, .manual, file: file, line: line)
+  }
+
+  private func persistedDocument(in directory: URL) throws -> String {
+    try XCTUnwrap(
+      String(
+        data: Data(contentsOf: directory.appending(path: "PickViaConfig.json")),
+        encoding: .utf8
+      )
+    )
+  }
+
+  private func makeFirefoxRuntimeFallbackModel(
+    config: PickViaConfig
+  ) throws -> (model: AppModel, store: ConfigStoreStub, fallback: PickViaConfig) {
+    let store = ConfigStoreStub(config: config)
+    let fallback = BrowserCatalog.runtimeSanitizedFallback(config)
+    let model = makeModel(
+      store: store,
+      catalog: BrowserCatalogStub(
+        scanResult: BrowserScanResult(
+          browsers: [],
+          warnings: [],
+          isAuthoritative: false
+        )
+      )
+    )
+
+    try model.load()
+
+    XCTAssertEqual(model.config, fallback)
+    XCTAssertTrue(store.saved.isEmpty)
+    return (model, store, fallback)
   }
 
   private func assertStartupFirefoxMigrationSaveFailure(_ saveError: any Error) throws {
@@ -2542,7 +4719,10 @@ final class AppModelTests: XCTestCase {
     )
     XCTAssertFalse(model.targets[3].id.contains("/Users"))
 
-    XCTAssertEqual(snapshot.availableSnapshot().targets, Array(model.targets.prefix(2)))
+    XCTAssertEqual(
+      snapshot.availableSnapshot(for: .web).targets,
+      Array(model.targets.prefix(2))
+    )
 
     let runtimeJSON = try XCTUnwrap(
       String(data: JSONEncoder().encode(model.config), encoding: .utf8)
@@ -2623,6 +4803,91 @@ private enum Fixtures {
     isAvailable: true
   )
 
+  static let firefox = BrowserApplication(
+    id: "org.mozilla.firefox",
+    family: .firefox,
+    displayName: "Firefox",
+    bundleIdentifier: "org.mozilla.firefox",
+    applicationURL: URL(fileURLWithPath: "/Applications/Firefox.app"),
+    executableURL: URL(fileURLWithPath: "/Applications/Firefox.app/Contents/MacOS/firefox"),
+    isAvailable: true
+  )
+
+  static func pendingFirefoxProfileTarget(
+    rawPath: String,
+    label: String,
+    sortOrder: Int
+  ) -> BrowserTarget {
+    BrowserTarget(
+      id: BrowserCatalog.targetID(
+        bundleIdentifier: firefox.id,
+        profileIdentifier: rawPath,
+        mode: .private
+      ),
+      browserID: firefox.id,
+      label: label,
+      profileIdentifier: "Authoritative Profile",
+      profileDisplayName: "Authoritative Display",
+      profileIdentity: rawPath,
+      profileLaunchPath: rawPath,
+      mode: .private,
+      isEnabled: true,
+      sortOrder: sortOrder,
+      origin: .detected,
+      availability: .available,
+      pendingDefaultMigration: true,
+      validationError: "Authoritative validation"
+    )
+  }
+
+  static func firefoxRuntimeIDCollisionConfig() -> (
+    config: PickViaConfig,
+    first: BrowserTarget,
+    second: BrowserTarget
+  ) {
+    let rawTargetID =
+      "/Users/private-user/Library/Application Support/Firefox/Profiles/collision-first"
+    let collidingAuthoritativeID =
+      "firefox-runtime-target|\(FirefoxProfileIdentity.identifier(forLegacyValue: rawTargetID))"
+    let first = BrowserTarget(
+      id: rawTargetID,
+      browserID: firefox.id,
+      label: "First Authoritative",
+      profileIdentifier: "First Profile",
+      profileDisplayName: "First Display",
+      profileIdentity: rawTargetID,
+      profileLaunchPath: rawTargetID,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .manual,
+      availability: .available,
+      validationError: "First validation"
+    )
+    let second = BrowserTarget(
+      id: collidingAuthoritativeID,
+      browserID: firefox.id,
+      label: "Second Authoritative",
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 1,
+      origin: .manual,
+      availability: .available,
+      validationError: "Second validation"
+    )
+    return (
+      PickViaConfig(
+        schemaVersion: PickViaConfig.currentSchemaVersion,
+        browsers: [firefox],
+        targets: [first, second]
+      ),
+      first,
+      second
+    )
+  }
+
   static let discoveredChrome = DiscoveredBrowser(
     application: chrome,
     profiles: [DiscoveredProfile(identifier: "Profile 1", displayName: "Work", directoryURL: nil)]
@@ -2634,6 +4899,76 @@ private enum Fixtures {
       DiscoveredProfile(identifier: "Profile 1", displayName: "Work", directoryURL: nil),
       DiscoveredProfile(identifier: "Profile 2", displayName: "Personal", directoryURL: nil),
     ]
+  )
+
+  static let browserConfig = editableConfig
+
+  static let appleMail = RoutedApplication(
+    id: "com.apple.mail",
+    displayName: "Mail",
+    bundleIdentifier: "com.apple.mail",
+    capabilities: [.mail(isAvailable: true)],
+    applicationURL: URL(fileURLWithPath: "/System/Applications/Mail.app")
+  )
+
+  static let outlook = RoutedApplication(
+    id: "com.microsoft.Outlook",
+    displayName: "Microsoft Outlook",
+    bundleIdentifier: "com.microsoft.Outlook",
+    capabilities: [.mail(isAvailable: true)],
+    applicationURL: URL(fileURLWithPath: "/Applications/Microsoft Outlook.app")
+  )
+
+  static let appleMailDiscovery = DiscoveredMailApplication(
+    bundleIdentifier: appleMail.bundleIdentifier,
+    displayName: appleMail.displayName,
+    applicationURL: appleMail.applicationURL
+  )
+
+  static let outlookDiscovery = DiscoveredMailApplication(
+    bundleIdentifier: outlook.bundleIdentifier,
+    displayName: outlook.displayName,
+    applicationURL: outlook.applicationURL
+  )
+
+  static let appleMailTarget = RouteTarget(
+    id: RouteTarget.mailID(bundleIdentifier: appleMail.bundleIdentifier),
+    applicationID: appleMail.id,
+    label: appleMail.displayName,
+    isEnabled: true,
+    sortOrder: 4,
+    origin: .detected,
+    availability: .available,
+    capability: .mail
+  )
+
+  static let outlookTarget = RouteTarget(
+    id: RouteTarget.mailID(bundleIdentifier: outlook.bundleIdentifier),
+    applicationID: outlook.id,
+    label: outlook.displayName,
+    isEnabled: true,
+    sortOrder: 8,
+    origin: .detected,
+    availability: .available,
+    capability: .mail
+  )
+
+  static let mailConfig = PickViaConfig(
+    schemaVersion: PickViaConfig.currentSchemaVersion,
+    applications: [appleMail],
+    targets: [appleMailTarget]
+  )
+
+  static let webAndMailConfig = PickViaConfig(
+    schemaVersion: PickViaConfig.currentSchemaVersion,
+    applications: editableConfig.applications + [appleMail],
+    targets: editableConfig.targets + [appleMailTarget]
+  )
+
+  static let webAndTwoMailConfig = PickViaConfig(
+    schemaVersion: PickViaConfig.currentSchemaVersion,
+    applications: editableConfig.applications + [appleMail, outlook],
+    targets: editableConfig.targets + [appleMailTarget, outlookTarget]
   )
 
   static func installedBrowser(
@@ -2763,6 +5098,24 @@ private enum Fixtures {
       availability: target.availability
     )
   }
+
+  static func copy(
+    _ application: RoutedApplication,
+    mailIsAvailable: Bool
+  ) -> RoutedApplication {
+    RoutedApplication(
+      id: application.id,
+      displayName: application.displayName,
+      bundleIdentifier: application.bundleIdentifier,
+      capabilities: application.capabilities.map { capability in
+        capability.routeKind == .mail
+          ? .mail(isAvailable: mailIsAvailable)
+          : capability
+      },
+      applicationURL: application.applicationURL,
+      browserExecutableURL: application.browserExecutableURL
+    )
+  }
 }
 
 private final class ConfigStoreStub: ConfigStoring, @unchecked Sendable {
@@ -2796,6 +5149,32 @@ private final class ConfigStoreStub: ConfigStoring, @unchecked Sendable {
     saved.append(config)
   }
   func resetSaved() { saved.removeAll() }
+}
+
+private final class FailOnceConfigStore: ConfigStoring, @unchecked Sendable {
+  private let wrapped: any ConfigStoring
+  private var error: Error?
+
+  init(wrapping wrapped: any ConfigStoring, error: any Error) {
+    self.wrapped = wrapped
+    self.error = error
+  }
+
+  func load() throws -> PickViaConfig {
+    try wrapped.load()
+  }
+
+  func loadOutcome() -> ConfigLoadOutcome {
+    wrapped.loadOutcome()
+  }
+
+  func save(_ config: PickViaConfig) throws {
+    if let error {
+      self.error = nil
+      throw error
+    }
+    try wrapped.save(config)
+  }
 }
 
 private final class BrowserCatalogStub: BrowserDiscovering, @unchecked Sendable {
@@ -2844,6 +5223,62 @@ private final class BrowserCatalogStub: BrowserDiscovering, @unchecked Sendable 
   func resetScanCalls() { scanResultCallCount = 0 }
   func resetTargetedScanCalls() { targetedScanBundleIdentifiers.removeAll() }
   func setScanResult(_ scanResult: BrowserScanResult) { configuredScanResult = scanResult }
+}
+
+private final class MailCatalogStub: MailDiscovering, @unchecked Sendable {
+  private var configuredScan: MailScanResult
+  private let reconciler: ((MailScanResult, PickViaConfig) -> PickViaConfig)?
+  private let fallback: PickViaConfig?
+  private(set) var scanResultCallCount = 0
+  private(set) var reconcileInputs: [PickViaConfig] = []
+  private(set) var runtimeFallbackInputs: [PickViaConfig] = []
+
+  init(
+    scan: MailScanResult,
+    runtimeFallback: PickViaConfig? = nil,
+    reconciler: ((MailScanResult, PickViaConfig) -> PickViaConfig)? = nil
+  ) {
+    configuredScan = scan
+    fallback = runtimeFallback
+    self.reconciler = reconciler
+  }
+
+  static func authoritative(
+    _ applications: [DiscoveredMailApplication]
+  ) -> MailCatalogStub {
+    MailCatalogStub(
+      scan: MailScanResult(applications: applications, isAuthoritative: true)
+    )
+  }
+
+  static var nonAuthoritative: MailCatalogStub {
+    MailCatalogStub(
+      scan: MailScanResult(applications: [], isAuthoritative: false)
+    )
+  }
+
+  static var missing: MailCatalogStub {
+    .authoritative([])
+  }
+
+  func scanResult() -> MailScanResult {
+    scanResultCallCount += 1
+    return configuredScan
+  }
+
+  func reconcile(_ scan: MailScanResult, with config: PickViaConfig) -> PickViaConfig {
+    reconcileInputs.append(config)
+    return reconciler?(scan, config) ?? MailCatalog.reconcile(scan, with: config)
+  }
+
+  func runtimeSanitizedFallback(_ config: PickViaConfig) -> PickViaConfig {
+    runtimeFallbackInputs.append(config)
+    return fallback ?? config
+  }
+
+  func setScan(_ scan: MailScanResult) {
+    configuredScan = scan
+  }
 }
 
 private final class ProfileAccessManagerSpy: ProfileAccessManaging, @unchecked Sendable {
@@ -2930,27 +5365,27 @@ private final class PreferencesStub: PreferencesStoring {
 }
 
 @MainActor
-private final class DefaultBrowserSpy: DefaultBrowserServicing {
-  var statuses: [DefaultBrowserStatus]
+private final class DefaultBrowserSpy: DefaultHandlerServicing {
+  var statuses: [DefaultHandlerStatus]
   var requestError: Error?
   private(set) var statusCallCount = 0
   private(set) var requestedSchemes: [String] = []
 
   init(
-    status: DefaultBrowserStatus = .unknown,
+    status: DefaultHandlerStatus = .unknown,
     requestError: Error? = nil
   ) {
     statuses = [status]
     self.requestError = requestError
   }
 
-  init(statuses: [DefaultBrowserStatus], requestError: Error? = nil) {
+  init(statuses: [DefaultHandlerStatus], requestError: Error? = nil) {
     precondition(!statuses.isEmpty)
     self.statuses = statuses
     self.requestError = requestError
   }
 
-  func status() -> DefaultBrowserStatus {
+  func status() -> DefaultHandlerStatus {
     let index = min(statusCallCount, statuses.count - 1)
     statusCallCount += 1
     return statuses[index]

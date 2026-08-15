@@ -96,8 +96,9 @@ func makeBrowserSettingsIssueSummary(
     })
 
   let missingCount = config.targets.filter { target in
-    guard target.isEnabled, target.availability == .unavailable,
-      let browser = installedByID[target.browserID], browser.isAvailable,
+    guard target.routeKind == .web,
+      target.isEnabled, target.availability == .unavailable,
+      let browser = installedByID[target.applicationID], browser.isAvailable(for: .web),
       BrowserDescriptor.descriptor(
         forBundleIdentifier: browser.bundleIdentifier
       ) != nil,

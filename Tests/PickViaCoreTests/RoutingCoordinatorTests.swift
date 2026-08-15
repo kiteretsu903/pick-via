@@ -4,10 +4,128 @@ import XCTest
 @testable import PickViaCore
 
 final class RoutingCoordinatorTests: XCTestCase {
+  func testMutableSnapshotExcludesEnabledMailTargetForDualCapabilityApplication() {
+    let application = RoutedApplication(
+      id: "com.google.Chrome",
+      displayName: "Google Chrome",
+      bundleIdentifier: "com.google.Chrome",
+      capabilities: [
+        .browser(family: .chromium, isAvailable: true),
+        .mail(isAvailable: true),
+      ],
+      applicationURL: URL(fileURLWithPath: "/Applications/Google Chrome.app")
+    )
+    let webTarget = BrowserTarget(
+      id: "com.google.Chrome||normal",
+      browserID: application.id,
+      label: "Google Chrome",
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .detected,
+      availability: .available
+    )
+    let mailTarget = RouteTarget(
+      id: RouteTarget.mailID(bundleIdentifier: application.bundleIdentifier),
+      applicationID: application.id,
+      label: "Google Chrome Mail",
+      isEnabled: true,
+      sortOrder: 1,
+      origin: .detected,
+      availability: .available,
+      capability: .mail
+    )
+    let provider = MutableTargetSnapshot()
+    provider.publish(
+      PickViaConfig(
+        schemaVersion: PickViaConfig.currentSchemaVersion,
+        applications: [application],
+        targets: [webTarget, mailTarget]
+      )
+    )
+
+    let snapshot = provider.availableSnapshot(for: .web)
+
+    XCTAssertEqual(snapshot.applications.map(\.id), [application.id])
+    XCTAssertEqual(snapshot.targets.map(\.id), [webTarget.id])
+  }
+
+  func testMutableSnapshotIncludesOnlyEnabledAvailableMailTargetsForAvailableApplications() {
+    let availableApplication = RoutedApplication(
+      id: "com.example.Mail",
+      displayName: "Mail",
+      bundleIdentifier: "com.example.Mail",
+      capabilities: [.mail(isAvailable: true)],
+      applicationURL: URL(fileURLWithPath: "/Applications/Mail.app")
+    )
+    let unavailableApplication = RoutedApplication(
+      id: "com.example.MissingMail",
+      displayName: "Missing Mail",
+      bundleIdentifier: "com.example.MissingMail",
+      capabilities: [.mail(isAvailable: false)],
+      applicationURL: URL(fileURLWithPath: "/Applications/Missing Mail.app")
+    )
+    func mailTarget(
+      id: String,
+      applicationID: String,
+      isEnabled: Bool = true,
+      availability: TargetAvailability = .available
+    ) -> RouteTarget {
+      RouteTarget(
+        id: id,
+        applicationID: applicationID,
+        label: id,
+        isEnabled: isEnabled,
+        sortOrder: 0,
+        origin: .detected,
+        availability: availability,
+        capability: .mail
+      )
+    }
+    let expected = mailTarget(id: "mail", applicationID: availableApplication.id)
+    let provider = MutableTargetSnapshot()
+    provider.publish(
+      PickViaConfig(
+        schemaVersion: PickViaConfig.currentSchemaVersion,
+        applications: [availableApplication, unavailableApplication],
+        targets: [
+          expected,
+          mailTarget(
+            id: "disabled", applicationID: availableApplication.id, isEnabled: false),
+          mailTarget(
+            id: "unavailable",
+            applicationID: availableApplication.id,
+            availability: .unavailable
+          ),
+          mailTarget(id: "missing-app", applicationID: unavailableApplication.id),
+          BrowserTarget(
+            id: "web",
+            browserID: availableApplication.id,
+            label: "Web",
+            profileIdentifier: nil,
+            profileDisplayName: nil,
+            mode: .normal,
+            isEnabled: true,
+            sortOrder: 0,
+            origin: .detected,
+            availability: .available
+          ),
+        ]
+      )
+    )
+
+    let snapshot = provider.availableSnapshot(for: .mail)
+
+    XCTAssertEqual(snapshot.applications, [availableApplication])
+    XCTAssertEqual(snapshot.targets, [expected])
+  }
+
   func testValidatorAcceptsUppercaseHTTPScheme() throws {
     let input = try XCTUnwrap(URL(string: "HTTP://example.com/path"))
 
-    XCTAssertEqual(try URLValidator.validate(input), input)
+    XCTAssertEqual(try URLValidator.validate(input), ValidatedRoute(kind: .web, url: input))
   }
 
   func testValidatorAcceptsHTTPSWithUnicodeAndEscapedPath() throws {
@@ -15,7 +133,7 @@ final class RoutingCoordinatorTests: XCTestCase {
       URL(string: "https://example.com/%E8%B7%AF%E5%BE%84/hello%20world")
     )
 
-    XCTAssertEqual(try URLValidator.validate(input), input)
+    XCTAssertEqual(try URLValidator.validate(input), ValidatedRoute(kind: .web, url: input))
   }
 
   func testValidatorRejectsRelativeURL() throws {
@@ -36,10 +154,16 @@ final class RoutingCoordinatorTests: XCTestCase {
     )
   }
 
-  func testValidatorRejectsMailtoURL() throws {
-    let input = try XCTUnwrap(URL(string: "mailto:person@example.com"))
+  func testValidatorClassifiesMailtoWithoutRequiringAHost() throws {
+    let input = try XCTUnwrap(URL(string: "MAILTO:person@example.com?subject=Private"))
 
-    XCTAssertThrowsError(try URLValidator.validate(input))
+    XCTAssertEqual(try URLValidator.validate(input), ValidatedRoute(kind: .mail, url: input))
+  }
+
+  func testValidatorAcceptsEmptyMailComposeRequestUnchanged() throws {
+    let input = try XCTUnwrap(URL(string: "mailto:"))
+
+    XCTAssertEqual(try URLValidator.validate(input), ValidatedRoute(kind: .mail, url: input))
   }
 
   @MainActor
@@ -68,6 +192,30 @@ final class RoutingCoordinatorTests: XCTestCase {
     XCTAssertEqual(chooser.presentedHosts, ["one.example", "two.example"])
     XCTAssertEqual(chooser.dismissCallCount, 1)
     XCTAssertTrue(launcher.launches.isEmpty)
+  }
+
+  @MainActor
+  func testMixedWebAndMailRequestsRemainFIFO() {
+    let chooser = ChooserSpy()
+    let coordinator = makeCoordinator(chooser: chooser, snapshots: .webAndMail)
+
+    coordinator.enqueue(URL(string: "https://one.example")!)
+    coordinator.enqueue(URL(string: "mailto:person@example.com")!)
+    coordinator.cancelCurrent()
+
+    XCTAssertEqual(chooser.presentedKinds, [.web, .mail])
+  }
+
+  @MainActor
+  func testMixedMailAndWebRequestsRemainFIFO() {
+    let chooser = ChooserSpy()
+    let coordinator = makeCoordinator(chooser: chooser, snapshots: .webAndMail)
+
+    coordinator.enqueue(URL(string: "mailto:person@example.com")!)
+    coordinator.enqueue(URL(string: "https://one.example")!)
+    coordinator.cancelCurrent()
+
+    XCTAssertEqual(chooser.presentedKinds, [.mail, .web])
   }
 
   @MainActor
@@ -144,6 +292,66 @@ final class RoutingCoordinatorTests: XCTestCase {
     XCTAssertEqual(chooser.presentedHosts, ["one.example", "one.example"])
     XCTAssertEqual(
       chooser.presentedErrors.last!,
+      LaunchFailure(message: "Could not open the selected browser target.")
+    )
+  }
+
+  @MainActor
+  func testMailLaunchFailureUsesRouteSpecificSanitizedCopy() {
+    let chooser = ChooserSpy()
+    let coordinator = makeCoordinator(chooser: chooser, snapshots: .webAndMail)
+    coordinator.enqueue(URL(string: "mailto:person@example.com?body=private")!)
+
+    coordinator.launchFailed(
+      LaunchFailure(message: "Workspace exposed person@example.com and private body")
+    )
+
+    XCTAssertEqual(
+      coordinator.currentError,
+      LaunchFailure(message: "Could not open the selected mail app.")
+    )
+    XCTAssertEqual(
+      chooser.presentedErrors.last!,
+      LaunchFailure(message: "Could not open the selected mail app.")
+    )
+  }
+
+  @MainActor
+  func testBrowserTargetSelectedForMailFailsClosedWithoutLaunching() async {
+    let chooser = ChooserSpy()
+    let launcher = LauncherStub()
+    let coordinator = makeCoordinator(
+      chooser: chooser,
+      launcher: launcher,
+      snapshots: .browserTargetForMail
+    )
+    coordinator.enqueue(URL(string: "mailto:person@example.com")!)
+
+    await coordinator.selected(targetID: TargetStub.webTarget.id)
+
+    XCTAssertTrue(launcher.launches.isEmpty)
+    XCTAssertEqual(
+      coordinator.currentError,
+      LaunchFailure(message: "Could not open the selected mail app.")
+    )
+  }
+
+  @MainActor
+  func testMailTargetSelectedForWebFailsClosedWithoutLaunching() async {
+    let chooser = ChooserSpy()
+    let launcher = LauncherStub()
+    let coordinator = makeCoordinator(
+      chooser: chooser,
+      launcher: launcher,
+      snapshots: .mailTargetForWeb
+    )
+    coordinator.enqueue(URL(string: "https://one.example")!)
+
+    await coordinator.selected(targetID: TargetStub.mailTarget.id)
+
+    XCTAssertTrue(launcher.launches.isEmpty)
+    XCTAssertEqual(
+      coordinator.currentError,
       LaunchFailure(message: "Could not open the selected browser target.")
     )
   }
@@ -230,8 +438,8 @@ final class RoutingCoordinatorTests: XCTestCase {
     provider.publish(
       PickViaConfig(
         schemaVersion: 1,
-        browsers: TargetStub.one.snapshot.applications,
-        targets: TargetStub.one.snapshot.targets
+        applications: TargetStub.one.webSnapshot.applications,
+        targets: TargetStub.one.webSnapshot.targets
       )
     )
 
@@ -245,10 +453,11 @@ final class RoutingCoordinatorTests: XCTestCase {
   @MainActor
   private func makeCoordinator(
     chooser: ChooserSpy,
-    launcher: LauncherStub = LauncherStub()
+    launcher: LauncherStub = LauncherStub(),
+    snapshots: TargetStub = .one
   ) -> RoutingCoordinator {
     RoutingCoordinator(
-      targetProvider: TargetStub.one,
+      targetProvider: snapshots,
       chooser: chooser,
       launcher: launcher
     )
@@ -260,46 +469,115 @@ private enum TestError: Error {
 }
 
 private struct TargetStub: TargetProviding {
-  let snapshot: RoutingTargetSnapshot
+  let webSnapshot: RoutingTargetSnapshot
+  let mailSnapshot: RoutingTargetSnapshot
+
+  static let webApplication = BrowserApplication(
+    id: "browser-1",
+    family: .chromium,
+    displayName: "Browser",
+    bundleIdentifier: "com.example.browser",
+    applicationURL: URL(fileURLWithPath: "/Applications/Browser.app"),
+    executableURL: nil,
+    isAvailable: true
+  )
+
+  static let webTarget = BrowserTarget(
+    id: "target-1",
+    browserID: webApplication.id,
+    label: "Default",
+    profileIdentifier: nil,
+    profileDisplayName: nil,
+    mode: .normal,
+    isEnabled: true,
+    sortOrder: 0,
+    origin: .detected,
+    availability: .available
+  )
+
+  static let mailApplication = RoutedApplication(
+    id: "mail-1",
+    displayName: "Mail",
+    bundleIdentifier: "com.example.mail",
+    capabilities: [.mail(isAvailable: true)],
+    applicationURL: URL(fileURLWithPath: "/Applications/Mail.app")
+  )
+
+  static let mailTarget = RouteTarget(
+    id: "mail-target-1",
+    applicationID: mailApplication.id,
+    label: "Mail",
+    isEnabled: true,
+    sortOrder: 0,
+    origin: .detected,
+    availability: .available,
+    capability: .mail
+  )
+
+  static let webSnapshot = RoutingTargetSnapshot(
+    applications: [webApplication],
+    targets: [webTarget]
+  )
+
+  static let mailSnapshot = RoutingTargetSnapshot(
+    applications: [mailApplication],
+    targets: [mailTarget]
+  )
 
   static let one = TargetStub(
-    snapshot: RoutingTargetSnapshot(
+    webSnapshot: webSnapshot,
+    mailSnapshot: .init(applications: [], targets: [])
+  )
+
+  static let webAndMail = TargetStub(
+    webSnapshot: webSnapshot,
+    mailSnapshot: mailSnapshot
+  )
+
+  static let browserTargetForMail = TargetStub(
+    webSnapshot: webSnapshot,
+    mailSnapshot: RoutingTargetSnapshot(
       applications: [
-        BrowserApplication(
-          id: "browser-1",
-          family: .chromium,
-          displayName: "Browser",
-          bundleIdentifier: "com.example.browser",
-          applicationURL: URL(fileURLWithPath: "/Applications/Browser.app"),
-          executableURL: nil,
-          isAvailable: true
-        )
+        webApplication
       ],
       targets: [
-        BrowserTarget(
-          id: "target-1",
-          browserID: "browser-1",
-          label: "Default",
-          profileIdentifier: nil,
-          profileDisplayName: nil,
-          mode: .normal,
-          isEnabled: true,
-          sortOrder: 0,
-          origin: .detected,
-          availability: .available
-        )
+        webTarget
       ]
     )
   )
 
-  func availableSnapshot() -> RoutingTargetSnapshot {
-    snapshot
+  static let mailTargetForWeb = TargetStub(
+    webSnapshot: mailSnapshot,
+    mailSnapshot: mailSnapshot
+  )
+
+  init(
+    snapshot: RoutingTargetSnapshot
+  ) {
+    webSnapshot = snapshot
+    mailSnapshot = .init(applications: [], targets: [])
+  }
+
+  init(
+    webSnapshot: RoutingTargetSnapshot,
+    mailSnapshot: RoutingTargetSnapshot
+  ) {
+    self.webSnapshot = webSnapshot
+    self.mailSnapshot = mailSnapshot
+  }
+
+  func availableSnapshot(for kind: RouteKind) -> RoutingTargetSnapshot {
+    switch kind {
+    case .web: webSnapshot
+    case .mail: mailSnapshot
+    }
   }
 }
 
 @MainActor
 private final class ChooserSpy: ChooserPresenting {
   private(set) var presentedHosts: [String?] = []
+  private(set) var presentedKinds: [RouteKind] = []
   private(set) var presentedApplicationCounts: [Int] = []
   private(set) var presentedTargetCounts: [Int] = []
   private(set) var presentedErrors: [LaunchFailure?] = []
@@ -314,6 +592,7 @@ private final class ChooserSpy: ChooserPresenting {
     onCancel: @escaping () -> Void
   ) {
     presentedHosts.append(request.url.host)
+    presentedKinds.append(request.kind)
     presentedApplicationCounts.append(applications.count)
     presentedTargetCounts.append(targets.count)
     presentedErrors.append(error)
@@ -324,7 +603,7 @@ private final class ChooserSpy: ChooserPresenting {
   }
 }
 
-private final class LauncherStub: BrowserLaunching, @unchecked Sendable {
+private final class LauncherStub: RouteLaunching, @unchecked Sendable {
   struct Launch {
     let url: URL
     let application: BrowserApplication
@@ -348,7 +627,7 @@ private final class LauncherStub: BrowserLaunching, @unchecked Sendable {
   }
 }
 
-private actor SuspendingFirstLauncher: BrowserLaunching {
+private actor SuspendingFirstLauncher: RouteLaunching {
   private(set) var launchCount = 0
   private var firstLaunchContinuation: CheckedContinuation<Void, Never>?
   private var firstLaunchStartWaiters: [CheckedContinuation<Void, Never>] = []
@@ -384,7 +663,7 @@ private actor SuspendingFirstLauncher: BrowserLaunching {
   }
 }
 
-private final class SequencedLauncherStub: BrowserLaunching, @unchecked Sendable {
+private final class SequencedLauncherStub: RouteLaunching, @unchecked Sendable {
   private var results: [Result<Void, Error>]
   private(set) var launchCount = 0
 

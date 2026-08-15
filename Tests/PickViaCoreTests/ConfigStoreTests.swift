@@ -113,7 +113,7 @@ final class ConfigStoreTests: XCTestCase {
       targets: detected + [manual]
     ).validatedAndMigrated()
 
-    XCTAssertEqual(migrated.schemaVersion, 2)
+    XCTAssertEqual(migrated.schemaVersion, PickViaConfig.currentSchemaVersion)
     XCTAssertEqual(migrated.targets.map(\.isEnabled), [true, true, true, false, true])
     XCTAssertEqual(
       migrated.targets.map(\.pendingDefaultMigration),
@@ -129,7 +129,7 @@ final class ConfigStoreTests: XCTestCase {
       enabled: false
     )
     let validated = try PickViaConfig(
-      schemaVersion: 2,
+      schemaVersion: PickViaConfig.currentSchemaVersion,
       browsers: [validChrome],
       targets: [target]
     ).validatedAndMigrated()
@@ -153,7 +153,8 @@ final class ConfigStoreTests: XCTestCase {
       now: { Date(timeIntervalSince1970: 1_700_000_000) }
     )
     let target = copyTarget(validTarget, label: "工作")
-    let expected = PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [validChrome], targets: [target])
+    let expected = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [validChrome], targets: [target])
 
     try store.save(expected)
 
@@ -164,13 +165,52 @@ final class ConfigStoreTests: XCTestCase {
     XCTAssertEqual(loaded.browsers.map(\.displayName), expected.browsers.map(\.displayName))
   }
 
+  func testSaveSkipsFirefoxProfileValidationForMailTarget() throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let application = RoutedApplication(
+      id: "org.mozilla.firefox",
+      displayName: "Firefox",
+      bundleIdentifier: "org.mozilla.firefox",
+      capabilities: [
+        .browser(family: .firefox, isAvailable: true),
+        .mail(isAvailable: true),
+      ],
+      applicationURL: URL(fileURLWithPath: "/Applications/Firefox.app"),
+      browserExecutableURL: URL(
+        fileURLWithPath: "/Applications/Firefox.app/Contents/MacOS/firefox")
+    )
+    let mailTarget = RouteTarget(
+      id: RouteTarget.mailID(bundleIdentifier: application.bundleIdentifier),
+      applicationID: application.id,
+      label: "Firefox Mail",
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .detected,
+      availability: .available,
+      capability: .mail
+    )
+    let expected = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      applications: [application],
+      targets: [mailTarget]
+    )
+
+    let store = JSONConfigStore(directory: directory)
+    try store.save(expected)
+
+    XCTAssertEqual(try store.load().targets, [mailTarget])
+  }
+
   func testSavedDocumentDoesNotPersistApplicationOrExecutablePaths() throws {
     let directory = try temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }
     let store = JSONConfigStore(directory: directory)
 
     try store.save(
-      PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [validChrome], targets: [validTarget])
+      PickViaConfig(
+        schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [validChrome],
+        targets: [validTarget])
     )
 
     let data = try Data(contentsOf: directory.appending(path: "PickViaConfig.json"))
@@ -386,7 +426,8 @@ final class ConfigStoreTests: XCTestCase {
     )
 
     try JSONConfigStore(directory: directory).save(
-      PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox], targets: [target])
+      PickViaConfig(
+        schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox], targets: [target])
     )
 
     let data = try Data(contentsOf: directory.appending(path: "PickViaConfig.json"))
@@ -427,7 +468,8 @@ final class ConfigStoreTests: XCTestCase {
 
     XCTAssertThrowsError(
       try store.save(
-        PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox], targets: [legacy])
+        PickViaConfig(
+          schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox], targets: [legacy])
       ))
     XCTAssertFalse(
       FileManager.default.fileExists(
@@ -440,10 +482,17 @@ final class ConfigStoreTests: XCTestCase {
       """
       {
         "id":"com.google.Chrome",
-        "family":"chromium",
         "displayName":"Google Chrome",
         "bundleIdentifier":"com.google.Chrome",
+        "capabilities":[
+          {
+            "kind":"browser",
+            "family":"chromium",
+            "isAvailable":true
+          }
+        ],
         "applicationURL":"file:///tmp/Evil.app/",
+        "browserExecutableURL":"file:///tmp/payload",
         "executableURL":"file:///tmp/payload",
         "isAvailable":true
       }
@@ -518,12 +567,183 @@ final class ConfigStoreTests: XCTestCase {
 
       XCTAssertThrowsError(
         try store.save(
-          PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox], targets: [target])
+          PickViaConfig(
+            schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox],
+            targets: [target])
         ))
       XCTAssertFalse(
         FileManager.default.fileExists(
           atPath: store.directory.appending(path: "PickViaConfig.json").path
         ))
+    }
+  }
+
+  func testFirefoxPersistencePolicyDecodesPercentEncodingToFixedPoint() {
+    let forbidden = [
+      "%252FUsers%252Fprivate-user%252Fprofile",
+      "%25252FUsers%25252Fprivate-user%25252Fprofile",
+      "file%253A%252F%252F%252FUsers%252Fprivate-user%252Fprofile",
+      "%255CUsers%255Cprivate-user%255Cprofile",
+      "%257E%252FLibrary%252FApplication%2520Support",
+    ]
+    for value in forbidden {
+      XCTAssertTrue(
+        FirefoxPersistencePolicy.isForbiddenTargetID(value),
+        "Expected multiply encoded path to be forbidden: \(value)"
+      )
+    }
+
+    let benign = [
+      "100%25 Real",
+      "Discount%2525Profile",
+      "literal%zz",
+      "profile%20with%20spaces",
+    ]
+    for value in benign {
+      XCTAssertFalse(
+        FirefoxPersistencePolicy.isForbiddenTargetID(value),
+        "Expected benign percent text to remain allowed: \(value)"
+      )
+    }
+  }
+
+  func testFirefoxPersistencePolicyDecodesValidEscapesBesideMalformedPercentText() {
+    let forbidden = [
+      "%252FUsers%252Fprivate-user%252Fprofile%25zz",
+      "%252fUsers%252fprivate-user%252fprofile%25zZ",
+      "file%253a%252f%252f%252fUsers%252fprivate-user%25xy",
+      "%2525255cUsers%2525255cprivate-user%2525no",
+    ]
+    for value in forbidden {
+      XCTAssertTrue(
+        FirefoxPersistencePolicy.isForbiddenTargetID(value),
+        "Expected a mixed malformed value to expose its encoded path: \(value)"
+      )
+    }
+
+    let benign = [
+      "literal%zz",
+      "literal%2G",
+      "Discount%2525zz",
+      "100%25 Real%zz",
+      "profile%20with%20spaces%xy",
+    ]
+    for value in benign {
+      XCTAssertFalse(
+        FirefoxPersistencePolicy.isForbiddenTargetID(value),
+        "Expected malformed literal percent text without path material to remain allowed: \(value)"
+      )
+    }
+  }
+
+  func testFirefoxPersistencePolicyFailsClosedOnlyWhenDecodeDepthOrSizeLimitIsExceeded() {
+    let exactlyEightEncodedBenignValue = "%2525252525252541"
+    let nineTimesEncodedBenignValue = "%252525252525252541"
+
+    XCTAssertFalse(
+      FirefoxPersistencePolicy.isForbiddenTargetID(exactlyEightEncodedBenignValue)
+    )
+    XCTAssertTrue(
+      FirefoxPersistencePolicy.isForbiddenTargetID(nineTimesEncodedBenignValue)
+    )
+    XCTAssertFalse(
+      FirefoxPersistencePolicy.isForbiddenTargetID(String(repeating: "a", count: 65_536))
+    )
+    XCTAssertTrue(
+      FirefoxPersistencePolicy.isForbiddenTargetID(String(repeating: "a", count: 65_537))
+    )
+  }
+
+  func testStoreRefusesMultiplyEncodedFirefoxPathsAcrossPersistentFields() throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let firefox = BrowserApplication(
+      id: "org.mozilla.firefox",
+      family: .firefox,
+      displayName: "Firefox",
+      bundleIdentifier: "org.mozilla.firefox",
+      applicationURL: URL(fileURLWithPath: "/Applications/Firefox.app"),
+      executableURL: URL(fileURLWithPath: "/Applications/Firefox.app/Contents/MacOS/firefox"),
+      isAvailable: true
+    )
+    let identity = FirefoxProfileIdentity.identifier(
+      for: URL(fileURLWithPath: "/Users/private-user/Firefox/Profiles/work")
+    )
+    let forbiddenPath =
+      "%252fUsers%252fprivate-user%252fFirefox%252fProfiles%252fwork%25zz"
+    let targets = [
+      BrowserTarget(
+        id: forbiddenPath,
+        browserID: firefox.id,
+        label: "Encoded ID",
+        profileIdentifier: nil,
+        profileDisplayName: nil,
+        profileIdentity: nil,
+        mode: .normal,
+        isEnabled: true,
+        sortOrder: 0,
+        origin: .manual,
+        availability: .available
+      ),
+      BrowserTarget(
+        id: "manual-encoded-identifier",
+        browserID: firefox.id,
+        label: "Encoded Identifier",
+        profileIdentifier: forbiddenPath,
+        profileDisplayName: "Work",
+        profileIdentity: identity,
+        mode: .normal,
+        isEnabled: true,
+        sortOrder: 0,
+        origin: .manual,
+        availability: .available
+      ),
+      BrowserTarget(
+        id: "manual-encoded-display",
+        browserID: firefox.id,
+        label: "Encoded Display",
+        profileIdentifier: "Work",
+        profileDisplayName: forbiddenPath,
+        profileIdentity: identity,
+        mode: .normal,
+        isEnabled: true,
+        sortOrder: 0,
+        origin: .manual,
+        availability: .available
+      ),
+      BrowserTarget(
+        id: "manual-encoded-identity",
+        browserID: firefox.id,
+        label: "Encoded Identity",
+        profileIdentifier: "Work",
+        profileDisplayName: "Work",
+        profileIdentity: forbiddenPath,
+        mode: .normal,
+        isEnabled: true,
+        sortOrder: 0,
+        origin: .manual,
+        availability: .available
+      ),
+    ]
+
+    for (index, target) in targets.enumerated() {
+      let store = JSONConfigStore(directory: directory.appending(path: "case-\(index)"))
+      XCTAssertThrowsError(
+        try store.save(
+          PickViaConfig(
+            schemaVersion: PickViaConfig.currentSchemaVersion,
+            browsers: [firefox],
+            targets: [target]
+          )
+        )
+      ) { error in
+        XCTAssertEqual(error as? ConfigDocumentError, .invalidTarget)
+      }
+      XCTAssertFalse(
+        FileManager.default.fileExists(
+          atPath: store.directory.appending(path: "PickViaConfig.json").path
+        )
+      )
     }
   }
 
@@ -560,7 +780,8 @@ final class ConfigStoreTests: XCTestCase {
     let store = JSONConfigStore(directory: directory)
 
     try store.save(
-      PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox], targets: [manual])
+      PickViaConfig(
+        schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox], targets: [manual])
     )
 
     let document = try XCTUnwrap(
@@ -610,7 +831,9 @@ final class ConfigStoreTests: XCTestCase {
 
     let migratable = legacy(profileName: "Work Profile", availability: .unavailable)
     try JSONConfigStore(directory: directory.appending(path: "valid")).save(
-      PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox], targets: [migratable])
+      PickViaConfig(
+        schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox],
+        targets: [migratable])
     )
 
     let invalid = [
@@ -623,7 +846,9 @@ final class ConfigStoreTests: XCTestCase {
       let caseDirectory = directory.appending(path: "invalid-\(index)")
       XCTAssertThrowsError(
         try JSONConfigStore(directory: caseDirectory).save(
-          PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox], targets: [target])
+          PickViaConfig(
+            schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [firefox],
+            targets: [target])
         ))
       XCTAssertFalse(
         FileManager.default.fileExists(
@@ -649,7 +874,8 @@ final class ConfigStoreTests: XCTestCase {
     let directory = try temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }
     let store = JSONConfigStore(directory: directory)
-    let first = PickViaConfig(schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [], targets: [])
+    let first = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion, browsers: [], targets: [])
     let second = PickViaConfig(
       schemaVersion: PickViaConfig.currentSchemaVersion,
       browsers: [validChrome],

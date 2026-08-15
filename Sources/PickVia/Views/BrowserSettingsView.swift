@@ -155,10 +155,7 @@ public struct BrowserSettingsView: View {
   }
 
   private func targets(for browser: BrowserApplication) -> [BrowserTarget] {
-    model.targets.filter { $0.browserID == browser.id }.sorted {
-      if $0.sortOrder != $1.sortOrder { return $0.sortOrder < $1.sortOrder }
-      return $0.id < $1.id
-    }
+    browserSettingsTargets(browserID: browser.id, targets: model.targets)
   }
 
   private func rescan() {
@@ -167,7 +164,7 @@ public struct BrowserSettingsView: View {
   }
 
   private func move(browserTargets: [BrowserTarget], from offsets: IndexSet, to destination: Int) {
-    let all = model.targets.sorted {
+    let all = model.targets.filter { $0.routeKind == .web }.sorted {
       if $0.sortOrder != $1.sortOrder { return $0.sortOrder < $1.sortOrder }
       return $0.id < $1.id
     }
@@ -373,7 +370,8 @@ func availableProfileChoices(
   var seen = Set<String>()
   return targets.compactMap { target in
     guard
-      target.browserID == browserID,
+      target.routeKind == .web,
+      target.applicationID == browserID,
       target.origin == .detected,
       target.availability == .available,
       let identifier = target.profileIdentity ?? target.profileIdentifier,
@@ -383,5 +381,17 @@ func availableProfileChoices(
       identifier: identifier,
       displayName: target.profileDisplayName ?? identifier
     )
+  }
+}
+
+func browserSettingsTargets(
+  browserID: BrowserApplication.ID,
+  targets: [BrowserTarget]
+) -> [BrowserTarget] {
+  targets.filter {
+    $0.routeKind == .web && $0.applicationID == browserID
+  }.sorted {
+    if $0.sortOrder != $1.sortOrder { return $0.sortOrder < $1.sortOrder }
+    return $0.id < $1.id
   }
 }

@@ -1,3 +1,5 @@
+import AppKit
+import PickViaCore
 import SwiftUI
 
 public struct WelcomeView: View {
@@ -34,18 +36,22 @@ public struct WelcomeView: View {
       Text("Welcome to PickVia")
         .font(.largeTitle.bold())
 
-      switch model.onboardingStep {
-      case 1:
-        discoveryStep
-      case 2:
-        reviewStep
-      case 3:
-        defaultBrowserStep
-      default:
-        EmptyView()
+      if let step = welcomeStep(for: model.onboardingStep) {
+        switch step {
+        case .discovery:
+          discoveryStep
+        case .browserReview:
+          reviewStep
+        case .defaultBrowser:
+          defaultBrowserStep
+        case .mailReview:
+          mailReviewStep
+        case .defaultMail:
+          defaultMailStep
+        }
       }
 
-      if let errorMessage = model.errorMessage {
+      if let errorMessage = onboardingErrorMessage {
         Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
           .foregroundStyle(.red)
       }
@@ -78,7 +84,11 @@ public struct WelcomeView: View {
         .font(.title2.bold())
       Text("Choose which profiles and modes should appear when you open a link.")
         .foregroundStyle(.secondary)
-      List(model.targets.sorted { $0.sortOrder < $1.sortOrder }) { target in
+      List(
+        model.targets.filter { $0.routeKind == .web }.sorted {
+          $0.sortOrder < $1.sortOrder
+        }
+      ) { target in
         HStack {
           Text(target.label)
           Spacer()
@@ -108,7 +118,7 @@ public struct WelcomeView: View {
         .font(.title2.bold())
       Text("macOS asks separately for permission to handle HTTP and HTTPS links.")
         .foregroundStyle(.secondary)
-      DefaultStatusRows(status: model.defaultStatus)
+      BrowserDefaultStatusRows(status: model.defaultStatus)
       HStack {
         Spacer()
         Button("Set as Default") {
@@ -120,9 +130,99 @@ public struct WelcomeView: View {
     }
   }
 
+  private var mailReviewStep: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      Label("Review mail apps", systemImage: "envelope.badge")
+        .font(.title2.bold())
+      Text("Choose which mail applications should appear when you open a mail link.")
+        .foregroundStyle(.secondary)
+      List(mailReviewRows) { row in
+        HStack(spacing: 10) {
+          applicationIcon(row.application)
+          Text(row.application.displayName)
+          Spacer()
+          Text(row.target.isEnabled ? "Enabled" : "Hidden")
+            .foregroundStyle(.secondary)
+        }
+      }
+      .frame(minHeight: 150)
+      HStack {
+        Button("Rescan") { try? model.rescanMailApplications() }
+        Spacer()
+        Button("Skip Mail Setup") { model.skipMailSetup() }
+        Button("Continue") { model.continueMailReview() }
+          .buttonStyle(.borderedProminent)
+          .disabled(!model.canContinueMailReview)
+      }
+    }
+  }
+
+  private var defaultMailStep: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      Label("Make PickVia your default mail app", systemImage: "checkmark.seal")
+        .font(.title2.bold())
+      Text("macOS asks for permission to handle mail links.")
+        .foregroundStyle(.secondary)
+      Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
+        DefaultStatusRow(scheme: "MAILTO", status: model.defaultStatus.mailto)
+      }
+      HStack {
+        Spacer()
+        Button("Skip Mail Setup") { model.skipMailSetup() }
+        Button("Set as Default") {
+          Task { await model.requestDefaultMail() }
+        }
+        .buttonStyle(.borderedProminent)
+      }
+    }
+  }
+
+  private var mailReviewRows: [MailSettingsRow] {
+    makeMailSettingsRows(
+      applications: model.mailApplications,
+      targets: model.mailTargets
+    )
+  }
+
+  private var onboardingErrorMessage: String? {
+    switch welcomeStep(for: model.onboardingStep) {
+    case .mailReview, .defaultMail:
+      model.mailErrorMessage ?? model.errorMessage
+    case .discovery, .browserReview, .defaultBrowser, .none:
+      model.errorMessage
+    }
+  }
+
+  private func applicationIcon(_ application: RoutedApplication) -> some View {
+    Image(nsImage: NSWorkspace.shared.icon(forFile: application.applicationURL.path))
+      .resizable()
+      .scaledToFit()
+      .frame(width: 24, height: 24)
+      .accessibilityHidden(true)
+  }
+
   private func rescan() {
     try? model.userRequestedRescan()
     profileAccessPresenter.requestIfPending(model: model)
+  }
+}
+
+enum WelcomeStep: Equatable {
+  case discovery
+  case browserReview
+  case defaultBrowser
+  case mailReview
+  case defaultMail
+}
+
+func welcomeStep(for onboardingStep: Int) -> WelcomeStep? {
+  switch onboardingStep {
+  case 1: .discovery
+  case 2: .browserReview
+  case 3: .defaultBrowser
+  case 4: .mailReview
+  case 5: .defaultMail
+  default: nil
   }
 }
 
@@ -153,28 +253,33 @@ struct WelcomeLifecycle {
   }
 }
 
-struct DefaultStatusRows: View {
-  let status: DefaultBrowserStatus
+struct BrowserDefaultStatusRows: View {
+  let status: DefaultHandlerStatus
 
   var body: some View {
     Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
-      statusRow("HTTP", status.http)
-      statusRow("HTTPS", status.https)
+      DefaultStatusRow(scheme: "HTTP", status: status.http)
+      DefaultStatusRow(scheme: "HTTPS", status: status.https)
     }
   }
+}
 
-  private func statusRow(_ scheme: String, _ status: SchemeStatus) -> some View {
+struct DefaultStatusRow: View {
+  let scheme: String
+  let status: SchemeStatus
+
+  var body: some View {
     GridRow {
       Text(scheme).fontWeight(.medium)
       Label(
-        statusText(status),
+        statusDescription,
         systemImage: status == .isDefault ? "checkmark.circle.fill" : "exclamationmark.circle"
       )
       .foregroundStyle(status == .isDefault ? .green : .secondary)
     }
   }
 
-  private func statusText(_ status: SchemeStatus) -> String {
+  private var statusDescription: String {
     switch status {
     case .isDefault: "PickVia"
     case .notDefault: "Another app"

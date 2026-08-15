@@ -9,7 +9,7 @@ public struct GeneralSettingsView: View {
     @Bindable var model = model
     Form {
       Section("Default browser") {
-        DefaultStatusRows(status: model.defaultStatus)
+        BrowserDefaultStatusRows(status: model.defaultStatus)
         Button("Make PickVia Default Again") {
           Task { await model.requestDefaultBrowser() }
         }

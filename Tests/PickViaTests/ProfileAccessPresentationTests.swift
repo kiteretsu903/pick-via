@@ -255,7 +255,10 @@ final class ProfileAccessPresentationTests: XCTestCase {
     relay.handler = { presenter.environmentDidChange() }
     let model = try ProfileAccessModelFixture.automaticPending()
     chooser.present(
-      request: RoutingRequest(url: URL(string: "https://example.com/hidden")!),
+      request: RoutingRequest(
+        kind: .web,
+        url: URL(string: "https://example.com/hidden")!
+      ),
       applications: [],
       targets: [],
       error: nil,
@@ -650,7 +653,7 @@ private enum ProfileAccessModelFixture {
       configStore: ProfileAccessConfigStoreStub(),
       browserCatalog: ProfileAccessCatalogStub(result: scan),
       preferences: ProfileAccessPreferencesStub(onboardingStep: onboardingStep),
-      defaultBrowser: ProfileAccessDefaultBrowserStub(),
+      defaultBrowser: ProfileAccessDefaultHandlerStub(),
       loginItem: ProfileAccessLoginItemStub(),
       routing: routing
     )
@@ -691,8 +694,8 @@ private final class ProfileAccessPreferencesStub: PreferencesStoring {
 }
 
 @MainActor
-private final class ProfileAccessDefaultBrowserStub: DefaultBrowserServicing {
-  func status() -> DefaultBrowserStatus { .unknown }
+private final class ProfileAccessDefaultHandlerStub: DefaultHandlerServicing {
+  func status() -> DefaultHandlerStatus { .unknown }
   func requestDefault(for schemes: [String]) async throws {}
 }
 

@@ -1,7 +1,61 @@
 import Foundation
+import PickViaCore
 import XCTest
 
+@testable import PickVia
+
 final class BrowserSettingsViewTests: XCTestCase {
+  func testBrowserSettingsHelpersExcludeEnabledMailTargetForDualCapabilityApplication() {
+    let application = RoutedApplication(
+      id: "com.google.Chrome",
+      displayName: "Google Chrome",
+      bundleIdentifier: "com.google.Chrome",
+      capabilities: [
+        .browser(family: .chromium, isAvailable: true),
+        .mail(isAvailable: true),
+      ],
+      applicationURL: URL(fileURLWithPath: "/Applications/Google Chrome.app")
+    )
+    let webTarget = BrowserTarget(
+      id: "com.google.Chrome|Profile 1|normal",
+      browserID: application.id,
+      label: "Work",
+      profileIdentifier: "Profile 1",
+      profileDisplayName: "Work",
+      profileIdentity: "Profile 1",
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .detected,
+      availability: .available
+    )
+    let mailTarget = RouteTarget(
+      id: RouteTarget.mailID(bundleIdentifier: application.bundleIdentifier),
+      applicationID: application.id,
+      label: "Google Chrome Mail",
+      isEnabled: true,
+      sortOrder: 1,
+      origin: .detected,
+      availability: .available,
+      capability: .mail
+    )
+
+    XCTAssertEqual(
+      browserSettingsTargets(
+        browserID: application.id,
+        targets: [mailTarget, webTarget]
+      ).map(\.id),
+      [webTarget.id]
+    )
+    XCTAssertEqual(
+      availableProfileChoices(
+        browserID: application.id,
+        targets: [mailTarget, webTarget]
+      ),
+      [BrowserProfileChoice(identifier: "Profile 1", displayName: "Work")]
+    )
+  }
+
   func testGeneralSettingsContainsSegmentedChooserSizePicker() throws {
     let source = try projectSource("Sources/PickVia/Views/GeneralSettingsView.swift")
 
@@ -56,7 +110,8 @@ final class BrowserSettingsViewTests: XCTestCase {
     let source = try projectSource("Sources/PickVia/Chooser/ChooserTargetRow.swift")
     let fillStart = try XCTUnwrap(source.range(of: "private var selectionFill: Color"))
     let fillEnd = try XCTUnwrap(
-      source.range(of: "private func applicationIcon", range: fillStart.upperBound..<source.endIndex)
+      source.range(
+        of: "private func applicationIcon", range: fillStart.upperBound..<source.endIndex)
     )
     let fill = String(source[fillStart.lowerBound..<fillEnd.lowerBound])
     let selected = try XCTUnwrap(
