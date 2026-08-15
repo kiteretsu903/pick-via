@@ -17,11 +17,10 @@ profile, or mail application you want whenever you open a web or email link.
 
 ## Download
 
-**[Download PickVia v1.0 for macOS](https://github.com/kiteretsu903/pick-via/releases/latest)**
+**[Download PickVia v1.1 for macOS](https://github.com/kiteretsu903/pick-via/releases/latest)**
 
 PickVia requires **macOS 14 Sonoma or later** on **Apple Silicon**.
-The published v1.0 release supports HTTP and HTTPS links. `mailto:` support is
-integrated on `main` for the next release.
+PickVia handles HTTP, HTTPS, and `mailto:` links.
 
 ## What it does
 
@@ -78,16 +77,18 @@ shortcuts.
 
 ## Install
 
-1. Download and open `PickVia-v1.0.dmg` from the
+1. Download and open `PickVia-v1.1.dmg` from the
    [GitHub release](https://github.com/kiteretsu903/pick-via/releases/latest).
 2. Drag **PickVia** to the **Applications** folder shown in the installer.
 3. Open **PickVia** from Applications and follow the welcome flow.
 4. Choose **Set as Default**. macOS asks separately for permission to handle
    HTTP and HTTPS links.
+5. Optionally review your installed mail applications and make PickVia the
+   default handler for `mailto:` links, or choose **Skip Mail Setup**.
 
 ### First launch and Gatekeeper
 
-PickVia v1.0 is ad-hoc signed and not notarized. macOS will block the first
+PickVia v1.1 is ad-hoc signed and not notarized. macOS will block the first
 launch of the downloaded app. If you have downloaded it from this GitHub
 release and choose to trust it:
 

@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.1 — 2026-08-14
+
+PickVia now routes email links as well as web links.
+
+- Choose an installed mail application whenever you open a `mailto:` link.
+- Discover applications registered with macOS for email links automatically.
+- Enable, disable, reorder, and rescan mail applications in Mail Settings.
+- Configure mail routing during the optional onboarding flow, or skip it and
+  keep your current default mail application.
+- Keep recipients, subjects, message bodies, and the original `mailto:` request
+  out of the chooser, clipboard, logs, and saved configuration.
+- Preserve authoritative browser and mail configuration during rescans,
+  onboarding transitions, settings sessions, and launch recovery.
+- Add Retina product screenshots showing browser, profile, and mail workflows.
+
+PickVia v1.1 is ad-hoc signed and not notarized. See the README's Gatekeeper
+instructions before the first launch.
+
 ## v1.0 — 2026-08-14
 
 First public release of PickVia.
