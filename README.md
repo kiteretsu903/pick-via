@@ -97,6 +97,14 @@ release and choose to trust it:
 3. Click **Open Anyway**, then confirm **Open**. The button is available for
    about one hour after the blocked launch attempt.
 
+**If macOS still blocks the app:** make sure **PickVia.app** is in
+Applications, try to open it once and dismiss the warning, then follow the
+steps above. If **Open Anyway** still does not appear, run:
+
+```zsh
+xattr -dr com.apple.quarantine "/Applications/PickVia.app"
+```
+
 Apple documents this Gatekeeper override and its security implications in
 [Safely open apps on your Mac](https://support.apple.com/en-asia/102445).
 
