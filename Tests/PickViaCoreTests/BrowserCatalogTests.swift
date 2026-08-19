@@ -9,13 +9,53 @@ struct BrowserCatalogTests {
       BrowserDescriptor.supported.map(\.bundleIdentifier) == [
         "com.apple.Safari",
         "com.google.Chrome",
+        "com.google.Chrome.beta",
         "org.chromium.Chromium",
         "com.microsoft.edgemac",
         "com.brave.Browser",
         "com.vivaldi.Vivaldi",
         "org.mozilla.firefox",
       ])
-    #expect(BrowserDescriptor.supported.count == 7)
+    #expect(BrowserDescriptor.supported.count == 8)
+  }
+
+  @Test func chromeBetaDescriptorUsesCanonicalMacMetadata() throws {
+    let descriptor = try #require(
+      BrowserDescriptor.descriptor(forBundleIdentifier: "com.google.Chrome.beta"))
+
+    #expect(descriptor.family == .chromium)
+    #expect(descriptor.displayName == "Google Chrome Beta")
+    #expect(descriptor.profileRoot == "Library/Application Support/Google/Chrome Beta")
+    #expect(descriptor.executableRelativePath == "Contents/MacOS/Google Chrome Beta")
+  }
+
+  @Test func chromeBetaDiscoveryReadsItsOwnLocalState() throws {
+    let betaDescriptor = try #require(
+      BrowserDescriptor.descriptor(forBundleIdentifier: "com.google.Chrome.beta"))
+    let betaApplicationURL = URL(
+      fileURLWithPath: "/Applications/Google Chrome Beta.app", isDirectory: true)
+    let betaLocalStateURL = URL(
+      fileURLWithPath: "/home/Library/Application Support/Google/Chrome Beta/Local State")
+    let locator = StubApplicationLocator(applications: [
+      "com.google.Chrome.beta": betaApplicationURL
+    ])
+    let fileSystem = DiscoveryFileSystem(files: [
+      betaLocalStateURL: try fixtureData("chromium-local-state.json")
+    ])
+    let catalog = BrowserCatalog(
+      descriptors: [betaDescriptor],
+      applicationLocator: locator,
+      fileSystem: fileSystem,
+      homeDirectory: URL(fileURLWithPath: "/home", isDirectory: true)
+    )
+
+    let browser = try #require(catalog.scan().first)
+
+    #expect(browser.application.bundleIdentifier == "com.google.Chrome.beta")
+    #expect(browser.application.displayName == "Google Chrome Beta")
+    #expect(browser.profiles.map(\.identifier) == ["Default", "Profile 1"])
+    #expect(locator.requestedBundleIdentifiers == ["com.google.Chrome.beta"])
+    #expect(fileSystem.readURLs == [betaLocalStateURL])
   }
 
   @Test func scanReturnsOnlyLocatedSupportedApplicationsInDescriptorOrder() throws {

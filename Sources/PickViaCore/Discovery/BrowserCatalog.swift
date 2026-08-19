@@ -24,6 +24,13 @@ public struct BrowserDescriptor: Sendable {
       executableRelativePath: "Contents/MacOS/Google Chrome"
     ),
     BrowserDescriptor(
+      bundleIdentifier: "com.google.Chrome.beta",
+      family: .chromium,
+      displayName: "Google Chrome Beta",
+      profileRoot: "Library/Application Support/Google/Chrome Beta",
+      executableRelativePath: "Contents/MacOS/Google Chrome Beta"
+    ),
+    BrowserDescriptor(
       bundleIdentifier: "org.chromium.Chromium",
       family: .chromium,
       displayName: "Chromium",

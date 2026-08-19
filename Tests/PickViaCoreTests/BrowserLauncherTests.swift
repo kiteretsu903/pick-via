@@ -91,6 +91,51 @@ struct BrowserLauncherTests {
     #expect(!executable.path.hasPrefix("/tmp"))
   }
 
+  @Test func chromeBetaUsesTrustedBetaExecutableAndChromiumArguments() throws {
+    let betaApplication = BrowserApplication(
+      id: "com.google.Chrome.beta",
+      family: .chromium,
+      displayName: "Google Chrome Beta",
+      bundleIdentifier: "com.google.Chrome.beta",
+      applicationURL: URL(fileURLWithPath: "/tmp/Evil Beta.app", isDirectory: true),
+      executableURL: URL(fileURLWithPath: "/tmp/beta-payload"),
+      isAvailable: true
+    )
+    let trustedBetaApplication = URL(
+      fileURLWithPath: "/Applications/Google Chrome Beta.app", isDirectory: true)
+    let launcher = BrowserLauncher(
+      trustedApplicationResolver: StubTrustedApplicationResolver(urls: [
+        "com.google.Chrome.beta": trustedBetaApplication
+      ]),
+      processRunner: RecordingProcessRunner(),
+      workspace: RecordingWorkspace(),
+      executableValidator: StubExecutableValidator(isExecutable: true)
+    )
+    let betaTarget = target(
+      id: BrowserCatalog.targetID(
+        bundleIdentifier: "com.google.Chrome.beta",
+        profileIdentifier: "Profile 1",
+        mode: .private
+      ),
+      browserID: "com.google.Chrome.beta",
+      profile: "Profile 1",
+      mode: .private
+    )
+
+    let plan = try launcher.makePlan(url: url, application: betaApplication, target: betaTarget)
+
+    guard case .executable(let executable, let arguments) = plan else {
+      Issue.record("Expected executable launch plan")
+      return
+    }
+    #expect(
+      executable
+        == URL(
+          fileURLWithPath: "/Applications/Google Chrome Beta.app/Contents/MacOS/Google Chrome Beta")
+    )
+    #expect(arguments == ["--profile-directory=Profile 1", "--incognito", "https://example.com"])
+  }
+
   @Test func launchFailsWhenSupportedBundleCannotBeResolvedCurrently() {
     let launcher = BrowserLauncher(
       trustedApplicationResolver: StubTrustedApplicationResolver(urls: [:]),
