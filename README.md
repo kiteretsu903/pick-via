@@ -20,7 +20,7 @@ screenshots, release highlights, and the [changelog](https://kiteretsu903.github
 
 ## Download
 
-**[Download PickVia v1.1 for macOS](https://github.com/kiteretsu903/pick-via/releases/latest)**
+**[Download PickVia v1.2 for macOS](https://github.com/kiteretsu903/pick-via/releases/latest)**
 
 PickVia requires **macOS 14 Sonoma or later** on **Apple Silicon**.
 PickVia handles HTTP, HTTPS, and `mailto:` links.
@@ -29,9 +29,9 @@ PickVia handles HTTP, HTTPS, and `mailto:` links.
 
 - **Choose at the moment it matters.** Every web link opens a focused chooser
   beside your pointer instead of silently taking over an existing browser.
-- **Use the browser and profile you mean.** Pick Safari, Chrome, Chromium,
-  Edge, Brave, Vivaldi, or Firefox; supported browsers can expose their normal,
-  private, and discovered profile targets.
+- **Use the browser and profile you mean.** Pick Safari, Chrome, Chrome Beta,
+  Chromium, Edge, Brave, Vivaldi, or Firefox; supported browsers can expose
+  their normal, private, and discovered profile targets.
 - **Choose your mail application.** PickVia discovers applications registered
   for `mailto:` links and presents direct app-level choices without exposing
   recipients, subjects, or message bodies in the chooser.
@@ -80,7 +80,7 @@ shortcuts.
 
 ## Install
 
-1. Download and open `PickVia-v1.1.dmg` from the
+1. Download and open `PickVia-v1.2.dmg` from the
    [GitHub release](https://github.com/kiteretsu903/pick-via/releases/latest).
 2. Drag **PickVia** to the **Applications** folder shown in the installer.
 3. Open **PickVia** from Applications and follow the welcome flow.
@@ -91,7 +91,7 @@ shortcuts.
 
 ### First launch and Gatekeeper
 
-PickVia v1.1 is ad-hoc signed and not notarized. macOS will block the first
+PickVia v1.2 is ad-hoc signed and not notarized. macOS will block the first
 launch of the downloaded app. If you have downloaded it from this GitHub
 release and choose to trust it:
 
@@ -116,7 +116,7 @@ Apple documents this Gatekeeper override and its security implications in
 | Browser family | Profiles | Normal | Private |
 |---|---:|---:|---:|
 | Safari | No | Yes | No |
-| Chrome, Chromium, Edge, Brave, Vivaldi | Yes | Yes | Yes |
+| Chrome, Chrome Beta, Chromium, Edge, Brave, Vivaldi | Yes | Yes | Yes |
 | Firefox | Yes | Yes | Yes |
 
 Safari has one normal-window target. Chromium-family browsers and Firefox keep

@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.2 — 2026-08-18
+
+PickVia now supports Google Chrome Beta as a separate browser.
+
+- Discover Google Chrome Beta by its official macOS bundle identifier.
+- Keep Beta profiles separate from stable Google Chrome profile storage.
+- Offer Chrome Beta browser-default and discovered-profile targets in normal
+  and private modes.
+- Resolve and validate the trusted Google Chrome Beta executable before launch.
+
+PickVia v1.2 is ad-hoc signed and not notarized. See the README's Gatekeeper
+instructions before the first launch.
+
 ## v1.1 — 2026-08-14
 
 PickVia now routes email links as well as web links.
