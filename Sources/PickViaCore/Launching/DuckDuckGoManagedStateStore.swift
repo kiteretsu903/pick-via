@@ -142,11 +142,13 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
 
   public let rootDirectory: URL
   private let removalDidOpenRoot: (@Sendable () throws -> Void)?
+  private let removalWillOpenSession: (@Sendable () throws -> Void)?
   private let removalWillDeleteEntry: (@Sendable (String) throws -> Void)?
 
   public init(rootDirectory: URL = Self.defaultRootDirectory) {
     self.rootDirectory = rootDirectory.standardizedFileURL
     removalDidOpenRoot = nil
+    removalWillOpenSession = nil
     removalWillDeleteEntry = nil
   }
 
@@ -156,6 +158,17 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
   ) {
     self.rootDirectory = rootDirectory.standardizedFileURL
     self.removalDidOpenRoot = removalDidOpenRoot
+    removalWillOpenSession = nil
+    removalWillDeleteEntry = nil
+  }
+
+  init(
+    rootDirectory: URL,
+    removalWillOpenSession: @escaping @Sendable () throws -> Void
+  ) {
+    self.rootDirectory = rootDirectory.standardizedFileURL
+    removalDidOpenRoot = nil
+    self.removalWillOpenSession = removalWillOpenSession
     removalWillDeleteEntry = nil
   }
 
@@ -165,6 +178,7 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
   ) {
     self.rootDirectory = rootDirectory.standardizedFileURL
     removalDidOpenRoot = nil
+    removalWillOpenSession = nil
     self.removalWillDeleteEntry = removalWillDeleteEntry
   }
 
@@ -368,14 +382,27 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
     let rootFileDescriptor = try openRootDirectory()
     defer { Darwin.close(rootFileDescriptor) }
     let sessionName = session.identifier.uuidString
-    guard try relativeNodeType(parent: rootFileDescriptor, name: sessionName) == .directory else {
+    guard
+      let expectedSessionStatus = try relativeStatusIfPresent(
+        parent: rootFileDescriptor,
+        name: sessionName
+      ), (expectedSessionStatus.st_mode & S_IFMT) == S_IFDIR
+    else {
       throw DuckDuckGoManagedStateStoreError.invalidSession
     }
+    try removalWillOpenSession?()
     let sessionFileDescriptor = try openDirectory(
       parent: rootFileDescriptor,
       name: sessionName
     )
     defer { Darwin.close(sessionFileDescriptor) }
+    let openedSessionStatus = try fileStatus(descriptor: sessionFileDescriptor)
+    guard
+      sameFileIdentity(expectedSessionStatus, openedSessionStatus),
+      (openedSessionStatus.st_mode & S_IFMT) == S_IFDIR
+    else {
+      throw DuckDuckGoManagedStateStoreError.invalidSession
+    }
     guard
       let type = try relativeNodeTypeIfPresent(
         parent: sessionFileDescriptor,
@@ -394,14 +421,15 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
     try removalDidOpenRoot?()
     let sessionName = identifier.uuidString
     guard
-      let type = try relativeNodeTypeIfPresent(
+      let expectedStatus = try relativeStatusIfPresent(
         parent: rootFileDescriptor,
         name: sessionName
       )
     else { return }
-    guard type == .directory else {
+    guard (expectedStatus.st_mode & S_IFMT) == S_IFDIR else {
       throw DuckDuckGoManagedStateStoreError.invalidSession
     }
+    try removalWillOpenSession?()
     var sessionFileDescriptor = try openDirectory(
       parent: rootFileDescriptor,
       name: sessionName
@@ -409,7 +437,13 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
     defer {
       if sessionFileDescriptor >= 0 { Darwin.close(sessionFileDescriptor) }
     }
-    let expectedStatus = try fileStatus(descriptor: sessionFileDescriptor)
+    let openedStatus = try fileStatus(descriptor: sessionFileDescriptor)
+    guard
+      sameFileIdentity(expectedStatus, openedStatus),
+      (openedStatus.st_mode & S_IFMT) == S_IFDIR
+    else {
+      throw DuckDuckGoManagedStateStoreError.invalidSession
+    }
     let tombstoneName = ".deleting-\(identifier.uuidString)-\(UUID().uuidString)"
     let renameResult = sessionName.withCString { source in
       tombstoneName.withCString { destination in

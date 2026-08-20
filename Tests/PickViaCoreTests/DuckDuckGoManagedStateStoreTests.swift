@@ -266,6 +266,47 @@ struct DuckDuckGoManagedStateStoreTests {
     #expect(FileManager.default.fileExists(atPath: session.homeDirectory.path))
   }
 
+  @Test func quarantineRemovalRejectsSessionSwappedBetweenStatAndOpen() throws {
+    let root = temporaryRoot()
+    let movedOriginal = temporaryRoot()
+    defer {
+      try? FileManager.default.removeItem(at: root)
+      try? FileManager.default.removeItem(at: movedOriginal)
+    }
+    let initialStore = DuckDuckGoManagedStateStore(rootDirectory: root)
+    let session = try initialStore.prepareHome(identifier: fixedIdentifier)
+    try initialStore.saveQuarantine(
+      quarantineMarker(identifier: fixedIdentifier, launchDate: Date()),
+      for: session
+    )
+    let originalQuarantine = try Data(contentsOf: session.quarantineURL)
+    let replacementQuarantine = Data("replacement authority".utf8)
+    let swappingStore = DuckDuckGoManagedStateStore(
+      rootDirectory: root,
+      removalWillOpenSession: {
+        try FileManager.default.moveItem(
+          at: session.sessionDirectory,
+          to: movedOriginal
+        )
+        try FileManager.default.createDirectory(
+          at: session.sessionDirectory,
+          withIntermediateDirectories: false
+        )
+        try replacementQuarantine.write(to: session.quarantineURL)
+      }
+    )
+
+    #expect(throws: DuckDuckGoManagedStateStoreError.invalidSession) {
+      try swappingStore.removeQuarantine(for: session)
+    }
+
+    #expect(
+      try Data(contentsOf: movedOriginal.appending(path: "Quarantine.json"))
+        == originalQuarantine
+    )
+    #expect(try Data(contentsOf: session.quarantineURL) == replacementQuarantine)
+  }
+
   @Test func quarantineMutationRejectsForeignSessionAndMarkerSymlink() throws {
     let root = temporaryRoot()
     let foreignRoot = temporaryRoot()
@@ -575,6 +616,45 @@ struct DuckDuckGoManagedStateStoreTests {
     )
     #expect(try Data(contentsOf: redirectSentinel) == Data("redirect keep".utf8))
     #expect(try symbolicLinkExists(at: root))
+  }
+
+  @Test func sessionRemovalRejectsSessionSwappedBetweenStatAndOpen() throws {
+    let root = temporaryRoot()
+    let movedOriginal = temporaryRoot()
+    defer {
+      try? FileManager.default.removeItem(at: root)
+      try? FileManager.default.removeItem(at: movedOriginal)
+    }
+    let initialStore = DuckDuckGoManagedStateStore(rootDirectory: root)
+    let session = try initialStore.prepareHome(identifier: fixedIdentifier)
+    let originalSentinel = session.homeDirectory.appending(path: "original-keep")
+    try Data("original keep".utf8).write(to: originalSentinel)
+    let replacementSentinel = session.sessionDirectory.appending(path: "replacement-keep")
+    let swappingStore = DuckDuckGoManagedStateStore(
+      rootDirectory: root,
+      removalWillOpenSession: {
+        try FileManager.default.moveItem(
+          at: session.sessionDirectory,
+          to: movedOriginal
+        )
+        try FileManager.default.createDirectory(
+          at: session.sessionDirectory,
+          withIntermediateDirectories: false
+        )
+        try Data("replacement keep".utf8).write(to: replacementSentinel)
+      }
+    )
+
+    #expect(throws: DuckDuckGoManagedStateStoreError.invalidSession) {
+      try swappingStore.removeSession(identifier: fixedIdentifier)
+    }
+
+    #expect(
+      try Data(
+        contentsOf: movedOriginal.appending(path: "Home/original-keep")
+      ) == Data("original keep".utf8)
+    )
+    #expect(try Data(contentsOf: replacementSentinel) == Data("replacement keep".utf8))
   }
 
   @Test func failedDescriptorRelativeDeletionRestoresCanonicalSessionForRetry() throws {
