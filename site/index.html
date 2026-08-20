@@ -40,9 +40,9 @@
       .hero-top > *, .section-head > *, .mail-layout > *, .setup-grid > *, .download-inner > * { min-width: 0; }
       .kicker, .section-label { margin: 0; color: var(--violet); font-size: 11px; font-weight: 760; letter-spacing: .13em; text-transform: uppercase; }
       h1, h2, h3, p { margin-top: 0; }
-      h1 { max-width: 650px; margin: 17px 0 0; font-size: clamp(57px, 6.8vw, 91px); line-height: .91; letter-spacing: -.08em; font-weight: 740; }
+      h1 { max-width: 650px; margin: 17px 0 0; font-size: clamp(50px, 4.4vw, 56px); line-height: .91; letter-spacing: -.08em; font-weight: 740; }
       h1 em, h2 em { font-style: normal; color: var(--violet); }
-      .hero-intro { min-width: 0; padding-bottom: 8px; }
+      .hero-intro { min-width: 0; padding: 30px 0 8px; }
       .hero-intro p { max-width: 515px; margin: 0; color: var(--muted); font-size: 19px; letter-spacing: -.03em; line-height: 1.48; }
       .hero-actions { display: flex; gap: 11px; flex-wrap: wrap; margin-top: 26px; }
       .subline { margin: 0; padding-top: 29px; color: #7d7d76; font-size: 13px; }
@@ -76,7 +76,7 @@
       .settings-window { overflow: hidden; padding: 10px; border-radius: 20px; background: #dedde4; box-shadow: 0 22px 40px rgba(21,21,21,.12); }
       .settings-window img { display: block; width: 100%; border-radius: 13px; }
 
-      .download { padding-bottom: 62px; }
+      .download { padding: 36px 0 62px; }
       .download-inner { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 40px; padding: 52px 58px; overflow: hidden; border-radius: var(--radius); color: white; background: var(--violet); }
       .download-inner .section-label { color: #e0dbff; }
       .download-inner h2 { margin-top: 11px; max-width: 690px; color: white; font-size: clamp(41px, 5vw, 64px); }
@@ -88,7 +88,7 @@
 
       @media (max-width: 780px) {
         .site-header { height: 72px; } nav { display: none; }
-        .hero { padding: 55px 0 66px; } .hero-top, .section-head, .mail-layout, .setup-grid { grid-template-columns: 1fr; gap: 30px; }
+        .hero { padding: 55px 0 66px; } .hero-top, .section-head, .mail-layout, .setup-grid { grid-template-columns: 1fr; gap: 30px; } .hero-intro { padding-top: 0; }
         .product-frame { margin-top: 40px; border-radius: 18px; }
         .feature-section { padding: 76px 0; } .mail-section { padding-bottom: 76px; }
         .mail-copy, .mail-shot img { min-height: auto; } .mail-copy { padding: 34px; }
