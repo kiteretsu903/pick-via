@@ -153,22 +153,80 @@ struct BrowserLauncherTests {
     }
   }
 
-  @Test func duckDuckGoLaunchFailsClosedUntilItsLaunchSupportIsImplemented() {
-    let launcher = BrowserLauncher(
-      trustedApplicationResolver: StubTrustedApplicationResolver(urls: [
-        DuckDuckGoBuildCompatibilityChecker.bundleIdentifier: applicationURL
-      ]),
-      processRunner: RecordingProcessRunner(),
-      workspace: RecordingWorkspace(),
-      executableValidator: StubExecutableValidator(isExecutable: true)
-    )
+  @Test func duckDuckGoPlansPreserveNormalAndFireModes() throws {
+    let launcher = duckDuckGoLauncher(router: RecordingDuckDuckGoRouter())
 
-    #expect(throws: LaunchFailure.self) {
-      try launcher.makePlan(
+    for mode in [BrowserMode.normal, .private] {
+      let plan = try launcher.makePlan(
         url: url,
         application: application(family: .duckDuckGo, executable: nil),
-        target: target(family: .duckDuckGo, profile: nil)
+        target: duckDuckGoTarget(mode: mode)
       )
+
+      #expect(
+        plan
+          == .duckDuckGo(
+            application: applicationURL,
+            url: url,
+            mode: mode
+          )
+      )
+    }
+  }
+
+  @Test(arguments: DuckDuckGoProfileField.allCases)
+  func duckDuckGoRejectsEveryProfileBearingTarget(field: DuckDuckGoProfileField) {
+    #expect(throws: LaunchFailure.self) {
+      try duckDuckGoLauncher(router: RecordingDuckDuckGoRouter()).makePlan(
+        url: url,
+        application: application(family: .duckDuckGo, executable: nil),
+        target: duckDuckGoTarget(profileField: field)
+      )
+    }
+  }
+
+  @Test func executeForwardsDuckDuckGoPlanToInjectedRouter() async throws {
+    let router = RecordingDuckDuckGoRouter()
+    let launcher = duckDuckGoLauncher(router: router)
+
+    try await launcher.execute(
+      .duckDuckGo(
+        application: applicationURL,
+        url: url,
+        mode: .private
+      )
+    )
+
+    #expect(
+      await router.invocations == [
+        .init(
+          url: url,
+          applicationURL: applicationURL,
+          mode: .private
+        )
+      ]
+    )
+  }
+
+  @Test func duckDuckGoRouterErrorBecomesSafeLaunchFailure() async {
+    let launcher = duckDuckGoLauncher(
+      router: RecordingDuckDuckGoRouter(errorCode: -1)
+    )
+
+    do {
+      try await launcher.execute(
+        .duckDuckGo(
+          application: applicationURL,
+          url: url,
+          mode: .private
+        )
+      )
+      Issue.record("Expected execution failure")
+    } catch let failure as LaunchFailure {
+      #expect(failure.message == "Could not open the selected browser target.")
+      #expect(!failure.message.contains(url.absoluteString))
+    } catch {
+      Issue.record("Expected LaunchFailure, got \(type(of: error))")
     }
   }
 
@@ -642,6 +700,13 @@ struct BrowserLauncherTests {
 private let applicationURL = URL(fileURLWithPath: "/Applications/Browser.app", isDirectory: true)
 private let executableURL = applicationURL.appending(path: "Contents/MacOS/Browser")
 
+enum DuckDuckGoProfileField: CaseIterable, Sendable {
+  case identifier
+  case displayName
+  case identity
+  case launchPath
+}
+
 private func application(
   family: BrowserFamily,
   bundleIdentifier: String? = nil,
@@ -688,6 +753,30 @@ private func target(
   )
 }
 
+private func duckDuckGoTarget(
+  profileField: DuckDuckGoProfileField? = nil,
+  mode: BrowserMode = .normal
+) -> BrowserTarget {
+  BrowserTarget(
+    id: BrowserCatalog.targetID(
+      bundleIdentifier: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
+      profileIdentifier: nil,
+      mode: mode
+    ),
+    browserID: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
+    label: "DuckDuckGo",
+    profileIdentifier: profileField == .identifier ? "Profile 1" : nil,
+    profileDisplayName: profileField == .displayName ? "Profile 1" : nil,
+    profileIdentity: profileField == .identity ? "profile-identity" : nil,
+    profileLaunchPath: profileField == .launchPath ? "/profiles/one" : nil,
+    mode: mode,
+    isEnabled: true,
+    sortOrder: 0,
+    origin: .detected,
+    availability: .available
+  )
+}
+
 private func bundleID(for family: BrowserFamily) -> String {
   switch family {
   case .safari: "com.apple.Safari"
@@ -708,6 +797,48 @@ private func testLauncher() -> BrowserLauncher {
     workspace: RecordingWorkspace(),
     executableValidator: StubExecutableValidator(isExecutable: true)
   )
+}
+
+private func duckDuckGoLauncher(
+  router: any DuckDuckGoRouting
+) -> BrowserLauncher {
+  BrowserLauncher(
+    trustedApplicationResolver: StubTrustedApplicationResolver(urls: [
+      DuckDuckGoBuildCompatibilityChecker.bundleIdentifier: applicationURL
+    ]),
+    processRunner: RecordingProcessRunner(),
+    workspace: RecordingWorkspace(),
+    executableValidator: StubExecutableValidator(isExecutable: true),
+    duckDuckGoRouter: router
+  )
+}
+
+private actor RecordingDuckDuckGoRouter: DuckDuckGoRouting {
+  struct Invocation: Equatable, Sendable {
+    let url: URL
+    let applicationURL: URL
+    let mode: BrowserMode
+  }
+
+  private(set) var invocations: [Invocation] = []
+  let errorCode: Int?
+
+  init(errorCode: Int? = nil) {
+    self.errorCode = errorCode
+  }
+
+  func open(
+    url: URL,
+    applicationURL: URL,
+    mode: BrowserMode
+  ) async throws {
+    invocations.append(
+      .init(url: url, applicationURL: applicationURL, mode: mode)
+    )
+    if let errorCode {
+      throw NSError(domain: NSCocoaErrorDomain, code: errorCode)
+    }
+  }
 }
 
 private struct StubTrustedApplicationResolver: TrustedApplicationResolving {

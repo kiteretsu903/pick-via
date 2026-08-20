@@ -4,6 +4,7 @@ import Foundation
 public enum LaunchPlan: Equatable, Sendable {
   case executable(application: URL, arguments: [String])
   case workspace(application: URL, url: URL)
+  case duckDuckGo(application: URL, url: URL, mode: BrowserMode)
 }
 
 public protocol ProcessRunning: Sendable {
@@ -72,6 +73,7 @@ public struct BrowserLauncher: RouteLaunching, Sendable {
   private let workspace: any WorkspaceOpening
   private let executableValidator: any ExecutableValidating
   private let trustedApplicationResolver: any TrustedApplicationResolving
+  private let duckDuckGoRouter: any DuckDuckGoRouting
 
   public init(
     trustedApplicationResolver: any TrustedApplicationResolving = WorkspaceApplicationLocator(),
@@ -83,6 +85,21 @@ public struct BrowserLauncher: RouteLaunching, Sendable {
     self.processRunner = processRunner
     self.workspace = workspace
     self.executableValidator = executableValidator
+    duckDuckGoRouter = DuckDuckGoProcessCoordinator()
+  }
+
+  init(
+    trustedApplicationResolver: any TrustedApplicationResolving,
+    processRunner: any ProcessRunning,
+    workspace: any WorkspaceOpening,
+    executableValidator: any ExecutableValidating,
+    duckDuckGoRouter: any DuckDuckGoRouting
+  ) {
+    self.trustedApplicationResolver = trustedApplicationResolver
+    self.processRunner = processRunner
+    self.workspace = workspace
+    self.executableValidator = executableValidator
+    self.duckDuckGoRouter = duckDuckGoRouter
   }
 
   public func makePlan(
@@ -119,7 +136,19 @@ public struct BrowserLauncher: RouteLaunching, Sendable {
       return .workspace(application: trustedApplicationURL, url: url)
 
     case .duckDuckGo:
-      throw Self.launchFailure
+      guard
+        options.profileIdentifier == nil,
+        options.profileDisplayName == nil,
+        options.profileIdentity == nil,
+        options.profileLaunchPath == nil
+      else {
+        throw Self.launchFailure
+      }
+      return .duckDuckGo(
+        application: trustedApplicationURL,
+        url: url,
+        mode: options.mode
+      )
 
     case .chromium:
       guard
@@ -183,6 +212,12 @@ public struct BrowserLauncher: RouteLaunching, Sendable {
         try processRunner.run(executable: application, arguments: arguments)
       case .workspace(let application, let url):
         try await workspace.open(url, withApplicationAt: application)
+      case .duckDuckGo(let application, let url, let mode):
+        try await duckDuckGoRouter.open(
+          url: url,
+          applicationURL: application,
+          mode: mode
+        )
       }
     } catch {
       throw Self.launchFailure
