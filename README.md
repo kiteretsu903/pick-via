@@ -20,7 +20,7 @@ screenshots, release highlights, and the [changelog](https://kiteretsu903.github
 
 ## Download
 
-**[Download PickVia v1.2 for macOS](https://github.com/kiteretsu903/pick-via/releases/latest)**
+**[Download PickVia v1.3 for macOS](https://github.com/kiteretsu903/pick-via/releases/latest)**
 
 PickVia requires **macOS 14 Sonoma or later** on **Apple Silicon**.
 PickVia handles HTTP, HTTPS, and `mailto:` links.
@@ -80,7 +80,7 @@ shortcuts.
 
 ## Install
 
-1. Download and open `PickVia-v1.2.dmg` from the
+1. Download and open `PickVia-v1.3.dmg` from the
    [GitHub release](https://github.com/kiteretsu903/pick-via/releases/latest).
 2. Drag **PickVia** to the **Applications** folder shown in the installer.
 3. Open **PickVia** from Applications and follow the welcome flow.
@@ -91,7 +91,7 @@ shortcuts.
 
 ### First launch and Gatekeeper
 
-PickVia v1.2 is ad-hoc signed and not notarized. macOS will block the first
+PickVia v1.3 is ad-hoc signed and not notarized. macOS will block the first
 launch of the downloaded app. If you have downloaded it from this GitHub
 release and choose to trust it:
 

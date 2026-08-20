@@ -6,8 +6,8 @@ PickVia currently provides security updates for the latest public release.
 
 | Version | Supported |
 | --- | --- |
-| 1.2.x | Yes |
-| 1.1.x and earlier | No |
+| 1.3.x | Yes |
+| 1.2.x and earlier | No |
 
 ## Reporting a vulnerability
 
