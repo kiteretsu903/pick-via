@@ -68,6 +68,34 @@ struct DuckDuckGoProcessCoordinatorTests {
     #expect(try fixture.realStore.records().count == 1)
   }
 
+  @Test func unfinishedManagedProcessWaitsBeforeReuse() async throws {
+    let fixture = try CoordinatorFixture(
+      compatibility: .fire,
+      existingManagedPIDs: [7001]
+    )
+    defer { fixture.removeRoot() }
+    await fixture.applications.mutateSnapshot(processIdentifier: 7001) { value in
+      DuckDuckGoApplicationSnapshot(
+        processIdentifier: value.processIdentifier,
+        bundleIdentifier: value.bundleIdentifier,
+        bundleURL: value.bundleURL,
+        executableURL: value.executableURL,
+        launchDate: value.launchDate,
+        isFinishedLaunching: false,
+        isTerminated: value.isTerminated
+      )
+    }
+
+    try await fixture.coordinator.open(
+      url: URL(string: "https://example.com/wait-before-reuse")!,
+      applicationURL: fixture.applicationURL,
+      mode: .private
+    )
+
+    #expect(await fixture.applications.waitTimeouts == [.seconds(5)])
+    #expect(await fixture.events.invocations.map(\.processIdentifier) == [7001, 7001])
+  }
+
   @Test func concurrentFireRoutesSerializeAroundTheFirstLaunch() async throws {
     let fixture = try CoordinatorFixture(
       compatibility: .fire,
@@ -97,6 +125,44 @@ struct DuckDuckGoProcessCoordinatorTests {
     try await first.value
     try await second.value
     #expect(await fixture.applications.launches.count == 1)
+  }
+
+  @Test func cancelledQueuedRouteDoesNotLaunchOrDeliverEvents() async throws {
+    let fixture = try CoordinatorFixture(
+      compatibility: .fire,
+      suspendsLaunch: true
+    )
+    defer { fixture.removeRoot() }
+    let firstURL = URL(string: "https://example.com/cancellation-first")!
+    let first = Task {
+      try await fixture.coordinator.open(
+        url: firstURL,
+        applicationURL: fixture.applicationURL,
+        mode: .private
+      )
+    }
+    await fixture.applications.waitUntilLaunchCount(1)
+    let cancelled = Task {
+      try await fixture.coordinator.open(
+        url: URL(string: "https://example.com/cancelled")!,
+        applicationURL: fixture.applicationURL,
+        mode: .private
+      )
+    }
+    for _ in 0..<20 { await Task.yield() }
+    cancelled.cancel()
+
+    await fixture.applications.resumeSuspendedLaunches()
+    try await first.value
+    await #expect(throws: CancellationError.self) {
+      try await cancelled.value
+    }
+    #expect(await fixture.applications.launches.count == 1)
+    #expect(
+      await fixture.events.invocations.map(\.event) == [
+        .reopen, .openURL(firstURL),
+      ]
+    )
   }
 
   @Test func newestManagedProcessIsReused() async throws {
@@ -179,6 +245,55 @@ struct DuckDuckGoProcessCoordinatorTests {
     #expect(try fixture.realStore.records().map(\.marker.processIdentifier) == [7101])
     #expect(await fixture.applications.launches.count == 1)
     #expect(await fixture.events.invocations.isEmpty)
+  }
+
+  @Test func privateRoutePreservesButDoesNotReuseAnotherCanonicalAppPath() async throws {
+    let fixture = try CoordinatorFixture(compatibility: .fire)
+    defer { fixture.removeRoot() }
+    let otherApplicationURL = URL(
+      fileURLWithPath: "/Volumes/Other/DuckDuckGo.app",
+      isDirectory: true
+    )
+    let otherExecutableURL = otherApplicationURL.appending(
+      path: "Contents/MacOS/DuckDuckGo"
+    )
+    let launchDate = Date(timeIntervalSince1970: 4_321)
+    let session = try fixture.realStore.prepareHome()
+    try fixture.realStore.save(
+      DuckDuckGoManagedProcessMarker(
+        identifier: session.identifier,
+        processIdentifier: 7101,
+        launchDate: launchDate,
+        applicationPath: otherApplicationURL.path,
+        executablePath: otherExecutableURL.path
+      ),
+      for: session
+    )
+    await fixture.applications.setSnapshot(
+      DuckDuckGoProcessCoordinatorTests.makeSnapshot(
+        processIdentifier: 7101,
+        applicationURL: otherApplicationURL,
+        executableURL: otherExecutableURL,
+        launchDate: launchDate
+      )
+    )
+
+    try await fixture.coordinator.open(
+      url: URL(string: "https://example.com/current-fire")!,
+      applicationURL: fixture.applicationURL,
+      mode: .private
+    )
+
+    #expect(await fixture.applications.launches.count == 1)
+    #expect(
+      !(await fixture.events.invocations).contains {
+        $0.processIdentifier == 7101
+      }
+    )
+    #expect(
+      try fixture.realStore.records().map(\.marker.processIdentifier).sorted()
+        == [7001, 7101]
+    )
   }
 
   @Test func ordinaryStartsRealHomeInstanceWhenOnlyManagedProcessExists() async throws {
@@ -303,6 +418,64 @@ struct DuckDuckGoProcessCoordinatorTests {
     )
     #expect(await fixture.applications.launches.count == 1)
     #expect(try fixture.realStore.records().map(\.marker.processIdentifier) == [9001])
+  }
+
+  @Test func missingManagedLaunchDateIsPreservedAndNotTargetedAsOrdinary() async throws {
+    let fixture = try CoordinatorFixture(
+      compatibility: .fire,
+      existingManagedPIDs: [7001],
+      unmanagedPIDs: [8001]
+    )
+    defer { fixture.removeRoot() }
+    await fixture.applications.mutateSnapshot(processIdentifier: 7001) { value in
+      DuckDuckGoApplicationSnapshot(
+        processIdentifier: value.processIdentifier,
+        bundleIdentifier: value.bundleIdentifier,
+        bundleURL: value.bundleURL,
+        executableURL: value.executableURL,
+        launchDate: nil,
+        isFinishedLaunching: value.isFinishedLaunching,
+        isTerminated: value.isTerminated
+      )
+    }
+
+    try await fixture.coordinator.open(
+      url: URL(string: "https://example.com/ambiguous-date")!,
+      applicationURL: fixture.applicationURL,
+      mode: .normal
+    )
+
+    #expect(try fixture.realStore.records().map(\.marker.processIdentifier) == [7001])
+    #expect(await fixture.events.invocations.map(\.processIdentifier) == [8001])
+  }
+
+  @Test func missingManagedBundlePathIsPreservedAndNotTargetedAsOrdinary() async throws {
+    let fixture = try CoordinatorFixture(
+      compatibility: .fire,
+      existingManagedPIDs: [7001],
+      unmanagedPIDs: [8001]
+    )
+    defer { fixture.removeRoot() }
+    await fixture.applications.mutateSnapshot(processIdentifier: 7001) { value in
+      DuckDuckGoApplicationSnapshot(
+        processIdentifier: value.processIdentifier,
+        bundleIdentifier: value.bundleIdentifier,
+        bundleURL: nil,
+        executableURL: value.executableURL,
+        launchDate: value.launchDate,
+        isFinishedLaunching: value.isFinishedLaunching,
+        isTerminated: value.isTerminated
+      )
+    }
+
+    try await fixture.coordinator.open(
+      url: URL(string: "https://example.com/ambiguous-path")!,
+      applicationURL: fixture.applicationURL,
+      mode: .normal
+    )
+
+    #expect(try fixture.realStore.records().map(\.marker.processIdentifier) == [7001])
+    #expect(await fixture.events.invocations.map(\.processIdentifier) == [8001])
   }
 
   @Test func mismatchedBundleAndExecutableManagedRecordsAreBothExcludedFromNormal()
@@ -437,6 +610,28 @@ struct DuckDuckGoProcessCoordinatorTests {
     #expect(await fixture.events.invocations.isEmpty)
   }
 
+  @Test func markerFailurePreservesSessionUntilSuccessfulTerminationActuallyExits()
+    async throws
+  {
+    let fixture = try CoordinatorFixture(
+      compatibility: .fire,
+      storeFailure: .save,
+      terminationSucceeds: true,
+      keepsSnapshotAfterSuccessfulTermination: true
+    )
+    defer { fixture.removeRoot() }
+
+    await #expect(throws: TestFailure.save) {
+      try await fixture.coordinator.open(
+        url: URL(string: "https://example.com/still-live")!,
+        applicationURL: fixture.applicationURL,
+        mode: .private
+      )
+    }
+    #expect(await fixture.applications.terminatedPIDs == [7001])
+    #expect(fixture.sessionDirectoryNames().count == 1)
+  }
+
   @Test func markerFailurePreservesSessionWhenTerminationFailsAndPIDStillExists()
     async throws
   {
@@ -515,7 +710,47 @@ struct DuckDuckGoProcessCoordinatorTests {
       )
     }
     #expect(await fixture.events.invocations.isEmpty)
+    #expect(await fixture.applications.terminatedPIDs == [7001])
     #expect(try fixture.realStore.records().isEmpty)
+    #expect(fixture.sessionDirectoryNames().isEmpty)
+  }
+
+  @Test func identityMismatchPreservesSessionUntilRollbackExitIsConfirmed() async throws {
+    let fixture = try CoordinatorFixture(
+      compatibility: .fire,
+      terminationSucceeds: true,
+      keepsSnapshotAfterSuccessfulTermination: true,
+      launchedBundleIdentifier: "not.duckduckgo"
+    )
+    defer { fixture.removeRoot() }
+
+    await #expect(throws: DuckDuckGoRoutingError.processIdentityMismatch) {
+      try await fixture.coordinator.open(
+        url: URL(string: "https://example.com/bad-process-still-live")!,
+        applicationURL: fixture.applicationURL,
+        mode: .private
+      )
+    }
+    #expect(await fixture.applications.terminatedPIDs == [7001])
+    #expect(fixture.sessionDirectoryNames().count == 1)
+  }
+
+  @Test func identityMismatchDoesNotTerminateWhenReturnedIdentityIsAmbiguous() async throws {
+    let fixture = try CoordinatorFixture(
+      compatibility: .fire,
+      launchedBundleIdentifier: nil
+    )
+    defer { fixture.removeRoot() }
+
+    await #expect(throws: DuckDuckGoRoutingError.processIdentityMismatch) {
+      try await fixture.coordinator.open(
+        url: URL(string: "https://example.com/ambiguous-returned-process")!,
+        applicationURL: fixture.applicationURL,
+        mode: .private
+      )
+    }
+    #expect(await fixture.applications.terminatedPIDs.isEmpty)
+    #expect(fixture.sessionDirectoryNames().count == 1)
   }
 
   @Test func resolvedApplicationURLIsUsedForCompatibilityAndLaunch() async throws {
@@ -591,7 +826,7 @@ struct DuckDuckGoProcessCoordinatorTests {
     executableURL: URL,
     launchDate: Date,
     isTerminated: Bool = false,
-    bundleIdentifier: String = DuckDuckGoBuildCompatibilityChecker.bundleIdentifier
+    bundleIdentifier: String? = DuckDuckGoBuildCompatibilityChecker.bundleIdentifier
   ) -> DuckDuckGoApplicationSnapshot {
     DuckDuckGoApplicationSnapshot(
       processIdentifier: processIdentifier,
@@ -614,7 +849,7 @@ private actor RecordingDuckDuckGoApplicationManager: DuckDuckGoApplicationManagi
   private(set) var waitTimeouts: [Duration] = []
   let activationSucceeds: Bool
   let terminationSucceeds: Bool
-  let removesSnapshotWhenTerminationFails: Bool
+  let removesSnapshotOnTermination: Bool
   let launchError: TestFailure?
   let waitError: TestFailure?
   let suspendsLaunch: Bool
@@ -625,7 +860,7 @@ private actor RecordingDuckDuckGoApplicationManager: DuckDuckGoApplicationManagi
     nextLaunch: DuckDuckGoApplicationSnapshot,
     activationSucceeds: Bool = true,
     terminationSucceeds: Bool = true,
-    removesSnapshotWhenTerminationFails: Bool = false,
+    removesSnapshotOnTermination: Bool = true,
     launchError: TestFailure? = nil,
     waitError: TestFailure? = nil,
     suspendsLaunch: Bool = false
@@ -634,7 +869,7 @@ private actor RecordingDuckDuckGoApplicationManager: DuckDuckGoApplicationManagi
     self.nextLaunch = nextLaunch
     self.activationSucceeds = activationSucceeds
     self.terminationSucceeds = terminationSucceeds
-    self.removesSnapshotWhenTerminationFails = removesSnapshotWhenTerminationFails
+    self.removesSnapshotOnTermination = removesSnapshotOnTermination
     self.launchError = launchError
     self.waitError = waitError
     self.suspendsLaunch = suspendsLaunch
@@ -697,7 +932,7 @@ private actor RecordingDuckDuckGoApplicationManager: DuckDuckGoApplicationManagi
 
   func terminate(processIdentifier: Int32) async -> Bool {
     terminatedPIDs.append(processIdentifier)
-    if terminationSucceeds || removesSnapshotWhenTerminationFails {
+    if removesSnapshotOnTermination {
       snapshots.removeValue(forKey: processIdentifier)
     }
     return terminationSucceeds
@@ -833,7 +1068,8 @@ private final class CoordinatorFixture: @unchecked Sendable {
     storeFailure: FailingDuckDuckGoManagedStateStore.Failure? = nil,
     terminationSucceeds: Bool = true,
     removesSnapshotWhenTerminationFails: Bool = false,
-    launchedBundleIdentifier: String = DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
+    keepsSnapshotAfterSuccessfulTermination: Bool = false,
+    launchedBundleIdentifier: String? = DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
     suspendsLaunch: Bool = false
   ) throws {
     try self.init(
@@ -849,6 +1085,7 @@ private final class CoordinatorFixture: @unchecked Sendable {
       storeFailure: storeFailure,
       terminationSucceeds: terminationSucceeds,
       removesSnapshotWhenTerminationFails: removesSnapshotWhenTerminationFails,
+      keepsSnapshotAfterSuccessfulTermination: keepsSnapshotAfterSuccessfulTermination,
       launchedBundleIdentifier: launchedBundleIdentifier,
       suspendsLaunch: suspendsLaunch
     )
@@ -867,7 +1104,8 @@ private final class CoordinatorFixture: @unchecked Sendable {
     storeFailure: FailingDuckDuckGoManagedStateStore.Failure? = nil,
     terminationSucceeds: Bool = true,
     removesSnapshotWhenTerminationFails: Bool = false,
-    launchedBundleIdentifier: String = DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
+    keepsSnapshotAfterSuccessfulTermination: Bool = false,
+    launchedBundleIdentifier: String? = DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
     suspendsLaunch: Bool = false
   ) throws {
     root = FileManager.default.temporaryDirectory.appending(
@@ -925,7 +1163,8 @@ private final class CoordinatorFixture: @unchecked Sendable {
       nextLaunch: nextLaunch,
       activationSucceeds: activationSucceeds,
       terminationSucceeds: terminationSucceeds,
-      removesSnapshotWhenTerminationFails: removesSnapshotWhenTerminationFails,
+      removesSnapshotOnTermination: !keepsSnapshotAfterSuccessfulTermination
+        && (terminationSucceeds || removesSnapshotWhenTerminationFails),
       launchError: launchError,
       waitError: waitError,
       suspendsLaunch: suspendsLaunch

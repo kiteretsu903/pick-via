@@ -18,9 +18,20 @@ enum DuckDuckGoRoutingError: Error, Equatable, Sendable {
 }
 
 public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
+  private enum ManagedIdentityEvaluation {
+    case confirmed
+    case ambiguous
+    case stale
+  }
+
   private struct LiveManagedProcess: Sendable {
     let record: DuckDuckGoManagedSessionRecord
     let snapshot: DuckDuckGoApplicationSnapshot
+  }
+
+  private struct ManagedProcessInventory: Sendable {
+    var confirmed: [LiveManagedProcess] = []
+    var excludedProcessIdentifiers: Set<Int32> = []
   }
 
   private let compatibilityChecker: any DuckDuckGoBuildCompatibilityChecking
@@ -64,6 +75,7 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
   ) async throws {
     await acquireRoute()
     defer { releaseRoute() }
+    try Task.checkCancellation()
     try await openSerially(url: url, applicationURL: applicationURL, mode: mode)
   }
 
@@ -86,7 +98,8 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
       break
     }
 
-    let liveManaged = try await liveManagedProcesses()
+    let managed = try await managedProcessInventory()
+    try Task.checkCancellation()
 
     switch mode {
     case .normal:
@@ -94,11 +107,18 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
         url: url,
         applicationURL: trustedApplicationURL,
         executableURL: expectedExecutableURL,
-        excluding: Set(liveManaged.map(\.snapshot.processIdentifier))
+        excluding: managed.excludedProcessIdentifiers
       )
     case .private:
-      if let existing = Self.newestLiveManaged(liveManaged) {
-        try await deliverFireURL(url, to: existing.snapshot.processIdentifier)
+      let reusable = managed.confirmed.filter {
+        Self.markerMatchesApplication(
+          $0.record.marker,
+          applicationURL: trustedApplicationURL,
+          executableURL: expectedExecutableURL
+        )
+      }
+      if let existing = Self.newestLiveManaged(reusable) {
+        try await reuseFireProcess(existing, url: url)
       } else {
         try await launchFire(
           url: url,
@@ -127,25 +147,28 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     routeWaiters.removeFirst().resume()
   }
 
-  private func liveManagedProcesses() async throws -> [LiveManagedProcess] {
+  private func managedProcessInventory() async throws -> ManagedProcessInventory {
     let records = try stateStore.records()
-    var live: [LiveManagedProcess] = []
+    var inventory = ManagedProcessInventory()
     for record in records {
       let snapshot = await applications.snapshot(
         processIdentifier: record.marker.processIdentifier
       )
-      if let snapshot,
-        Self.matchesManagedIdentity(
-          snapshot,
-          marker: record.marker
+      switch Self.evaluateManagedIdentity(snapshot, marker: record.marker) {
+      case .confirmed:
+        guard let snapshot else { continue }
+        inventory.confirmed.append(
+          LiveManagedProcess(record: record, snapshot: snapshot)
         )
-      {
-        live.append(LiveManagedProcess(record: record, snapshot: snapshot))
-      } else {
+        inventory.excludedProcessIdentifiers.insert(record.marker.processIdentifier)
+      case .ambiguous:
+        inventory.excludedProcessIdentifiers.insert(record.marker.processIdentifier)
+      case .stale:
+        try Task.checkCancellation()
         try stateStore.removeSession(identifier: record.session.identifier)
       }
     }
-    return live
+    return inventory
   }
 
   private func openOrdinary(
@@ -170,6 +193,7 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
       .max { ($0.launchDate ?? .distantPast) < ($1.launchDate ?? .distantPast) }
 
     guard let existing else {
+      try Task.checkCancellation()
       _ = try await applications.launch(
         DuckDuckGoApplicationLaunchRequest(
           applicationURL: applicationURL,
@@ -186,7 +210,9 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     logger.debug(
       "Sending DuckDuckGo URL event to PID \(existing.processIdentifier, privacy: .public)"
     )
+    try Task.checkCancellation()
     try await events.send(.openURL(url), processIdentifier: existing.processIdentifier)
+    try Task.checkCancellation()
     guard await applications.activate(processIdentifier: existing.processIdentifier) else {
       throw DuckDuckGoRoutingError.activationFailed
     }
@@ -197,9 +223,11 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     applicationURL: URL,
     executableURL: URL
   ) async throws {
+    try Task.checkCancellation()
     let session = try stateStore.prepareHome(identifier: UUID())
     let launched: DuckDuckGoApplicationSnapshot
     do {
+      try Task.checkCancellation()
       launched = try await applications.launch(
         DuckDuckGoApplicationLaunchRequest(
           applicationURL: applicationURL,
@@ -220,10 +248,17 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
         launched,
         applicationURL: applicationURL,
         executableURL: executableURL
-      ),
-      let launchDate = launched.launchDate
+      ), let launchDate = launched.launchDate
     else {
+      await rollbackFreshLaunch(launched, session: session)
       throw DuckDuckGoRoutingError.processIdentityMismatch
+    }
+
+    do {
+      try Task.checkCancellation()
+    } catch {
+      await rollbackFreshLaunch(launched, session: session)
+      throw error
     }
 
     let marker = DuckDuckGoManagedProcessMarker(
@@ -236,16 +271,7 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     do {
       try stateStore.save(marker, for: session)
     } catch {
-      let terminated = await applications.terminate(
-        processIdentifier: launched.processIdentifier
-      )
-      let processIsAbsent =
-        await applications.snapshot(
-          processIdentifier: launched.processIdentifier
-        ) == nil
-      if terminated || processIsAbsent {
-        try? stateStore.removeSession(identifier: session.identifier)
-      }
+      await rollbackFreshLaunch(launched, session: session)
       throw error
     }
 
@@ -255,14 +281,13 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
         processIdentifier: launched.processIdentifier,
         timeout: .seconds(5)
       )
+    } catch is CancellationError {
+      throw CancellationError()
     } catch {
       throw DuckDuckGoRoutingError.readinessTimeout
     }
     guard
-      Self.matchesManagedIdentity(
-        ready,
-        marker: marker
-      )
+      Self.evaluateManagedIdentity(ready, marker: marker) == .confirmed
     else {
       throw DuckDuckGoRoutingError.processIdentityMismatch
     }
@@ -271,17 +296,85 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
   }
 
   private func deliverFireURL(_ url: URL, to processIdentifier: Int32) async throws {
+    try Task.checkCancellation()
     logger.debug(
       "Sending DuckDuckGo reopen event to PID \(processIdentifier, privacy: .public)"
     )
     try await events.send(.reopen, processIdentifier: processIdentifier)
+    try Task.checkCancellation()
     logger.debug(
       "Sending DuckDuckGo URL event to PID \(processIdentifier, privacy: .public)"
     )
     try await events.send(.openURL(url), processIdentifier: processIdentifier)
+    try Task.checkCancellation()
     guard await applications.activate(processIdentifier: processIdentifier) else {
       throw DuckDuckGoRoutingError.activationFailed
     }
+  }
+
+  private func reuseFireProcess(
+    _ process: LiveManagedProcess,
+    url: URL
+  ) async throws {
+    var snapshot = process.snapshot
+    if !snapshot.isFinishedLaunching {
+      try Task.checkCancellation()
+      do {
+        snapshot = try await applications.waitUntilFinishedLaunching(
+          processIdentifier: snapshot.processIdentifier,
+          timeout: .seconds(5)
+        )
+      } catch is CancellationError {
+        throw CancellationError()
+      } catch {
+        throw DuckDuckGoRoutingError.readinessTimeout
+      }
+      guard
+        Self.evaluateManagedIdentity(snapshot, marker: process.record.marker)
+          == .confirmed
+      else {
+        throw DuckDuckGoRoutingError.processIdentityMismatch
+      }
+    }
+    try await deliverFireURL(url, to: snapshot.processIdentifier)
+  }
+
+  private func rollbackFreshLaunch(
+    _ launched: DuckDuckGoApplicationSnapshot,
+    session: DuckDuckGoManagedSession
+  ) async {
+    let applications = self.applications
+    let stateStore = self.stateStore
+    await Task.detached {
+      guard
+        let current = await applications.snapshot(
+          processIdentifier: launched.processIdentifier
+        )
+      else {
+        try? stateStore.removeSession(identifier: session.identifier)
+        return
+      }
+      guard !current.isTerminated else {
+        try? stateStore.removeSession(identifier: session.identifier)
+        return
+      }
+      guard Self.representsSameLaunch(current, as: launched) else { return }
+
+      _ = await applications.terminate(processIdentifier: launched.processIdentifier)
+      let clock = ContinuousClock()
+      let deadline = clock.now.advanced(by: .milliseconds(500))
+      while true {
+        let value = await applications.snapshot(
+          processIdentifier: launched.processIdentifier
+        )
+        if value == nil || value?.isTerminated == true {
+          try? stateStore.removeSession(identifier: session.identifier)
+          return
+        }
+        guard clock.now < deadline else { return }
+        try? await clock.sleep(for: .milliseconds(50))
+      }
+    }.value
   }
 
   private static func newestLiveManaged(
@@ -290,24 +383,66 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     processes.max { $0.record.marker.launchDate < $1.record.marker.launchDate }
   }
 
-  private static func matchesManagedIdentity(
-    _ snapshot: DuckDuckGoApplicationSnapshot,
+  private static func evaluateManagedIdentity(
+    _ snapshot: DuckDuckGoApplicationSnapshot?,
     marker: DuckDuckGoManagedProcessMarker
-  ) -> Bool {
-    guard !snapshot.isTerminated,
-      snapshot.processIdentifier == marker.processIdentifier,
-      snapshot.bundleIdentifier == DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
-      let bundleURL = snapshot.bundleURL,
+  ) -> ManagedIdentityEvaluation {
+    guard let snapshot, !snapshot.isTerminated else { return .stale }
+    guard snapshot.processIdentifier == marker.processIdentifier else { return .stale }
+    guard let bundleIdentifier = snapshot.bundleIdentifier else { return .ambiguous }
+    guard bundleIdentifier == DuckDuckGoBuildCompatibilityChecker.bundleIdentifier else {
+      return .stale
+    }
+    guard let bundleURL = snapshot.bundleURL,
       let executableURL = snapshot.executableURL,
+      let launchDate = snapshot.launchDate
+    else {
+      return .ambiguous
+    }
+    guard
       canonicalFileURL(bundleURL).path
         == canonicalFileURL(URL(fileURLWithPath: marker.applicationPath)).path,
       canonicalFileURL(executableURL).path
         == canonicalFileURL(URL(fileURLWithPath: marker.executablePath)).path,
-      let launchDate = snapshot.launchDate
+      abs(launchDate.timeIntervalSince(marker.launchDate)) <= 1
+    else {
+      return .stale
+    }
+    return .confirmed
+  }
+
+  private static func markerMatchesApplication(
+    _ marker: DuckDuckGoManagedProcessMarker,
+    applicationURL: URL,
+    executableURL: URL
+  ) -> Bool {
+    canonicalFileURL(URL(fileURLWithPath: marker.applicationPath)).path
+      == applicationURL.path
+      && canonicalFileURL(URL(fileURLWithPath: marker.executablePath)).path
+        == executableURL.path
+  }
+
+  private static func representsSameLaunch(
+    _ current: DuckDuckGoApplicationSnapshot,
+    as launched: DuckDuckGoApplicationSnapshot
+  ) -> Bool {
+    guard current.processIdentifier == launched.processIdentifier,
+      let launchedBundleIdentifier = launched.bundleIdentifier,
+      current.bundleIdentifier == launchedBundleIdentifier,
+      let currentBundleURL = current.bundleURL,
+      let launchedBundleURL = launched.bundleURL,
+      let currentExecutableURL = current.executableURL,
+      let launchedExecutableURL = launched.executableURL,
+      let currentLaunchDate = current.launchDate,
+      let launchedLaunchDate = launched.launchDate
     else {
       return false
     }
-    return abs(launchDate.timeIntervalSince(marker.launchDate)) <= 1
+    return canonicalFileURL(currentBundleURL).path
+      == canonicalFileURL(launchedBundleURL).path
+      && canonicalFileURL(currentExecutableURL).path
+        == canonicalFileURL(launchedExecutableURL).path
+      && abs(currentLaunchDate.timeIntervalSince(launchedLaunchDate)) <= 1
   }
 
   private static func matchesApplicationIdentity(
