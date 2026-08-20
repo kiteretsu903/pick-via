@@ -715,7 +715,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     RouteTarget(
       id: discovered.id,
       browserID: discovered.applicationID,
-      label: existing.label,
+      label: reconciledLabel(discovered: discovered, existing: existing),
       profileIdentifier: discovered.profileIdentifier,
       profileDisplayName: discovered.profileDisplayName,
       profileIdentity: discovered.profileIdentity,
@@ -732,6 +732,32 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       pendingDefaultMigration: pendingDefaultMigration,
       validationError: nil
     )
+  }
+
+  private static func reconciledLabel(
+    discovered: RouteTarget,
+    existing: RouteTarget
+  ) -> String {
+    let duckDuckGoBundleIdentifier = DuckDuckGoBuildCompatibilityChecker.bundleIdentifier
+    let canonicalPrivateID = targetID(
+      bundleIdentifier: duckDuckGoBundleIdentifier,
+      profileIdentifier: nil,
+      mode: .private
+    )
+    guard
+      discovered.id == canonicalPrivateID,
+      existing.id == canonicalPrivateID,
+      discovered.applicationID == duckDuckGoBundleIdentifier,
+      existing.applicationID == duckDuckGoBundleIdentifier,
+      discovered.mode == .private,
+      existing.mode == .private,
+      discovered.origin == .detected,
+      existing.origin == .detected,
+      isBrowserLevelTarget(discovered),
+      isBrowserLevelTarget(existing),
+      existing.label == "DuckDuckGo Fire Window"
+    else { return existing.label }
+    return discovered.label
   }
 
   private static func preservingAvailability(

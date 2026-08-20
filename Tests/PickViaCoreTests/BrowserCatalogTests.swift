@@ -70,6 +70,68 @@ struct BrowserCatalogTests {
     #expect(reconciled.targets.map(\.mode) == [.normal])
   }
 
+  @Test func duckDuckGoRescanMigratesLegacyGeneratedPrivateLabel() throws {
+    let browser = duckDuckGoBrowser(privateModeIsAvailable: true)
+    let initial = BrowserCatalog.reconcile(discovered: [browser], with: .initial)
+    let privateID = BrowserCatalog.targetID(
+      bundleIdentifier: browser.application.bundleIdentifier,
+      profileIdentifier: nil,
+      mode: .private
+    )
+    let legacyTargets = initial.targets.map { target in
+      target.id == privateID
+        ? copy(
+          target,
+          label: "DuckDuckGo Fire Window",
+          enabled: target.isEnabled,
+          sortOrder: target.sortOrder
+        )
+        : target
+    }
+
+    let result = BrowserCatalog.reconcile(
+      discovered: [browser],
+      with: PickViaConfig(
+        schemaVersion: initial.schemaVersion,
+        browsers: initial.browsers,
+        targets: legacyTargets
+      )
+    )
+
+    #expect(result.targets.first { $0.id == privateID }?.label == "DuckDuckGo Private")
+  }
+
+  @Test func duckDuckGoRescanPreservesCustomPrivateLabel() throws {
+    let browser = duckDuckGoBrowser(privateModeIsAvailable: true)
+    let initial = BrowserCatalog.reconcile(discovered: [browser], with: .initial)
+    let privateID = BrowserCatalog.targetID(
+      bundleIdentifier: browser.application.bundleIdentifier,
+      profileIdentifier: nil,
+      mode: .private
+    )
+    let customizedTargets = initial.targets.map { target in
+      target.id == privateID
+        ? copy(
+          target,
+          label: "My Duck Browser",
+          enabled: target.isEnabled,
+          sortOrder: target.sortOrder
+        )
+        : target
+    }
+
+    let result = BrowserCatalog.reconcile(
+      discovered: [browser],
+      with: PickViaConfig(
+        schemaVersion: initial.schemaVersion,
+        browsers: initial.browsers,
+        targets: customizedTargets
+      )
+    )
+
+    #expect(result.targets.first { $0.id == privateID }?.label == "My Duck Browser")
+  }
+
   @Test func unsupportedDuckDuckGoBuildIsNotDiscovered() throws {
     let catalog = duckDuckGoCatalog(
       applicationURL: URL(fileURLWithPath: "/Applications/DuckDuckGo.app", isDirectory: true),
