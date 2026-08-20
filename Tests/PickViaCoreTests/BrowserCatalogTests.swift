@@ -169,6 +169,49 @@ struct BrowserCatalogTests {
     #expect(result.targets.first { $0.id == profileTarget.id }?.availability == .unavailable)
   }
 
+  @Test func duckDuckGoCanonicalIDCollisionPreservesProfileEvidenceAsUnavailable() throws {
+    let browser = duckDuckGoBrowser(privateModeIsAvailable: true)
+    let collidingID = BrowserCatalog.targetID(
+      bundleIdentifier: browser.application.bundleIdentifier,
+      profileIdentifier: nil,
+      mode: .normal
+    )
+    let collidingTarget = catalogTarget(
+      id: collidingID,
+      browser: browser.application,
+      label: "Colliding Profile",
+      profileIdentifier: "Profile 1",
+      profileDisplayName: "Profile 1",
+      profileIdentity: "Profile 1",
+      mode: .normal,
+      isEnabled: false,
+      sortOrder: 7,
+      availability: .unavailable
+    )
+
+    let result = BrowserCatalog.reconcile(
+      discovered: [browser],
+      with: PickViaConfig(
+        schemaVersion: 1,
+        browsers: [browser.application],
+        targets: [collidingTarget]
+      )
+    )
+    let persistedCollision = try #require(result.targets.first { $0.id == collidingID })
+    let privateID = BrowserCatalog.targetID(
+      bundleIdentifier: browser.application.bundleIdentifier,
+      profileIdentifier: nil,
+      mode: .private
+    )
+
+    #expect(result.targets.filter { $0.id == collidingID }.count == 1)
+    #expect(persistedCollision.availability == .unavailable)
+    #expect(persistedCollision.profileIdentifier == "Profile 1")
+    #expect(persistedCollision.profileDisplayName == "Profile 1")
+    #expect(persistedCollision.profileIdentity == "Profile 1")
+    #expect(result.targets.first { $0.id == privateID }?.availability == .available)
+  }
+
   @Test func chromeBetaDescriptorUsesCanonicalMacMetadata() throws {
     let descriptor = try #require(
       BrowserDescriptor.descriptor(forBundleIdentifier: "com.google.Chrome.beta"))

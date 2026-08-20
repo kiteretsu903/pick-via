@@ -297,6 +297,18 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     for browser in discovered {
       let candidates = targetCandidates(for: browser)
       for candidate in candidates {
+        let canonicalExisting = existingByID[candidate.id]
+        if browser.application.browserFamily == .duckDuckGo,
+          isBrowserLevelTarget(candidate),
+          let canonicalExisting,
+          !isBrowserLevelTarget(canonicalExisting)
+        {
+          consumedExistingIDs.insert(canonicalExisting.id)
+          reconciled.append(
+            preservingAvailability(canonicalExisting, discovered: [browser])
+          )
+          continue
+        }
         let canonicalDefaultMatches = legacyCanonicalDefaultMatches(
           for: candidate,
           browser: browser,
@@ -306,7 +318,6 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
           for: candidate,
           in: browserTargets
         )
-        let canonicalExisting = existingByID[candidate.id]
         let legacyCanonicalWinner = canonicalDefaultMatches.min(by: stableCustomizationOrder)
         let preferredCanonical = canonicalExisting.flatMap { existing in
           existing.pendingDefaultMigration && legacyCanonicalWinner != nil ? nil : existing
