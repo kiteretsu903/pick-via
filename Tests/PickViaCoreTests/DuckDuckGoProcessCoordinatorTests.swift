@@ -1235,6 +1235,308 @@ struct DuckDuckGoProcessCoordinatorTests {
     #expect(await events.invocations.isEmpty)
   }
 
+  @Test func quarantineAuthorityAppliesToEveryProcessMarkerInItsSession() async throws {
+    let fixture = try CoordinatorFixture(compatibility: .fire)
+    defer { fixture.removeRoot() }
+    let session = try fixture.realStore.prepareHome()
+    let quarantineDate = Date(timeIntervalSince1970: 7_101)
+    let processDate = Date(timeIntervalSince1970: 7_201)
+    try fixture.realStore.saveQuarantine(
+      DuckDuckGoLaunchQuarantineMarker(
+        identifier: session.identifier,
+        processIdentifier: 7101,
+        launchDate: quarantineDate,
+        applicationPath: fixture.applicationURL.path,
+        executablePath: fixture.executableURL.path
+      ),
+      for: session
+    )
+    try fixture.realStore.save(
+      DuckDuckGoManagedProcessMarker(
+        identifier: session.identifier,
+        processIdentifier: 7201,
+        launchDate: processDate,
+        applicationPath: fixture.applicationURL.path,
+        executablePath: fixture.executableURL.path
+      ),
+      for: session
+    )
+    await fixture.applications.setSnapshot(
+      Self.makeSnapshot(
+        processIdentifier: 7101,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: quarantineDate
+      )
+    )
+    await fixture.applications.setSnapshot(
+      Self.makeSnapshot(
+        processIdentifier: 7201,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: processDate
+      )
+    )
+    await fixture.applications.setNextLaunch(
+      Self.makeSnapshot(
+        processIdentifier: 8001,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: Date(timeIntervalSince1970: 8_001)
+      )
+    )
+
+    try await fixture.coordinator.open(
+      url: URL(string: "https://example.com/session-wide-normal")!,
+      applicationURL: fixture.applicationURL,
+      mode: .normal
+    )
+    await fixture.applications.setNextLaunch(
+      Self.makeSnapshot(
+        processIdentifier: 8002,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: Date(timeIntervalSince1970: 8_002)
+      )
+    )
+    try await fixture.coordinator.open(
+      url: URL(string: "https://example.com/session-wide-private")!,
+      applicationURL: fixture.applicationURL,
+      mode: .private
+    )
+
+    #expect(await fixture.applications.launches.count == 2)
+    #expect(
+      !(await fixture.events.invocations).contains {
+        $0.processIdentifier == 7101 || $0.processIdentifier == 7201
+      }
+    )
+    #expect(await fixture.events.invocations.map(\.processIdentifier) == [8002, 8002])
+    #expect(FileManager.default.fileExists(atPath: session.sessionDirectory.path))
+  }
+
+  @Test func duplicateQuarantinePIDStillProtectsEveryUUIDSession() async throws {
+    let fixture = try CoordinatorFixture(compatibility: .fire)
+    defer { fixture.removeRoot() }
+    let quarantineDate = Date(timeIntervalSince1970: 7_501)
+    let identifiers = [
+      UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+      UUID(uuidString: "22222222-3333-4444-5555-666666666666")!,
+    ]
+    for (index, identifier) in identifiers.enumerated() {
+      let session = try fixture.realStore.prepareHome(identifier: identifier)
+      try fixture.realStore.saveQuarantine(
+        DuckDuckGoLaunchQuarantineMarker(
+          identifier: identifier,
+          processIdentifier: 7501,
+          launchDate: quarantineDate,
+          applicationPath: fixture.applicationURL.path,
+          executablePath: fixture.executableURL.path
+        ),
+        for: session
+      )
+      let processIdentifier = Int32(7601 + index)
+      let processDate = Date(timeIntervalSince1970: 7_601 + Double(index))
+      try fixture.realStore.save(
+        DuckDuckGoManagedProcessMarker(
+          identifier: identifier,
+          processIdentifier: processIdentifier,
+          launchDate: processDate,
+          applicationPath: fixture.applicationURL.path,
+          executablePath: fixture.executableURL.path
+        ),
+        for: session
+      )
+      await fixture.applications.setSnapshot(
+        Self.makeSnapshot(
+          processIdentifier: processIdentifier,
+          applicationURL: fixture.applicationURL,
+          executableURL: fixture.executableURL,
+          launchDate: processDate
+        )
+      )
+    }
+    await fixture.applications.setSnapshot(
+      Self.makeSnapshot(
+        processIdentifier: 7501,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: quarantineDate
+      )
+    )
+    await fixture.applications.setNextLaunch(
+      Self.makeSnapshot(
+        processIdentifier: 8001,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: Date(timeIntervalSince1970: 8_401)
+      )
+    )
+
+    try await fixture.coordinator.open(
+      url: URL(string: "https://example.com/duplicate-quarantine-pid")!,
+      applicationURL: fixture.applicationURL,
+      mode: .private
+    )
+
+    #expect(await fixture.applications.launches.count == 1)
+    #expect(await fixture.events.invocations.map(\.processIdentifier) == [8001, 8001])
+  }
+
+  @Test func corruptQuarantineBlocksProcessReuseAndStartupDeletion() async throws {
+    let fixture = try CoordinatorFixture(compatibility: .fire)
+    defer { fixture.removeRoot() }
+    let session = try fixture.realStore.prepareHome()
+    let processDate = Date(timeIntervalSince1970: 7_301)
+    try Data("not json".utf8).write(to: session.quarantineURL)
+    try fixture.realStore.save(
+      DuckDuckGoManagedProcessMarker(
+        identifier: session.identifier,
+        processIdentifier: 7301,
+        launchDate: processDate,
+        applicationPath: fixture.applicationURL.path,
+        executablePath: fixture.executableURL.path
+      ),
+      for: session
+    )
+    await fixture.applications.setSnapshot(
+      Self.makeSnapshot(
+        processIdentifier: 7301,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: processDate,
+        isTerminated: true
+      )
+    )
+    let startupCoordinator = DuckDuckGoProcessCoordinator(
+      compatibilityChecker: StubDuckDuckGoCompatibility(value: .fire),
+      applications: fixture.applications,
+      events: fixture.events,
+      stateStore: fixture.realStore,
+      rollbackExitTimeout: .zero,
+      startsStartupCleanup: true
+    )
+
+    try await startupCoordinator.waitForStartupCleanup()
+    #expect(FileManager.default.fileExists(atPath: session.sessionDirectory.path))
+    #expect(try Data(contentsOf: session.quarantineURL) == Data("not json".utf8))
+    await fixture.applications.setSnapshot(
+      Self.makeSnapshot(
+        processIdentifier: 7301,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: processDate
+      )
+    )
+    await fixture.applications.setNextLaunch(
+      Self.makeSnapshot(
+        processIdentifier: 8001,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: Date(timeIntervalSince1970: 8_101)
+      )
+    )
+
+    try await startupCoordinator.open(
+      url: URL(string: "https://example.com/corrupt-private")!,
+      applicationURL: fixture.applicationURL,
+      mode: .private
+    )
+
+    #expect(
+      !(await fixture.events.invocations).contains {
+        $0.processIdentifier == 7301
+      }
+    )
+  }
+
+  @Test func symlinkQuarantineBlocksProcessReuseWithoutTouchingTarget() async throws {
+    let fixture = try CoordinatorFixture(compatibility: .fire)
+    let external = fixture.root.deletingLastPathComponent()
+      .appending(path: "PickVia-Quarantine-Target-\(UUID()).json")
+    defer {
+      fixture.removeRoot()
+      try? FileManager.default.removeItem(at: external)
+    }
+    let session = try fixture.realStore.prepareHome()
+    let processDate = Date(timeIntervalSince1970: 7_401)
+    try Data("external keep".utf8).write(to: external)
+    try FileManager.default.createSymbolicLink(
+      at: session.quarantineURL,
+      withDestinationURL: external
+    )
+    try fixture.realStore.save(
+      DuckDuckGoManagedProcessMarker(
+        identifier: session.identifier,
+        processIdentifier: 7401,
+        launchDate: processDate,
+        applicationPath: fixture.applicationURL.path,
+        executablePath: fixture.executableURL.path
+      ),
+      for: session
+    )
+    await fixture.applications.setSnapshot(
+      Self.makeSnapshot(
+        processIdentifier: 7401,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: processDate
+      )
+    )
+    await fixture.applications.setNextLaunch(
+      Self.makeSnapshot(
+        processIdentifier: 8001,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: Date(timeIntervalSince1970: 8_201)
+      )
+    )
+
+    try await fixture.coordinator.open(
+      url: URL(string: "https://example.com/symlink-private")!,
+      applicationURL: fixture.applicationURL,
+      mode: .private
+    )
+
+    #expect(
+      !(await fixture.events.invocations).contains {
+        $0.processIdentifier == 7401
+      }
+    )
+    #expect(try Data(contentsOf: external) == Data("external keep".utf8))
+    #expect(FileManager.default.fileExists(atPath: session.sessionDirectory.path))
+  }
+
+  @Test func opaqueQuarantineWithoutProcessPIDExcludesEveryAmbientDuckDuckGo()
+    async throws
+  {
+    let fixture = try CoordinatorFixture(
+      compatibility: .fire,
+      unmanagedPIDs: [7501]
+    )
+    defer { fixture.removeRoot() }
+    let session = try fixture.realStore.prepareHome()
+    try Data("opaque".utf8).write(to: session.quarantineURL)
+    await fixture.applications.setNextLaunch(
+      Self.makeSnapshot(
+        processIdentifier: 8001,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: Date(timeIntervalSince1970: 8_301)
+      )
+    )
+
+    try await fixture.coordinator.open(
+      url: URL(string: "https://example.com/opaque-normal")!,
+      applicationURL: fixture.applicationURL,
+      mode: .normal
+    )
+
+    #expect(await fixture.applications.launches.count == 1)
+    #expect(await fixture.events.invocations.isEmpty)
+    #expect(FileManager.default.fileExists(atPath: session.sessionDirectory.path))
+  }
+
   private static func snapshot(
     copying value: DuckDuckGoApplicationSnapshot,
     bundleIdentifier: String? = nil,
@@ -1499,6 +1801,10 @@ private final class FailingDuckDuckGoManagedStateStore:
 
   func quarantineRecords() throws -> [DuckDuckGoLaunchQuarantineRecord] {
     try underlying.quarantineRecords()
+  }
+
+  func quarantineEntries() throws -> [DuckDuckGoLaunchQuarantineEntry] {
+    try underlying.quarantineEntries()
   }
 
   func removeQuarantine(for session: DuckDuckGoManagedSession) throws {

@@ -214,6 +214,14 @@ struct DuckDuckGoManagedStateStoreTests {
     #expect(FileManager.default.fileExists(atPath: schemaSession.quarantineURL.path))
     #expect(try symbolicLinkExists(at: symlinkSession.quarantineURL))
     #expect(FileManager.default.fileExists(atPath: externalMarker.path))
+    #expect(
+      try store.quarantineEntries() == [
+        .invalid(session: corruptSession),
+        .invalid(session: schemaSession),
+        .invalid(session: symlinkSession),
+        .valid(DuckDuckGoLaunchQuarantineRecord(session: validSession, marker: validMarker)),
+      ]
+    )
   }
 
   @Test func quarantineRemovalLeavesManagedMarkerAndSessionIntact() throws {

@@ -166,6 +166,13 @@ quarantine is removed only after process exit is proven, PID reuse is proven
 by a different non-null launch date, or the managed marker is durable and the
 quarantine marker itself has been removed successfully.
 
+Quarantine authority applies to the entire generated UUID session, not only
+to the PID inside a readable marker. If `Quarantine.json` is present but
+unsafe or malformed, the session is opaque: PickVia neither deletes it nor
+allows a `Process.json` in that session to make any process reusable. When an
+opaque session contains no readable process PID, routing also avoids all
+already-running DuckDuckGo processes and starts a fresh trusted instance.
+
 PickVia does not terminate the managed DuckDuckGo process merely because
 PickVia exits. After the managed process terminates, its exact generated cache
 directory is disposable and may be removed. Stale markers are cleaned on the

@@ -59,6 +59,20 @@ public struct DuckDuckGoLaunchQuarantineRecord: Equatable, Sendable {
   }
 }
 
+public enum DuckDuckGoLaunchQuarantineEntry: Equatable, Sendable {
+  case valid(DuckDuckGoLaunchQuarantineRecord)
+  case invalid(session: DuckDuckGoManagedSession)
+
+  public var session: DuckDuckGoManagedSession {
+    switch self {
+    case .valid(let record):
+      record.session
+    case .invalid(let session):
+      session
+    }
+  }
+}
+
 public struct DuckDuckGoManagedProcessMarker: Codable, Equatable, Sendable {
   public let schemaVersion: Int
   public let identifier: UUID
@@ -107,6 +121,7 @@ public protocol DuckDuckGoManagedStateStoring: Sendable {
     _ marker: DuckDuckGoLaunchQuarantineMarker,
     for session: DuckDuckGoManagedSession
   ) throws
+  func quarantineEntries() throws -> [DuckDuckGoLaunchQuarantineEntry]
   func quarantineRecords() throws -> [DuckDuckGoLaunchQuarantineRecord]
   func removeQuarantine(for session: DuckDuckGoManagedSession) throws
   func removeSession(identifier: UUID) throws
@@ -268,6 +283,13 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
   }
 
   public func quarantineRecords() throws -> [DuckDuckGoLaunchQuarantineRecord] {
+    try quarantineEntries().compactMap { entry in
+      guard case .valid(let record) = entry else { return nil }
+      return record
+    }
+  }
+
+  public func quarantineEntries() throws -> [DuckDuckGoLaunchQuarantineEntry] {
     let fileManager = FileManager.default
     guard entryExists(at: rootDirectory, fileManager: fileManager) else {
       return []
@@ -280,7 +302,7 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
       at: rootDirectory,
       includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey]
     )
-    var result: [DuckDuckGoLaunchQuarantineRecord] = []
+    var result: [DuckDuckGoLaunchQuarantineEntry] = []
     for child in children where !child.lastPathComponent.hasPrefix(".") {
       guard
         let identifier = UUID(uuidString: child.lastPathComponent),
@@ -289,6 +311,9 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
       else { continue }
 
       let session = derivedSession(identifier: identifier)
+      guard entryExists(at: session.quarantineURL, fileManager: fileManager) else {
+        continue
+      }
       guard isRegularFileAndNotSymbolicLink(session.quarantineURL, fileManager: fileManager),
         let data = try? Data(contentsOf: session.quarantineURL),
         let marker = try? JSONDecoder().decode(
@@ -297,8 +322,13 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
         ),
         marker.schemaVersion == 1,
         marker.identifier == identifier
-      else { continue }
-      result.append(DuckDuckGoLaunchQuarantineRecord(session: session, marker: marker))
+      else {
+        result.append(.invalid(session: session))
+        continue
+      }
+      result.append(
+        .valid(DuckDuckGoLaunchQuarantineRecord(session: session, marker: marker))
+      )
     }
     return result.sorted {
       $0.session.identifier.uuidString < $1.session.identifier.uuidString
