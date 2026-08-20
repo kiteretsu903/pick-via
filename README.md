@@ -116,16 +116,17 @@ Apple documents this Gatekeeper override and its security implications in
 | Browser family | Profiles | Normal | Private |
 |---|---:|---:|---:|
 | Safari | No | Yes | No |
-| DuckDuckGo | No | Yes | Fire Window* |
+| DuckDuckGo | No | Yes | Yes* |
 | Chrome, Chrome Beta, Chromium, Edge, Brave, Vivaldi | Yes | Yes | Yes |
 | Firefox | Yes | Yes | Yes |
 
-\* DuckDuckGo Fire Window uses a separate PickVia-managed DuckDuckGo process
-and disposable browser state. It does not share ordinary DuckDuckGo bookmarks,
-autofill, extensions, cookies, or preferences. Fire support requires an
-allowlisted official direct-download DuckDuckGo build; sandboxed Mac App Store
-and not-yet-validated versions keep the ordinary target only. PickVia does not
-use Accessibility automation or require a DuckDuckGo extension.
+\* DuckDuckGo Private uses a PickVia-managed real DuckDuckGo Fire Window
+internally, running in a separate process with disposable browser state. It does
+not share ordinary DuckDuckGo bookmarks, autofill, extensions, cookies, or
+preferences. Private support requires an allowlisted official direct-download
+DuckDuckGo build; sandboxed Mac App Store and not-yet-validated versions keep
+the ordinary target only. PickVia does not use Accessibility automation or
+require a DuckDuckGo extension.
 
 Safari has one normal-window target. Chromium-family browsers and Firefox keep
 a browser-level Default target even if you choose not to grant profile access;

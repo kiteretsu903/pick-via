@@ -686,12 +686,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     mode: BrowserMode
   ) -> RouteTarget {
     let baseLabel = profile?.displayName ?? browser.displayName
-    let label: String
-    if mode == .private, browser.browserFamily == .duckDuckGo, profile == nil {
-      label = "DuckDuckGo Fire Window"
-    } else {
-      label = mode == .private ? "\(baseLabel) Private" : baseLabel
-    }
+    let label = mode == .private ? "\(baseLabel) Private" : baseLabel
     return RouteTarget(
       id: targetID(
         bundleIdentifier: browser.bundleIdentifier,

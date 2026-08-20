@@ -6,7 +6,7 @@ PickVia will recognize the official DuckDuckGo browser for macOS and expose two
 browser-level targets:
 
 - `DuckDuckGo` opens a URL through the user's ordinary DuckDuckGo state.
-- `DuckDuckGo Fire Window` opens a URL in a real DuckDuckGo Fire Window backed
+- `DuckDuckGo Private` opens a URL in a real DuckDuckGo Fire Window backed
   by a separate, PickVia-managed process and disposable browser state.
 
 The Fire path must not require Accessibility permission, an installed browser
@@ -56,13 +56,16 @@ Add an explicit DuckDuckGo descriptor:
 DuckDuckGo has no PickVia-visible profile list. Catalog reconciliation creates
 one normal browser-level target and, when the installed build supports safe
 isolation, one private-mode target whose generated label is
-`DuckDuckGo Fire Window`. The existing persisted `private` mode remains the
-storage identity so no new mode or configuration-schema migration is required.
-DuckDuckGo-specific presentation changes only the generated label.
+`DuckDuckGo Private`. The UI deliberately uses the same ordinary private-target
+naming as Firefox and Chromium-family browsers. The existing persisted
+`private` mode remains the storage identity, so no new mode or
+configuration-schema migration is required; only the underlying launch
+mechanism is DuckDuckGo-specific.
 
-The normal target is enabled by default. The Fire target follows the existing
-browser-level private-target default. User edits to names, enabled state, and
-sort order survive rescans through the existing canonical target IDs.
+The normal target is enabled by default. The private target follows the
+existing browser-level private-target default. User edits to names, enabled
+state, and sort order survive rescans through the existing canonical target
+IDs.
 
 ## Compatibility Boundary
 
@@ -70,20 +73,22 @@ Ordinary DuckDuckGo routing requires the exact registered bundle identifier and
 the expected DuckDuckGo signing team. Fire routing additionally requires the
 official direct-download build, no App Sandbox entitlement, and an exact
 version from PickVia's tested compatibility allowlist. The initial allowlist
-contains DuckDuckGo 1.203.0, the version validated by this design.
+contains DuckDuckGo 1.203.0, the version validated by this design. This
+Fire-specific implementation detail is not exposed as special target naming in
+the UI.
 
 The sandbox check is functional, not cosmetic: redirecting
 `CFFIXED_USER_HOME` cannot be treated as safe profile isolation for a sandboxed
 Mac App Store build. An incompatible or not-yet-validated build retains the
-ordinary DuckDuckGo target, but PickVia must not advertise or attempt the Fire
-target. A previously persisted Fire target becomes unavailable instead of
-falling back to a normal window.
+ordinary DuckDuckGo target, but PickVia must not advertise the private target
+or attempt the Fire mechanism. A previously persisted private target becomes
+unavailable instead of falling back to a normal window.
 
 The preference keys are an upstream implementation interface rather than a
 documented DuckDuckGo integration API. Unit tests will lock the expected file
 layout and keys, while each newly allowed DuckDuckGo version must pass the real
 end-to-end gate before its version is added. This intentionally prefers an
-unavailable Fire target over guessing that an upstream update remains
+unavailable private target over guessing that an upstream update remains
 compatible. PickVia never modifies or shares the real browser profile.
 
 ## Ordinary DuckDuckGo Routing
@@ -188,8 +193,8 @@ Unit and integration coverage will establish that:
 
 - the catalog contains the exact DuckDuckGo descriptor and new family;
 - discovery creates no profiles and generates `DuckDuckGo` plus
-  `DuckDuckGo Fire Window` only for a compatible build;
-- rescans preserve custom target state and mark a no-longer-compatible Fire
+  `DuckDuckGo Private` only for a compatible build;
+- rescans preserve custom target state and mark a no-longer-compatible private
   target unavailable;
 - ordinary routing excludes every managed PID and never uses the isolated
   environment;
@@ -215,7 +220,7 @@ installed official DuckDuckGo build:
 1. Rescan applications and confirm the two DuckDuckGo labels.
 2. Route a unique localhost URL through `DuckDuckGo`; prove the request arrives
    and the ordinary process is not a managed Fire PID.
-3. Route another unique localhost URL through `DuckDuckGo Fire Window`;
+3. Route another unique localhost URL through `DuckDuckGo Private`;
    correlate the coordinator's PID-only event log, the WindowServer owner PID,
    and the received request, then inspect the UI with the external
    computer-control harness to confirm the visible Fire Window indicator and
@@ -234,11 +239,11 @@ close or alter the user's ordinary DuckDuckGo windows or profile.
 ## Documentation
 
 Update the README browser list and capability table. Document that DuckDuckGo
-has no PickVia profile selector, that its Fire target uses separate disposable
-state, and that Fire support is limited to a compatible official
-direct-download build. Do not claim that ordinary DuckDuckGo bookmarks,
-autofill, extensions, or preferences are available inside the managed Fire
-Window.
+has no PickVia profile selector, that its private target uses a real Fire Window
+with separate disposable state, and that Fire support is limited to a
+compatible official direct-download build. Do not claim that ordinary
+DuckDuckGo bookmarks, autofill, extensions, or preferences are available inside
+the managed Fire Window.
 
 ## Non-goals
 

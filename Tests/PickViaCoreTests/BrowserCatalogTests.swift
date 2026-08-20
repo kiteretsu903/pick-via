@@ -50,7 +50,7 @@ struct BrowserCatalogTests {
     #expect(browser.privateModeIsAvailable)
     #expect(access.requestedBundleIdentifiers.isEmpty)
     #expect(fileSystem.readURLs.isEmpty)
-    #expect(reconciled.targets.map(\.label) == ["DuckDuckGo", "DuckDuckGo Fire Window"])
+    #expect(reconciled.targets.map(\.label) == ["DuckDuckGo", "DuckDuckGo Private"])
     #expect(reconciled.targets.map(\.mode) == [.normal, .private])
     #expect(reconciled.targets.allSatisfy { $0.isEnabled })
     #expect(reconciled.targets.allSatisfy { $0.availability == .available })
