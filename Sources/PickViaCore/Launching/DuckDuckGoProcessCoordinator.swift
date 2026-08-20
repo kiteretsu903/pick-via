@@ -122,11 +122,12 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
       )
     case .private:
       let reusable = managed.confirmed.filter {
-        Self.markerMatchesApplication(
-          $0.record.marker,
-          applicationURL: trustedApplicationURL,
-          executableURL: expectedExecutableURL
-        )
+        !quarantinedLaunches.keys.contains($0.snapshot.processIdentifier)
+          && Self.markerMatchesApplication(
+            $0.record.marker,
+            applicationURL: trustedApplicationURL,
+            executableURL: expectedExecutableURL
+          )
       }
       if let existing = Self.newestLiveManaged(reusable) {
         try await reuseFireProcess(existing, url: url)

@@ -829,6 +829,48 @@ struct DuckDuckGoProcessCoordinatorTests {
     #expect(await fixture.applications.snapshot(processIdentifier: 8001) != nil)
   }
 
+  @Test func lateSaveFailureQuarantineIsNeverReusedForPrivateRouting() async throws {
+    let fixture = try CoordinatorFixture(
+      compatibility: .fire,
+      storeFailure: .saveAfterPersistence,
+      terminationSucceeds: true,
+      keepsSnapshotAfterSuccessfulTermination: true
+    )
+    defer { fixture.removeRoot() }
+
+    await #expect(throws: TestFailure.save) {
+      try await fixture.coordinator.open(
+        url: URL(string: "https://example.com/late-save-fire")!,
+        applicationURL: fixture.applicationURL,
+        mode: .private
+      )
+    }
+    #expect(try fixture.realStore.records().map(\.marker.processIdentifier) == [7001])
+    await fixture.applications.setNextLaunch(
+      DuckDuckGoProcessCoordinatorTests.makeSnapshot(
+        processIdentifier: 8001,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: Date(timeIntervalSince1970: 9_003)
+      )
+    )
+
+    await #expect(throws: TestFailure.save) {
+      try await fixture.coordinator.open(
+        url: URL(string: "https://example.com/private-after-late-save")!,
+        applicationURL: fixture.applicationURL,
+        mode: .private
+      )
+    }
+
+    #expect(await fixture.applications.launches.count == 2)
+    #expect(
+      !(await fixture.events.invocations).contains {
+        $0.processIdentifier == 7001
+      }
+    )
+  }
+
   @Test func destructiveRollbackRequiresExactLaunchDate() async throws {
     let fixture = try CoordinatorFixture(
       compatibility: .fire,
@@ -1124,6 +1166,7 @@ private final class FailingDuckDuckGoManagedStateStore:
 {
   enum Failure {
     case save
+    case saveAfterPersistence
   }
 
   let underlying: DuckDuckGoManagedStateStore
@@ -1144,6 +1187,7 @@ private final class FailingDuckDuckGoManagedStateStore:
   ) throws {
     if failure == .save { throw TestFailure.save }
     try underlying.save(marker, for: session)
+    if failure == .saveAfterPersistence { throw TestFailure.save }
   }
 
   func records() throws -> [DuckDuckGoManagedSessionRecord] {
