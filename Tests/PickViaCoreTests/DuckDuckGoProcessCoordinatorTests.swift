@@ -397,6 +397,29 @@ struct DuckDuckGoProcessCoordinatorTests {
     #expect(try fixture.realStore.records().map(\.marker.processIdentifier) == [9001])
   }
 
+  @Test func halfSecondLaunchDateDifferenceIsStaleAndNeverReused() async throws {
+    let fixture = try CoordinatorFixture(
+      compatibility: .fire,
+      existingManagedPIDs: [7001],
+      managedSnapshotLaunchDateOffset: 0.5
+    )
+    defer { fixture.removeRoot() }
+
+    try await fixture.coordinator.open(
+      url: URL(string: "https://example.com/exact-launch-date")!,
+      applicationURL: fixture.applicationURL,
+      mode: .private
+    )
+
+    #expect(
+      !(await fixture.events.invocations).contains {
+        $0.processIdentifier == 7001
+      }
+    )
+    #expect(await fixture.applications.launches.count == 1)
+    #expect(try fixture.realStore.records().map(\.marker.processIdentifier) == [9001])
+  }
+
   @Test func terminatedManagedProcessIsCleanedBeforeReuse() async throws {
     let fixture = try CoordinatorFixture(
       compatibility: .fire,
@@ -829,6 +852,109 @@ struct DuckDuckGoProcessCoordinatorTests {
     #expect(await fixture.applications.snapshot(processIdentifier: 8001) != nil)
   }
 
+  @Test(arguments: [false, true])
+  func durableQuarantineSurvivesCoordinatorRestartAfterProcessSaveFailure(
+    lateFailure: Bool
+  ) async throws {
+    let fixture = try CoordinatorFixture(
+      compatibility: .fire,
+      storeFailure: lateFailure ? .saveAfterPersistence : .save,
+      terminationSucceeds: true,
+      keepsSnapshotAfterSuccessfulTermination: true
+    )
+    defer { fixture.removeRoot() }
+    await #expect(throws: TestFailure.save) {
+      try await fixture.coordinator.open(
+        url: URL(string: "https://example.com/fire-before-restart")!,
+        applicationURL: fixture.applicationURL,
+        mode: .private
+      )
+    }
+    let recoveredEvents = RecordingDuckDuckGoAppleEventSender()
+    let recoveredCoordinator = DuckDuckGoProcessCoordinator(
+      compatibilityChecker: StubDuckDuckGoCompatibility(value: .fire),
+      applications: fixture.applications,
+      events: recoveredEvents,
+      stateStore: fixture.realStore,
+      rollbackExitTimeout: .zero
+    )
+    await fixture.applications.setNextLaunch(
+      DuckDuckGoProcessCoordinatorTests.makeSnapshot(
+        processIdentifier: 8001,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: Date(timeIntervalSince1970: 9_101)
+      )
+    )
+
+    try await recoveredCoordinator.open(
+      url: URL(string: "https://example.com/ordinary-after-restart")!,
+      applicationURL: fixture.applicationURL,
+      mode: .normal
+    )
+    await fixture.applications.setNextLaunch(
+      DuckDuckGoProcessCoordinatorTests.makeSnapshot(
+        processIdentifier: 8002,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: Date(timeIntervalSince1970: 9_102)
+      )
+    )
+    try await recoveredCoordinator.open(
+      url: URL(string: "https://example.com/private-after-restart")!,
+      applicationURL: fixture.applicationURL,
+      mode: .private
+    )
+
+    #expect(await fixture.applications.launches.count == 3)
+    #expect(
+      !(await recoveredEvents.invocations).contains {
+        $0.processIdentifier == 7001
+      }
+    )
+    #expect(await recoveredEvents.invocations.map(\.processIdentifier) == [8002, 8002])
+  }
+
+  @Test func nilDateDurableQuarantineSurvivesCoordinatorRestart() async throws {
+    let fixture = try CoordinatorFixture(
+      compatibility: .fire,
+      launchedHasLaunchDate: false
+    )
+    defer { fixture.removeRoot() }
+    await #expect(throws: DuckDuckGoRoutingError.processIdentityMismatch) {
+      try await fixture.coordinator.open(
+        url: URL(string: "https://example.com/nil-date-fire")!,
+        applicationURL: fixture.applicationURL,
+        mode: .private
+      )
+    }
+    let recoveredEvents = RecordingDuckDuckGoAppleEventSender()
+    let recoveredCoordinator = DuckDuckGoProcessCoordinator(
+      compatibilityChecker: StubDuckDuckGoCompatibility(value: .fire),
+      applications: fixture.applications,
+      events: recoveredEvents,
+      stateStore: fixture.realStore,
+      rollbackExitTimeout: .zero
+    )
+    await fixture.applications.setNextLaunch(
+      DuckDuckGoProcessCoordinatorTests.makeSnapshot(
+        processIdentifier: 8001,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: Date(timeIntervalSince1970: 9_103)
+      )
+    )
+
+    try await recoveredCoordinator.open(
+      url: URL(string: "https://example.com/ordinary-after-nil-date-restart")!,
+      applicationURL: fixture.applicationURL,
+      mode: .normal
+    )
+
+    #expect(await fixture.applications.launches.count == 2)
+    #expect(await recoveredEvents.invocations.isEmpty)
+  }
+
   @Test func lateSaveFailureQuarantineIsNeverReusedForPrivateRouting() async throws {
     let fixture = try CoordinatorFixture(
       compatibility: .fire,
@@ -869,6 +995,94 @@ struct DuckDuckGoProcessCoordinatorTests {
         $0.processIdentifier == 7001
       }
     )
+  }
+
+  @Test func quarantinePersistenceFailureRollsBackAndKeepsUnresolvedPIDExcluded()
+    async throws
+  {
+    let fixture = try CoordinatorFixture(
+      compatibility: .fire,
+      storeFailure: .quarantineSave,
+      terminationSucceeds: true,
+      keepsSnapshotAfterSuccessfulTermination: true
+    )
+    defer { fixture.removeRoot() }
+
+    await #expect(throws: TestFailure.quarantine) {
+      try await fixture.coordinator.open(
+        url: URL(string: "https://example.com/quarantine-save-failure")!,
+        applicationURL: fixture.applicationURL,
+        mode: .private
+      )
+    }
+    #expect(await fixture.applications.terminatedPIDs == [7001])
+    #expect(try fixture.realStore.quarantineRecords().isEmpty)
+    #expect(fixture.sessionDirectoryNames().count == 1)
+    await fixture.applications.setNextLaunch(
+      DuckDuckGoProcessCoordinatorTests.makeSnapshot(
+        processIdentifier: 8001,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: Date(timeIntervalSince1970: 9_201)
+      )
+    )
+
+    try await fixture.coordinator.open(
+      url: URL(string: "https://example.com/ordinary-after-quarantine-failure")!,
+      applicationURL: fixture.applicationURL,
+      mode: .normal
+    )
+
+    #expect(await fixture.applications.launches.count == 2)
+    #expect(await fixture.events.invocations.isEmpty)
+  }
+
+  @Test func quarantineRemovalFailureRemainsAuthoritativeAfterRestart() async throws {
+    let fixture = try CoordinatorFixture(
+      compatibility: .fire,
+      storeFailure: .quarantineRemoval
+    )
+    defer { fixture.removeRoot() }
+
+    await #expect(throws: TestFailure.quarantine) {
+      try await fixture.coordinator.open(
+        url: URL(string: "https://example.com/quarantine-remove-failure")!,
+        applicationURL: fixture.applicationURL,
+        mode: .private
+      )
+    }
+    #expect(await fixture.applications.terminatedPIDs.isEmpty)
+    #expect(try fixture.realStore.records().map(\.marker.processIdentifier) == [7001])
+    #expect(try fixture.realStore.quarantineRecords().map(\.marker.processIdentifier) == [7001])
+    let recoveredEvents = RecordingDuckDuckGoAppleEventSender()
+    let recoveredCoordinator = DuckDuckGoProcessCoordinator(
+      compatibilityChecker: StubDuckDuckGoCompatibility(value: .fire),
+      applications: fixture.applications,
+      events: recoveredEvents,
+      stateStore: fixture.realStore,
+      rollbackExitTimeout: .zero
+    )
+    await fixture.applications.setNextLaunch(
+      DuckDuckGoProcessCoordinatorTests.makeSnapshot(
+        processIdentifier: 8001,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: Date(timeIntervalSince1970: 9_202)
+      )
+    )
+
+    try await recoveredCoordinator.open(
+      url: URL(string: "https://example.com/private-after-remove-failure")!,
+      applicationURL: fixture.applicationURL,
+      mode: .private
+    )
+
+    #expect(
+      !(await recoveredEvents.invocations).contains {
+        $0.processIdentifier == 7001
+      }
+    )
+    #expect(await recoveredEvents.invocations.map(\.processIdentifier) == [8001, 8001])
   }
 
   @Test func destructiveRollbackRequiresExactLaunchDate() async throws {
@@ -940,6 +1154,85 @@ struct DuckDuckGoProcessCoordinatorTests {
     #expect(
       await applications.launches.only?.applicationURL == resolvedApplicationURL
     )
+  }
+
+  @Test func startupCleanupRemovesTerminatedStateAndPreservesLiveQuarantine()
+    async throws
+  {
+    let root = FileManager.default.temporaryDirectory.appending(
+      path: "PickVia-DuckDuckGo-Startup-\(UUID())",
+      directoryHint: .isDirectory
+    )
+    defer { try? FileManager.default.removeItem(at: root) }
+    let applicationURL = URL(
+      fileURLWithPath: "/Applications/DuckDuckGo.app",
+      isDirectory: true
+    )
+    let executableURL = applicationURL.appending(path: "Contents/MacOS/DuckDuckGo")
+    let store = DuckDuckGoManagedStateStore(rootDirectory: root)
+    let terminatedSession = try store.prepareHome()
+    let terminatedDate = Date(timeIntervalSince1970: 7_001)
+    try store.save(
+      DuckDuckGoManagedProcessMarker(
+        identifier: terminatedSession.identifier,
+        processIdentifier: 7001,
+        launchDate: terminatedDate,
+        applicationPath: applicationURL.path,
+        executablePath: executableURL.path
+      ),
+      for: terminatedSession
+    )
+    let liveSession = try store.prepareHome()
+    let liveDate = Date(timeIntervalSince1970: 7_101)
+    try store.saveQuarantine(
+      DuckDuckGoLaunchQuarantineMarker(
+        identifier: liveSession.identifier,
+        processIdentifier: 7101,
+        launchDate: liveDate,
+        applicationPath: applicationURL.path,
+        executablePath: executableURL.path
+      ),
+      for: liveSession
+    )
+    let applications = RecordingDuckDuckGoApplicationManager(
+      snapshots: [
+        7001: Self.makeSnapshot(
+          processIdentifier: 7001,
+          applicationURL: applicationURL,
+          executableURL: executableURL,
+          launchDate: terminatedDate,
+          isTerminated: true
+        ),
+        7101: Self.makeSnapshot(
+          processIdentifier: 7101,
+          applicationURL: applicationURL,
+          executableURL: executableURL,
+          launchDate: liveDate
+        ),
+      ],
+      nextLaunch: Self.makeSnapshot(
+        processIdentifier: 8001,
+        applicationURL: applicationURL,
+        executableURL: executableURL,
+        launchDate: Date(timeIntervalSince1970: 8_001)
+      )
+    )
+    let events = RecordingDuckDuckGoAppleEventSender()
+    let coordinator = DuckDuckGoProcessCoordinator(
+      compatibilityChecker: StubDuckDuckGoCompatibility(value: .fire),
+      applications: applications,
+      events: events,
+      stateStore: store,
+      rollbackExitTimeout: .zero,
+      startsStartupCleanup: true
+    )
+
+    try await coordinator.waitForStartupCleanup()
+
+    #expect(try store.records().isEmpty)
+    #expect(try store.quarantineRecords().map(\.marker.processIdentifier) == [7101])
+    #expect(await applications.launches.isEmpty)
+    #expect(await events.invocations.isEmpty)
   }
 
   private static func snapshot(
@@ -1167,6 +1460,8 @@ private final class FailingDuckDuckGoManagedStateStore:
   enum Failure {
     case save
     case saveAfterPersistence
+    case quarantineSave
+    case quarantineRemoval
   }
 
   let underlying: DuckDuckGoManagedStateStore
@@ -1192,6 +1487,23 @@ private final class FailingDuckDuckGoManagedStateStore:
 
   func records() throws -> [DuckDuckGoManagedSessionRecord] {
     try underlying.records()
+  }
+
+  func saveQuarantine(
+    _ marker: DuckDuckGoLaunchQuarantineMarker,
+    for session: DuckDuckGoManagedSession
+  ) throws {
+    if failure == .quarantineSave { throw TestFailure.quarantine }
+    try underlying.saveQuarantine(marker, for: session)
+  }
+
+  func quarantineRecords() throws -> [DuckDuckGoLaunchQuarantineRecord] {
+    try underlying.quarantineRecords()
+  }
+
+  func removeQuarantine(for session: DuckDuckGoManagedSession) throws {
+    if failure == .quarantineRemoval { throw TestFailure.quarantine }
+    try underlying.removeQuarantine(for: session)
   }
 
   func removeSession(identifier: UUID) throws {
@@ -1360,6 +1672,7 @@ private enum TestFailure: Error, Equatable, Sendable {
   case launch
   case save
   case wait
+  case quarantine
 }
 
 extension Collection {

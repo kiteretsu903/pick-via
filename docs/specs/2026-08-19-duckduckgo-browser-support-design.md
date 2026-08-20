@@ -153,8 +153,18 @@ DuckDuckGo Fire Windows but do not share ordinary DuckDuckGo personalization.
 A small coordinator marker records the generated directory, PID, trusted app
 path, and launch time. On a later PickVia launch, a marker is reusable only
 when the PID still belongs to the same DuckDuckGo bundle, executable, and
-launch instance. This lets a user keep an active Fire Window open when PickVia
-quits and lets the next PickVia process reclaim it safely.
+launch instance. The running application's launch date must equal the stored
+launch date exactly; no time tolerance is used for PID identity. This lets a
+user keep an active Fire Window open when PickVia quits and lets the next
+PickVia process reclaim it safely.
+
+A separate quarantine marker is written immediately after every isolated
+launch returns a PID and before that launch can be treated as managed. It
+contains no routed URL and survives PickVia restarts. A live or ambiguous
+quarantined PID is excluded from both ordinary routing and Fire reuse. The
+quarantine is removed only after process exit is proven, PID reuse is proven
+by a different non-null launch date, or the managed marker is durable and the
+quarantine marker itself has been removed successfully.
 
 PickVia does not terminate the managed DuckDuckGo process merely because
 PickVia exits. After the managed process terminates, its exact generated cache

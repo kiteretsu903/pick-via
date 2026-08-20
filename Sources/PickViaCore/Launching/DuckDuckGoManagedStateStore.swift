@@ -5,17 +5,57 @@ public struct DuckDuckGoManagedSession: Equatable, Sendable {
   public let sessionDirectory: URL
   public let homeDirectory: URL
   public let markerURL: URL
+  public let quarantineURL: URL
 
   public init(
     identifier: UUID,
     sessionDirectory: URL,
     homeDirectory: URL,
-    markerURL: URL
+    markerURL: URL,
+    quarantineURL: URL
   ) {
     self.identifier = identifier
     self.sessionDirectory = sessionDirectory
     self.homeDirectory = homeDirectory
     self.markerURL = markerURL
+    self.quarantineURL = quarantineURL
+  }
+}
+
+public struct DuckDuckGoLaunchQuarantineMarker: Codable, Equatable, Sendable {
+  public let schemaVersion: Int
+  public let identifier: UUID
+  public let processIdentifier: Int32
+  public let launchDate: Date?
+  public let applicationPath: String
+  public let executablePath: String
+
+  public init(
+    identifier: UUID,
+    processIdentifier: Int32,
+    launchDate: Date?,
+    applicationPath: String,
+    executablePath: String
+  ) {
+    schemaVersion = 1
+    self.identifier = identifier
+    self.processIdentifier = processIdentifier
+    self.launchDate = launchDate
+    self.applicationPath = applicationPath
+    self.executablePath = executablePath
+  }
+}
+
+public struct DuckDuckGoLaunchQuarantineRecord: Equatable, Sendable {
+  public let session: DuckDuckGoManagedSession
+  public let marker: DuckDuckGoLaunchQuarantineMarker
+
+  public init(
+    session: DuckDuckGoManagedSession,
+    marker: DuckDuckGoLaunchQuarantineMarker
+  ) {
+    self.session = session
+    self.marker = marker
   }
 }
 
@@ -63,6 +103,12 @@ public protocol DuckDuckGoManagedStateStoring: Sendable {
     for session: DuckDuckGoManagedSession
   ) throws
   func records() throws -> [DuckDuckGoManagedSessionRecord]
+  func saveQuarantine(
+    _ marker: DuckDuckGoLaunchQuarantineMarker,
+    for session: DuckDuckGoManagedSession
+  ) throws
+  func quarantineRecords() throws -> [DuckDuckGoLaunchQuarantineRecord]
+  func removeQuarantine(for session: DuckDuckGoManagedSession) throws
   func removeSession(identifier: UUID) throws
 }
 
@@ -148,7 +194,6 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
     guard marker.identifier == session.identifier else {
       throw DuckDuckGoManagedStateStoreError.markerIdentifierMismatch
     }
-
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys]
     let data = try encoder.encode(marker)
@@ -197,6 +242,81 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
     }
   }
 
+  public func saveQuarantine(
+    _ marker: DuckDuckGoLaunchQuarantineMarker,
+    for session: DuckDuckGoManagedSession
+  ) throws {
+    let fileManager = FileManager.default
+    try validateSession(session, fileManager: fileManager)
+    guard marker.identifier == session.identifier else {
+      throw DuckDuckGoManagedStateStoreError.markerIdentifierMismatch
+    }
+    if entryExists(at: session.quarantineURL, fileManager: fileManager),
+      !isRegularFileAndNotSymbolicLink(session.quarantineURL, fileManager: fileManager)
+    {
+      throw DuckDuckGoManagedStateStoreError.invalidSession
+    }
+
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let data = try encoder.encode(marker)
+    try data.write(to: session.quarantineURL, options: [.atomic])
+    try fileManager.setAttributes(
+      [.posixPermissions: 0o600],
+      ofItemAtPath: session.quarantineURL.path
+    )
+  }
+
+  public func quarantineRecords() throws -> [DuckDuckGoLaunchQuarantineRecord] {
+    let fileManager = FileManager.default
+    guard entryExists(at: rootDirectory, fileManager: fileManager) else {
+      return []
+    }
+    guard isDirectoryAndNotSymbolicLink(rootDirectory, fileManager: fileManager) else {
+      throw DuckDuckGoManagedStateStoreError.invalidSession
+    }
+
+    let children = try fileManager.contentsOfDirectory(
+      at: rootDirectory,
+      includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey]
+    )
+    var result: [DuckDuckGoLaunchQuarantineRecord] = []
+    for child in children where !child.lastPathComponent.hasPrefix(".") {
+      guard
+        let identifier = UUID(uuidString: child.lastPathComponent),
+        child.lastPathComponent == identifier.uuidString,
+        isDirectoryAndNotSymbolicLink(child, fileManager: fileManager)
+      else { continue }
+
+      let session = derivedSession(identifier: identifier)
+      guard isRegularFileAndNotSymbolicLink(session.quarantineURL, fileManager: fileManager),
+        let data = try? Data(contentsOf: session.quarantineURL),
+        let marker = try? JSONDecoder().decode(
+          DuckDuckGoLaunchQuarantineMarker.self,
+          from: data
+        ),
+        marker.schemaVersion == 1,
+        marker.identifier == identifier
+      else { continue }
+      result.append(DuckDuckGoLaunchQuarantineRecord(session: session, marker: marker))
+    }
+    return result.sorted {
+      $0.session.identifier.uuidString < $1.session.identifier.uuidString
+    }
+  }
+
+  public func removeQuarantine(for session: DuckDuckGoManagedSession) throws {
+    let fileManager = FileManager.default
+    try validateSession(session, fileManager: fileManager)
+    guard entryExists(at: session.quarantineURL, fileManager: fileManager) else {
+      return
+    }
+    guard isRegularFileAndNotSymbolicLink(session.quarantineURL, fileManager: fileManager) else {
+      throw DuckDuckGoManagedStateStoreError.invalidSession
+    }
+    try fileManager.removeItem(at: session.quarantineURL)
+  }
+
   public func removeSession(identifier: UUID) throws {
     let fileManager = FileManager.default
     try validateRoot(fileManager: fileManager)
@@ -217,7 +337,8 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
       identifier: identifier,
       sessionDirectory: sessionDirectory,
       homeDirectory: sessionDirectory.appending(path: "Home"),
-      markerURL: sessionDirectory.appending(path: "Process.json")
+      markerURL: sessionDirectory.appending(path: "Process.json"),
+      quarantineURL: sessionDirectory.appending(path: "Quarantine.json")
     )
   }
 
@@ -304,6 +425,18 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
 
   private func validateRoot(fileManager: FileManager) throws {
     guard isDirectoryAndNotSymbolicLink(rootDirectory, fileManager: fileManager) else {
+      throw DuckDuckGoManagedStateStoreError.invalidSession
+    }
+  }
+
+  private func validateSession(
+    _ session: DuckDuckGoManagedSession,
+    fileManager: FileManager
+  ) throws {
+    try validateRoot(fileManager: fileManager)
+    guard session == derivedSession(identifier: session.identifier),
+      isDirectoryAndNotSymbolicLink(session.sessionDirectory, fileManager: fileManager)
+    else {
       throw DuckDuckGoManagedStateStoreError.invalidSession
     }
   }

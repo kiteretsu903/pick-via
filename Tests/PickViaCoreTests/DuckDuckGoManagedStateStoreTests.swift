@@ -40,6 +40,9 @@ struct DuckDuckGoManagedStateStoreTests {
     #expect(session.sessionDirectory == root.appending(path: fixedIdentifier.uuidString))
     #expect(session.homeDirectory == session.sessionDirectory.appending(path: "Home"))
     #expect(session.markerURL == session.sessionDirectory.appending(path: "Process.json"))
+    #expect(
+      session.quarantineURL == session.sessionDirectory.appending(path: "Quarantine.json")
+    )
     #expect(appValues.count == 1)
     #expect(appValues["startup-window-type"] as? String == "fire-window")
     #expect(defaultValues.count == 3)
@@ -140,6 +143,135 @@ struct DuckDuckGoManagedStateStoreTests {
       )
     )
     #expect(try permissions(of: session.markerURL) == 0o600)
+  }
+
+  @Test func quarantineRoundTripsWithOptionalExactLaunchIdentity() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = DuckDuckGoManagedStateStore(rootDirectory: root)
+    let session = try store.prepareHome(identifier: fixedIdentifier)
+    let quarantine = quarantineMarker(
+      identifier: session.identifier,
+      launchDate: nil
+    )
+
+    try store.saveQuarantine(quarantine, for: session)
+
+    #expect(
+      try store.quarantineRecords()
+        == [DuckDuckGoLaunchQuarantineRecord(session: session, marker: quarantine)]
+    )
+    let text = try String(contentsOf: session.quarantineURL, encoding: .utf8)
+    #expect(!text.contains("http://"))
+    #expect(!text.contains("https://"))
+    #expect(!text.contains("file://"))
+    #expect(!text.contains("launchDate"))
+    #expect(
+      orderedRanges(
+        of: [
+          "applicationPath", "executablePath", "identifier", "processIdentifier",
+          "schemaVersion",
+        ],
+        in: text
+      )
+    )
+    #expect(try permissions(of: session.quarantineURL) == 0o600)
+  }
+
+  @Test func quarantineRecordsIgnoreCorruptSchemaAndSymlinkWithoutDeleting() throws {
+    let root = temporaryRoot()
+    let externalMarker = root.deletingLastPathComponent()
+      .appending(path: "PickViaExternalQuarantine-\(UUID()).json")
+    defer {
+      try? FileManager.default.removeItem(at: root)
+      try? FileManager.default.removeItem(at: externalMarker)
+    }
+    let store = DuckDuckGoManagedStateStore(rootDirectory: root)
+    let validSession = try store.prepareHome(identifier: fixedIdentifier)
+    let validMarker = quarantineMarker(identifier: fixedIdentifier, launchDate: Date())
+    try store.saveQuarantine(validMarker, for: validSession)
+
+    let corruptID = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
+    let corruptSession = try store.prepareHome(identifier: corruptID)
+    try Data("not json".utf8).write(to: corruptSession.quarantineURL)
+    let schemaID = UUID(uuidString: "22222222-3333-4444-5555-666666666666")!
+    let schemaSession = try store.prepareHome(identifier: schemaID)
+    try quarantineData(identifier: schemaID, schemaVersion: 2)
+      .write(to: schemaSession.quarantineURL)
+    let symlinkID = UUID(uuidString: "33333333-4444-5555-6666-777777777777")!
+    let symlinkSession = try store.prepareHome(identifier: symlinkID)
+    try quarantineData(identifier: symlinkID, schemaVersion: 1).write(to: externalMarker)
+    try FileManager.default.createSymbolicLink(
+      at: symlinkSession.quarantineURL,
+      withDestinationURL: externalMarker
+    )
+
+    #expect(
+      try store.quarantineRecords()
+        == [DuckDuckGoLaunchQuarantineRecord(session: validSession, marker: validMarker)]
+    )
+    #expect(FileManager.default.fileExists(atPath: corruptSession.quarantineURL.path))
+    #expect(FileManager.default.fileExists(atPath: schemaSession.quarantineURL.path))
+    #expect(try symbolicLinkExists(at: symlinkSession.quarantineURL))
+    #expect(FileManager.default.fileExists(atPath: externalMarker.path))
+  }
+
+  @Test func quarantineRemovalLeavesManagedMarkerAndSessionIntact() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = DuckDuckGoManagedStateStore(rootDirectory: root)
+    let session = try store.prepareHome(identifier: fixedIdentifier)
+    try store.save(marker(identifier: fixedIdentifier), for: session)
+    try store.saveQuarantine(
+      quarantineMarker(identifier: fixedIdentifier, launchDate: Date()),
+      for: session
+    )
+
+    try store.removeQuarantine(for: session)
+
+    #expect(!FileManager.default.fileExists(atPath: session.quarantineURL.path))
+    #expect(FileManager.default.fileExists(atPath: session.markerURL.path))
+    #expect(FileManager.default.fileExists(atPath: session.homeDirectory.path))
+  }
+
+  @Test func quarantineMutationRejectsForeignSessionAndMarkerSymlink() throws {
+    let root = temporaryRoot()
+    let foreignRoot = temporaryRoot()
+    let externalMarker = root.deletingLastPathComponent()
+      .appending(path: "PickViaExternalQuarantine-\(UUID()).json")
+    defer {
+      try? FileManager.default.removeItem(at: root)
+      try? FileManager.default.removeItem(at: foreignRoot)
+      try? FileManager.default.removeItem(at: externalMarker)
+    }
+    let store = DuckDuckGoManagedStateStore(rootDirectory: root)
+    let foreignStore = DuckDuckGoManagedStateStore(rootDirectory: foreignRoot)
+    let foreignSession = try foreignStore.prepareHome(identifier: fixedIdentifier)
+
+    #expect(throws: DuckDuckGoManagedStateStoreError.invalidSession) {
+      try store.saveQuarantine(
+        quarantineMarker(identifier: fixedIdentifier, launchDate: nil),
+        for: foreignSession
+      )
+    }
+
+    let session = try store.prepareHome(identifier: fixedIdentifier)
+    try Data("keep".utf8).write(to: externalMarker)
+    try FileManager.default.createSymbolicLink(
+      at: session.quarantineURL,
+      withDestinationURL: externalMarker
+    )
+    #expect(throws: DuckDuckGoManagedStateStoreError.invalidSession) {
+      try store.saveQuarantine(
+        quarantineMarker(identifier: fixedIdentifier, launchDate: nil),
+        for: session
+      )
+    }
+    #expect(throws: DuckDuckGoManagedStateStoreError.invalidSession) {
+      try store.removeQuarantine(for: session)
+    }
+    #expect(try symbolicLinkExists(at: session.quarantineURL))
+    #expect(try Data(contentsOf: externalMarker) == Data("keep".utf8))
   }
 
   @Test func saveRejectsSessionNotDerivedFromStoreRoot() throws {
@@ -331,12 +463,36 @@ struct DuckDuckGoManagedStateStoreTests {
     )
   }
 
+  private func quarantineMarker(
+    identifier: UUID,
+    launchDate: Date?
+  ) -> DuckDuckGoLaunchQuarantineMarker {
+    DuckDuckGoLaunchQuarantineMarker(
+      identifier: identifier,
+      processIdentifier: 4321,
+      launchDate: launchDate,
+      applicationPath: "/Applications/DuckDuckGo.app",
+      executablePath: "/Applications/DuckDuckGo.app/Contents/MacOS/DuckDuckGo"
+    )
+  }
+
   private func markerData(identifier: UUID, schemaVersion: Int) throws -> Data {
     let marker: [String: Any] = [
       "schemaVersion": schemaVersion,
       "identifier": identifier.uuidString,
       "processIdentifier": 4321,
       "launchDate": 1234,
+      "applicationPath": "/Applications/DuckDuckGo.app",
+      "executablePath": "/Applications/DuckDuckGo.app/Contents/MacOS/DuckDuckGo",
+    ]
+    return try JSONSerialization.data(withJSONObject: marker, options: [.sortedKeys])
+  }
+
+  private func quarantineData(identifier: UUID, schemaVersion: Int) throws -> Data {
+    let marker: [String: Any] = [
+      "schemaVersion": schemaVersion,
+      "identifier": identifier.uuidString,
+      "processIdentifier": 4321,
       "applicationPath": "/Applications/DuckDuckGo.app",
       "executablePath": "/Applications/DuckDuckGo.app/Contents/MacOS/DuckDuckGo",
     ]
