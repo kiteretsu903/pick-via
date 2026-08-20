@@ -1,0 +1,309 @@
+import Foundation
+
+public struct DuckDuckGoManagedSession: Equatable, Sendable {
+  public let identifier: UUID
+  public let sessionDirectory: URL
+  public let homeDirectory: URL
+  public let markerURL: URL
+
+  public init(
+    identifier: UUID,
+    sessionDirectory: URL,
+    homeDirectory: URL,
+    markerURL: URL
+  ) {
+    self.identifier = identifier
+    self.sessionDirectory = sessionDirectory
+    self.homeDirectory = homeDirectory
+    self.markerURL = markerURL
+  }
+}
+
+public struct DuckDuckGoManagedProcessMarker: Codable, Equatable, Sendable {
+  public let schemaVersion: Int
+  public let identifier: UUID
+  public let processIdentifier: Int32
+  public let launchDate: Date
+  public let applicationPath: String
+  public let executablePath: String
+
+  public init(
+    identifier: UUID,
+    processIdentifier: Int32,
+    launchDate: Date,
+    applicationPath: String,
+    executablePath: String
+  ) {
+    schemaVersion = 1
+    self.identifier = identifier
+    self.processIdentifier = processIdentifier
+    self.launchDate = launchDate
+    self.applicationPath = applicationPath
+    self.executablePath = executablePath
+  }
+}
+
+public struct DuckDuckGoManagedSessionRecord: Equatable, Sendable {
+  public let session: DuckDuckGoManagedSession
+  public let marker: DuckDuckGoManagedProcessMarker
+
+  public init(
+    session: DuckDuckGoManagedSession,
+    marker: DuckDuckGoManagedProcessMarker
+  ) {
+    self.session = session
+    self.marker = marker
+  }
+}
+
+public protocol DuckDuckGoManagedStateStoring: Sendable {
+  func prepareHome(identifier: UUID) throws -> DuckDuckGoManagedSession
+  func save(
+    _ marker: DuckDuckGoManagedProcessMarker,
+    for session: DuckDuckGoManagedSession
+  ) throws
+  func records() throws -> [DuckDuckGoManagedSessionRecord]
+  func removeSession(identifier: UUID) throws
+}
+
+public enum DuckDuckGoManagedStateStoreError: Error, Equatable, Sendable {
+  case sessionAlreadyExists
+  case invalidSession
+  case markerIdentifierMismatch
+}
+
+public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendable {
+  public static var defaultRootDirectory: URL {
+    FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+      .appending(path: "PickVia/DuckDuckGoFire", directoryHint: .isDirectory)
+  }
+
+  public let rootDirectory: URL
+
+  public init(rootDirectory: URL = Self.defaultRootDirectory) {
+    self.rootDirectory = rootDirectory.standardizedFileURL
+  }
+
+  public func prepareHome(identifier: UUID = UUID()) throws
+    -> DuckDuckGoManagedSession
+  {
+    let fileManager = FileManager.default
+    try createRootIfNeeded(fileManager: fileManager)
+    let session = derivedSession(identifier: identifier)
+    guard !entryExists(at: session.sessionDirectory, fileManager: fileManager) else {
+      throw DuckDuckGoManagedStateStoreError.sessionAlreadyExists
+    }
+
+    do {
+      try createSecureDirectory(session.sessionDirectory, fileManager: fileManager)
+      let appStoreDirectory = try createSessionDirectories(
+        session: session,
+        fileManager: fileManager
+      )
+      let appStore = appStoreDirectory.appending(path: "AppKeyValueStore")
+      let defaults = session.homeDirectory.appending(
+        path: "Library/Preferences/com.duckduckgo.macos.browser.plist"
+      )
+      try writePropertyList(
+        ["startup-window-type": "fire-window"],
+        to: appStore,
+        fileManager: fileManager
+      )
+      try writePropertyList(
+        [
+          "contextual.onboarding.state": "completed",
+          "onboarding.finished": true,
+          "preferences.startup.restore-previous-session": false,
+        ],
+        to: defaults,
+        fileManager: fileManager
+      )
+      return session
+    } catch {
+      try? fileManager.removeItem(at: session.sessionDirectory)
+      throw error
+    }
+  }
+
+  public func save(
+    _ marker: DuckDuckGoManagedProcessMarker,
+    for session: DuckDuckGoManagedSession
+  ) throws {
+    let fileManager = FileManager.default
+    guard session == derivedSession(identifier: session.identifier),
+      isDirectoryAndNotSymbolicLink(session.sessionDirectory, fileManager: fileManager)
+    else {
+      throw DuckDuckGoManagedStateStoreError.invalidSession
+    }
+    guard marker.identifier == session.identifier else {
+      throw DuckDuckGoManagedStateStoreError.markerIdentifierMismatch
+    }
+
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let data = try encoder.encode(marker)
+    try data.write(to: session.markerURL, options: [.atomic])
+    try fileManager.setAttributes(
+      [.posixPermissions: 0o600],
+      ofItemAtPath: session.markerURL.path
+    )
+  }
+
+  public func records() throws -> [DuckDuckGoManagedSessionRecord] {
+    let fileManager = FileManager.default
+    guard entryExists(at: rootDirectory, fileManager: fileManager) else {
+      return []
+    }
+    guard isDirectoryAndNotSymbolicLink(rootDirectory, fileManager: fileManager) else {
+      throw DuckDuckGoManagedStateStoreError.invalidSession
+    }
+
+    let children = try fileManager.contentsOfDirectory(
+      at: rootDirectory,
+      includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey]
+    )
+    var result: [DuckDuckGoManagedSessionRecord] = []
+    for child in children where !child.lastPathComponent.hasPrefix(".") {
+      guard
+        let identifier = UUID(uuidString: child.lastPathComponent),
+        child.lastPathComponent == identifier.uuidString,
+        isDirectoryAndNotSymbolicLink(child, fileManager: fileManager)
+      else { continue }
+
+      let session = derivedSession(identifier: identifier)
+      guard isRegularFileAndNotSymbolicLink(session.markerURL, fileManager: fileManager),
+        let data = try? Data(contentsOf: session.markerURL),
+        let marker = try? JSONDecoder().decode(
+          DuckDuckGoManagedProcessMarker.self,
+          from: data
+        ),
+        marker.schemaVersion == 1,
+        marker.identifier == identifier
+      else { continue }
+      result.append(DuckDuckGoManagedSessionRecord(session: session, marker: marker))
+    }
+    return result.sorted {
+      $0.session.identifier.uuidString < $1.session.identifier.uuidString
+    }
+  }
+
+  public func removeSession(identifier: UUID) throws {
+    let fileManager = FileManager.default
+    let session = derivedSession(identifier: identifier)
+    guard entryExists(at: session.sessionDirectory, fileManager: fileManager) else {
+      return
+    }
+    guard isDirectoryAndNotSymbolicLink(session.sessionDirectory, fileManager: fileManager)
+    else {
+      throw DuckDuckGoManagedStateStoreError.invalidSession
+    }
+    try fileManager.removeItem(at: session.sessionDirectory)
+  }
+
+  private func derivedSession(identifier: UUID) -> DuckDuckGoManagedSession {
+    let sessionDirectory = rootDirectory.appending(path: identifier.uuidString)
+    return DuckDuckGoManagedSession(
+      identifier: identifier,
+      sessionDirectory: sessionDirectory,
+      homeDirectory: sessionDirectory.appending(path: "Home"),
+      markerURL: sessionDirectory.appending(path: "Process.json")
+    )
+  }
+
+  private func createRootIfNeeded(fileManager: FileManager) throws {
+    if entryExists(at: rootDirectory, fileManager: fileManager) {
+      guard isDirectoryAndNotSymbolicLink(rootDirectory, fileManager: fileManager) else {
+        throw DuckDuckGoManagedStateStoreError.invalidSession
+      }
+    } else {
+      try fileManager.createDirectory(
+        at: rootDirectory,
+        withIntermediateDirectories: true,
+        attributes: [.posixPermissions: 0o700]
+      )
+    }
+    try fileManager.setAttributes(
+      [.posixPermissions: 0o700],
+      ofItemAtPath: rootDirectory.path
+    )
+  }
+
+  private func createSessionDirectories(
+    session: DuckDuckGoManagedSession,
+    fileManager: FileManager
+  ) throws -> URL {
+    var directory = session.homeDirectory
+    try createSecureDirectory(directory, fileManager: fileManager)
+    for component in [
+      "Library",
+      "Containers",
+      "com.duckduckgo.macos.browser",
+      "Data",
+      "Library",
+      "Application Support",
+    ] {
+      directory.append(path: component, directoryHint: .isDirectory)
+      try createSecureDirectory(directory, fileManager: fileManager)
+    }
+
+    let preferences = session.homeDirectory.appending(
+      path: "Library/Preferences",
+      directoryHint: .isDirectory
+    )
+    try createSecureDirectory(preferences, fileManager: fileManager)
+    return directory
+  }
+
+  private func createSecureDirectory(_ url: URL, fileManager: FileManager) throws {
+    try fileManager.createDirectory(
+      at: url,
+      withIntermediateDirectories: false,
+      attributes: [.posixPermissions: 0o700]
+    )
+    try fileManager.setAttributes(
+      [.posixPermissions: 0o700],
+      ofItemAtPath: url.path
+    )
+  }
+
+  private func writePropertyList(
+    _ values: [String: Any],
+    to url: URL,
+    fileManager: FileManager
+  ) throws {
+    let data = try PropertyListSerialization.data(
+      fromPropertyList: values,
+      format: .xml,
+      options: 0
+    )
+    try data.write(to: url, options: [.atomic])
+    try fileManager.setAttributes(
+      [.posixPermissions: 0o600],
+      ofItemAtPath: url.path
+    )
+  }
+
+  private func entryExists(at url: URL, fileManager: FileManager) -> Bool {
+    (try? fileManager.attributesOfItem(atPath: url.path)) != nil
+  }
+
+  private func isDirectoryAndNotSymbolicLink(
+    _ url: URL,
+    fileManager: FileManager
+  ) -> Bool {
+    guard let attributes = try? fileManager.attributesOfItem(atPath: url.path) else {
+      return false
+    }
+    return attributes[.type] as? FileAttributeType == .typeDirectory
+  }
+
+  private func isRegularFileAndNotSymbolicLink(
+    _ url: URL,
+    fileManager: FileManager
+  ) -> Bool {
+    guard let attributes = try? fileManager.attributesOfItem(atPath: url.path) else {
+      return false
+    }
+    return attributes[.type] as? FileAttributeType == .typeRegular
+  }
+}

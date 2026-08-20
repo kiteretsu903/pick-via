@@ -1,0 +1,279 @@
+import Foundation
+import Testing
+
+@testable import PickViaCore
+
+@Suite("DuckDuckGo managed state store")
+struct DuckDuckGoManagedStateStoreTests {
+  private let fixedIdentifier = UUID(
+    uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"
+  )!
+
+  @Test func prepareHomeWritesOnlyIsolatedFirePreferences() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = DuckDuckGoManagedStateStore(rootDirectory: root)
+
+    let session = try store.prepareHome(identifier: fixedIdentifier)
+
+    let appStore = session.homeDirectory.appending(
+      path:
+        "Library/Containers/com.duckduckgo.macos.browser/Data/Library/Application Support/AppKeyValueStore"
+    )
+    let defaults = session.homeDirectory.appending(
+      path: "Library/Preferences/com.duckduckgo.macos.browser.plist"
+    )
+    let appValues = try #require(
+      PropertyListSerialization.propertyList(
+        from: Data(contentsOf: appStore),
+        format: nil
+      ) as? [String: Any]
+    )
+    let defaultValues = try #require(
+      PropertyListSerialization.propertyList(
+        from: Data(contentsOf: defaults),
+        format: nil
+      ) as? [String: Any]
+    )
+
+    #expect(session.identifier == fixedIdentifier)
+    #expect(session.sessionDirectory == root.appending(path: fixedIdentifier.uuidString))
+    #expect(session.homeDirectory == session.sessionDirectory.appending(path: "Home"))
+    #expect(session.markerURL == session.sessionDirectory.appending(path: "Process.json"))
+    #expect(appValues.count == 1)
+    #expect(appValues["startup-window-type"] as? String == "fire-window")
+    #expect(defaultValues.count == 3)
+    #expect(defaultValues["contextual.onboarding.state"] as? String == "completed")
+    #expect(defaultValues["onboarding.finished"] as? Bool == true)
+    #expect(
+      defaultValues["preferences.startup.restore-previous-session"] as? Bool
+        == false
+    )
+    #expect(
+      !appStore.path.hasPrefix(FileManager.default.homeDirectoryForCurrentUser.path)
+    )
+  }
+
+  @Test func prepareHomeSecuresEveryCreatedDirectoryAndFile() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = DuckDuckGoManagedStateStore(rootDirectory: root)
+
+    let session = try store.prepareHome(identifier: fixedIdentifier)
+    let enumerator = try #require(
+      FileManager.default.enumerator(
+        at: root,
+        includingPropertiesForKeys: [.isDirectoryKey]
+      )
+    )
+    let descendants = enumerator.compactMap { $0 as? URL }
+
+    #expect(try permissions(of: root) == 0o700)
+    for url in descendants {
+      let isDirectory = try url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true
+      #expect(try permissions(of: url) == (isDirectory ? 0o700 : 0o600))
+    }
+    #expect(!FileManager.default.fileExists(atPath: session.markerURL.path))
+  }
+
+  @Test func prepareHomeRejectsExistingSessionWithoutChangingIt() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let sessionDirectory = root.appending(path: fixedIdentifier.uuidString)
+    try FileManager.default.createDirectory(
+      at: sessionDirectory,
+      withIntermediateDirectories: true
+    )
+    let sentinel = sessionDirectory.appending(path: "keep")
+    try Data("keep".utf8).write(to: sentinel)
+    let store = DuckDuckGoManagedStateStore(rootDirectory: root)
+
+    #expect(throws: DuckDuckGoManagedStateStoreError.sessionAlreadyExists) {
+      try store.prepareHome(identifier: fixedIdentifier)
+    }
+    #expect(try Data(contentsOf: sentinel) == Data("keep".utf8))
+  }
+
+  @Test func prepareHomeRejectsSymlinkSessionRoot() throws {
+    let root = temporaryRoot()
+    let target = temporaryRoot()
+    defer {
+      try? FileManager.default.removeItem(at: root)
+      try? FileManager.default.removeItem(at: target)
+    }
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+    let sessionDirectory = root.appending(path: fixedIdentifier.uuidString)
+    try FileManager.default.createSymbolicLink(at: sessionDirectory, withDestinationURL: target)
+    let store = DuckDuckGoManagedStateStore(rootDirectory: root)
+
+    #expect(throws: DuckDuckGoManagedStateStoreError.sessionAlreadyExists) {
+      try store.prepareHome(identifier: fixedIdentifier)
+    }
+    #expect(FileManager.default.fileExists(atPath: target.path))
+  }
+
+  @Test func markerRoundTripsAsSortedJSONWithoutPersistingURL() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = DuckDuckGoManagedStateStore(rootDirectory: root)
+    let session = try store.prepareHome(identifier: fixedIdentifier)
+    let marker = marker(identifier: session.identifier)
+
+    try store.save(marker, for: session)
+
+    #expect(
+      try store.records()
+        == [DuckDuckGoManagedSessionRecord(session: session, marker: marker)]
+    )
+    let text = try String(contentsOf: session.markerURL, encoding: .utf8)
+    #expect(!text.contains("http://"))
+    #expect(!text.contains("https://"))
+    #expect(!text.contains("file://"))
+    #expect(
+      orderedRanges(
+        of: [
+          "applicationPath", "executablePath", "identifier", "launchDate",
+          "processIdentifier", "schemaVersion",
+        ],
+        in: text
+      )
+    )
+    #expect(try permissions(of: session.markerURL) == 0o600)
+  }
+
+  @Test func saveRejectsSessionNotDerivedFromStoreRoot() throws {
+    let root = temporaryRoot()
+    let foreignRoot = temporaryRoot()
+    defer {
+      try? FileManager.default.removeItem(at: root)
+      try? FileManager.default.removeItem(at: foreignRoot)
+    }
+    let store = DuckDuckGoManagedStateStore(rootDirectory: root)
+    let foreignStore = DuckDuckGoManagedStateStore(rootDirectory: foreignRoot)
+    let foreignSession = try foreignStore.prepareHome(identifier: fixedIdentifier)
+
+    #expect(throws: DuckDuckGoManagedStateStoreError.invalidSession) {
+      try store.save(marker(identifier: fixedIdentifier), for: foreignSession)
+    }
+    #expect(!FileManager.default.fileExists(atPath: root.path))
+  }
+
+  @Test func saveRejectsMarkerForAnotherSession() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = DuckDuckGoManagedStateStore(rootDirectory: root)
+    let session = try store.prepareHome(identifier: fixedIdentifier)
+
+    #expect(throws: DuckDuckGoManagedStateStoreError.markerIdentifierMismatch) {
+      try store.save(marker(identifier: UUID()), for: session)
+    }
+    #expect(!FileManager.default.fileExists(atPath: session.markerURL.path))
+  }
+
+  @Test func recordsIgnoreUnsafeAndInvalidEntriesWithoutDeletingThem() throws {
+    let root = temporaryRoot()
+    let symlinkTarget = temporaryRoot()
+    defer {
+      try? FileManager.default.removeItem(at: root)
+      try? FileManager.default.removeItem(at: symlinkTarget)
+    }
+    let store = DuckDuckGoManagedStateStore(rootDirectory: root)
+    let validSession = try store.prepareHome(identifier: fixedIdentifier)
+    let validMarker = marker(identifier: fixedIdentifier)
+    try store.save(validMarker, for: validSession)
+
+    let ignoredNames = [
+      ".hidden",
+      "not-a-uuid",
+      "11111111-2222-3333-4444-555555555555",
+      "22222222-3333-4444-5555-666666666666",
+      "33333333-4444-5555-6666-777777777777",
+    ]
+    for name in ignoredNames {
+      try FileManager.default.createDirectory(
+        at: root.appending(path: name),
+        withIntermediateDirectories: true
+      )
+    }
+    try Data("not json".utf8).write(
+      to: root.appending(path: ignoredNames[2]).appending(path: "Process.json")
+    )
+    try markerData(identifier: UUID(uuidString: ignoredNames[3])!, schemaVersion: 2)
+      .write(to: root.appending(path: ignoredNames[3]).appending(path: "Process.json"))
+    try markerData(identifier: UUID(), schemaVersion: 1)
+      .write(to: root.appending(path: ignoredNames[4]).appending(path: "Process.json"))
+    let symlinkName = "44444444-5555-6666-7777-888888888888"
+    let symlinkURL = root.appending(path: symlinkName)
+    try FileManager.default.createSymbolicLink(
+      at: symlinkURL,
+      withDestinationURL: symlinkTarget
+    )
+
+    #expect(
+      try store.records()
+        == [DuckDuckGoManagedSessionRecord(session: validSession, marker: validMarker)]
+    )
+    for name in ignoredNames {
+      #expect(FileManager.default.fileExists(atPath: root.appending(path: name).path))
+    }
+    #expect(try symbolicLinkExists(at: symlinkURL))
+  }
+
+  @Test func removalCanTargetOnlyGeneratedUUIDChild() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = DuckDuckGoManagedStateStore(rootDirectory: root)
+    let session = try store.prepareHome(identifier: fixedIdentifier)
+    let neighbor = root.deletingLastPathComponent().appending(path: "keep-\(UUID())")
+    try Data("keep".utf8).write(to: neighbor)
+    defer { try? FileManager.default.removeItem(at: neighbor) }
+
+    try store.removeSession(identifier: session.identifier)
+
+    #expect(!FileManager.default.fileExists(atPath: session.sessionDirectory.path))
+    #expect(FileManager.default.fileExists(atPath: neighbor.path))
+  }
+
+  private func temporaryRoot() -> URL {
+    FileManager.default.temporaryDirectory
+      .appending(path: "PickViaManagedStateTests-\(UUID())", directoryHint: .isDirectory)
+  }
+
+  private func marker(identifier: UUID) -> DuckDuckGoManagedProcessMarker {
+    DuckDuckGoManagedProcessMarker(
+      identifier: identifier,
+      processIdentifier: 4321,
+      launchDate: Date(timeIntervalSince1970: 1234),
+      applicationPath: "/Applications/DuckDuckGo.app",
+      executablePath: "/Applications/DuckDuckGo.app/Contents/MacOS/DuckDuckGo"
+    )
+  }
+
+  private func markerData(identifier: UUID, schemaVersion: Int) throws -> Data {
+    let marker: [String: Any] = [
+      "schemaVersion": schemaVersion,
+      "identifier": identifier.uuidString,
+      "processIdentifier": 4321,
+      "launchDate": 1234,
+      "applicationPath": "/Applications/DuckDuckGo.app",
+      "executablePath": "/Applications/DuckDuckGo.app/Contents/MacOS/DuckDuckGo",
+    ]
+    return try JSONSerialization.data(withJSONObject: marker, options: [.sortedKeys])
+  }
+
+  private func permissions(of url: URL) throws -> Int {
+    let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+    return try #require(attributes[.posixPermissions] as? Int) & 0o777
+  }
+
+  private func symbolicLinkExists(at url: URL) throws -> Bool {
+    try FileManager.default.attributesOfItem(atPath: url.path)[.type]
+      as? FileAttributeType == .typeSymbolicLink
+  }
+
+  private func orderedRanges(of keys: [String], in text: String) -> Bool {
+    let starts = keys.compactMap { text.range(of: "\"\($0)\"")?.lowerBound }
+    return starts.count == keys.count && zip(starts, starts.dropFirst()).allSatisfy(<)
+  }
+}
