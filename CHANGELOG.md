@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.3 — 2026-08-20
+
+PickVia now supports DuckDuckGo with ordinary and private browser targets.
+
+- Discover trusted official DuckDuckGo builds as a standard browser target.
+- Choose DuckDuckGo or DuckDuckGo Private from the same native chooser used by
+  other browsers.
+- Run DuckDuckGo Private in a separate real Fire Window with disposable,
+  PickVia-managed state isolated from ordinary bookmarks, cookies, autofill,
+  extensions, and preferences.
+- Bind private delivery, reuse, recovery, quarantine, and cleanup to the exact
+  managed process without Accessibility automation or a browser extension.
+- Limit DuckDuckGo Private to allowlisted official direct-download builds;
+  other trusted versions keep the ordinary target.
+
+PickVia v1.3 is ad-hoc signed and not notarized. See the README's Gatekeeper
+instructions before the first launch.
+
 ## v1.2 — 2026-08-18
 
 PickVia now supports Google Chrome Beta as a separate browser.
