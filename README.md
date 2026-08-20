@@ -29,9 +29,9 @@ PickVia handles HTTP, HTTPS, and `mailto:` links.
 
 - **Choose at the moment it matters.** Every web link opens a focused chooser
   beside your pointer instead of silently taking over an existing browser.
-- **Use the browser and profile you mean.** Pick Safari, Chrome, Chrome Beta,
-  Chromium, Edge, Brave, Vivaldi, or Firefox; supported browsers can expose
-  their normal, private, and discovered profile targets.
+- **Use the browser and profile you mean.** Pick Safari, DuckDuckGo, Chrome,
+  Chrome Beta, Chromium, Edge, Brave, Vivaldi, or Firefox; supported browsers
+  can expose their normal, private, and discovered profile targets.
 - **Choose your mail application.** PickVia discovers applications registered
   for `mailto:` links and presents direct app-level choices without exposing
   recipients, subjects, or message bodies in the chooser.
@@ -116,8 +116,16 @@ Apple documents this Gatekeeper override and its security implications in
 | Browser family | Profiles | Normal | Private |
 |---|---:|---:|---:|
 | Safari | No | Yes | No |
+| DuckDuckGo | No | Yes | Fire Window* |
 | Chrome, Chrome Beta, Chromium, Edge, Brave, Vivaldi | Yes | Yes | Yes |
 | Firefox | Yes | Yes | Yes |
+
+\* DuckDuckGo Fire Window uses a separate PickVia-managed DuckDuckGo process
+and disposable browser state. It does not share ordinary DuckDuckGo bookmarks,
+autofill, extensions, cookies, or preferences. Fire support requires an
+allowlisted official direct-download DuckDuckGo build; sandboxed Mac App Store
+and not-yet-validated versions keep the ordinary target only. PickVia does not
+use Accessibility automation or require a DuckDuckGo extension.
 
 Safari has one normal-window target. Chromium-family browsers and Firefox keep
 a browser-level Default target even if you choose not to grant profile access;
@@ -141,6 +149,10 @@ PickVia stores browser target configuration in
 the links you open. When you grant profile access, the app stores only a
 read-only security-scoped bookmark for the browser data root; it does not read
 browsing history, cookies, sessions, saved passwords, or page content.
+
+Managed DuckDuckGo Fire state lives under PickVia's cache directory. Its marker
+contains no routed URL, and PickVia removes the state only after the exact
+managed DuckDuckGo process terminates.
 
 The mail chooser does not preview, rewrite, log, or persist recipients,
 subjects, message bodies, or the original `mailto:` request.
