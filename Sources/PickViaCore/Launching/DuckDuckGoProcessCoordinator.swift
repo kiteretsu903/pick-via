@@ -193,12 +193,16 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
 
     switch mode {
     case .normal:
-      try await openOrdinary(
-        url: url,
-        applicationURL: trustedApplicationURL,
-        executableURL: expectedExecutableURL,
-        excluding: managed.excludedProcessIdentifiers
-      )
+      if mustExcludeEveryRunningProcess {
+        try await launchOrdinary(url: url, applicationURL: trustedApplicationURL)
+      } else {
+        try await openOrdinary(
+          url: url,
+          applicationURL: trustedApplicationURL,
+          executableURL: expectedExecutableURL,
+          excluding: managed.excludedProcessIdentifiers
+        )
+      }
     case .private:
       let reusable =
         mustExcludeEveryRunningProcess
@@ -292,17 +296,7 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
       .max { ($0.launchDate ?? .distantPast) < ($1.launchDate ?? .distantPast) }
 
     guard let existing else {
-      try Task.checkCancellation()
-      _ = try await applications.launch(
-        DuckDuckGoApplicationLaunchRequest(
-          applicationURL: applicationURL,
-          urls: [url],
-          createsNewApplicationInstance: true,
-          arguments: [],
-          environment: [:],
-          activates: true
-        )
-      )
+      try await launchOrdinary(url: url, applicationURL: applicationURL)
       return
     }
 
@@ -315,6 +309,20 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     guard await applications.activate(processIdentifier: existing.processIdentifier) else {
       throw DuckDuckGoRoutingError.activationFailed
     }
+  }
+
+  private func launchOrdinary(url: URL, applicationURL: URL) async throws {
+    try Task.checkCancellation()
+    _ = try await applications.launch(
+      DuckDuckGoApplicationLaunchRequest(
+        applicationURL: applicationURL,
+        urls: [url],
+        createsNewApplicationInstance: true,
+        arguments: [],
+        environment: [:],
+        activates: true
+      )
+    )
   }
 
   private func launchFire(

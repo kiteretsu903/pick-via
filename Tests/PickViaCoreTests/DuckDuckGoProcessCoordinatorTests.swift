@@ -1780,6 +1780,51 @@ struct DuckDuckGoProcessCoordinatorTests {
     #expect(FileManager.default.fileExists(atPath: session.sessionDirectory.path))
   }
 
+  @Test func unattributedQuarantineSkipsSecondOrdinaryProcessEnumeration()
+    async throws
+  {
+    let fixture = try CoordinatorFixture(compatibility: .fire)
+    defer { fixture.removeRoot() }
+    let session = try fixture.realStore.prepareHome()
+    try Data("opaque".utf8).write(to: session.quarantineURL)
+    let unresolvedFire = Self.makeSnapshot(
+      processIdentifier: 7501,
+      applicationURL: fixture.applicationURL,
+      executableURL: fixture.executableURL,
+      launchDate: Date(timeIntervalSince1970: 7_501)
+    )
+    await fixture.applications.setSnapshot(unresolvedFire)
+    await fixture.applications.setRunningApplicationResponses([
+      [],
+      [unresolvedFire],
+    ])
+    await fixture.applications.setNextLaunch(
+      Self.makeSnapshot(
+        processIdentifier: 8001,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: Date(timeIntervalSince1970: 8_001)
+      )
+    )
+    let url = URL(string: "https://example.com/opaque-race")!
+
+    try await fixture.coordinator.open(
+      url: url,
+      applicationURL: fixture.applicationURL,
+      mode: .normal
+    )
+
+    #expect(await fixture.applications.runningApplicationsCallCount == 1)
+    let launch = try #require(await fixture.applications.launches.only)
+    #expect(launch.urls == [url])
+    #expect(launch.createsNewApplicationInstance)
+    #expect(launch.arguments.isEmpty)
+    #expect(launch.environment.isEmpty)
+    #expect(launch.activates)
+    #expect(await fixture.events.invocations.isEmpty)
+    #expect(!(await fixture.applications.activatedPIDs).contains(7501))
+  }
+
   @Test func opaqueQuarantineWithReadableStaleProcessStillExcludesAmbientDuckDuckGo()
     async throws
   {
@@ -1933,6 +1978,7 @@ private actor RecordingDuckDuckGoApplicationManager: DuckDuckGoApplicationManagi
   private(set) var activatedPIDs: [Int32] = []
   private(set) var terminatedPIDs: [Int32] = []
   private(set) var waitTimeouts: [Duration] = []
+  private(set) var runningApplicationsCallCount = 0
   let activationSucceeds: Bool
   let terminationSucceeds: Bool
   let removesSnapshotOnTermination: Bool
@@ -1941,6 +1987,7 @@ private actor RecordingDuckDuckGoApplicationManager: DuckDuckGoApplicationManagi
   let suspendsLaunch: Bool
   let snapshotLaunchDateOffsetAfterLaunch: TimeInterval
   private var suspendedLaunches: [CheckedContinuation<Void, Never>] = []
+  private var runningApplicationResponses: [[DuckDuckGoApplicationSnapshot]] = []
 
   init(
     snapshots: [Int32: DuckDuckGoApplicationSnapshot],
@@ -1967,7 +2014,11 @@ private actor RecordingDuckDuckGoApplicationManager: DuckDuckGoApplicationManagi
   func runningApplications(bundleIdentifier: String) async
     -> [DuckDuckGoApplicationSnapshot]
   {
-    snapshots.values.filter { $0.bundleIdentifier == bundleIdentifier }
+    runningApplicationsCallCount += 1
+    if !runningApplicationResponses.isEmpty {
+      return runningApplicationResponses.removeFirst()
+    }
+    return snapshots.values.filter { $0.bundleIdentifier == bundleIdentifier }
   }
 
   func launch(_ request: DuckDuckGoApplicationLaunchRequest) async throws
@@ -2051,6 +2102,12 @@ private actor RecordingDuckDuckGoApplicationManager: DuckDuckGoApplicationManagi
 
   func setNextLaunch(_ snapshot: DuckDuckGoApplicationSnapshot) {
     nextLaunch = snapshot
+  }
+
+  func setRunningApplicationResponses(
+    _ responses: [[DuckDuckGoApplicationSnapshot]]
+  ) {
+    runningApplicationResponses = responses
   }
 }
 
