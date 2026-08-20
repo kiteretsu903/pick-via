@@ -4,10 +4,11 @@
   <img src="Support/Icons/PickViaArtwork.png" alt="PickVia app icon" width="128">
 </p>
 
-<p align="center"><strong>Choose where every link opens.</strong></p>
+<p align="center"><strong>Stop opening links in the wrong browser or profile.</strong></p>
 
-PickVia is a fast, local menu-bar app for macOS. Choose the exact browser,
-profile, or mail application you want whenever you open a web or email link.
+macOS can reuse the wrong browser window or profile, while every `mailto:` link
+goes to one fixed default mail app. PickVia asks where to open each link, so you
+choose the browser profile or installed mail app you actually need.
 
 **[Visit the PickVia website](https://kiteretsu903.github.io/pick-via/)** for
 screenshots, release highlights, and the [changelog](https://kiteretsu903.github.io/pick-via/changelog.html).
@@ -16,63 +17,29 @@ screenshots, release highlights, and the [changelog](https://kiteretsu903.github
   <img src="docs/screenshots/pickvia-browser-chooser-backdrop@2x.png" alt="PickVia browser chooser with native macOS translucent material" width="900">
 </p>
 
-<p align="center"><sub>Pick the right browser and profile without breaking your flow.</sub></p>
-
 ## Download
 
 **[Download PickVia v1.3 for macOS](https://github.com/kiteretsu903/pick-via/releases/latest)**
 
-PickVia requires **macOS 14 Sonoma or later** on **Apple Silicon**.
-PickVia handles HTTP, HTTPS, and `mailto:` links.
+PickVia requires **macOS 14 Sonoma or later** on **Apple Silicon** and handles
+HTTP, HTTPS, and `mailto:` links.
 
 ## What it does
 
-- **Choose at the moment it matters.** Every web link opens a focused chooser
-  beside your pointer instead of silently taking over an existing browser.
-- **Use the browser and profile you mean.** Pick Safari, DuckDuckGo, Chrome,
-  Chrome Beta, Chromium, Edge, Brave, Vivaldi, or Firefox; supported browsers
-  can expose their normal, private, and discovered profile targets.
-- **Choose your mail application.** PickVia discovers applications registered
-  for `mailto:` links and presents direct app-level choices without exposing
-  recipients, subjects, or message bodies in the chooser.
-- **Stay out of the way.** PickVia lives in the menu bar and has no Dock icon.
-- **Keep link handling local.** PickVia does not send, log, or persist opened
-  URLs. Its configuration stays in your Application Support folder.
-- **Keep profile access deliberate.** If macOS protects a browser's profile
-  folder, PickVia asks only for that browser's exact data root. You can remove
-  the grant at any time in Browser Settings.
+- **Choose a browser or profile for each web link.**
+- **Choose an installed mail app for each email link.**
+- **Handle links locally without saving opened-link history.**
 
-## Native, focused, and fast
-
-PickVia uses a compact native macOS chooser with real translucent material,
-keyboard shortcuts, and the application icons already installed on your Mac.
-Browser and email links share the same focused interaction without exposing the
-contents of the link.
+## Mail chooser
 
 <p align="center">
   <img src="docs/screenshots/pickvia-mail-chooser-backdrop@2x.png" alt="PickVia mail chooser with native macOS translucent material" width="900">
 </p>
 
-### The choosers on their own
-
-<table>
-  <tr>
-    <td align="center" valign="top" width="50%">
-      <img src="docs/screenshots/pickvia-browser-chooser@2x.png" alt="Standalone PickVia browser chooser" width="360">
-      <br><sub>Browser profiles and private targets</sub>
-    </td>
-    <td align="center" valign="top" width="50%">
-      <img src="docs/screenshots/pickvia-mail-chooser@2x.png" alt="Standalone PickVia mail chooser" width="360">
-      <br><sub>Installed email applications</sub>
-    </td>
-  </tr>
-</table>
-
 ## Configure once
 
-Enable only the browsers, profiles, private modes, and mail applications you
-want to see. Reorder targets so your everyday choices get the fastest keyboard
-shortcuts.
+Enable, disable, reorder, and rescan browser targets and registered mail apps in
+Settings.
 
 <p align="center">
   <img src="docs/screenshots/pickvia-settings@2x.png" alt="PickVia browser settings with synthetic browser profiles" width="900">
@@ -91,18 +58,17 @@ shortcuts.
 
 ### First launch and Gatekeeper
 
-PickVia v1.3 is ad-hoc signed and not notarized. macOS will block the first
-launch of the downloaded app. If you have downloaded it from this GitHub
-release and choose to trust it:
+PickVia v1.3 is ad-hoc signed and not notarized. macOS may block the first
+launch of the downloaded app. If you downloaded it from the GitHub release and
+choose to trust it:
 
 1. Try to open PickVia once and dismiss the warning.
 2. Open **System Settings → Privacy & Security** and scroll to **Security**.
 3. Click **Open Anyway**, then confirm **Open**. The button is available for
    about one hour after the blocked launch attempt.
 
-**If macOS still blocks the app:** make sure **PickVia.app** is in
-Applications, try to open it once and dismiss the warning, then follow the
-steps above. If **Open Anyway** still does not appear, run:
+If **Open Anyway** is unavailable, ensure **PickVia.app** is in Applications,
+try the blocked launch once, then run:
 
 ```zsh
 xattr -dr com.apple.quarantine "/Applications/PickVia.app"
@@ -120,46 +86,31 @@ Apple documents this Gatekeeper override and its security implications in
 | Chrome, Chrome Beta, Chromium, Edge, Brave, Vivaldi | Yes | Yes | Yes |
 | Firefox | Yes | Yes | Yes |
 
-\* DuckDuckGo Private uses a PickVia-managed real DuckDuckGo Fire Window
-internally, running in a separate process with disposable browser state. It does
-not share ordinary DuckDuckGo bookmarks, autofill, extensions, cookies, or
-preferences. Private support requires an allowlisted official direct-download
-DuckDuckGo build; sandboxed Mac App Store and not-yet-validated versions keep
-the ordinary target only. PickVia does not use Accessibility automation or
-require a DuckDuckGo extension.
+\* DuckDuckGo Private uses isolated, disposable state and is supported only by
+official direct-download builds; it requires neither a DuckDuckGo extension nor Accessibility access.
 
-Safari has one normal-window target. Chromium-family browsers and Firefox keep
-a browser-level Default target even if you choose not to grant profile access;
-granting access adds discovered profiles.
+Safari has one normal target; Chromium-family browsers and Firefox keep a
+Default target without profile access, while granting access adds discovered profiles.
 
 ## Mail support
 
-PickVia handles `mailto:` links only. It automatically discovers installed
-applications that macOS registers for email links and presents app-level
-choices—never mail accounts, profiles, identities, or compose modes.
-
-Use **Mail Settings** to enable or disable applications, change their order,
-and rescan registered handlers. Mail setup is optional during onboarding;
-choose **Skip Mail Setup** to keep your current default mail handler and
-configure PickVia later.
+PickVia handles `mailto:` links only, discovering installed applications that
+macOS registers for email links and offering app-level choices—not accounts,
+profiles, identities, or compose modes. Mail Settings can enable, disable,
+reorder, and rescan registered handlers; mail setup remains optional during
+onboarding.
 
 ## Privacy
 
-PickVia stores browser target configuration in
-`~/Library/Application Support/PickVia/PickViaConfig.json`. It does not persist
-the links you open. When you grant profile access, the app stores only a
-read-only security-scoped bookmark for the browser data root; it does not read
-browsing history, cookies, sessions, saved passwords, or page content.
+- Opened URLs are handled locally; PickVia never sends, logs, or persists them.
+- PickVia does not access browsing history, cookies, sessions, saved passwords,
+  or page content.
+- The mail chooser does not preview, log, or persist recipients, subjects,
+  message bodies, or the original `mailto:` request.
 
-Managed DuckDuckGo Fire state lives under PickVia's cache directory. Its marker
-contains no routed URL, and PickVia removes the state only after the exact
-managed DuckDuckGo process terminates.
+Remove profile-access grants in **Browser Settings → Profile Access → Remove Access**.
 
-The mail chooser does not preview, rewrite, log, or persist recipients,
-subjects, message bodies, or the original `mailto:` request.
-
-To remove a profile-access grant, open **Browser Settings → Profile Access**
-and choose **Remove Access** for that browser.
+See the full [Privacy Policy](https://kiteretsu903.github.io/pick-via/privacy.html).
 
 ## License
 
