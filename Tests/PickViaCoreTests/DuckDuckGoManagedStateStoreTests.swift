@@ -178,6 +178,30 @@ struct DuckDuckGoManagedStateStoreTests {
     #expect(try permissions(of: session.quarantineURL) == 0o600)
   }
 
+  @Test func pendingQuarantineWithoutPIDIsAValidDurableEntry() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = DuckDuckGoManagedStateStore(rootDirectory: root)
+    let session = try store.prepareHome(identifier: fixedIdentifier)
+    let pending = DuckDuckGoLaunchQuarantineMarker(
+      identifier: session.identifier,
+      processIdentifier: nil,
+      launchDate: nil,
+      applicationPath: "/Applications/DuckDuckGo.app",
+      executablePath: "/Applications/DuckDuckGo.app/Contents/MacOS/DuckDuckGo"
+    )
+
+    try store.saveQuarantine(pending, for: session)
+
+    #expect(
+      try store.quarantineEntries()
+        == [.valid(DuckDuckGoLaunchQuarantineRecord(session: session, marker: pending))]
+    )
+    let text = try String(contentsOf: session.quarantineURL, encoding: .utf8)
+    #expect(!text.contains("processIdentifier"))
+    #expect(!text.contains("launchDate"))
+  }
+
   @Test func quarantineRecordsIgnoreCorruptSchemaAndSymlinkWithoutDeleting() throws {
     let root = temporaryRoot()
     let externalMarker = root.deletingLastPathComponent()
@@ -280,6 +304,64 @@ struct DuckDuckGoManagedStateStoreTests {
     }
     #expect(try symbolicLinkExists(at: session.quarantineURL))
     #expect(try Data(contentsOf: externalMarker) == Data("keep".utf8))
+  }
+
+  @Test func uuidSessionSymlinkIsOpaqueAndItsTargetIsNeverRemoved() throws {
+    let root = temporaryRoot()
+    let target = temporaryRoot()
+    defer {
+      try? FileManager.default.removeItem(at: root)
+      try? FileManager.default.removeItem(at: target)
+    }
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+    let sentinel = target.appending(path: "keep")
+    try Data("keep".utf8).write(to: sentinel)
+    let sessionDirectory = root.appending(path: fixedIdentifier.uuidString)
+    try FileManager.default.createSymbolicLink(
+      at: sessionDirectory,
+      withDestinationURL: target
+    )
+    let session = DuckDuckGoManagedSession(
+      identifier: fixedIdentifier,
+      sessionDirectory: sessionDirectory,
+      homeDirectory: sessionDirectory.appending(path: "Home"),
+      markerURL: sessionDirectory.appending(path: "Process.json"),
+      quarantineURL: sessionDirectory.appending(path: "Quarantine.json")
+    )
+    let store = DuckDuckGoManagedStateStore(rootDirectory: root)
+
+    #expect(try store.quarantineEntries() == [.invalid(session: session)])
+    #expect(throws: DuckDuckGoManagedStateStoreError.invalidSession) {
+      try store.removeSession(identifier: fixedIdentifier)
+    }
+    #expect(try Data(contentsOf: sentinel) == Data("keep".utf8))
+    #expect(try symbolicLinkExists(at: sessionDirectory))
+  }
+
+  @Test func inaccessibleQuarantineMetadataFailsClosed() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = DuckDuckGoManagedStateStore(rootDirectory: root)
+    let session = try store.prepareHome(identifier: fixedIdentifier)
+    try store.saveQuarantine(
+      quarantineMarker(identifier: fixedIdentifier, launchDate: Date()),
+      for: session
+    )
+    try FileManager.default.setAttributes(
+      [.posixPermissions: 0o000],
+      ofItemAtPath: session.sessionDirectory.path
+    )
+    defer {
+      try? FileManager.default.setAttributes(
+        [.posixPermissions: 0o700],
+        ofItemAtPath: session.sessionDirectory.path
+      )
+    }
+
+    #expect(throws: (any Error).self) {
+      try store.quarantineEntries()
+    }
   }
 
   @Test func saveRejectsSessionNotDerivedFromStoreRoot() throws {
@@ -456,6 +538,77 @@ struct DuckDuckGoManagedStateStoreTests {
     #expect(FileManager.default.fileExists(atPath: neighbor.path))
   }
 
+  @Test func removalStaysBoundToOpenedRootWhenRootPathIsSwapped() throws {
+    let root = temporaryRoot()
+    let openedRoot = temporaryRoot()
+    let redirectRoot = temporaryRoot()
+    defer {
+      try? FileManager.default.removeItem(at: root)
+      try? FileManager.default.removeItem(at: openedRoot)
+      try? FileManager.default.removeItem(at: redirectRoot)
+    }
+    try FileManager.default.createDirectory(
+      at: redirectRoot.appending(path: fixedIdentifier.uuidString),
+      withIntermediateDirectories: true
+    )
+    let redirectSentinel = redirectRoot.appending(path: fixedIdentifier.uuidString)
+      .appending(path: "keep")
+    try Data("redirect keep".utf8).write(to: redirectSentinel)
+    let store = DuckDuckGoManagedStateStore(
+      rootDirectory: root,
+      removalDidOpenRoot: {
+        try FileManager.default.moveItem(at: root, to: openedRoot)
+        try FileManager.default.createSymbolicLink(
+          at: root,
+          withDestinationURL: redirectRoot
+        )
+      }
+    )
+    _ = try store.prepareHome(identifier: fixedIdentifier)
+
+    try store.removeSession(identifier: fixedIdentifier)
+
+    #expect(
+      !FileManager.default.fileExists(
+        atPath: openedRoot.appending(path: fixedIdentifier.uuidString).path
+      )
+    )
+    #expect(try Data(contentsOf: redirectSentinel) == Data("redirect keep".utf8))
+    #expect(try symbolicLinkExists(at: root))
+  }
+
+  @Test func failedDescriptorRelativeDeletionRestoresCanonicalSessionForRetry() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let initialStore = DuckDuckGoManagedStateStore(rootDirectory: root)
+    let session = try initialStore.prepareHome(identifier: fixedIdentifier)
+    try initialStore.saveQuarantine(
+      quarantineMarker(identifier: fixedIdentifier, launchDate: Date()),
+      for: session
+    )
+    let failingStore = DuckDuckGoManagedStateStore(
+      rootDirectory: root,
+      removalWillDeleteEntry: { name in
+        if name == "Home" { throw TestError.injectedRemovalFailure }
+      }
+    )
+
+    #expect(throws: TestError.injectedRemovalFailure) {
+      try failingStore.removeSession(identifier: fixedIdentifier)
+    }
+
+    #expect(FileManager.default.fileExists(atPath: session.sessionDirectory.path))
+    #expect(try initialStore.quarantineRecords().map(\.session.identifier) == [fixedIdentifier])
+    #expect(
+      try FileManager.default.contentsOfDirectory(atPath: root.path).allSatisfy {
+        !$0.hasPrefix(".deleting-")
+      }
+    )
+
+    try initialStore.removeSession(identifier: fixedIdentifier)
+    #expect(!FileManager.default.fileExists(atPath: session.sessionDirectory.path))
+  }
+
   private func temporaryRoot() -> URL {
     FileManager.default.temporaryDirectory
       .appending(path: "PickViaManagedStateTests-\(UUID())", directoryHint: .isDirectory)
@@ -540,4 +693,8 @@ struct DuckDuckGoManagedStateStoreTests {
     let starts = keys.compactMap { text.range(of: "\"\($0)\"")?.lowerBound }
     return starts.count == keys.count && zip(starts, starts.dropFirst()).allSatisfy(<)
   }
+}
+
+private enum TestError: Error {
+  case injectedRemovalFailure
 }

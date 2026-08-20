@@ -158,9 +158,12 @@ launch date exactly; no time tolerance is used for PID identity. This lets a
 user keep an active Fire Window open when PickVia quits and lets the next
 PickVia process reclaim it safely.
 
-A separate quarantine marker is written immediately after every isolated
-launch returns a PID and before that launch can be treated as managed. It
-contains no routed URL and survives PickVia restarts. A live or ambiguous
+A separate quarantine marker is written before every isolated launch. This
+pending marker has no PID or launch date, contains no routed URL, and survives
+PickVia restarts. After launch returns, it is atomically updated with the PID
+and exact launch date before that launch can be treated as managed. A failed
+pending write prevents launch; a failed post-launch update leaves the pending
+marker authoritative until exact rollback exit is proven. A live or ambiguous
 quarantined PID is excluded from both ordinary routing and Fire reuse. The
 quarantine is removed only after process exit is proven, PID reuse is proven
 by a different non-null launch date, or the managed marker is durable and the
@@ -169,9 +172,17 @@ quarantine marker itself has been removed successfully.
 Quarantine authority applies to the entire generated UUID session, not only
 to the PID inside a readable marker. If `Quarantine.json` is present but
 unsafe or malformed, the session is opaque: PickVia neither deletes it nor
-allows a `Process.json` in that session to make any process reusable. When an
-opaque session contains no readable process PID, routing also avoids all
-already-running DuckDuckGo processes and starts a fresh trusted instance.
+allows a `Process.json` in that session to make any process reusable. The
+presence of any opaque session makes routing avoid all already-running
+DuckDuckGo processes and start a fresh trusted instance.
+
+Cleanup reconciles every readable authority in a UUID session before deleting
+that session. A stale quarantine alongside a live managed marker removes only
+`Quarantine.json`; an ambiguous managed identity preserves the entire session.
+Whole-session deletion is allowed only when every readable authoritative
+record in that session is proven stale. Destructive cleanup is rooted in held,
+no-follow directory descriptors so replacing the cache-root pathname cannot
+redirect deletion.
 
 PickVia does not terminate the managed DuckDuckGo process merely because
 PickVia exits. After the managed process terminates, its exact generated cache

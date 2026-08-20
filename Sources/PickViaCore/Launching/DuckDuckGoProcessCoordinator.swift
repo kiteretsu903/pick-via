@@ -32,12 +32,11 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
   private struct ManagedProcessInventory: Sendable {
     var confirmed: [LiveManagedProcess] = []
     var excludedProcessIdentifiers: Set<Int32> = []
-    var processRecordSessionIdentifiers: Set<UUID> = []
   }
 
   private struct QuarantineAuthority: Sendable {
     var sessionIdentifiers: Set<UUID> = []
-    var opaqueSessionIdentifiers: Set<UUID> = []
+    var unattributedSessionIdentifiers: Set<UUID> = []
     var excludedProcessIdentifiers: Set<Int32> = []
   }
 
@@ -63,6 +62,7 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
   private var routeWaiters: [CheckedContinuation<Void, Never>] = []
   private var quarantinedLaunches: [UUID: QuarantinedLaunch] = [:]
   private var startupCleanupTask: Task<StartupCleanupResult, any Error>?
+  private var startupCleanupNeedsRun: Bool
 
   public init() {
     let applications = SystemDuckDuckGoApplicationManager()
@@ -72,6 +72,7 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     events = SystemDuckDuckGoAppleEventSender()
     self.stateStore = stateStore
     rollbackExitTimeout = .seconds(5)
+    startupCleanupNeedsRun = true
     startupCleanupTask = Task.detached {
       try await Self.performStartupCleanup(
         applications: applications,
@@ -97,6 +98,7 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     self.events = events
     self.stateStore = stateStore
     self.rollbackExitTimeout = rollbackExitTimeout
+    startupCleanupNeedsRun = startsStartupCleanup
     if startsStartupCleanup {
       startupCleanupTask = Task.detached {
         try await Self.performStartupCleanup(
@@ -123,9 +125,28 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
   }
 
   func waitForStartupCleanup() async throws {
+    guard startupCleanupNeedsRun else { return }
+    if startupCleanupTask == nil {
+      let applications = self.applications
+      let stateStore = self.stateStore
+      startupCleanupTask = Task.detached {
+        try await Self.performStartupCleanup(
+          applications: applications,
+          stateStore: stateStore
+        )
+      }
+    }
     guard let startupCleanupTask else { return }
-    let result = try await startupCleanupTask.value
+    let result: StartupCleanupResult
+    do {
+      result = try await startupCleanupTask.value
+    } catch {
+      self.startupCleanupTask = nil
+      startupCleanupNeedsRun = true
+      throw error
+    }
     self.startupCleanupTask = nil
+    startupCleanupNeedsRun = false
     for record in result.liveQuarantines {
       quarantinedLaunches[record.session.identifier] = QuarantinedLaunch(
         session: record.session,
@@ -158,9 +179,9 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     managed.excludedProcessIdentifiers.formUnion(
       quarantine.excludedProcessIdentifiers
     )
-    let hasUnattributedOpaqueQuarantine = !quarantine.opaqueSessionIdentifiers
-      .subtracting(managed.processRecordSessionIdentifiers).isEmpty
-    if hasUnattributedOpaqueQuarantine {
+    let mustExcludeEveryRunningProcess =
+      !quarantine.unattributedSessionIdentifiers.isEmpty
+    if mustExcludeEveryRunningProcess {
       let running = await applications.runningApplications(
         bundleIdentifier: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier
       )
@@ -180,7 +201,7 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
       )
     case .private:
       let reusable =
-        hasUnattributedOpaqueQuarantine
+        mustExcludeEveryRunningProcess
         ? []
         : managed.confirmed.filter {
           Self.markerMatchesApplication(
@@ -225,7 +246,6 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     let records = try stateStore.records()
     var inventory = ManagedProcessInventory()
     for record in records {
-      inventory.processRecordSessionIdentifiers.insert(record.session.identifier)
       if quarantine.sessionIdentifiers.contains(record.session.identifier) {
         inventory.excludedProcessIdentifiers.insert(record.marker.processIdentifier)
         continue
@@ -304,6 +324,26 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
   ) async throws {
     try Task.checkCancellation()
     let session = try stateStore.prepareHome(identifier: UUID())
+    let pendingQuarantine = DuckDuckGoLaunchQuarantineMarker(
+      identifier: session.identifier,
+      processIdentifier: nil,
+      launchDate: nil,
+      applicationPath: applicationURL.path,
+      executablePath: executableURL.path
+    )
+    quarantinedLaunches[session.identifier] = QuarantinedLaunch(
+      session: session,
+      marker: pendingQuarantine
+    )
+    do {
+      try stateStore.saveQuarantine(pendingQuarantine, for: session)
+    } catch {
+      if Self.removeSessionIfPossible(stateStore, identifier: session.identifier) {
+        quarantinedLaunches.removeValue(forKey: session.identifier)
+      }
+      throw error
+    }
+
     let launched: DuckDuckGoApplicationSnapshot
     do {
       try Task.checkCancellation()
@@ -328,7 +368,9 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
         )
       )
     } catch {
-      try? stateStore.removeSession(identifier: session.identifier)
+      if Self.removeSessionIfPossible(stateStore, identifier: session.identifier) {
+        quarantinedLaunches.removeValue(forKey: session.identifier)
+      }
       throw error
     }
 
@@ -493,18 +535,41 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
         )
       case .invalid(let session):
         opaqueSessionIdentifiers.insert(session.identifier)
+        quarantinedLaunches.removeValue(forKey: session.identifier)
       }
     }
 
+    let processRecords = try stateStore.records()
+    let processRecordsBySession = Dictionary(
+      uniqueKeysWithValues: processRecords.map { ($0.session.identifier, $0) }
+    )
     var reapedSessionIdentifiers: [UUID] = []
     for (sessionIdentifier, launch) in quarantinedLaunches {
-      let processIdentifier = launch.marker.processIdentifier
+      guard let processIdentifier = launch.marker.processIdentifier else { continue }
       let snapshot = await applications.snapshot(processIdentifier: processIdentifier)
       guard Self.quarantineIsStale(snapshot, marker: launch.marker) else {
         continue
       }
       try Task.checkCancellation()
-      try stateStore.removeSession(identifier: launch.session.identifier)
+      if let processRecord = processRecordsBySession[sessionIdentifier] {
+        let processSnapshot = await applications.snapshot(
+          processIdentifier: processRecord.marker.processIdentifier
+        )
+        try Task.checkCancellation()
+        switch Self.evaluateManagedIdentity(
+          processSnapshot,
+          marker: processRecord.marker
+        ) {
+        case .confirmed:
+          try stateStore.removeQuarantine(for: launch.session)
+        case .ambiguous:
+          continue
+        case .stale:
+          try stateStore.removeSession(identifier: launch.session.identifier)
+        }
+      } else {
+        try stateStore.removeSession(identifier: launch.session.identifier)
+      }
       reapedSessionIdentifiers.append(sessionIdentifier)
     }
     for sessionIdentifier in reapedSessionIdentifiers {
@@ -512,11 +577,15 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     }
     var authority = QuarantineAuthority(
       sessionIdentifiers: opaqueSessionIdentifiers,
-      opaqueSessionIdentifiers: opaqueSessionIdentifiers
+      unattributedSessionIdentifiers: opaqueSessionIdentifiers
     )
     for launch in quarantinedLaunches.values {
       authority.sessionIdentifiers.insert(launch.session.identifier)
-      authority.excludedProcessIdentifiers.insert(launch.marker.processIdentifier)
+      if let processIdentifier = launch.marker.processIdentifier {
+        authority.excludedProcessIdentifiers.insert(processIdentifier)
+      } else {
+        authority.unattributedSessionIdentifiers.insert(launch.session.identifier)
+      }
     }
     return authority
   }
@@ -525,16 +594,49 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     applications: any DuckDuckGoApplicationManaging,
     stateStore: any DuckDuckGoManagedStateStoring
   ) async throws -> StartupCleanupResult {
+    let quarantineEntries = try stateStore.quarantineEntries()
+    let processRecords = try stateStore.records()
+    let processRecordsBySession = Dictionary(
+      uniqueKeysWithValues: processRecords.map { ($0.session.identifier, $0) }
+    )
     var liveQuarantines: [DuckDuckGoLaunchQuarantineRecord] = []
     var quarantineSessionIdentifiers: Set<UUID> = []
-    for entry in try stateStore.quarantineEntries() {
+    var removedSessionIdentifiers: Set<UUID> = []
+    for entry in quarantineEntries {
       switch entry {
       case .valid(let record):
+        guard let processIdentifier = record.marker.processIdentifier else {
+          liveQuarantines.append(record)
+          quarantineSessionIdentifiers.insert(record.session.identifier)
+          continue
+        }
         let snapshot = await applications.snapshot(
-          processIdentifier: record.marker.processIdentifier
+          processIdentifier: processIdentifier
         )
         if quarantineIsStale(snapshot, marker: record.marker) {
-          try stateStore.removeSession(identifier: record.session.identifier)
+          try Task.checkCancellation()
+          if let processRecord = processRecordsBySession[record.session.identifier] {
+            let processSnapshot = await applications.snapshot(
+              processIdentifier: processRecord.marker.processIdentifier
+            )
+            try Task.checkCancellation()
+            switch evaluateManagedIdentity(
+              processSnapshot,
+              marker: processRecord.marker
+            ) {
+            case .confirmed:
+              try stateStore.removeQuarantine(for: record.session)
+            case .ambiguous:
+              liveQuarantines.append(record)
+              quarantineSessionIdentifiers.insert(record.session.identifier)
+            case .stale:
+              try stateStore.removeSession(identifier: record.session.identifier)
+              removedSessionIdentifiers.insert(record.session.identifier)
+            }
+          } else {
+            try stateStore.removeSession(identifier: record.session.identifier)
+            removedSessionIdentifiers.insert(record.session.identifier)
+          }
         } else {
           liveQuarantines.append(record)
           quarantineSessionIdentifiers.insert(record.session.identifier)
@@ -544,12 +646,15 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
       }
     }
 
-    for record in try stateStore.records()
-    where !quarantineSessionIdentifiers.contains(record.session.identifier) {
+    for record in processRecords
+    where !quarantineSessionIdentifiers.contains(record.session.identifier)
+      && !removedSessionIdentifiers.contains(record.session.identifier)
+    {
       let snapshot = await applications.snapshot(
         processIdentifier: record.marker.processIdentifier
       )
       if evaluateManagedIdentity(snapshot, marker: record.marker) == .stale {
+        try Task.checkCancellation()
         try stateStore.removeSession(identifier: record.session.identifier)
       }
     }

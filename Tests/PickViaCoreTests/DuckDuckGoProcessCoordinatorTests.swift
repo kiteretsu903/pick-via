@@ -997,14 +997,11 @@ struct DuckDuckGoProcessCoordinatorTests {
     )
   }
 
-  @Test func quarantinePersistenceFailureRollsBackAndKeepsUnresolvedPIDExcluded()
-    async throws
-  {
+  @Test func pendingQuarantineFailurePreventsLaunchAndRemovesFreshSession() async throws {
     let fixture = try CoordinatorFixture(
       compatibility: .fire,
       storeFailure: .quarantineSave,
-      terminationSucceeds: true,
-      keepsSnapshotAfterSuccessfulTermination: true
+      terminationSucceeds: true
     )
     defer { fixture.removeRoot() }
 
@@ -1015,11 +1012,42 @@ struct DuckDuckGoProcessCoordinatorTests {
         mode: .private
       )
     }
-    #expect(await fixture.applications.terminatedPIDs == [7001])
+    #expect(await fixture.applications.launches.isEmpty)
+    #expect(await fixture.applications.terminatedPIDs.isEmpty)
     #expect(try fixture.realStore.quarantineRecords().isEmpty)
-    #expect(fixture.sessionDirectoryNames().count == 1)
+    #expect(fixture.sessionDirectoryNames().isEmpty)
+  }
+
+  @Test func failedPostlaunchQuarantineUpdateSurvivesRestartAsPending() async throws {
+    let fixture = try CoordinatorFixture(
+      compatibility: .fire,
+      storeFailure: .quarantineUpdate,
+      terminationSucceeds: true,
+      keepsSnapshotAfterSuccessfulTermination: true
+    )
+    defer { fixture.removeRoot() }
+
+    await #expect(throws: TestFailure.quarantine) {
+      try await fixture.coordinator.open(
+        url: URL(string: "https://example.com/quarantine-update-failure")!,
+        applicationURL: fixture.applicationURL,
+        mode: .private
+      )
+    }
+    #expect(await fixture.applications.launches.count == 1)
+    #expect(await fixture.applications.terminatedPIDs == [7001])
+    let pending = try #require(fixture.realStore.quarantineRecords().only)
+    #expect(pending.marker.processIdentifier == nil)
+    let recoveredEvents = RecordingDuckDuckGoAppleEventSender()
+    let recoveredCoordinator = DuckDuckGoProcessCoordinator(
+      compatibilityChecker: StubDuckDuckGoCompatibility(value: .fire),
+      applications: fixture.applications,
+      events: recoveredEvents,
+      stateStore: fixture.realStore,
+      rollbackExitTimeout: .zero
+    )
     await fixture.applications.setNextLaunch(
-      DuckDuckGoProcessCoordinatorTests.makeSnapshot(
+      Self.makeSnapshot(
         processIdentifier: 8001,
         applicationURL: fixture.applicationURL,
         executableURL: fixture.executableURL,
@@ -1027,14 +1055,14 @@ struct DuckDuckGoProcessCoordinatorTests {
       )
     )
 
-    try await fixture.coordinator.open(
-      url: URL(string: "https://example.com/ordinary-after-quarantine-failure")!,
+    try await recoveredCoordinator.open(
+      url: URL(string: "https://example.com/ordinary-after-pending-restart")!,
       applicationURL: fixture.applicationURL,
       mode: .normal
     )
 
     #expect(await fixture.applications.launches.count == 2)
-    #expect(await fixture.events.invocations.isEmpty)
+    #expect(await recoveredEvents.invocations.isEmpty)
   }
 
   @Test func quarantineRemovalFailureRemainsAuthoritativeAfterRestart() async throws {
@@ -1315,6 +1343,221 @@ struct DuckDuckGoProcessCoordinatorTests {
     #expect(FileManager.default.fileExists(atPath: session.sessionDirectory.path))
   }
 
+  @Test func staleQuarantineRemovesOnlyMarkerWhenSameSessionProcessIsLive() async throws {
+    let fixture = try CoordinatorFixture(compatibility: .fire)
+    defer { fixture.removeRoot() }
+    let session = try fixture.realStore.prepareHome()
+    let quarantineDate = Date(timeIntervalSince1970: 7_601)
+    let processDate = Date(timeIntervalSince1970: 7_701)
+    try fixture.realStore.saveQuarantine(
+      DuckDuckGoLaunchQuarantineMarker(
+        identifier: session.identifier,
+        processIdentifier: 7601,
+        launchDate: quarantineDate,
+        applicationPath: fixture.applicationURL.path,
+        executablePath: fixture.executableURL.path
+      ),
+      for: session
+    )
+    try fixture.realStore.save(
+      DuckDuckGoManagedProcessMarker(
+        identifier: session.identifier,
+        processIdentifier: 7701,
+        launchDate: processDate,
+        applicationPath: fixture.applicationURL.path,
+        executablePath: fixture.executableURL.path
+      ),
+      for: session
+    )
+    await fixture.applications.setSnapshot(
+      Self.makeSnapshot(
+        processIdentifier: 7601,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: quarantineDate.addingTimeInterval(1)
+      )
+    )
+    await fixture.applications.setSnapshot(
+      Self.makeSnapshot(
+        processIdentifier: 7701,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: processDate
+      )
+    )
+
+    try await fixture.coordinator.open(
+      url: URL(string: "https://example.com/live-process-wins")!,
+      applicationURL: fixture.applicationURL,
+      mode: .private
+    )
+
+    #expect(await fixture.applications.launches.isEmpty)
+    #expect(await fixture.events.invocations.map(\.processIdentifier) == [7701, 7701])
+    #expect(!FileManager.default.fileExists(atPath: session.quarantineURL.path))
+    #expect(try fixture.realStore.records().map(\.marker.processIdentifier) == [7701])
+  }
+
+  @Test func startupRemovesStaleQuarantineButPreservesSameSessionLiveProcess()
+    async throws
+  {
+    let fixture = try CoordinatorFixture(compatibility: .fire)
+    defer { fixture.removeRoot() }
+    let session = try fixture.realStore.prepareHome()
+    let quarantineDate = Date(timeIntervalSince1970: 7_801)
+    let processDate = Date(timeIntervalSince1970: 7_901)
+    try fixture.realStore.saveQuarantine(
+      DuckDuckGoLaunchQuarantineMarker(
+        identifier: session.identifier,
+        processIdentifier: 7801,
+        launchDate: quarantineDate,
+        applicationPath: fixture.applicationURL.path,
+        executablePath: fixture.executableURL.path
+      ),
+      for: session
+    )
+    try fixture.realStore.save(
+      DuckDuckGoManagedProcessMarker(
+        identifier: session.identifier,
+        processIdentifier: 7901,
+        launchDate: processDate,
+        applicationPath: fixture.applicationURL.path,
+        executablePath: fixture.executableURL.path
+      ),
+      for: session
+    )
+    await fixture.applications.setSnapshot(
+      Self.makeSnapshot(
+        processIdentifier: 7801,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: quarantineDate.addingTimeInterval(1)
+      )
+    )
+    await fixture.applications.setSnapshot(
+      Self.makeSnapshot(
+        processIdentifier: 7901,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: processDate
+      )
+    )
+    let startupCoordinator = DuckDuckGoProcessCoordinator(
+      compatibilityChecker: StubDuckDuckGoCompatibility(value: .fire),
+      applications: fixture.applications,
+      events: fixture.events,
+      stateStore: fixture.realStore,
+      rollbackExitTimeout: .zero,
+      startsStartupCleanup: true
+    )
+
+    try await startupCoordinator.waitForStartupCleanup()
+
+    #expect(!FileManager.default.fileExists(atPath: session.quarantineURL.path))
+    #expect(try fixture.realStore.records().map(\.marker.processIdentifier) == [7901])
+    #expect(FileManager.default.fileExists(atPath: session.sessionDirectory.path))
+  }
+
+  @Test func staleQuarantinePreservesSameSessionAmbiguousProcessAndExcludesBoth()
+    async throws
+  {
+    let fixture = try CoordinatorFixture(compatibility: .fire)
+    defer { fixture.removeRoot() }
+    let session = try fixture.realStore.prepareHome()
+    let quarantineDate = Date(timeIntervalSince1970: 7_801)
+    let processDate = Date(timeIntervalSince1970: 7_901)
+    try fixture.realStore.saveQuarantine(
+      DuckDuckGoLaunchQuarantineMarker(
+        identifier: session.identifier,
+        processIdentifier: 7801,
+        launchDate: quarantineDate,
+        applicationPath: fixture.applicationURL.path,
+        executablePath: fixture.executableURL.path
+      ),
+      for: session
+    )
+    try fixture.realStore.save(
+      DuckDuckGoManagedProcessMarker(
+        identifier: session.identifier,
+        processIdentifier: 7901,
+        launchDate: processDate,
+        applicationPath: fixture.applicationURL.path,
+        executablePath: fixture.executableURL.path
+      ),
+      for: session
+    )
+    await fixture.applications.setSnapshot(
+      Self.makeSnapshot(
+        processIdentifier: 7801,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: quarantineDate.addingTimeInterval(1)
+      )
+    )
+    await fixture.applications.setSnapshot(
+      Self.makeSnapshot(
+        processIdentifier: 7901,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: nil
+      )
+    )
+    await fixture.applications.setNextLaunch(
+      Self.makeSnapshot(
+        processIdentifier: 8001,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: Date(timeIntervalSince1970: 8_001)
+      )
+    )
+
+    try await fixture.coordinator.open(
+      url: URL(string: "https://example.com/ambiguous-process-wins")!,
+      applicationURL: fixture.applicationURL,
+      mode: .normal
+    )
+
+    #expect(await fixture.applications.launches.count == 1)
+    #expect(await fixture.events.invocations.isEmpty)
+    #expect(FileManager.default.fileExists(atPath: session.quarantineURL.path))
+    #expect(try fixture.realStore.records().map(\.marker.processIdentifier) == [7901])
+  }
+
+  @Test func failedStartupCleanupIsRetriedByTheNextOpen() async throws {
+    let fixture = try CoordinatorFixture(compatibility: .fire)
+    defer { fixture.removeRoot() }
+    let failingStore = FailingDuckDuckGoManagedStateStore(
+      underlying: fixture.realStore,
+      failure: .startupEntriesOnce
+    )
+    let coordinator = DuckDuckGoProcessCoordinator(
+      compatibilityChecker: StubDuckDuckGoCompatibility(value: .fire),
+      applications: fixture.applications,
+      events: fixture.events,
+      stateStore: failingStore,
+      rollbackExitTimeout: .zero,
+      startsStartupCleanup: true
+    )
+    let url = URL(string: "https://example.com/startup-retry")!
+
+    await #expect(throws: TestFailure.startup) {
+      try await coordinator.open(
+        url: url,
+        applicationURL: fixture.applicationURL,
+        mode: .normal
+      )
+    }
+    #expect(await fixture.applications.launches.isEmpty)
+
+    try await coordinator.open(
+      url: url,
+      applicationURL: fixture.applicationURL,
+      mode: .normal
+    )
+
+    #expect(await fixture.applications.launches.count == 1)
+  }
+
   @Test func duplicateQuarantinePIDStillProtectsEveryUUIDSession() async throws {
     let fixture = try CoordinatorFixture(compatibility: .fire)
     defer { fixture.removeRoot() }
@@ -1535,6 +1778,116 @@ struct DuckDuckGoProcessCoordinatorTests {
     #expect(await fixture.applications.launches.count == 1)
     #expect(await fixture.events.invocations.isEmpty)
     #expect(FileManager.default.fileExists(atPath: session.sessionDirectory.path))
+  }
+
+  @Test func opaqueQuarantineWithReadableStaleProcessStillExcludesAmbientDuckDuckGo()
+    async throws
+  {
+    let fixture = try CoordinatorFixture(
+      compatibility: .fire,
+      unmanagedPIDs: [7501]
+    )
+    defer { fixture.removeRoot() }
+    let session = try fixture.realStore.prepareHome()
+    try Data("opaque".utf8).write(to: session.quarantineURL)
+    let staleDate = Date(timeIntervalSince1970: 7_301)
+    try fixture.realStore.save(
+      DuckDuckGoManagedProcessMarker(
+        identifier: session.identifier,
+        processIdentifier: 7301,
+        launchDate: staleDate,
+        applicationPath: fixture.applicationURL.path,
+        executablePath: fixture.executableURL.path
+      ),
+      for: session
+    )
+    await fixture.applications.setSnapshot(
+      Self.makeSnapshot(
+        processIdentifier: 7301,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: staleDate,
+        isTerminated: true
+      )
+    )
+    await fixture.applications.setNextLaunch(
+      Self.makeSnapshot(
+        processIdentifier: 8001,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: Date(timeIntervalSince1970: 8_401)
+      )
+    )
+
+    try await fixture.coordinator.open(
+      url: URL(string: "https://example.com/opaque-readable-normal")!,
+      applicationURL: fixture.applicationURL,
+      mode: .normal
+    )
+
+    #expect(await fixture.applications.launches.count == 1)
+    #expect(await fixture.events.invocations.isEmpty)
+    #expect(FileManager.default.fileExists(atPath: session.sessionDirectory.path))
+  }
+
+  @Test func quarantineThatBecomesOpaqueOverridesPreviouslyLoadedInMemoryIdentity()
+    async throws
+  {
+    let fixture = try CoordinatorFixture(compatibility: .fire)
+    defer { fixture.removeRoot() }
+    let session = try fixture.realStore.prepareHome()
+    let quarantineDate = Date(timeIntervalSince1970: 7_501)
+    try fixture.realStore.saveQuarantine(
+      DuckDuckGoLaunchQuarantineMarker(
+        identifier: session.identifier,
+        processIdentifier: 7501,
+        launchDate: quarantineDate,
+        applicationPath: fixture.applicationURL.path,
+        executablePath: fixture.executableURL.path
+      ),
+      for: session
+    )
+    await fixture.applications.setSnapshot(
+      Self.makeSnapshot(
+        processIdentifier: 7501,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: quarantineDate
+      )
+    )
+
+    try await fixture.coordinator.open(
+      url: URL(string: "https://example.com/load-quarantine")!,
+      applicationURL: fixture.applicationURL,
+      mode: .normal
+    )
+    try Data("became opaque".utf8).write(to: session.quarantineURL)
+    await fixture.applications.setSnapshot(
+      Self.makeSnapshot(
+        processIdentifier: 7501,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: quarantineDate,
+        isTerminated: true
+      )
+    )
+    await fixture.applications.setNextLaunch(
+      Self.makeSnapshot(
+        processIdentifier: 8001,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: Date(timeIntervalSince1970: 8_501)
+      )
+    )
+
+    try await fixture.coordinator.open(
+      url: URL(string: "https://example.com/opaque-wins")!,
+      applicationURL: fixture.applicationURL,
+      mode: .normal
+    )
+
+    #expect(FileManager.default.fileExists(atPath: session.sessionDirectory.path))
+    #expect(try Data(contentsOf: session.quarantineURL) == Data("became opaque".utf8))
   }
 
   private static func snapshot(
@@ -1763,11 +2116,15 @@ private final class FailingDuckDuckGoManagedStateStore:
     case save
     case saveAfterPersistence
     case quarantineSave
+    case quarantineUpdate
     case quarantineRemoval
+    case startupEntriesOnce
   }
 
   let underlying: DuckDuckGoManagedStateStore
   let failure: Failure?
+  private let lock = NSLock()
+  private var didFailStartupEntries = false
 
   init(underlying: DuckDuckGoManagedStateStore, failure: Failure?) {
     self.underlying = underlying
@@ -1796,6 +2153,9 @@ private final class FailingDuckDuckGoManagedStateStore:
     for session: DuckDuckGoManagedSession
   ) throws {
     if failure == .quarantineSave { throw TestFailure.quarantine }
+    if failure == .quarantineUpdate, marker.processIdentifier != nil {
+      throw TestFailure.quarantine
+    }
     try underlying.saveQuarantine(marker, for: session)
   }
 
@@ -1804,7 +2164,15 @@ private final class FailingDuckDuckGoManagedStateStore:
   }
 
   func quarantineEntries() throws -> [DuckDuckGoLaunchQuarantineEntry] {
-    try underlying.quarantineEntries()
+    if failure == .startupEntriesOnce {
+      let shouldFail = lock.withLock {
+        guard !didFailStartupEntries else { return false }
+        didFailStartupEntries = true
+        return true
+      }
+      if shouldFail { throw TestFailure.startup }
+    }
+    return try underlying.quarantineEntries()
   }
 
   func removeQuarantine(for session: DuckDuckGoManagedSession) throws {
@@ -1979,6 +2347,7 @@ private enum TestFailure: Error, Equatable, Sendable {
   case save
   case wait
   case quarantine
+  case startup
 }
 
 extension Collection {
