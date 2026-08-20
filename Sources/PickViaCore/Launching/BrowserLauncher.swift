@@ -118,6 +118,9 @@ public struct BrowserLauncher: RouteLaunching, Sendable {
       }
       return .workspace(application: trustedApplicationURL, url: url)
 
+    case .duckDuckGo:
+      throw Self.launchFailure
+
     case .chromium:
       guard
         let relativeExecutable = descriptor.executableRelativePath,

@@ -40,7 +40,7 @@ public struct BrowserProfileRootValidator: Sendable {
       "Local State"
     case .firefox:
       "profiles.ini"
-    case .safari:
+    case .safari, .duckDuckGo:
       nil
     }
   }

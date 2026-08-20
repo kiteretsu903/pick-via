@@ -153,6 +153,25 @@ struct BrowserLauncherTests {
     }
   }
 
+  @Test func duckDuckGoLaunchFailsClosedUntilItsLaunchSupportIsImplemented() {
+    let launcher = BrowserLauncher(
+      trustedApplicationResolver: StubTrustedApplicationResolver(urls: [
+        DuckDuckGoBuildCompatibilityChecker.bundleIdentifier: applicationURL
+      ]),
+      processRunner: RecordingProcessRunner(),
+      workspace: RecordingWorkspace(),
+      executableValidator: StubExecutableValidator(isExecutable: true)
+    )
+
+    #expect(throws: LaunchFailure.self) {
+      try launcher.makePlan(
+        url: url,
+        application: application(family: .duckDuckGo, executable: nil),
+        target: target(family: .duckDuckGo, profile: nil)
+      )
+    }
+  }
+
   @Test func unprofiledChromiumAndFirefoxPlansUseBrowserLevelArguments() throws {
     let launcher = testLauncher()
 
@@ -672,6 +691,7 @@ private func target(
 private func bundleID(for family: BrowserFamily) -> String {
   switch family {
   case .safari: "com.apple.Safari"
+  case .duckDuckGo: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier
   case .chromium: "com.google.Chrome"
   case .firefox: "org.mozilla.firefox"
   }

@@ -2,6 +2,7 @@ import Foundation
 
 public enum BrowserFamily: String, Codable, Sendable {
   case safari
+  case duckDuckGo
   case chromium
   case firefox
 }

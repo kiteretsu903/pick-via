@@ -8,6 +8,7 @@ struct BrowserCatalogTests {
     #expect(
       BrowserDescriptor.supported.map(\.bundleIdentifier) == [
         "com.apple.Safari",
+        "com.duckduckgo.macos.browser",
         "com.google.Chrome",
         "com.google.Chrome.beta",
         "org.chromium.Chromium",
@@ -16,7 +17,156 @@ struct BrowserCatalogTests {
         "com.vivaldi.Vivaldi",
         "org.mozilla.firefox",
       ])
-    #expect(BrowserDescriptor.supported.count == 8)
+    #expect(BrowserDescriptor.supported.count == 9)
+  }
+
+  @Test func duckDuckGoDescriptorHasNoProfileOrExecutablePaths() throws {
+    let descriptor = try #require(
+      BrowserDescriptor.descriptor(
+        forBundleIdentifier: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier))
+
+    #expect(descriptor.family == .duckDuckGo)
+    #expect(descriptor.displayName == "DuckDuckGo")
+    #expect(descriptor.profileRoot == nil)
+    #expect(descriptor.executableRelativePath == nil)
+  }
+
+  @Test func fireCompatibleDuckDuckGoDiscoveryCreatesEnabledNormalAndFireTargets() throws {
+    let applicationURL = URL(fileURLWithPath: "/Applications/DuckDuckGo.app", isDirectory: true)
+    let access = StubProfileRootAccess()
+    let fileSystem = DiscoveryFileSystem(files: [:])
+    let catalog = duckDuckGoCatalog(
+      applicationURL: applicationURL,
+      compatibility: .fire,
+      fileSystem: fileSystem,
+      profileRootAccess: access
+    )
+
+    let browser = try #require(catalog.scan().first)
+    let reconciled = BrowserCatalog.reconcile(discovered: [browser], with: .initial)
+
+    #expect(browser.metadataStatus == .notApplicable)
+    #expect(browser.profiles.isEmpty)
+    #expect(browser.privateModeIsAvailable)
+    #expect(access.requestedBundleIdentifiers.isEmpty)
+    #expect(fileSystem.readURLs.isEmpty)
+    #expect(reconciled.targets.map(\.label) == ["DuckDuckGo", "DuckDuckGo Fire Window"])
+    #expect(reconciled.targets.map(\.mode) == [.normal, .private])
+    #expect(reconciled.targets.allSatisfy { $0.isEnabled })
+    #expect(reconciled.targets.allSatisfy { $0.availability == .available })
+  }
+
+  @Test func ordinaryOnlyDuckDuckGoDiscoveryCreatesOnlyNormalTarget() throws {
+    let catalog = duckDuckGoCatalog(
+      applicationURL: URL(fileURLWithPath: "/Applications/DuckDuckGo.app", isDirectory: true),
+      compatibility: .ordinaryOnly
+    )
+
+    let browser = try #require(catalog.scan().first)
+    let reconciled = BrowserCatalog.reconcile(discovered: [browser], with: .initial)
+
+    #expect(!browser.privateModeIsAvailable)
+    #expect(reconciled.targets.map(\.label) == ["DuckDuckGo"])
+    #expect(reconciled.targets.map(\.mode) == [.normal])
+  }
+
+  @Test func unsupportedDuckDuckGoBuildIsNotDiscovered() throws {
+    let catalog = duckDuckGoCatalog(
+      applicationURL: URL(fileURLWithPath: "/Applications/DuckDuckGo.app", isDirectory: true),
+      compatibility: .unsupported
+    )
+
+    #expect(try catalog.scan().isEmpty)
+  }
+
+  @Test func ordinaryOnlyDuckDuckGoRescanPreservesButDisablesFireCustomization() throws {
+    let fire = duckDuckGoBrowser(privateModeIsAvailable: true)
+    let initiallyReconciled = BrowserCatalog.reconcile(discovered: [fire], with: .initial)
+    let fireID = BrowserCatalog.targetID(
+      bundleIdentifier: fire.application.bundleIdentifier,
+      profileIdentifier: nil,
+      mode: .private
+    )
+    let customized = initiallyReconciled.targets.map { target in
+      target.id == fireID
+        ? copy(target, label: "My Fire", enabled: false, sortOrder: 23)
+        : target
+    }
+    let ordinaryOnly = duckDuckGoBrowser(privateModeIsAvailable: false)
+
+    let result = BrowserCatalog.reconcile(
+      discovered: [ordinaryOnly],
+      with: PickViaConfig(
+        schemaVersion: initiallyReconciled.schemaVersion,
+        browsers: initiallyReconciled.browsers,
+        targets: customized
+      )
+    )
+    let persistedFire = try #require(result.targets.first { $0.id == fireID })
+
+    #expect(persistedFire.label == "My Fire")
+    #expect(!persistedFire.isEnabled)
+    #expect(persistedFire.sortOrder == 23)
+    #expect(persistedFire.mode == .private)
+    #expect(persistedFire.availability == .unavailable)
+    #expect(!result.targets.contains { $0.mode == .normal && $0.label == "My Fire" })
+  }
+
+  @Test func fireCompatibleDuckDuckGoRescanReenablesCanonicalTargetWithoutDuplication() throws {
+    let ordinaryOnly = duckDuckGoBrowser(privateModeIsAvailable: false)
+    let fire = duckDuckGoBrowser(privateModeIsAvailable: true)
+    let fireID = BrowserCatalog.targetID(
+      bundleIdentifier: fire.application.bundleIdentifier,
+      profileIdentifier: nil,
+      mode: .private
+    )
+    let persistedFire = BrowserTarget(
+      id: fireID,
+      browserID: fire.application.id,
+      label: "My Fire",
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      mode: .private,
+      isEnabled: false,
+      sortOrder: 23,
+      origin: .detected,
+      availability: .unavailable
+    )
+    let unavailable = BrowserCatalog.reconcile(
+      discovered: [ordinaryOnly],
+      with: PickViaConfig(schemaVersion: 1, browsers: [fire.application], targets: [persistedFire])
+    )
+
+    let result = BrowserCatalog.reconcile(discovered: [fire], with: unavailable)
+    let restored = try #require(result.targets.first { $0.id == fireID })
+
+    #expect(result.targets.filter { $0.id == fireID }.count == 1)
+    #expect(restored.label == "My Fire")
+    #expect(!restored.isEnabled)
+    #expect(restored.sortOrder == 23)
+    #expect(restored.availability == .available)
+  }
+
+  @Test func duckDuckGoRescanNeverMakesPersistedProfileTargetAvailable() throws {
+    let browser = duckDuckGoBrowser(privateModeIsAvailable: true)
+    let profileTarget = catalogTarget(
+      browser: browser.application,
+      label: "Stale Profile",
+      profileIdentifier: "Profile 1",
+      profileDisplayName: "Profile 1",
+      profileIdentity: "Profile 1",
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 10
+    )
+
+    let result = BrowserCatalog.reconcile(
+      discovered: [browser],
+      with: PickViaConfig(
+        schemaVersion: 1, browsers: [browser.application], targets: [profileTarget])
+    )
+
+    #expect(result.targets.first { $0.id == profileTarget.id }?.availability == .unavailable)
   }
 
   @Test func chromeBetaDescriptorUsesCanonicalMacMetadata() throws {
@@ -2574,6 +2724,46 @@ private let firefoxDescriptor = BrowserDescriptor.supported.first {
   $0.bundleIdentifier == "org.mozilla.firefox"
 }!
 
+private let duckDuckGoDescriptor = BrowserDescriptor.supported.first {
+  $0.bundleIdentifier == DuckDuckGoBuildCompatibilityChecker.bundleIdentifier
+}!
+
+private func duckDuckGoCatalog(
+  applicationURL: URL,
+  compatibility: DuckDuckGoBuildCompatibility,
+  fileSystem: any FileSystem = DiscoveryFileSystem(files: [:]),
+  profileRootAccess: any ProfileRootAccessProviding = StubProfileRootAccess()
+) -> BrowserCatalog {
+  BrowserCatalog(
+    descriptors: [duckDuckGoDescriptor],
+    applicationLocator: StubApplicationLocator(applications: [
+      DuckDuckGoBuildCompatibilityChecker.bundleIdentifier: applicationURL
+    ]),
+    fileSystem: fileSystem,
+    profileRootAccess: profileRootAccess,
+    duckDuckGoCompatibilityChecker: StubDuckDuckGoCompatibilityChecker(
+      compatibility: compatibility
+    )
+  )
+}
+
+private func duckDuckGoBrowser(privateModeIsAvailable: Bool) -> DiscoveredBrowser {
+  DiscoveredBrowser(
+    application: BrowserApplication(
+      id: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
+      family: .duckDuckGo,
+      displayName: "DuckDuckGo",
+      bundleIdentifier: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
+      applicationURL: URL(fileURLWithPath: "/Applications/DuckDuckGo.app"),
+      executableURL: nil,
+      isAvailable: true
+    ),
+    profiles: [],
+    metadataStatus: .notApplicable,
+    privateModeIsAvailable: privateModeIsAvailable
+  )
+}
+
 private func chrome(
   profiles: [DiscoveredProfile],
   metadataStatus: ProfileMetadataStatus = .loaded
@@ -2773,6 +2963,14 @@ private final class StubApplicationLocator: ApplicationLocating, @unchecked Send
   func applicationURL(forBundleIdentifier bundleIdentifier: String) -> URL? {
     requestedBundleIdentifiers.append(bundleIdentifier)
     return applications[bundleIdentifier]
+  }
+}
+
+private struct StubDuckDuckGoCompatibilityChecker: DuckDuckGoBuildCompatibilityChecking {
+  let compatibility: DuckDuckGoBuildCompatibility
+
+  func compatibility(of url: URL) -> DuckDuckGoBuildCompatibility {
+    compatibility
   }
 }
 
