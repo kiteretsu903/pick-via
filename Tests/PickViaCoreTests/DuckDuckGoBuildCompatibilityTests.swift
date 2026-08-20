@@ -74,18 +74,38 @@ struct DuckDuckGoBuildCompatibilityTests {
     )
   }
 
-  @Test func missingSignedPlistIsRejected() {
+  @Test func missingSignedPlistProducesUnknownVersion() {
     var information = signingInformation()
     information.removeValue(forKey: kSecCodeInfoPList as String)
 
-    #expect(signedApplicationMetadata(from: information) == nil)
+    #expect(signedApplicationMetadata(from: information)?.shortVersion == nil)
   }
 
-  @Test func malformedSignedPlistIsRejected() {
+  @Test func malformedSignedPlistProducesUnknownVersion() {
     var information = signingInformation()
     information[kSecCodeInfoPList as String] = "not a plist dictionary"
 
-    #expect(signedApplicationMetadata(from: information) == nil)
+    #expect(signedApplicationMetadata(from: information)?.shortVersion == nil)
+  }
+
+  @Test func absentSignedVersionProducesOrdinaryOnlyCompatibility() {
+    var information = signingInformation()
+    information[kSecCodeInfoPList as String] = [:]
+
+    let metadata = signedApplicationMetadata(from: information)
+    #expect(metadata?.shortVersion == nil)
+    if let metadata {
+      #expect(checker(for: metadata).compatibility(of: applicationURL) == .ordinaryOnly)
+    } else {
+      #expect(Bool(false), "Trusted metadata should remain available when version is missing")
+    }
+  }
+
+  @Test func nonStringSignedVersionProducesUnknownVersion() {
+    var information = signingInformation()
+    information[kSecCodeInfoPList as String] = ["CFBundleShortVersionString": 1_203]
+
+    #expect(signedApplicationMetadata(from: information)?.shortVersion == nil)
   }
 
   @Test func missingSignedIdentifiersAreRejected() {
@@ -117,9 +137,10 @@ struct DuckDuckGoBuildCompatibilityTests {
   }
 
   @Test func signingRequirementPinsAppleAnchorIdentifierAndTeam() {
-    #expect(signingRequirement.contains("anchor apple generic"))
-    #expect(signingRequirement.contains("com.duckduckgo.macos.browser"))
-    #expect(signingRequirement.contains("HKE973VLUW"))
+    #expect(
+      signingRequirement
+        == "anchor apple generic and identifier \"com.duckduckgo.macos.browser\" and certificate leaf[subject.OU] = \"HKE973VLUW\""
+    )
   }
 
   private func checker(for metadata: SignedApplicationMetadata)

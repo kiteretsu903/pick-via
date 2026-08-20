@@ -80,13 +80,13 @@ let signingRequirement =
 
 func signedApplicationMetadata(from information: [String: Any]) -> SignedApplicationMetadata? {
   guard let bundleIdentifier = information[kSecCodeInfoIdentifier as String] as? String,
-    let teamIdentifier = information[kSecCodeInfoTeamIdentifier as String] as? String,
-    let plist = information[kSecCodeInfoPList as String] as? [String: Any],
-    let shortVersion = plist["CFBundleShortVersionString"] as? String
+    let teamIdentifier = information[kSecCodeInfoTeamIdentifier as String] as? String
   else {
     return nil
   }
 
+  let plist = information[kSecCodeInfoPList as String] as? [String: Any]
+  let shortVersion = plist?["CFBundleShortVersionString"] as? String
   let entitlements = information[kSecCodeInfoEntitlementsDict as String] as? [String: Any]
   let isSandboxed = entitlements?["com.apple.security.app-sandbox"] as? Bool == true
 
