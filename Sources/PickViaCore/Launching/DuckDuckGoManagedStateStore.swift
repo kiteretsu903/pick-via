@@ -94,8 +94,15 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
       throw DuckDuckGoManagedStateStoreError.sessionAlreadyExists
     }
 
+    var createdSessionRoot = false
     do {
-      try createSecureDirectory(session.sessionDirectory, fileManager: fileManager)
+      try fileManager.createDirectory(
+        at: session.sessionDirectory,
+        withIntermediateDirectories: false,
+        attributes: [.posixPermissions: 0o700]
+      )
+      createdSessionRoot = true
+      try securePermissions(of: session.sessionDirectory, fileManager: fileManager)
       let appStoreDirectory = try createSessionDirectories(
         session: session,
         fileManager: fileManager
@@ -120,7 +127,9 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
       )
       return session
     } catch {
-      try? fileManager.removeItem(at: session.sessionDirectory)
+      if createdSessionRoot {
+        try? fileManager.removeItem(at: session.sessionDirectory)
+      }
       throw error
     }
   }
@@ -130,6 +139,7 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
     for session: DuckDuckGoManagedSession
   ) throws {
     let fileManager = FileManager.default
+    try validateRoot(fileManager: fileManager)
     guard session == derivedSession(identifier: session.identifier),
       isDirectoryAndNotSymbolicLink(session.sessionDirectory, fileManager: fileManager)
     else {
@@ -189,6 +199,7 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
 
   public func removeSession(identifier: UUID) throws {
     let fileManager = FileManager.default
+    try validateRoot(fileManager: fileManager)
     let session = derivedSession(identifier: identifier)
     guard entryExists(at: session.sessionDirectory, fileManager: fileManager) else {
       return
@@ -260,6 +271,10 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
       withIntermediateDirectories: false,
       attributes: [.posixPermissions: 0o700]
     )
+    try securePermissions(of: url, fileManager: fileManager)
+  }
+
+  private func securePermissions(of url: URL, fileManager: FileManager) throws {
     try fileManager.setAttributes(
       [.posixPermissions: 0o700],
       ofItemAtPath: url.path
@@ -285,6 +300,12 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
 
   private func entryExists(at url: URL, fileManager: FileManager) -> Bool {
     (try? fileManager.attributesOfItem(atPath: url.path)) != nil
+  }
+
+  private func validateRoot(fileManager: FileManager) throws {
+    guard isDirectoryAndNotSymbolicLink(rootDirectory, fileManager: fileManager) else {
+      throw DuckDuckGoManagedStateStoreError.invalidSession
+    }
   }
 
   private func isDirectoryAndNotSymbolicLink(

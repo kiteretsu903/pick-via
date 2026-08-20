@@ -171,6 +171,65 @@ struct DuckDuckGoManagedStateStoreTests {
     #expect(!FileManager.default.fileExists(atPath: session.markerURL.path))
   }
 
+  @Test func saveRejectsStoreRootReplacedBySymlink() throws {
+    let root = temporaryRoot()
+    let originalRoot = temporaryRoot()
+    let redirectTarget = temporaryRoot()
+    defer {
+      try? FileManager.default.removeItem(at: root)
+      try? FileManager.default.removeItem(at: originalRoot)
+      try? FileManager.default.removeItem(at: redirectTarget)
+    }
+    let store = DuckDuckGoManagedStateStore(rootDirectory: root)
+    let session = try store.prepareHome(identifier: fixedIdentifier)
+    try replaceStoreRoot(
+      root,
+      originalRoot: originalRoot,
+      redirectTarget: redirectTarget,
+      identifier: fixedIdentifier
+    )
+    let sentinel = redirectTarget.appending(path: fixedIdentifier.uuidString)
+      .appending(path: "keep")
+
+    #expect(throws: DuckDuckGoManagedStateStoreError.invalidSession) {
+      try store.save(marker(identifier: fixedIdentifier), for: session)
+    }
+    #expect(try Data(contentsOf: sentinel) == Data("keep".utf8))
+    #expect(
+      !FileManager.default.fileExists(
+        atPath: redirectTarget.appending(path: fixedIdentifier.uuidString)
+          .appending(path: "Process.json").path
+      )
+    )
+  }
+
+  @Test func removalRejectsStoreRootReplacedBySymlink() throws {
+    let root = temporaryRoot()
+    let originalRoot = temporaryRoot()
+    let redirectTarget = temporaryRoot()
+    defer {
+      try? FileManager.default.removeItem(at: root)
+      try? FileManager.default.removeItem(at: originalRoot)
+      try? FileManager.default.removeItem(at: redirectTarget)
+    }
+    let store = DuckDuckGoManagedStateStore(rootDirectory: root)
+    let session = try store.prepareHome(identifier: fixedIdentifier)
+    try replaceStoreRoot(
+      root,
+      originalRoot: originalRoot,
+      redirectTarget: redirectTarget,
+      identifier: fixedIdentifier
+    )
+    let redirectedSession = redirectTarget.appending(path: fixedIdentifier.uuidString)
+    let sentinel = redirectedSession.appending(path: "keep")
+
+    #expect(throws: DuckDuckGoManagedStateStoreError.invalidSession) {
+      try store.removeSession(identifier: session.identifier)
+    }
+    #expect(FileManager.default.fileExists(atPath: redirectedSession.path))
+    #expect(try Data(contentsOf: sentinel) == Data("keep".utf8))
+  }
+
   @Test func recordsIgnoreUnsafeAndInvalidEntriesWithoutDeletingThem() throws {
     let root = temporaryRoot()
     let symlinkTarget = temporaryRoot()
@@ -220,6 +279,28 @@ struct DuckDuckGoManagedStateStoreTests {
     #expect(try symbolicLinkExists(at: symlinkURL))
   }
 
+  @Test func recordsIgnoreMarkerSymlinkWithoutDeletingIt() throws {
+    let root = temporaryRoot()
+    let externalMarker = root.deletingLastPathComponent()
+      .appending(path: "PickViaExternalMarker-\(UUID()).json")
+    defer {
+      try? FileManager.default.removeItem(at: root)
+      try? FileManager.default.removeItem(at: externalMarker)
+    }
+    let store = DuckDuckGoManagedStateStore(rootDirectory: root)
+    let session = try store.prepareHome(identifier: fixedIdentifier)
+    try markerData(identifier: fixedIdentifier, schemaVersion: 1)
+      .write(to: externalMarker)
+    try FileManager.default.createSymbolicLink(
+      at: session.markerURL,
+      withDestinationURL: externalMarker
+    )
+
+    #expect(try store.records().isEmpty)
+    #expect(try symbolicLinkExists(at: session.markerURL))
+    #expect(FileManager.default.fileExists(atPath: externalMarker.path))
+  }
+
   @Test func removalCanTargetOnlyGeneratedUUIDChild() throws {
     let root = temporaryRoot()
     defer { try? FileManager.default.removeItem(at: root) }
@@ -260,6 +341,25 @@ struct DuckDuckGoManagedStateStoreTests {
       "executablePath": "/Applications/DuckDuckGo.app/Contents/MacOS/DuckDuckGo",
     ]
     return try JSONSerialization.data(withJSONObject: marker, options: [.sortedKeys])
+  }
+
+  private func replaceStoreRoot(
+    _ root: URL,
+    originalRoot: URL,
+    redirectTarget: URL,
+    identifier: UUID
+  ) throws {
+    try FileManager.default.moveItem(at: root, to: originalRoot)
+    let redirectedSession = redirectTarget.appending(path: identifier.uuidString)
+    try FileManager.default.createDirectory(
+      at: redirectedSession,
+      withIntermediateDirectories: true
+    )
+    try Data("keep".utf8).write(to: redirectedSession.appending(path: "keep"))
+    try FileManager.default.createSymbolicLink(
+      at: root,
+      withDestinationURL: redirectTarget
+    )
   }
 
   private func permissions(of url: URL) throws -> Int {
