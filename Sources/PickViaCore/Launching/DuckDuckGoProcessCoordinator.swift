@@ -34,22 +34,29 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     var excludedProcessIdentifiers: Set<Int32> = []
   }
 
+  private struct QuarantinedLaunch: Sendable {
+    let session: DuckDuckGoManagedSession
+  }
+
   private let compatibilityChecker: any DuckDuckGoBuildCompatibilityChecking
   private let applications: any DuckDuckGoApplicationManaging
   private let events: any DuckDuckGoAppleEventSending
   private let stateStore: any DuckDuckGoManagedStateStoring
+  private let rollbackExitTimeout: Duration
   private let logger = Logger(
     subsystem: "com.pickvia.app",
     category: "DuckDuckGoRouting"
   )
   private var routeIsInProgress = false
   private var routeWaiters: [CheckedContinuation<Void, Never>] = []
+  private var quarantinedLaunches: [Int32: QuarantinedLaunch] = [:]
 
   public init() {
     compatibilityChecker = DuckDuckGoBuildCompatibilityChecker()
     applications = SystemDuckDuckGoApplicationManager()
     events = SystemDuckDuckGoAppleEventSender()
     stateStore = DuckDuckGoManagedStateStore()
+    rollbackExitTimeout = .seconds(5)
   }
 
   init(
@@ -60,12 +67,14 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     events: any DuckDuckGoAppleEventSending =
       SystemDuckDuckGoAppleEventSender(),
     stateStore: any DuckDuckGoManagedStateStoring =
-      DuckDuckGoManagedStateStore()
+      DuckDuckGoManagedStateStore(),
+    rollbackExitTimeout: Duration = .seconds(5)
   ) {
     self.compatibilityChecker = compatibilityChecker
     self.applications = applications
     self.events = events
     self.stateStore = stateStore
+    self.rollbackExitTimeout = rollbackExitTimeout
   }
 
   public func open(
@@ -84,6 +93,7 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     applicationURL: URL,
     mode: BrowserMode
   ) async throws {
+    try await reconcileQuarantinedLaunches()
     let trustedApplicationURL = Self.canonicalFileURL(applicationURL)
     let expectedExecutableURL = Self.canonicalFileURL(
       trustedApplicationURL.appending(path: "Contents/MacOS/DuckDuckGo")
@@ -98,7 +108,8 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
       break
     }
 
-    let managed = try await managedProcessInventory()
+    var managed = try await managedProcessInventory()
+    managed.excludedProcessIdentifiers.formUnion(quarantinedLaunches.keys)
     try Task.checkCancellation()
 
     switch mode {
@@ -238,6 +249,9 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
           activates: false
         )
       )
+      quarantinedLaunches[launched.processIdentifier] = QuarantinedLaunch(
+        session: session
+      )
     } catch {
       try? stateStore.removeSession(identifier: session.identifier)
       throw error
@@ -270,6 +284,7 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     )
     do {
       try stateStore.save(marker, for: session)
+      quarantinedLaunches.removeValue(forKey: launched.processIdentifier)
     } catch {
       await rollbackFreshLaunch(launched, session: session)
       throw error
@@ -345,36 +360,54 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
   ) async {
     let applications = self.applications
     let stateStore = self.stateStore
-    await Task.detached {
+    let rollbackExitTimeout = self.rollbackExitTimeout
+    let didReap = await Task.detached {
       guard
         let current = await applications.snapshot(
           processIdentifier: launched.processIdentifier
         )
       else {
-        try? stateStore.removeSession(identifier: session.identifier)
-        return
+        return Self.removeSessionIfPossible(stateStore, identifier: session.identifier)
       }
       guard !current.isTerminated else {
-        try? stateStore.removeSession(identifier: session.identifier)
-        return
+        return Self.removeSessionIfPossible(stateStore, identifier: session.identifier)
       }
-      guard Self.representsSameLaunch(current, as: launched) else { return }
+      guard Self.representsSameLaunch(current, as: launched) else { return false }
 
       _ = await applications.terminate(processIdentifier: launched.processIdentifier)
       let clock = ContinuousClock()
-      let deadline = clock.now.advanced(by: .milliseconds(500))
+      let deadline = clock.now.advanced(by: rollbackExitTimeout)
       while true {
         let value = await applications.snapshot(
           processIdentifier: launched.processIdentifier
         )
         if value == nil || value?.isTerminated == true {
-          try? stateStore.removeSession(identifier: session.identifier)
-          return
+          return Self.removeSessionIfPossible(
+            stateStore,
+            identifier: session.identifier
+          )
         }
-        guard clock.now < deadline else { return }
+        guard clock.now < deadline else { return false }
         try? await clock.sleep(for: .milliseconds(50))
       }
     }.value
+    if didReap {
+      quarantinedLaunches.removeValue(forKey: launched.processIdentifier)
+    }
+  }
+
+  private func reconcileQuarantinedLaunches() async throws {
+    var reapedProcessIdentifiers: [Int32] = []
+    for (processIdentifier, launch) in quarantinedLaunches {
+      let snapshot = await applications.snapshot(processIdentifier: processIdentifier)
+      guard snapshot == nil || snapshot?.isTerminated == true else { continue }
+      try Task.checkCancellation()
+      try stateStore.removeSession(identifier: launch.session.identifier)
+      reapedProcessIdentifiers.append(processIdentifier)
+    }
+    for processIdentifier in reapedProcessIdentifiers {
+      quarantinedLaunches.removeValue(forKey: processIdentifier)
+    }
   }
 
   private static func newestLiveManaged(
@@ -442,7 +475,19 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
       == canonicalFileURL(launchedBundleURL).path
       && canonicalFileURL(currentExecutableURL).path
         == canonicalFileURL(launchedExecutableURL).path
-      && abs(currentLaunchDate.timeIntervalSince(launchedLaunchDate)) <= 1
+      && currentLaunchDate == launchedLaunchDate
+  }
+
+  private static func removeSessionIfPossible(
+    _ stateStore: any DuckDuckGoManagedStateStoring,
+    identifier: UUID
+  ) -> Bool {
+    do {
+      try stateStore.removeSession(identifier: identifier)
+      return true
+    } catch {
+      return false
+    }
   }
 
   private static func matchesApplicationIdentity(

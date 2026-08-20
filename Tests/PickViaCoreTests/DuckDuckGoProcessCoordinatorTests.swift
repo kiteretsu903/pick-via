@@ -753,6 +753,102 @@ struct DuckDuckGoProcessCoordinatorTests {
     #expect(fixture.sessionDirectoryNames().count == 1)
   }
 
+  @Test func ambiguousFreshLaunchIsQuarantinedFromTheNextOrdinaryRoute() async throws {
+    let fixture = try CoordinatorFixture(
+      compatibility: .fire,
+      launchedHasLaunchDate: false
+    )
+    defer { fixture.removeRoot() }
+
+    await #expect(throws: DuckDuckGoRoutingError.processIdentityMismatch) {
+      try await fixture.coordinator.open(
+        url: URL(string: "https://example.com/ambiguous-fire")!,
+        applicationURL: fixture.applicationURL,
+        mode: .private
+      )
+    }
+    await fixture.applications.setNextLaunch(
+      DuckDuckGoProcessCoordinatorTests.makeSnapshot(
+        processIdentifier: 8001,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: Date(timeIntervalSince1970: 9_001)
+      )
+    )
+    let ordinaryURL = URL(string: "https://example.com/ordinary-after-ambiguous")!
+    try await fixture.coordinator.open(
+      url: ordinaryURL,
+      applicationURL: fixture.applicationURL,
+      mode: .normal
+    )
+
+    let launches = await fixture.applications.launches
+    #expect(launches.count == 2)
+    let ordinaryLaunch = try #require(launches.dropFirst().first)
+    #expect(ordinaryLaunch.urls == [ordinaryURL])
+    #expect(await fixture.events.invocations.isEmpty)
+    #expect(await fixture.applications.snapshot(processIdentifier: 8001) != nil)
+  }
+
+  @Test func unresolvedSaveFailureIsQuarantinedFromTheNextOrdinaryRoute() async throws {
+    let fixture = try CoordinatorFixture(
+      compatibility: .fire,
+      storeFailure: .save,
+      terminationSucceeds: true,
+      keepsSnapshotAfterSuccessfulTermination: true
+    )
+    defer { fixture.removeRoot() }
+
+    await #expect(throws: TestFailure.save) {
+      try await fixture.coordinator.open(
+        url: URL(string: "https://example.com/failed-save-fire")!,
+        applicationURL: fixture.applicationURL,
+        mode: .private
+      )
+    }
+    await fixture.applications.setNextLaunch(
+      DuckDuckGoProcessCoordinatorTests.makeSnapshot(
+        processIdentifier: 8001,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: Date(timeIntervalSince1970: 9_002)
+      )
+    )
+    let ordinaryURL = URL(string: "https://example.com/ordinary-after-failed-save")!
+    try await fixture.coordinator.open(
+      url: ordinaryURL,
+      applicationURL: fixture.applicationURL,
+      mode: .normal
+    )
+
+    let launches = await fixture.applications.launches
+    #expect(launches.count == 2)
+    let ordinaryLaunch = try #require(launches.dropFirst().first)
+    #expect(ordinaryLaunch.urls == [ordinaryURL])
+    #expect(await fixture.events.invocations.isEmpty)
+    #expect(await fixture.applications.snapshot(processIdentifier: 8001) != nil)
+  }
+
+  @Test func destructiveRollbackRequiresExactLaunchDate() async throws {
+    let fixture = try CoordinatorFixture(
+      compatibility: .fire,
+      storeFailure: .save,
+      snapshotLaunchDateOffsetAfterLaunch: 0.5
+    )
+    defer { fixture.removeRoot() }
+
+    await #expect(throws: TestFailure.save) {
+      try await fixture.coordinator.open(
+        url: URL(string: "https://example.com/not-exact-launch")!,
+        applicationURL: fixture.applicationURL,
+        mode: .private
+      )
+    }
+
+    #expect(await fixture.applications.terminatedPIDs.isEmpty)
+    #expect(fixture.sessionDirectoryNames().count == 1)
+  }
+
   @Test func resolvedApplicationURLIsUsedForCompatibilityAndLaunch() async throws {
     let parent = FileManager.default.temporaryDirectory.appending(
       path: "PickVia-DuckDuckGo-Link-\(UUID())",
@@ -824,7 +920,7 @@ struct DuckDuckGoProcessCoordinatorTests {
     processIdentifier: Int32,
     applicationURL: URL,
     executableURL: URL,
-    launchDate: Date,
+    launchDate: Date?,
     isTerminated: Bool = false,
     bundleIdentifier: String? = DuckDuckGoBuildCompatibilityChecker.bundleIdentifier
   ) -> DuckDuckGoApplicationSnapshot {
@@ -853,6 +949,7 @@ private actor RecordingDuckDuckGoApplicationManager: DuckDuckGoApplicationManagi
   let launchError: TestFailure?
   let waitError: TestFailure?
   let suspendsLaunch: Bool
+  let snapshotLaunchDateOffsetAfterLaunch: TimeInterval
   private var suspendedLaunches: [CheckedContinuation<Void, Never>] = []
 
   init(
@@ -863,7 +960,8 @@ private actor RecordingDuckDuckGoApplicationManager: DuckDuckGoApplicationManagi
     removesSnapshotOnTermination: Bool = true,
     launchError: TestFailure? = nil,
     waitError: TestFailure? = nil,
-    suspendsLaunch: Bool = false
+    suspendsLaunch: Bool = false,
+    snapshotLaunchDateOffsetAfterLaunch: TimeInterval = 0
   ) {
     self.snapshots = snapshots
     self.nextLaunch = nextLaunch
@@ -873,6 +971,7 @@ private actor RecordingDuckDuckGoApplicationManager: DuckDuckGoApplicationManagi
     self.launchError = launchError
     self.waitError = waitError
     self.suspendsLaunch = suspendsLaunch
+    self.snapshotLaunchDateOffsetAfterLaunch = snapshotLaunchDateOffsetAfterLaunch
   }
 
   func runningApplications(bundleIdentifier: String) async
@@ -891,7 +990,17 @@ private actor RecordingDuckDuckGoApplicationManager: DuckDuckGoApplicationManagi
         suspendedLaunches.append(continuation)
       }
     }
-    snapshots[nextLaunch.processIdentifier] = nextLaunch
+    snapshots[nextLaunch.processIdentifier] = DuckDuckGoApplicationSnapshot(
+      processIdentifier: nextLaunch.processIdentifier,
+      bundleIdentifier: nextLaunch.bundleIdentifier,
+      bundleURL: nextLaunch.bundleURL,
+      executableURL: nextLaunch.executableURL,
+      launchDate: nextLaunch.launchDate?.addingTimeInterval(
+        snapshotLaunchDateOffsetAfterLaunch
+      ),
+      isFinishedLaunching: nextLaunch.isFinishedLaunching,
+      isTerminated: nextLaunch.isTerminated
+    )
     return nextLaunch
   }
 
@@ -948,6 +1057,10 @@ private actor RecordingDuckDuckGoApplicationManager: DuckDuckGoApplicationManagi
 
   func setSnapshot(_ snapshot: DuckDuckGoApplicationSnapshot) {
     snapshots[snapshot.processIdentifier] = snapshot
+  }
+
+  func setNextLaunch(_ snapshot: DuckDuckGoApplicationSnapshot) {
+    nextLaunch = snapshot
   }
 }
 
@@ -1070,7 +1183,9 @@ private final class CoordinatorFixture: @unchecked Sendable {
     removesSnapshotWhenTerminationFails: Bool = false,
     keepsSnapshotAfterSuccessfulTermination: Bool = false,
     launchedBundleIdentifier: String? = DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
-    suspendsLaunch: Bool = false
+    launchedHasLaunchDate: Bool = true,
+    suspendsLaunch: Bool = false,
+    snapshotLaunchDateOffsetAfterLaunch: TimeInterval = 0
   ) throws {
     try self.init(
       compatibilityChecker: StubDuckDuckGoCompatibility(value: compatibility),
@@ -1087,7 +1202,9 @@ private final class CoordinatorFixture: @unchecked Sendable {
       removesSnapshotWhenTerminationFails: removesSnapshotWhenTerminationFails,
       keepsSnapshotAfterSuccessfulTermination: keepsSnapshotAfterSuccessfulTermination,
       launchedBundleIdentifier: launchedBundleIdentifier,
-      suspendsLaunch: suspendsLaunch
+      launchedHasLaunchDate: launchedHasLaunchDate,
+      suspendsLaunch: suspendsLaunch,
+      snapshotLaunchDateOffsetAfterLaunch: snapshotLaunchDateOffsetAfterLaunch
     )
   }
 
@@ -1106,7 +1223,9 @@ private final class CoordinatorFixture: @unchecked Sendable {
     removesSnapshotWhenTerminationFails: Bool = false,
     keepsSnapshotAfterSuccessfulTermination: Bool = false,
     launchedBundleIdentifier: String? = DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
-    suspendsLaunch: Bool = false
+    launchedHasLaunchDate: Bool = true,
+    suspendsLaunch: Bool = false,
+    snapshotLaunchDateOffsetAfterLaunch: TimeInterval = 0
   ) throws {
     root = FileManager.default.temporaryDirectory.appending(
       path: "PickVia-DuckDuckGo-\(UUID().uuidString)",
@@ -1155,7 +1274,7 @@ private final class CoordinatorFixture: @unchecked Sendable {
       processIdentifier: nextPID,
       applicationURL: applicationURL,
       executableURL: executableURL,
-      launchDate: launchDate.addingTimeInterval(20),
+      launchDate: launchedHasLaunchDate ? launchDate.addingTimeInterval(20) : nil,
       bundleIdentifier: launchedBundleIdentifier
     )
     applications = RecordingDuckDuckGoApplicationManager(
@@ -1167,7 +1286,8 @@ private final class CoordinatorFixture: @unchecked Sendable {
         && (terminationSucceeds || removesSnapshotWhenTerminationFails),
       launchError: launchError,
       waitError: waitError,
-      suspendsLaunch: suspendsLaunch
+      suspendsLaunch: suspendsLaunch,
+      snapshotLaunchDateOffsetAfterLaunch: snapshotLaunchDateOffsetAfterLaunch
     )
     events = RecordingDuckDuckGoAppleEventSender(errorCode: eventErrorCode)
     let store = FailingDuckDuckGoManagedStateStore(
@@ -1178,7 +1298,8 @@ private final class CoordinatorFixture: @unchecked Sendable {
       compatibilityChecker: compatibilityChecker,
       applications: applications,
       events: events,
-      stateStore: store
+      stateStore: store,
+      rollbackExitTimeout: .zero
     )
   }
 
