@@ -86,10 +86,7 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
       break
     }
 
-    let liveManaged = try await liveManagedProcesses(
-      applicationURL: trustedApplicationURL,
-      executableURL: expectedExecutableURL
-    )
+    let liveManaged = try await liveManagedProcesses()
 
     switch mode {
     case .normal:
@@ -130,10 +127,7 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     routeWaiters.removeFirst().resume()
   }
 
-  private func liveManagedProcesses(
-    applicationURL: URL,
-    executableURL: URL
-  ) async throws -> [LiveManagedProcess] {
+  private func liveManagedProcesses() async throws -> [LiveManagedProcess] {
     let records = try stateStore.records()
     var live: [LiveManagedProcess] = []
     for record in records {
@@ -143,9 +137,7 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
       if let snapshot,
         Self.matchesManagedIdentity(
           snapshot,
-          marker: record.marker,
-          applicationURL: applicationURL,
-          executableURL: executableURL
+          marker: record.marker
         )
       {
         live.append(LiveManagedProcess(record: record, snapshot: snapshot))
@@ -269,9 +261,7 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     guard
       Self.matchesManagedIdentity(
         ready,
-        marker: marker,
-        applicationURL: applicationURL,
-        executableURL: executableURL
+        marker: marker
       )
     else {
       throw DuckDuckGoRoutingError.processIdentityMismatch
@@ -302,19 +292,17 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
 
   private static func matchesManagedIdentity(
     _ snapshot: DuckDuckGoApplicationSnapshot,
-    marker: DuckDuckGoManagedProcessMarker,
-    applicationURL: URL,
-    executableURL: URL
+    marker: DuckDuckGoManagedProcessMarker
   ) -> Bool {
     guard !snapshot.isTerminated,
       snapshot.processIdentifier == marker.processIdentifier,
-      matchesApplicationIdentity(
-        snapshot,
-        applicationURL: applicationURL,
-        executableURL: executableURL
-      ),
-      canonicalFileURL(URL(fileURLWithPath: marker.applicationPath)) == applicationURL,
-      canonicalFileURL(URL(fileURLWithPath: marker.executablePath)) == executableURL,
+      snapshot.bundleIdentifier == DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
+      let bundleURL = snapshot.bundleURL,
+      let executableURL = snapshot.executableURL,
+      canonicalFileURL(bundleURL).path
+        == canonicalFileURL(URL(fileURLWithPath: marker.applicationPath)).path,
+      canonicalFileURL(executableURL).path
+        == canonicalFileURL(URL(fileURLWithPath: marker.executablePath)).path,
       let launchDate = snapshot.launchDate
     else {
       return false
@@ -334,8 +322,8 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     else {
       return false
     }
-    return canonicalFileURL(bundleURL) == applicationURL
-      && canonicalFileURL(runningExecutableURL) == executableURL
+    return canonicalFileURL(bundleURL).path == applicationURL.path
+      && canonicalFileURL(runningExecutableURL).path == executableURL.path
   }
 
   private static func canonicalFileURL(_ url: URL) -> URL {

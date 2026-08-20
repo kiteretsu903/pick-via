@@ -139,6 +139,48 @@ struct DuckDuckGoProcessCoordinatorTests {
     #expect(await fixture.applications.activatedPIDs == [8002])
   }
 
+  @Test func liveManagedIdentityAtAnotherCanonicalAppPathIsPreserved() async throws {
+    let fixture = try CoordinatorFixture(compatibility: .fire)
+    defer { fixture.removeRoot() }
+    let otherApplicationURL = URL(
+      fileURLWithPath: "/Volumes/Other/DuckDuckGo.app",
+      isDirectory: true
+    )
+    let otherExecutableURL = otherApplicationURL.appending(
+      path: "Contents/MacOS/DuckDuckGo"
+    )
+    let launchDate = Date(timeIntervalSince1970: 4_321)
+    let session = try fixture.realStore.prepareHome()
+    try fixture.realStore.save(
+      DuckDuckGoManagedProcessMarker(
+        identifier: session.identifier,
+        processIdentifier: 7101,
+        launchDate: launchDate,
+        applicationPath: otherApplicationURL.path,
+        executablePath: otherExecutableURL.path
+      ),
+      for: session
+    )
+    await fixture.applications.setSnapshot(
+      DuckDuckGoProcessCoordinatorTests.makeSnapshot(
+        processIdentifier: 7101,
+        applicationURL: otherApplicationURL,
+        executableURL: otherExecutableURL,
+        launchDate: launchDate
+      )
+    )
+
+    try await fixture.coordinator.open(
+      url: URL(string: "https://example.com/current-install")!,
+      applicationURL: fixture.applicationURL,
+      mode: .normal
+    )
+
+    #expect(try fixture.realStore.records().map(\.marker.processIdentifier) == [7101])
+    #expect(await fixture.applications.launches.count == 1)
+    #expect(await fixture.events.invocations.isEmpty)
+  }
+
   @Test func ordinaryStartsRealHomeInstanceWhenOnlyManagedProcessExists() async throws {
     let fixture = try CoordinatorFixture(
       compatibility: .fire,
@@ -667,6 +709,10 @@ private actor RecordingDuckDuckGoApplicationManager: DuckDuckGoApplicationManagi
   ) {
     guard let value = snapshots[processIdentifier] else { return }
     snapshots[processIdentifier] = transform(value)
+  }
+
+  func setSnapshot(_ snapshot: DuckDuckGoApplicationSnapshot) {
+    snapshots[snapshot.processIdentifier] = snapshot
   }
 }
 
