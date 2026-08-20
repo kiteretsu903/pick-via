@@ -1,6 +1,8 @@
 import Foundation
-import PickViaCore
+import Security
 import Testing
+
+@testable import PickViaCore
 
 @Suite("DuckDuckGo build compatibility")
 struct DuckDuckGoBuildCompatibilityTests {
@@ -52,6 +54,74 @@ struct DuckDuckGoBuildCompatibilityTests {
     #expect(checker.compatibility(of: applicationURL) == .fire)
   }
 
+  @Test func signedInformationExtractsExactMetadata() {
+    let metadata = signedApplicationMetadata(
+      from: signingInformation(
+        bundleIdentifier: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
+        teamIdentifier: DuckDuckGoBuildCompatibilityChecker.teamIdentifier,
+        shortVersion: "1.203.0",
+        sandboxValue: true
+      ))
+
+    #expect(
+      metadata
+        == SignedApplicationMetadata(
+          bundleIdentifier: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
+          teamIdentifier: DuckDuckGoBuildCompatibilityChecker.teamIdentifier,
+          shortVersion: "1.203.0",
+          isSandboxed: true
+        )
+    )
+  }
+
+  @Test func missingSignedPlistIsRejected() {
+    var information = signingInformation()
+    information.removeValue(forKey: kSecCodeInfoPList as String)
+
+    #expect(signedApplicationMetadata(from: information) == nil)
+  }
+
+  @Test func malformedSignedPlistIsRejected() {
+    var information = signingInformation()
+    information[kSecCodeInfoPList as String] = "not a plist dictionary"
+
+    #expect(signedApplicationMetadata(from: information) == nil)
+  }
+
+  @Test func missingSignedIdentifiersAreRejected() {
+    var information = signingInformation()
+    information.removeValue(forKey: kSecCodeInfoIdentifier as String)
+    #expect(signedApplicationMetadata(from: information) == nil)
+
+    information = signingInformation()
+    information.removeValue(forKey: kSecCodeInfoTeamIdentifier as String)
+    #expect(signedApplicationMetadata(from: information) == nil)
+  }
+
+  @Test func nonBooleanSandboxEntitlementIsNotSandboxed() {
+    let metadata = signedApplicationMetadata(from: signingInformation(sandboxValue: "true"))
+
+    #expect(metadata?.isSandboxed == false)
+  }
+
+  @Test func falseSandboxEntitlementIsNotSandboxed() {
+    let metadata = signedApplicationMetadata(from: signingInformation(sandboxValue: false))
+
+    #expect(metadata?.isSandboxed == false)
+  }
+
+  @Test func absentSandboxEntitlementIsNotSandboxed() {
+    let metadata = signedApplicationMetadata(from: signingInformation(sandboxValue: nil))
+
+    #expect(metadata?.isSandboxed == false)
+  }
+
+  @Test func signingRequirementPinsAppleAnchorIdentifierAndTeam() {
+    #expect(signingRequirement.contains("anchor apple generic"))
+    #expect(signingRequirement.contains("com.duckduckgo.macos.browser"))
+    #expect(signingRequirement.contains("HKE973VLUW"))
+  }
+
   private func checker(for metadata: SignedApplicationMetadata)
     -> DuckDuckGoBuildCompatibilityChecker
   {
@@ -70,6 +140,24 @@ struct DuckDuckGoBuildCompatibilityTests {
       shortVersion: shortVersion,
       isSandboxed: isSandboxed
     )
+  }
+
+  private func signingInformation(
+    bundleIdentifier: String = DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
+    teamIdentifier: String = DuckDuckGoBuildCompatibilityChecker.teamIdentifier,
+    shortVersion: String = "1.203.0",
+    sandboxValue: Any? = false
+  ) -> [String: Any] {
+    var entitlements: [String: Any] = [:]
+    if let sandboxValue {
+      entitlements["com.apple.security.app-sandbox"] = sandboxValue
+    }
+    return [
+      kSecCodeInfoIdentifier as String: bundleIdentifier,
+      kSecCodeInfoTeamIdentifier as String: teamIdentifier,
+      kSecCodeInfoEntitlementsDict as String: entitlements,
+      kSecCodeInfoPList as String: ["CFBundleShortVersionString": shortVersion],
+    ]
   }
 }
 

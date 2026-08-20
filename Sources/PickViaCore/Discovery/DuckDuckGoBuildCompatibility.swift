@@ -41,7 +41,20 @@ public struct SystemSignedApplicationMetadataProvider: SignedApplicationMetadata
       return nil
     }
 
-    guard SecStaticCodeCheckValidity(staticCode, [], nil) == errSecSuccess else {
+    var requirement: SecRequirement?
+    guard
+      SecRequirementCreateWithString(
+        signingRequirement as CFString,
+        [],
+        &requirement
+      ) == errSecSuccess,
+      let requirement
+    else {
+      return nil
+    }
+
+    let validityFlags = SecCSFlags(rawValue: kSecCSCheckAllArchitectures | kSecCSStrictValidate)
+    guard SecStaticCodeCheckValidity(staticCode, validityFlags, requirement) == errSecSuccess else {
       return nil
     }
 
@@ -58,20 +71,31 @@ public struct SystemSignedApplicationMetadataProvider: SignedApplicationMetadata
       return nil
     }
 
-    let bundleIdentifier = information[kSecCodeInfoIdentifier as String] as? String
-    let teamIdentifier = information[kSecCodeInfoTeamIdentifier as String] as? String
-    let entitlements = information[kSecCodeInfoEntitlementsDict as String] as? [String: Any]
-    let isSandboxed = entitlements?["com.apple.security.app-sandbox"] as? Bool == true
-    let shortVersion =
-      Bundle(url: url)?.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-
-    return SignedApplicationMetadata(
-      bundleIdentifier: bundleIdentifier,
-      teamIdentifier: teamIdentifier,
-      shortVersion: shortVersion,
-      isSandboxed: isSandboxed
-    )
+    return signedApplicationMetadata(from: information)
   }
+}
+
+let signingRequirement =
+  "anchor apple generic and identifier \"com.duckduckgo.macos.browser\" and certificate leaf[subject.OU] = \"HKE973VLUW\""
+
+func signedApplicationMetadata(from information: [String: Any]) -> SignedApplicationMetadata? {
+  guard let bundleIdentifier = information[kSecCodeInfoIdentifier as String] as? String,
+    let teamIdentifier = information[kSecCodeInfoTeamIdentifier as String] as? String,
+    let plist = information[kSecCodeInfoPList as String] as? [String: Any],
+    let shortVersion = plist["CFBundleShortVersionString"] as? String
+  else {
+    return nil
+  }
+
+  let entitlements = information[kSecCodeInfoEntitlementsDict as String] as? [String: Any]
+  let isSandboxed = entitlements?["com.apple.security.app-sandbox"] as? Bool == true
+
+  return SignedApplicationMetadata(
+    bundleIdentifier: bundleIdentifier,
+    teamIdentifier: teamIdentifier,
+    shortVersion: shortVersion,
+    isSandboxed: isSandboxed
+  )
 }
 
 public protocol DuckDuckGoBuildCompatibilityChecking: Sendable {
