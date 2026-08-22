@@ -6,7 +6,7 @@
 
 **Goal:** Build a separately compiled PickVia E2E application that selects one exact browser target internally, leaves normal/release binaries free of automation code, and unblocks the real installed-browser routing matrix.
 
-**Architecture:** E2E-only code is compiled behind `PICKVIA_E2E_AUTOMATION`. A validated immutable control selects one exact enabled/available target through the existing chooser callback, then production `RoutingCoordinator` and `BrowserLauncher` perform the route. A bounded FIFO emits only a closed sanitized status, while the routed URL continues to enter the exact app over stdin and never appears in app controls, arguments, logs, or regular files.
+**Architecture:** E2E-only code is compiled behind `PICKVIA_E2E_AUTOMATION`. A validated immutable control selects one exact enabled/available target through the existing chooser callback, then production `RoutingCoordinator` and `BrowserLauncher` perform the route. A bounded FIFO emits only a closed sanitized status. The helper receives the route over stdin and opens it with the exact E2E app; the URL stays out of driver/E2E/helper arguments and environment, status, harness output, task-root files, and clipboard. Production delivery from `BrowserLauncher` to the selected browser may use browser arguments, AppleEvents, or `NSWorkspace`, and browser-owned persistence is outside this harness guarantee.
 
 **Tech Stack:** Swift 6, SwiftUI/AppKit, Swift Package Manager compile conditions, POSIX FIFO APIs, zsh packaging scripts, Python 3 localhost receiver/driver, XCTest and Swift Testing.
 
@@ -692,7 +692,7 @@ git commit -m "build: add isolated PickVia e2e application"
 
 ---
 
-### Task 6: Build the memory-only route driver
+### Task 6: Build the bounded stdin route driver
 
 **Files:**
 
@@ -705,7 +705,7 @@ git commit -m "build: add isolated PickVia e2e application"
 Use fake app/helper processes and temporary FIFOs. Cover:
 
 ```python
-def test_driver_passes_no_url_in_argv_environment_status_or_regular_files(self):
+def test_driver_keeps_url_out_of_harness_control_and_output_channels(self):
     with DriverFixture() as fixture:
         result = fixture.run()
         route_bytes = fixture.route.encode()
@@ -790,9 +790,15 @@ The driver:
 5. compiles/starts the exact-app helper and writes the route to its stdin;
 6. waits concurrently for one valid FIFO status and one receiver receipt with a monotonic
    deadline;
-7. reports only sanitized JSON (`session`, `outcome`, token receipt boolean, exact process
-   identity boolean, elapsed bound); and
-8. terminates only child PIDs it launched, then removes FIFO/root.
+7. requires exact E2E and selected-browser process identities and reports only sanitized
+   JSON (`session`, `outcome`, token receipt boolean, identity booleans, elapsed bound); and
+8. preserves preexisting browser generations, terminates only one unambiguous task-owned
+   generation, drains owned output, then removes the FIFO/root.
+
+This privacy contract applies to the driver, E2E app/helper controls, status, harness
+output, task root, and clipboard. It does not claim that production `BrowserLauncher` or
+the target browser avoids browser argv, AppleEvents, `NSWorkspace`, history, or other
+browser-owned persistence.
 
 Reject any count other than one route and cap every deadline at 30 seconds. Keep default
 stdout/stderr free of the app route and helper errors.

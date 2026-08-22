@@ -6,6 +6,7 @@ import dataclasses
 import json
 import os
 import pathlib
+import plistlib
 import re
 import selectors
 import shutil
@@ -29,6 +30,11 @@ DRIVER_PROCESS_ERROR = 14
 DRIVER_INVALID_RECEIPT = 15
 DRIVER_PRIVACY_FAILURE = 16
 DRIVER_BROWSER_IDENTITY_TIMEOUT = 17
+DRIVER_READINESS_FAILURE = 18
+DRIVER_HELPER_FAILURE = 19
+DRIVER_IDENTITY_FAILURE = 20
+DRIVER_BROWSER_IDENTITY_AMBIGUOUS = 21
+DRIVER_CLEANUP_FAILURE = 22
 
 MAXIMUM_TIMEOUT_SECONDS = 30.0
 MAXIMUM_PROTOCOL_LINE_BYTES = 2_048
@@ -211,6 +217,33 @@ def _terminate_exact_browser_process(identity, executable):
     return False
 
 
+def _remove_task_root(root):
+    root = pathlib.Path(root)
+    try:
+        metadata = root.lstat()
+        if (
+            root.parent != pathlib.Path("/private/tmp")
+            or not root.name.startswith("pickvia-e2e-")
+            or not stat.S_ISDIR(metadata.st_mode)
+            or stat.S_ISLNK(metadata.st_mode)
+            or metadata.st_uid != os.getuid()
+            or pathlib.Path(os.path.realpath(root)) != root
+        ):
+            return False
+        shutil.rmtree(root)
+        return not root.exists()
+    except OSError:
+        return False
+
+
+def _close_fifo(descriptor):
+    try:
+        os.close(descriptor)
+        return True
+    except OSError:
+        return False
+
+
 @dataclasses.dataclass(frozen=True)
 class DriverDependencies:
     helper_executable: Optional[pathlib.Path] = None
@@ -233,6 +266,8 @@ class DriverDependencies:
         _terminate_exact_browser_process
     )
     capture_observer: Callable[[str, str, bytes, bool], None] = _ignore
+    task_root_remover: Callable[[pathlib.Path], bool] = _remove_task_root
+    fifo_closer: Callable[[int], bool] = _close_fifo
 
 
 @dataclasses.dataclass(frozen=True)
@@ -259,6 +294,25 @@ class _DriverInterrupted(Exception):
 
 class _ProtocolError(Exception):
     pass
+
+
+class _ReadinessError(_ProtocolError):
+    pass
+
+
+class _HelperError(_ProtocolError):
+    pass
+
+
+class _IdentityError(Exception):
+    pass
+
+
+class _IdentityAmbiguous(Exception):
+    def __init__(self, token_received=False, status_line=b""):
+        super().__init__()
+        self.token_received = token_received
+        self.status_line = status_line
 
 
 class _StatusProtocolError(_ProtocolError):
@@ -323,6 +377,7 @@ class _OwnedProcesses:
         self._dependencies = dependencies
         self._children = []
         self._closed = False
+        self._stopped_pids = set()
 
     def start(self, kind, argv, *, environment=None, stdin=None, manual_stdout=False):
         process = subprocess.Popen(
@@ -343,10 +398,12 @@ class _OwnedProcesses:
         return process
 
     def _start_reader(self, stream, capture):
+        descriptor = stream.fileno()
+
         def drain():
             try:
                 while True:
-                    chunk = stream.read(4_096)
+                    chunk = os.read(descriptor, 4_096)
                     if not chunk:
                         return
                     capture.append(chunk)
@@ -363,18 +420,32 @@ class _OwnedProcesses:
     def _child(self, process):
         return next(child for child in self._children if child.process is process)
 
+    def stop(self, process):
+        if process.poll() is not None:
+            return True
+        try:
+            os.kill(process.pid, signal.SIGSTOP)
+            self._stopped_pids.add(process.pid)
+            return True
+        except (OSError, ProcessLookupError):
+            return False
+
     def close(self):
         if self._closed:
-            return
+            return True
         self._closed = True
+        cleanup_ok = True
         for child in reversed(self._children):
             process = child.process
             try:
                 if process.poll() is None:
                     try:
                         process.terminate()
+                        if process.pid in self._stopped_pids:
+                            os.kill(process.pid, signal.SIGCONT)
                         process.wait(timeout=0.5)
                     except (ProcessLookupError, subprocess.TimeoutExpired):
+                        cleanup_ok = False
                         if process.poll() is None:
                             try:
                                 process.kill()
@@ -383,21 +454,39 @@ class _OwnedProcesses:
                             try:
                                 process.wait(timeout=0.5)
                             except subprocess.TimeoutExpired:
-                                pass
+                                cleanup_ok = False
+                if process.poll() is None:
+                    cleanup_ok = False
                 if child.manual_stdout:
                     self._drain_manual_stream(process.stdout, child.captures["stdout"])
                 for thread in child.threads:
                     thread.join(timeout=0.5)
+                    if thread.is_alive():
+                        cleanup_ok = False
             finally:
                 for stream in (process.stdin, process.stdout, process.stderr):
                     if stream is not None and not stream.closed:
-                        stream.close()
+                        try:
+                            stream.close()
+                        except OSError:
+                            cleanup_ok = False
+                for thread in child.threads:
+                    thread.join(timeout=0.1)
+                    if thread.is_alive():
+                        cleanup_ok = False
                 for channel, capture in child.captures.items():
                     contents, overflow = capture.snapshot()
-                    self._dependencies.capture_observer(
-                        child.kind, channel, contents, overflow
-                    )
-                self._dependencies.termination_observer(child.kind, process.pid)
+                    try:
+                        self._dependencies.capture_observer(
+                            child.kind, channel, contents, overflow
+                        )
+                    except Exception:
+                        cleanup_ok = False
+                try:
+                    self._dependencies.termination_observer(child.kind, process.pid)
+                except Exception:
+                    cleanup_ok = False
+        return cleanup_ok
 
     def _drain_manual_stream(self, stream, capture):
         try:
@@ -426,6 +515,25 @@ def _empty_result(exit_code):
     report = {
         "session": "invalid",
         "outcome": "driver-error",
+        "token_received": False,
+        "exact_process_identity": False,
+        "exact_browser_process_identity": False,
+        "elapsed_bound_seconds": 0.0,
+    }
+    return DriverResult(
+        exit_code=exit_code,
+        report=report,
+        stdout=_encoded_report(report),
+    )
+
+
+def _failure_result(config, exit_code, outcome):
+    session = getattr(config, "session_nonce", "invalid")
+    if not isinstance(session, str) or _SESSION_PATTERN.fullmatch(session) is None:
+        session = "invalid"
+    report = {
+        "session": session,
+        "outcome": outcome,
         "token_received": False,
         "exact_process_identity": False,
         "exact_browser_process_identity": False,
@@ -475,18 +583,52 @@ def _validated_config(config):
     e2e_app = pathlib.Path(config.e2e_app)
     browser_app = pathlib.Path(config.browser_app)
     browser_executable = pathlib.Path(config.expected_browser_executable)
-    if not _physical_app(e2e_app) or not _physical_app(browser_app):
+    if not _physical_app(e2e_app):
         return None
     e2e_executable = e2e_app / "Contents" / "MacOS" / "PickVia"
     if not _physical_executable(e2e_executable):
         return None
-    if not _physical_executable(browser_executable):
-        return None
-    try:
-        browser_executable.relative_to(browser_app / "Contents" / "MacOS")
-    except ValueError:
-        return None
+    _validate_browser_binding(
+        browser_app,
+        browser_executable,
+        config.bundle_identifier,
+    )
     return timeout, e2e_app, e2e_executable, browser_executable
+
+
+def _validate_browser_binding(browser_app, browser_executable, bundle_identifier):
+    if not _physical_app(browser_app) or not _physical_executable(browser_executable):
+        raise _IdentityError
+    info_plist = browser_app / "Contents" / "Info.plist"
+    try:
+        metadata = info_plist.lstat()
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or stat.S_ISLNK(metadata.st_mode)
+            or metadata.st_size > 1_048_576
+        ):
+            raise _IdentityError
+        with info_plist.open("rb") as stream:
+            document = plistlib.load(stream)
+    except (OSError, plistlib.InvalidFileException) as error:
+        raise _IdentityError from error
+    if not isinstance(document, dict):
+        raise _IdentityError
+    observed_bundle = document.get("CFBundleIdentifier")
+    executable_name = document.get("CFBundleExecutable")
+    if (
+        not isinstance(observed_bundle, str)
+        or observed_bundle != bundle_identifier
+        or not isinstance(executable_name, str)
+        or not executable_name
+        or executable_name in {".", ".."}
+        or "/" in executable_name
+        or "\x00" in executable_name
+    ):
+        raise _IdentityError
+    canonical_executable = browser_app / "Contents" / "MacOS" / executable_name
+    if canonical_executable != browser_executable:
+        raise _IdentityError
 
 
 def _physical_app(path):
@@ -540,22 +682,26 @@ def _read_protocol_line(processes, process, deadline, monotonic):
     buffer = bytearray()
     try:
         while True:
-            events = selector.select(min(_remaining(deadline, monotonic), 0.05))
+            try:
+                wait = min(_remaining(deadline, monotonic), 0.05)
+            except _DeadlineExpired as error:
+                raise _ReadinessError from error
+            events = selector.select(wait)
             if not events:
                 if process.poll() is not None:
-                    raise _ProtocolError
+                    raise _ReadinessError
                 continue
             chunk = os.read(descriptor, 512)
             if not chunk:
-                raise _ProtocolError
+                raise _ReadinessError
             processes.append_manual_stdout(process, chunk)
             buffer.extend(chunk)
             if len(buffer) > MAXIMUM_PROTOCOL_LINE_BYTES:
-                raise _ProtocolError
+                raise _ReadinessError
             newline = buffer.find(b"\n")
             if newline >= 0:
                 if newline != len(buffer) - 1:
-                    raise _ProtocolError
+                    raise _ReadinessError
                 return bytes(buffer)
     finally:
         selector.close()
@@ -565,9 +711,9 @@ def _parse_ready(line):
     try:
         record = json.loads(line)
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise _ProtocolError from error
+        raise _ReadinessError from error
     if not isinstance(record, dict) or set(record) != {"port", "tokens"}:
-        raise _ProtocolError
+        raise _ReadinessError
     port = record["port"]
     tokens = record["tokens"]
     if (
@@ -579,7 +725,7 @@ def _parse_ready(line):
         or not isinstance(tokens[0], str)
         or _TOKEN_PATTERN.fullmatch(tokens[0]) is None
     ):
-        raise _ProtocolError
+        raise _ReadinessError
     return port, tokens[0]
 
 
@@ -622,7 +768,7 @@ def _parse_receipt(line, expected_token):
 
 def _compile_helper(processes, source, output, deadline, monotonic):
     if not source.is_file() or source.is_symlink():
-        raise _ProtocolError
+        raise _HelperError
     process = processes.start(
         "helper-compiler",
         ["/usr/bin/xcrun", "swiftc", source, "-o", output],
@@ -631,34 +777,42 @@ def _compile_helper(processes, source, output, deadline, monotonic):
     try:
         process.wait(timeout=_remaining(deadline, monotonic))
     except subprocess.TimeoutExpired as error:
-        raise _DeadlineExpired from error
+        raise _HelperError from error
     if (
         process.returncode != 0
         or not output.is_file()
         or not os.access(output, os.X_OK)
     ):
-        raise _ProtocolError
+        raise _HelperError
 
 
-def _install_signal_guards():
-    previous = {}
+class _SignalGuard:
+    def __init__(self):
+        self._previous = {}
+        self._cleaning = False
+        self.received_during_cleanup = []
 
-    def interrupt(signum, frame):
+    def install(self):
+        try:
+            for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+                self._previous[signum] = signal.signal(signum, self._handle)
+        except ValueError:
+            self.restore()
+        return self
+
+    def begin_cleanup(self):
+        self._cleaning = True
+
+    def _handle(self, signum, frame):
+        if self._cleaning:
+            self.received_during_cleanup.append(signum)
+            return
         raise _DriverInterrupted
 
-    try:
-        for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
-            previous[signum] = signal.signal(signum, interrupt)
-    except ValueError:
-        for signum, handler in previous.items():
+    def restore(self):
+        for signum, handler in self._previous.items():
             signal.signal(signum, handler)
-        return {}
-    return previous
-
-
-def _restore_signal_guards(previous):
-    for signum, handler in previous.items():
-        signal.signal(signum, handler)
+        self._previous.clear()
 
 
 def _consume_status_lines(buffer, sequence, expected_session):
@@ -677,6 +831,25 @@ def _consume_status_lines(buffer, sequence, expected_session):
         else:
             raise _StatusProtocolError
         consumed.append(line)
+
+
+def _generation_map(identities):
+    return {identity.generation_key: identity for identity in identities}
+
+
+def _observe_browser_generations(current, preexisting, seen_new):
+    current_by_generation = _generation_map(current)
+    preexisting_generations = set(_generation_map(preexisting))
+    for generation, identity in current_by_generation.items():
+        if generation not in preexisting_generations:
+            seen_new[generation] = identity
+    if len(seen_new) > 1:
+        raise _IdentityAmbiguous
+    existing_is_live = any(
+        generation in preexisting_generations for generation in current_by_generation
+    )
+    exact_identity = existing_is_live or len(seen_new) == 1
+    return exact_identity, frozenset(seen_new.values())
 
 
 def _wait_for_proof(
@@ -702,7 +875,7 @@ def _wait_for_proof(
     status_lines = []
     receipt = False
     browser_identity = False
-    owned_browsers = set()
+    seen_new_browsers = {}
     try:
         while True:
             if status_sequence == ["selected", "launch-error"]:
@@ -711,7 +884,7 @@ def _wait_for_proof(
                     receipt,
                     b"".join(status_lines),
                     browser_identity,
-                    frozenset(owned_browsers),
+                    frozenset(seen_new_browsers.values()),
                 )
             if status_sequence and status_sequence[0] != "selected":
                 return _WaitResult(
@@ -719,26 +892,31 @@ def _wait_for_proof(
                     receipt,
                     b"".join(status_lines),
                     browser_identity,
-                    frozenset(owned_browsers),
+                    frozenset(seen_new_browsers.values()),
                 )
             if status_sequence == ["selected"]:
-                current = set(
-                    dependencies.browser_process_snapshot(expected_browser_executable)
-                )
-                browser_identity = bool(current)
-                owned_browsers.update(
-                    identity
-                    for identity in current
-                    if identity not in preexisting_browsers
-                    and identity.parent_pid == app.pid
-                )
+                try:
+                    current = set(
+                        dependencies.browser_process_snapshot(
+                            expected_browser_executable
+                        )
+                    )
+                    browser_identity, _ = _observe_browser_generations(
+                        current,
+                        preexisting_browsers,
+                        seen_new_browsers,
+                    )
+                except _IdentityAmbiguous as error:
+                    error.token_received = receipt
+                    error.status_line = b"".join(status_lines)
+                    raise
                 if receipt and browser_identity:
                     return _WaitResult(
                         "selected",
                         True,
                         b"".join(status_lines),
                         True,
-                        frozenset(owned_browsers),
+                        frozenset(seen_new_browsers.values()),
                     )
             try:
                 wait = min(_remaining(deadline, dependencies.monotonic), 0.05)
@@ -748,14 +926,14 @@ def _wait_for_proof(
                         receipt,
                         b"".join(status_lines),
                         browser_identity,
-                        owned_browsers,
+                        seen_new_browsers.values(),
                     )
                 if status_sequence == ["selected"] and not browser_identity:
                     raise _BrowserIdentityTimeout(
                         receipt,
                         b"".join(status_lines),
                         browser_identity,
-                        owned_browsers,
+                        seen_new_browsers.values(),
                     )
                 raise
             for key, _ in selector.select(wait):
@@ -788,7 +966,7 @@ def _wait_for_proof(
             if not status_sequence and app.poll() is not None and not buffers["status"]:
                 raise ChildProcessError
             if helper.poll() not in (None, 0) and not receipt and not status_sequence:
-                raise ChildProcessError
+                raise _HelperError
             if (
                 receiver.poll() not in (None, 0)
                 and not receipt
@@ -826,7 +1004,10 @@ def _audit_regular_files(root, forbidden):
 
 def run_driver(config, dependencies=None):
     dependencies = dependencies or DriverDependencies()
-    validated = _validated_config(config)
+    try:
+        validated = _validated_config(config)
+    except _IdentityError:
+        return _failure_result(config, DRIVER_IDENTITY_FAILURE, "identity-error")
     if validated is None:
         return _empty_result(DRIVER_USAGE)
     timeout, e2e_app, e2e_executable, browser_executable = validated
@@ -846,7 +1027,8 @@ def run_driver(config, dependencies=None):
     preexisting_browsers = set()
     owned_browsers = set()
     cleanup_ok = True
-    previous_signals = _install_signal_guards()
+    identity_ambiguous = False
+    signal_guard = _SignalGuard().install()
     try:
         preexisting_browsers = set(
             dependencies.browser_process_snapshot(browser_executable)
@@ -896,7 +1078,7 @@ def run_driver(config, dependencies=None):
         )
         exact_e2e_identity = dependencies.process_identity_checker(app, e2e_executable)
         if not exact_e2e_identity:
-            raise ChildProcessError
+            raise _IdentityError
 
         route_bytes = f"http://127.0.0.1:{port}/{token}".encode("ascii")
         dependencies.route_observer(route_bytes.decode("ascii"))
@@ -911,7 +1093,7 @@ def run_driver(config, dependencies=None):
                 dependencies.monotonic,
             )
         elif not _physical_executable(pathlib.Path(helper_executable)):
-            raise _ProtocolError
+            raise _HelperError
 
         helper = processes.start(
             "exact-app-helper",
@@ -919,9 +1101,12 @@ def run_driver(config, dependencies=None):
             environment=dict(os.environ),
             stdin=subprocess.PIPE,
         )
-        helper.stdin.write(route_bytes)
-        helper.stdin.flush()
-        helper.stdin.close()
+        try:
+            helper.stdin.write(route_bytes)
+            helper.stdin.flush()
+            helper.stdin.close()
+        except OSError as error:
+            raise _HelperError from error
 
         proof = _wait_for_proof(
             processes,
@@ -958,6 +1143,14 @@ def run_driver(config, dependencies=None):
         exact_browser_identity = error.browser_identity
         owned_browsers.update(error.owned_browsers)
         exit_code = DRIVER_BROWSER_IDENTITY_TIMEOUT
+    except _IdentityAmbiguous as error:
+        outcome = "identity-ambiguous"
+        received = error.token_received
+        status_line = error.status_line
+        exact_browser_identity = False
+        owned_browsers.clear()
+        identity_ambiguous = True
+        exit_code = DRIVER_BROWSER_IDENTITY_AMBIGUOUS
     except _DeadlineExpired:
         outcome = "timeout"
         exit_code = DRIVER_TIMEOUT
@@ -967,9 +1160,18 @@ def run_driver(config, dependencies=None):
     except _ReceiptProtocolError:
         outcome = "invalid-receipt"
         exit_code = DRIVER_INVALID_RECEIPT
+    except _ReadinessError:
+        outcome = "readiness-error"
+        exit_code = DRIVER_READINESS_FAILURE
+    except _HelperError:
+        outcome = "helper-error"
+        exit_code = DRIVER_HELPER_FAILURE
+    except _IdentityError:
+        outcome = "identity-error"
+        exit_code = DRIVER_IDENTITY_FAILURE
     except _ProtocolError:
-        outcome = "invalid-receipt"
-        exit_code = DRIVER_INVALID_RECEIPT
+        outcome = "process-error"
+        exit_code = DRIVER_PROCESS_ERROR
     except ChildProcessError:
         outcome = "process-error"
         exit_code = DRIVER_PROCESS_ERROR
@@ -977,50 +1179,89 @@ def run_driver(config, dependencies=None):
         outcome = "driver-error"
         exit_code = DRIVER_PROCESS_ERROR
     finally:
+        signal_guard.begin_cleanup()
         if app is not None:
+            cleanup_ok = processes.stop(app) and cleanup_ok
             try:
                 current = set(dependencies.browser_process_snapshot(browser_executable))
-                owned_browsers.update(
-                    identity
-                    for identity in current
-                    if identity not in preexisting_browsers
-                    and identity.parent_pid == app.pid
+                seen_new = _generation_map(owned_browsers)
+                _, swept_owned = _observe_browser_generations(
+                    current,
+                    preexisting_browsers,
+                    seen_new,
                 )
+                owned_browsers = set(swept_owned)
+            except _IdentityAmbiguous:
+                identity_ambiguous = True
+                owned_browsers.clear()
             except (OSError, ValueError, TypeError):
                 cleanup_ok = False
         for identity in owned_browsers:
             try:
-                cleanup_ok = (
-                    dependencies.browser_process_terminator(
-                        identity, browser_executable
-                    )
-                    and cleanup_ok
+                current = set(dependencies.browser_process_snapshot(browser_executable))
+                is_same_generation = any(
+                    candidate.generation_key == identity.generation_key
+                    for candidate in current
                 )
+                if not is_same_generation:
+                    continue
+                terminated = dependencies.browser_process_terminator(
+                    identity, browser_executable
+                )
+                current = set(dependencies.browser_process_snapshot(browser_executable))
+                survived = any(
+                    candidate.generation_key == identity.generation_key
+                    for candidate in current
+                )
+                cleanup_ok = terminated and not survived and cleanup_ok
             except (OSError, ValueError, TypeError):
                 cleanup_ok = False
         if fifo_descriptor is not None:
-            os.close(fifo_descriptor)
-        processes.close()
+            try:
+                cleanup_ok = dependencies.fifo_closer(fifo_descriptor) and cleanup_ok
+            except Exception:
+                cleanup_ok = False
+        try:
+            cleanup_ok = processes.close() and cleanup_ok
+        except Exception:
+            cleanup_ok = False
         if route_bytes is not None:
-            if processes.violates_privacy(route_bytes):
+            try:
+                output_violation = processes.violates_privacy(route_bytes)
+            except Exception:
+                output_violation = True
+            if output_violation:
                 outcome = "privacy-failure"
                 exit_code = DRIVER_PRIVACY_FAILURE
-            if task_root is not None and not _audit_regular_files(
-                task_root, route_bytes
-            ):
+            try:
+                files_are_private = task_root is None or _audit_regular_files(
+                    task_root, route_bytes
+                )
+            except Exception:
+                files_are_private = False
+            if not files_are_private:
                 outcome = "privacy-failure"
                 exit_code = DRIVER_PRIVACY_FAILURE
-        if not cleanup_ok and exit_code == DRIVER_SUCCESS:
-            outcome = "cleanup-error"
-            exit_code = DRIVER_PROCESS_ERROR
         if task_root is not None:
             try:
                 dependencies.before_cleanup(task_root)
-            finally:
-                metadata = task_root.lstat() if task_root.exists() else None
-                if metadata is not None and stat.S_ISDIR(metadata.st_mode):
-                    shutil.rmtree(task_root)
-        _restore_signal_guards(previous_signals)
+            except Exception:
+                cleanup_ok = False
+            try:
+                cleanup_ok = dependencies.task_root_remover(task_root) and cleanup_ok
+            except Exception:
+                cleanup_ok = False
+        if identity_ambiguous:
+            outcome = "identity-ambiguous"
+            exact_browser_identity = False
+            exit_code = DRIVER_BROWSER_IDENTITY_AMBIGUOUS
+        elif signal_guard.received_during_cleanup:
+            outcome = "cleanup-interrupted"
+            exit_code = DRIVER_CLEANUP_FAILURE
+        elif not cleanup_ok:
+            outcome = "cleanup-error"
+            exit_code = DRIVER_CLEANUP_FAILURE
+        signal_guard.restore()
 
     elapsed = min(max(dependencies.monotonic() - started, 0.0), timeout)
     report = {

@@ -31,9 +31,10 @@ release-build control surface.
 - Exercise the real application composition after selection: `AppModel`,
   `RoutingCoordinator`, trusted target resolution, `BrowserLauncher`, and system process
   launch.
-- Preserve the privacy contract: routed URLs remain memory-only and never enter process
-  arguments for the E2E app, environment variables, status messages, logs, clipboard, or
-  regular files.
+- Preserve the harness privacy contract: routed URLs never enter the E2E app or helper
+  arguments/environment, status messages, harness output, task-root regular files, or
+  clipboard. The helper receives the route only over stdin and delivers it to the E2E app
+  as an open event.
 - Fail closed on every missing, ambiguous, unavailable, disabled, or mismatched target.
 - Keep the E2E application, configuration, status channel, and cleanup independent from
   the installed PickVia application.
@@ -243,12 +244,23 @@ The subsequent matrix retains the existing rules:
 - a failed required state fails that capability without borrowing evidence from another
   edition.
 
+The harness boundary ends when production routing hands the URL to the selected browser.
+Depending on its existing strategy, `BrowserLauncher` may use target-browser arguments,
+an AppleEvent, or `NSWorkspace`; the target browser may persist ordinary history or state.
+Those production/browser behaviors are intentionally outside the harness privacy guarantee
+and are not redesigned by this E2E work.
+
 ## Privacy and audit requirements
 
 - Never emit a raw chooser/accessibility tree.
-- Never print or persist the routed URL, request path, query, or headers.
-- Never put the URL in E2E environment variables, process arguments, status records,
-  regular files, or clipboard.
+- Never print or persist the routed URL, request path, query, or headers in harness output
+  or the task-owned support root.
+- Never put the URL in the driver, E2E app, or helper arguments/environment, status
+  records, harness logs, task-root regular files, or clipboard. The stdin/open-event path
+  is the sole harness delivery channel.
+- Production `BrowserLauncher` delivery to the selected target browser, including browser
+  arguments, AppleEvents, `NSWorkspace`, and browser-owned persistence, is outside this
+  harness-specific guarantee.
 - Tokens may appear in the sanitized compatibility ledger, but the route assembled from
   them may not.
 - Record only version, bundle ID, strategy, exact process identity, bounded state,

@@ -2,6 +2,7 @@
 
 import os
 import pathlib
+import plistlib
 import signal
 import stat
 import subprocess
@@ -42,6 +43,16 @@ class DriverFixture:
         leak_channel=None,
         preexisting_browser_pids=frozenset(),
         interrupt_on_kind=None,
+        workspace_browser_parent=False,
+        pid_reuse=False,
+        multiple_new_browsers=False,
+        browser_survives_termination=False,
+        signal_during_cleanup=False,
+        root_removal_fails=False,
+        fifo_close_fails=False,
+        app_ignores_term=False,
+        hold_output_open=False,
+        helper_fails=False,
     ):
         self.status_records = status_records or [
             {"session": "session_0123456789", "outcome": "selected"}
@@ -58,6 +69,16 @@ class DriverFixture:
         self.leak_channel = leak_channel
         self.preexisting_browser_pids = set(preexisting_browser_pids)
         self.interrupt_on_kind = interrupt_on_kind
+        self.workspace_browser_parent = workspace_browser_parent
+        self.pid_reuse = pid_reuse
+        self.multiple_new_browsers = multiple_new_browsers
+        self.browser_survives_termination = browser_survives_termination
+        self.signal_during_cleanup = signal_during_cleanup
+        self.root_removal_fails = root_removal_fails
+        self.fifo_close_fails = fifo_close_fails
+        self.app_ignores_term = app_ignores_term
+        self.hold_output_open = hold_output_open
+        self.helper_fails = helper_fails
         self.fixture_root = pathlib.Path(
             tempfile.mkdtemp(prefix="pickvia-driver-fixture-", dir="/private/tmp")
         )
@@ -69,6 +90,7 @@ class DriverFixture:
         self.probe = self.fixture_root / "fake-probe"
         self.route_trigger = self.fixture_root / "route-trigger.fifo"
         self.browser_pid_file = self.fixture_root / "browser.pid"
+        self.output_holder_pid_file = self.fixture_root / "output-holder.pid"
         self.task_root = None
         self.route = None
         self.observed_argv = []
@@ -83,6 +105,8 @@ class DriverFixture:
         self.clock_calls = 0
         self.identity_checks = []
         self.e2e_pid = None
+        self.snapshot_call_count = 0
+        self._sent_cleanup_signal = False
 
     def __enter__(self):
         self.e2e_executable.parent.mkdir(parents=True)
@@ -91,6 +115,7 @@ class DriverFixture:
         self._write_executable(self.e2e_executable, self._fake_e2e_source())
         self._write_executable(self.browser_executable, self._fake_browser_source())
         self._write_executable(self.helper, self._fake_helper_source())
+        self.write_browser_plist("com.microsoft.edgemac", "Browser")
         if self.probe_kind == "normal":
             self.probe = SCRIPT_DIR / "localhost_probe.py"
         elif self.probe_kind in {"leak-stdout", "leak-stderr"}:
@@ -100,25 +125,58 @@ class DriverFixture:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        if self.browser_pid_file.exists():
+        for pid in self.browser_pids():
             try:
-                os.kill(int(self.browser_pid_file.read_text()), signal.SIGKILL)
-            except (ProcessLookupError, ValueError):
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
                 pass
+        if self.output_holder_pid_file.exists():
+            try:
+                os.kill(int(self.output_holder_pid_file.read_text()), signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        if self.task_root is not None and self.task_root.exists():
+            self._remove_tree(self.task_root)
         self._remove_tree(self.fixture_root)
+
+    def write_browser_plist(self, bundle_identifier, executable_name, app=None):
+        app = pathlib.Path(app or self.browser_app)
+        with (app / "Contents" / "Info.plist").open("wb") as stream:
+            plistlib.dump(
+                {
+                    "CFBundleIdentifier": bundle_identifier,
+                    "CFBundleExecutable": executable_name,
+                },
+                stream,
+            )
+
+    def browser_pids(self):
+        if not self.browser_pid_file.exists():
+            return []
+        return [
+            int(value)
+            for value in self.browser_pid_file.read_text(encoding="ascii").split(",")
+            if value
+        ]
 
     def _fake_e2e_source(self):
         return """#!/usr/bin/env python3
 import json
 import os
 import pathlib
+import signal
 import subprocess
 import time
 import urllib.request
 root = pathlib.Path(__file__).resolve().parents[3]
+signal.signal(signal.SIGCHLD, signal.SIG_IGN)
+if %r: signal.signal(signal.SIGTERM, signal.SIG_IGN)
 if %r:
     time.sleep(60)
 route = (root / "route-trigger.fifo").read_bytes()
+if %r:
+    holder = subprocess.Popen(["/bin/sleep", "60"])
+    (root / "output-holder.pid").write_text(str(holder.pid), encoding="ascii")
 if %r == "app-stdout": os.write(1, route)
 if %r == "app-stderr": os.write(2, route)
 if %r == "app-overflow": os.write(1, b"x" * 70000)
@@ -134,18 +192,23 @@ if "selected" in outcomes and "launch-error" not in outcomes:
         except Exception: pass
     elif %r:
         executable = root / "Browser.app" / "Contents" / "MacOS" / "Browser"
-        browser = subprocess.Popen([str(executable)], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        (root / "browser.pid").write_text(str(browser.pid), encoding="ascii")
-        browser.stdin.write(route); browser.stdin.close()
+        browsers = []
+        for _ in range(%r):
+            browser = subprocess.Popen([str(executable)], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            browser.stdin.write(route); browser.stdin.close(); browsers.append(browser)
+        (root / "browser.pid").write_text(",".join(str(browser.pid) for browser in browsers), encoding="ascii")
 time.sleep(60)
 """ % (
+            self.app_ignores_term,
             self.app_hangs,
+            self.hold_output_open,
             self.leak_channel,
             self.leak_channel,
             self.leak_channel,
             self.status_records,
             self.receipt_without_browser,
             self.spawn_browser,
+            2 if self.multiple_new_browsers else 1,
         )
 
     def _fake_browser_source(self):
@@ -169,12 +232,14 @@ import os
 import pathlib
 import sys
 route = sys.stdin.buffer.read()
+if %r: raise SystemExit(23)
 if %r == "helper-stdout": os.write(1, route)
 if %r == "helper-stderr": os.write(2, route)
 if %r:
     root = pathlib.Path(sys.argv[1]).parent
     with open(root / "route-trigger.fifo", "wb", buffering=0) as stream: stream.write(route)
 """ % (
+            self.helper_fails,
             self.leak_channel,
             self.leak_channel,
             self.helper_delivers_to_app,
@@ -208,6 +273,8 @@ server.server_close()
         )
 
     def _adversarial_probe_source(self):
+        if self.probe_kind == "invalid-ready":
+            return "#!/usr/bin/env python3\nprint('not-json', flush=True)\n"
         receipt = {
             "wrong-token": '{"remote_address":"127.0.0.1","receipt_time":1,"token":"wrong"}',
             "wrong-remote": '{"remote_address":"127.0.0.2","receipt_time":1,"token":"TOKEN"}',
@@ -216,11 +283,15 @@ server.server_close()
         return (
             """#!/usr/bin/env python3
 import json
-import time
-print(json.dumps({"port": 9, "tokens": ["TOKEN"]}, separators=(",", ":")), flush=True)
-line = %r
-if line: print(line, flush=True)
-else: time.sleep(60)
+from http.server import BaseHTTPRequestHandler, HTTPServer
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self): self.send_response(204); self.end_headers()
+    def log_message(self, *args): pass
+server = HTTPServer(("127.0.0.1", 0), Handler)
+print(json.dumps({"port": server.server_address[1], "tokens": ["TOKEN"]}, separators=(",", ":")), flush=True)
+server.handle_request()
+print(%r, flush=True)
+server.server_close()
 """
             % receipt
         )
@@ -273,29 +344,51 @@ else: time.sleep(60)
         return self.exact_e2e_identity
 
     def _snapshot_browser_processes(self, executable):
+        self.snapshot_call_count += 1
         identities = {
             driver.ProcessIdentity(pid, 1, 1, pid, pathlib.Path(executable))
             for pid in self.preexisting_browser_pids
         }
+        if self.pid_reuse and not self.browser_pid_file.exists():
+            identities.add(
+                driver.ProcessIdentity(700, 1, 1, 1, pathlib.Path(executable))
+            )
         if not self.browser_identity_visible or not self.browser_pid_file.exists():
             return identities
-        pid = int(self.browser_pid_file.read_text(encoding="ascii"))
-        try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
-            return identities
-        identities.add(
-            driver.ProcessIdentity(pid, self.e2e_pid, 2, pid, pathlib.Path(executable))
-        )
+        for index, actual_pid in enumerate(self.browser_pids()):
+            try:
+                os.kill(actual_pid, 0)
+            except ProcessLookupError:
+                continue
+            exposed_pid = 700 if self.pid_reuse and index == 0 else actual_pid
+            identities.add(
+                driver.ProcessIdentity(
+                    exposed_pid,
+                    1 if self.workspace_browser_parent else self.e2e_pid,
+                    2,
+                    actual_pid,
+                    pathlib.Path(executable),
+                )
+            )
         return identities
 
     def _terminate_browser(self, identity, executable):
         self.terminated_browser_pids.append(identity.pid)
+        if self.browser_survives_termination:
+            return True
+        actual_pid = self.browser_pids()[0] if self.pid_reuse else identity.pid
         try:
-            os.kill(identity.pid, signal.SIGTERM)
+            os.kill(actual_pid, signal.SIGTERM)
         except ProcessLookupError:
-            pass
-        return True
+            return True
+        deadline = time.monotonic() + 0.5
+        while time.monotonic() < deadline:
+            try:
+                os.kill(actual_pid, 0)
+            except ProcessLookupError:
+                return True
+            time.sleep(0.01)
+        return False
 
     def _capture_output(self, kind, channel, contents, overflow):
         self.captured_child_output.append((kind, channel, contents, overflow))
@@ -305,9 +398,22 @@ else: time.sleep(60)
         for path in self.task_root.rglob("*"):
             if path.is_file() and not path.is_symlink():
                 self.regular_file_snapshots.append((path.name, path.read_bytes()))
+        if self.signal_during_cleanup and not self._sent_cleanup_signal:
+            self._sent_cleanup_signal = True
+            os.kill(os.getpid(), signal.SIGTERM)
 
-    def run(self):
-        dependencies = driver.DriverDependencies(
+    def _remove_driver_root(self, root):
+        if self.root_removal_fails:
+            return False
+        self._remove_tree(pathlib.Path(root))
+        return True
+
+    def _close_fifo(self, descriptor):
+        os.close(descriptor)
+        return not self.fifo_close_fails
+
+    def run(self, *, config_overrides=None, dependency_overrides=None):
+        dependency_values = dict(
             helper_executable=self.helper,
             probe_script=self.probe,
             monotonic=self._monotonic,
@@ -319,24 +425,64 @@ else: time.sleep(60)
             browser_process_snapshot=self._snapshot_browser_processes,
             browser_process_terminator=self._terminate_browser,
             capture_observer=self._capture_output,
+            task_root_remover=self._remove_driver_root,
+            fifo_closer=self._close_fifo,
         )
+        dependency_values.update(dependency_overrides or {})
+        dependencies = driver.DriverDependencies(**dependency_values)
+        config_values = dict(
+            e2e_app=self.e2e_app,
+            browser_app=self.browser_app,
+            expected_browser_executable=self.browser_executable,
+            target_id="com.microsoft.edgemac||normal",
+            bundle_identifier="com.microsoft.edgemac",
+            mode="normal",
+            session_nonce="session_0123456789",
+            timeout=self.timeout,
+        )
+        config_values.update(config_overrides or {})
         return driver.run_driver(
-            driver.DriverConfig(
-                e2e_app=self.e2e_app,
-                browser_app=self.browser_app,
-                expected_browser_executable=self.browser_executable,
-                target_id="com.microsoft.edgemac||normal",
-                bundle_identifier="com.microsoft.edgemac",
-                mode="normal",
-                session_nonce="session_0123456789",
-                timeout=self.timeout,
-            ),
+            driver.DriverConfig(**config_values),
             dependencies=dependencies,
         )
 
 
 @unittest.skipIf(driver is None, "PickVia E2E route driver is not implemented")
 class PickViaE2EDriverTests(unittest.TestCase):
+    def test_browser_control_is_bound_to_exact_bundle_metadata_and_executable(self):
+        with DriverFixture() as fixture:
+            beta_app = fixture.fixture_root / "Microsoft Edge Beta.app"
+            beta_executable = beta_app / "Contents" / "MacOS" / "Microsoft Edge Beta"
+            beta_executable.parent.mkdir(parents=True)
+            fixture._write_executable(beta_executable, "#!/bin/sh\nexit 0\n")
+            fixture.write_browser_plist(
+                "com.microsoft.edgemac.Beta", "Microsoft Edge Beta", beta_app
+            )
+            result = fixture.run(
+                config_overrides={
+                    "browser_app": beta_app,
+                    "expected_browser_executable": beta_executable,
+                }
+            )
+            self.assertEqual(result.exit_code, driver.DRIVER_IDENTITY_FAILURE)
+            self.assertEqual(result.report["outcome"], "identity-error")
+            self.assertIsNone(fixture.route)
+
+        with DriverFixture() as fixture:
+            fixture.write_browser_plist("com.microsoft.edgemac", "OtherBrowser")
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_IDENTITY_FAILURE)
+            self.assertIsNone(fixture.route)
+
+        with DriverFixture() as fixture:
+            other = fixture.browser_executable.parent / "OtherBrowser"
+            fixture._write_executable(other, "#!/bin/sh\nexit 0\n")
+            result = fixture.run(
+                config_overrides={"expected_browser_executable": other}
+            )
+            self.assertEqual(result.exit_code, driver.DRIVER_IDENTITY_FAILURE)
+            self.assertIsNone(fixture.route)
+
     def test_helper_receives_exact_e2e_app_and_never_browser_app(self):
         with DriverFixture() as fixture:
             result = fixture.run()
@@ -356,7 +502,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
             self.assertFalse(result.report["token_received"])
             self.assertFalse(result.report["exact_browser_process_identity"])
 
-    def test_driver_passes_no_url_in_any_external_channel(self):
+    def test_driver_keeps_url_out_of_harness_control_and_output_channels(self):
         with DriverFixture() as fixture:
             result = fixture.run()
             self.assertEqual(result.exit_code, driver.DRIVER_SUCCESS)
@@ -445,12 +591,33 @@ class PickViaE2EDriverTests(unittest.TestCase):
     def test_only_new_exact_browser_child_is_terminated(self):
         with DriverFixture(preexisting_browser_pids={41, 42}) as fixture:
             result = fixture.run()
-            new_pid = int(fixture.browser_pid_file.read_text(encoding="ascii"))
+            new_pid = fixture.browser_pids()[0]
             self.assertEqual(result.exit_code, driver.DRIVER_SUCCESS)
             self.assertEqual(fixture.terminated_browser_pids, [new_pid])
             self.assertTrue({41, 42}.isdisjoint(fixture.terminated_browser_pids))
             with self.assertRaises(ProcessLookupError):
                 os.kill(new_pid, 0)
+
+    def test_workspace_parent_new_generation_is_owned_without_ppid_guessing(self):
+        with DriverFixture(workspace_browser_parent=True) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_SUCCESS)
+            self.assertEqual(
+                fixture.terminated_browser_pids, [fixture.browser_pids()[0]]
+            )
+
+    def test_pid_reuse_is_distinguished_by_start_generation(self):
+        with DriverFixture(pid_reuse=True) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_SUCCESS)
+            self.assertEqual(fixture.terminated_browser_pids, [700])
+
+    def test_multiple_new_browser_generations_fail_ambiguous_without_termination(self):
+        with DriverFixture(multiple_new_browsers=True) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_BROWSER_IDENTITY_AMBIGUOUS)
+            self.assertEqual(result.report["outcome"], "identity-ambiguous")
+            self.assertEqual(fixture.terminated_browser_pids, [])
 
     def test_nonstring_wrong_session_unknown_and_duplicate_statuses_are_invalid(self):
         invalid_sequences = (
@@ -533,10 +700,35 @@ class PickViaE2EDriverTests(unittest.TestCase):
             result = fixture.run()
             root = fixture.task_root
             self.assertEqual(result.exit_code, driver.DRIVER_PROCESS_ERROR)
+            self.assertEqual(result.report["outcome"], "driver-error")
             self.assertEqual(
                 set(fixture.closed_child_pids), set(fixture.launched_child_pids)
             )
         self.assertFalse(root.exists())
+
+    def test_signal_during_finalization_is_deferred_until_cleanup_finishes(self):
+        with DriverFixture(signal_during_cleanup=True) as fixture:
+            result = fixture.run()
+            root = fixture.task_root
+            self.assertEqual(result.exit_code, driver.DRIVER_CLEANUP_FAILURE)
+            self.assertEqual(result.report["outcome"], "cleanup-interrupted")
+        self.assertFalse(root.exists())
+
+    def test_term_timeout_live_drainer_browser_survivor_and_root_failure_are_cleanup_errors(
+        self,
+    ):
+        cases = (
+            {"app_ignores_term": True},
+            {"hold_output_open": True},
+            {"browser_survives_termination": True},
+            {"root_removal_fails": True},
+            {"fifo_close_fails": True},
+        )
+        for case in cases:
+            with self.subTest(case=case), DriverFixture(**case) as fixture:
+                result = fixture.run()
+                self.assertEqual(result.exit_code, driver.DRIVER_CLEANUP_FAILURE)
+                self.assertEqual(result.report["outcome"], "cleanup-error")
 
     def test_driver_closes_every_owned_child_pipe(self):
         with DriverFixture() as fixture:
@@ -556,7 +748,8 @@ class PickViaE2EDriverTests(unittest.TestCase):
     def test_driver_fails_before_route_when_e2e_identity_is_wrong(self):
         with DriverFixture(exact_e2e_identity=False) as fixture:
             result = fixture.run()
-            self.assertEqual(result.exit_code, driver.DRIVER_PROCESS_ERROR)
+            self.assertEqual(result.exit_code, driver.DRIVER_IDENTITY_FAILURE)
+            self.assertEqual(result.report["outcome"], "identity-error")
             self.assertFalse(result.report["exact_process_identity"])
             self.assertIsNone(fixture.route)
             self.assertNotIn("exact-app-helper", fixture.launched_kinds)
@@ -576,6 +769,41 @@ class PickViaE2EDriverTests(unittest.TestCase):
             result = driver.run_driver(config)
             self.assertEqual(result.exit_code, driver.DRIVER_USAGE)
             self.assertEqual(fixture.launched_child_pids, [])
+
+    def test_failure_taxonomy_is_exact_and_sanitized(self):
+        cases = (
+            (
+                lambda: DriverFixture(probe_kind="invalid-ready"),
+                {},
+                driver.DRIVER_READINESS_FAILURE,
+                "readiness-error",
+            ),
+            (
+                DriverFixture,
+                {
+                    "helper_executable": None,
+                    "helper_source": pathlib.Path("/private/tmp/missing-helper.swift"),
+                },
+                driver.DRIVER_HELPER_FAILURE,
+                "helper-error",
+            ),
+            (
+                lambda: DriverFixture(helper_fails=True),
+                {},
+                driver.DRIVER_HELPER_FAILURE,
+                "helper-error",
+            ),
+        )
+        for make_fixture, overrides, expected_code, expected_outcome in cases:
+            with self.subTest(
+                expected_outcome=expected_outcome
+            ), make_fixture() as fixture:
+                result = fixture.run(dependency_overrides=overrides)
+                self.assertEqual(result.exit_code, expected_code)
+                self.assertEqual(result.report["outcome"], expected_outcome)
+                self.assertNotIn(
+                    fixture.route or "never", result.stdout.decode("ascii")
+                )
 
 
 @unittest.skipIf(driver is None, "PickVia E2E route driver is not implemented")
