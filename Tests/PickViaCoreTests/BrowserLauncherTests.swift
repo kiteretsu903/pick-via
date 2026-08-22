@@ -238,6 +238,140 @@ struct BrowserLauncherTests {
     #expect(arguments == ["--profile-directory=Profile 1", "--incognito", "https://example.com"])
   }
 
+  @Test func safariTechnologyPreviewUsesOnlyItsTrustedWorkspaceApplication() throws {
+    let trustedApplication = URL(
+      fileURLWithPath: "/Applications/Safari Technology Preview.app", isDirectory: true)
+    let launcher = BrowserLauncher(
+      trustedApplicationResolver: StubTrustedApplicationResolver(urls: [
+        "com.apple.SafariTechnologyPreview": trustedApplication
+      ]),
+      processRunner: RecordingProcessRunner(),
+      workspace: RecordingWorkspace(),
+      executableValidator: StubExecutableValidator(isExecutable: true)
+    )
+    let preview = application(
+      family: .safari,
+      bundleIdentifier: "com.apple.SafariTechnologyPreview",
+      executable: nil
+    )
+    let previewTarget = target(
+      id: "com.apple.SafariTechnologyPreview||normal",
+      browserID: "com.apple.SafariTechnologyPreview",
+      profile: nil
+    )
+
+    let plan = try launcher.makePlan(url: url, application: preview, target: previewTarget)
+
+    #expect(plan == .workspace(application: trustedApplication, url: url))
+  }
+
+  @Test(arguments: newChannelLaunchExpectations)
+  func newChannelPlansUseExactTrustedExecutableAndArguments(
+    _ expectation: ChannelLaunchExpectation
+  ) throws {
+    let trustedApplication = URL(
+      fileURLWithPath: "/Applications/\(expectation.applicationName).app",
+      isDirectory: true
+    )
+    let executable = trustedApplication.appending(path: expectation.executableRelativePath)
+    let validator = StubExecutableValidator(isExecutable: true)
+    let launcher = BrowserLauncher(
+      trustedApplicationResolver: StubTrustedApplicationResolver(urls: [
+        expectation.bundleIdentifier: trustedApplication
+      ]),
+      processRunner: RecordingProcessRunner(),
+      workspace: RecordingWorkspace(),
+      executableValidator: validator
+    )
+    let channelApplication = BrowserApplication(
+      id: expectation.bundleIdentifier,
+      family: expectation.family,
+      displayName: expectation.applicationName,
+      bundleIdentifier: expectation.bundleIdentifier,
+      applicationURL: URL(fileURLWithPath: "/tmp/Substituted.app", isDirectory: true),
+      executableURL: URL(fileURLWithPath: "/tmp/substituted-executable"),
+      isAvailable: true
+    )
+
+    func channelTarget(profiled: Bool, mode: BrowserMode) -> BrowserTarget {
+      let profile = profiled ? "PickVia E2E" : nil
+      return target(
+        id: BrowserCatalog.targetID(
+          bundleIdentifier: expectation.bundleIdentifier,
+          profileIdentifier: profile,
+          mode: mode
+        ),
+        browserID: expectation.bundleIdentifier,
+        profile: profile,
+        profileLaunchPath: profiled ? expectation.profileLaunchPath : nil,
+        mode: mode
+      )
+    }
+
+    let normalPlan = try launcher.makePlan(
+      url: url,
+      application: channelApplication,
+      target: channelTarget(profiled: false, mode: .normal)
+    )
+    let profilePlan = try launcher.makePlan(
+      url: url,
+      application: channelApplication,
+      target: channelTarget(profiled: true, mode: .normal)
+    )
+    let privatePlan = try launcher.makePlan(
+      url: url,
+      application: channelApplication,
+      target: channelTarget(profiled: true, mode: .private)
+    )
+
+    #expect(
+      normalPlan
+        == .executable(application: executable, arguments: expectation.normalArguments))
+    #expect(
+      profilePlan
+        == .executable(application: executable, arguments: expectation.profileArguments))
+    #expect(
+      privatePlan
+        == .executable(application: executable, arguments: expectation.privateArguments))
+    #expect(validator.requestedURLs == [executable, executable, executable])
+  }
+
+  @Test func crossEditionTargetMismatchNeverLaunchesAnotherChannel() async {
+    let process = RecordingProcessRunner()
+    let workspace = RecordingWorkspace()
+    let validator = StubExecutableValidator(isExecutable: true)
+    let canaryApplicationURL = URL(
+      fileURLWithPath: "/Applications/Google Chrome Canary.app", isDirectory: true)
+    let launcher = BrowserLauncher(
+      trustedApplicationResolver: StubTrustedApplicationResolver(urls: [
+        "com.google.Chrome.canary": canaryApplicationURL
+      ]),
+      processRunner: process,
+      workspace: workspace,
+      executableValidator: validator
+    )
+    let canaryApplication = application(
+      family: .chromium,
+      bundleIdentifier: "com.google.Chrome.canary"
+    )
+    let devTarget = target(
+      id: "com.google.Chrome.dev|PickVia E2E|normal",
+      browserID: "com.google.Chrome.dev",
+      profile: "PickVia E2E"
+    )
+
+    await #expect(throws: LaunchFailure.self) {
+      try await launcher.launch(
+        url: url,
+        application: canaryApplication,
+        target: devTarget
+      )
+    }
+    #expect(process.invocations.isEmpty)
+    #expect(workspace.invocations.isEmpty)
+    #expect(validator.requestedURLs.isEmpty)
+  }
+
   @Test func launchFailsWhenSupportedBundleCannotBeResolvedCurrently() {
     let launcher = BrowserLauncher(
       trustedApplicationResolver: StubTrustedApplicationResolver(urls: [:]),
@@ -834,6 +968,75 @@ struct BrowserLauncherTests {
 
 private let applicationURL = URL(fileURLWithPath: "/Applications/Browser.app", isDirectory: true)
 private let executableURL = applicationURL.appending(path: "Contents/MacOS/Browser")
+
+struct ChannelLaunchExpectation: Sendable {
+  let bundleIdentifier: String
+  let family: BrowserFamily
+  let applicationName: String
+  let executableRelativePath: String
+  let profileLaunchPath: String?
+  let normalArguments: [String]
+  let profileArguments: [String]
+  let privateArguments: [String]
+}
+
+private let newChannelLaunchExpectations: [ChannelLaunchExpectation] = [
+  chromiumChannelLaunch(
+    "com.google.Chrome.dev", "Google Chrome Dev", "--incognito"),
+  chromiumChannelLaunch(
+    "com.google.Chrome.canary", "Google Chrome Canary", "--incognito"),
+  chromiumChannelLaunch(
+    "com.microsoft.edgemac.Beta", "Microsoft Edge Beta", "--inprivate"),
+  chromiumChannelLaunch(
+    "com.microsoft.edgemac.Dev", "Microsoft Edge Dev", "--inprivate"),
+  chromiumChannelLaunch(
+    "com.microsoft.edgemac.Canary", "Microsoft Edge Canary", "--inprivate"),
+  chromiumChannelLaunch(
+    "com.brave.Browser.beta", "Brave Browser Beta", "--incognito"),
+  chromiumChannelLaunch(
+    "com.brave.Browser.nightly", "Brave Browser Nightly", "--incognito"),
+  chromiumChannelLaunch(
+    "com.vivaldi.Vivaldi.snapshot", "Vivaldi Snapshot", "--incognito"),
+  firefoxChannelLaunch(
+    "org.mozilla.firefoxdeveloperedition", "Firefox Developer Edition"),
+  firefoxChannelLaunch("org.mozilla.nightly", "Firefox Nightly"),
+]
+
+private func chromiumChannelLaunch(
+  _ bundleIdentifier: String,
+  _ applicationName: String,
+  _ privateArgument: String
+) -> ChannelLaunchExpectation {
+  ChannelLaunchExpectation(
+    bundleIdentifier: bundleIdentifier,
+    family: .chromium,
+    applicationName: applicationName,
+    executableRelativePath: "Contents/MacOS/\(applicationName)",
+    profileLaunchPath: nil,
+    normalArguments: ["https://example.com"],
+    profileArguments: ["--profile-directory=PickVia E2E", "https://example.com"],
+    privateArguments: [
+      "--profile-directory=PickVia E2E", privateArgument, "https://example.com",
+    ]
+  )
+}
+
+private func firefoxChannelLaunch(
+  _ bundleIdentifier: String,
+  _ applicationName: String
+) -> ChannelLaunchExpectation {
+  let profilePath = "/profiles/PickVia E2E"
+  return ChannelLaunchExpectation(
+    bundleIdentifier: bundleIdentifier,
+    family: .firefox,
+    applicationName: applicationName,
+    executableRelativePath: "Contents/MacOS/firefox",
+    profileLaunchPath: profilePath,
+    normalArguments: ["-new-tab", "https://example.com"],
+    profileArguments: ["-profile", profilePath, "-new-tab", "https://example.com"],
+    privateArguments: ["-profile", profilePath, "-private-window", "https://example.com"]
+  )
+}
 
 enum DuckDuckGoProfileField: CaseIterable, Sendable {
   case identifier

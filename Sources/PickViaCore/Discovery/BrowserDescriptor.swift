@@ -135,6 +135,14 @@ public struct BrowserDescriptor: Equatable, Sendable {
       privateStrategy: .unsupported
     ),
     BrowserDescriptor(
+      bundleIdentifier: "com.apple.SafariTechnologyPreview",
+      family: .safari,
+      displayName: "Safari Technology Preview",
+      profileStrategy: .none,
+      launchStrategy: .workspace,
+      privateStrategy: .unsupported
+    ),
+    BrowserDescriptor(
       bundleIdentifier: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
       family: .duckDuckGo,
       displayName: "DuckDuckGo",
@@ -155,6 +163,18 @@ public struct BrowserDescriptor: Equatable, Sendable {
       executableRelativePath: "Contents/MacOS/Google Chrome Beta"
     ),
     chromium(
+      bundleIdentifier: "com.google.Chrome.dev",
+      displayName: "Google Chrome Dev",
+      profileRoot: "Library/Application Support/Google/Chrome Dev",
+      executableRelativePath: "Contents/MacOS/Google Chrome Dev"
+    ),
+    chromium(
+      bundleIdentifier: "com.google.Chrome.canary",
+      displayName: "Google Chrome Canary",
+      profileRoot: "Library/Application Support/Google/Chrome Canary",
+      executableRelativePath: "Contents/MacOS/Google Chrome Canary"
+    ),
+    chromium(
       bundleIdentifier: "org.chromium.Chromium",
       displayName: "Chromium",
       profileRoot: "Library/Application Support/Chromium",
@@ -168,10 +188,43 @@ public struct BrowserDescriptor: Equatable, Sendable {
       privateArgument: "--inprivate"
     ),
     chromium(
+      bundleIdentifier: "com.microsoft.edgemac.Beta",
+      displayName: "Microsoft Edge Beta",
+      profileRoot: "Library/Application Support/Microsoft Edge Beta",
+      executableRelativePath: "Contents/MacOS/Microsoft Edge Beta",
+      privateArgument: "--inprivate"
+    ),
+    chromium(
+      bundleIdentifier: "com.microsoft.edgemac.Dev",
+      displayName: "Microsoft Edge Dev",
+      profileRoot: "Library/Application Support/Microsoft Edge Dev",
+      executableRelativePath: "Contents/MacOS/Microsoft Edge Dev",
+      privateArgument: "--inprivate"
+    ),
+    chromium(
+      bundleIdentifier: "com.microsoft.edgemac.Canary",
+      displayName: "Microsoft Edge Canary",
+      profileRoot: "Library/Application Support/Microsoft Edge Canary",
+      executableRelativePath: "Contents/MacOS/Microsoft Edge Canary",
+      privateArgument: "--inprivate"
+    ),
+    chromium(
       bundleIdentifier: "com.brave.Browser",
       displayName: "Brave Browser",
       profileRoot: "Library/Application Support/BraveSoftware/Brave-Browser",
       executableRelativePath: "Contents/MacOS/Brave Browser"
+    ),
+    chromium(
+      bundleIdentifier: "com.brave.Browser.beta",
+      displayName: "Brave Beta",
+      profileRoot: "Library/Application Support/BraveSoftware/Brave-Browser-Beta",
+      executableRelativePath: "Contents/MacOS/Brave Browser Beta"
+    ),
+    chromium(
+      bundleIdentifier: "com.brave.Browser.nightly",
+      displayName: "Brave Nightly",
+      profileRoot: "Library/Application Support/BraveSoftware/Brave-Browser-Nightly",
+      executableRelativePath: "Contents/MacOS/Brave Browser Nightly"
     ),
     chromium(
       bundleIdentifier: "com.vivaldi.Vivaldi",
@@ -179,10 +232,32 @@ public struct BrowserDescriptor: Equatable, Sendable {
       profileRoot: "Library/Application Support/Vivaldi",
       executableRelativePath: "Contents/MacOS/Vivaldi"
     ),
+    chromium(
+      bundleIdentifier: "com.vivaldi.Vivaldi.snapshot",
+      displayName: "Vivaldi Snapshot",
+      profileRoot: "Library/Application Support/Vivaldi Snapshot",
+      executableRelativePath: "Contents/MacOS/Vivaldi Snapshot"
+    ),
     BrowserDescriptor(
       bundleIdentifier: "org.mozilla.firefox",
       family: .firefox,
       displayName: "Firefox",
+      profileStrategy: .firefox(root: "Library/Application Support/Firefox"),
+      launchStrategy: .firefox(executableRelativePath: "Contents/MacOS/firefox"),
+      privateStrategy: .argument("-private-window")
+    ),
+    BrowserDescriptor(
+      bundleIdentifier: "org.mozilla.firefoxdeveloperedition",
+      family: .firefox,
+      displayName: "Firefox Developer Edition",
+      profileStrategy: .firefox(root: "Library/Application Support/Firefox"),
+      launchStrategy: .firefox(executableRelativePath: "Contents/MacOS/firefox"),
+      privateStrategy: .argument("-private-window")
+    ),
+    BrowserDescriptor(
+      bundleIdentifier: "org.mozilla.nightly",
+      family: .firefox,
+      displayName: "Firefox Nightly",
       profileStrategy: .firefox(root: "Library/Application Support/Firefox"),
       launchStrategy: .firefox(executableRelativePath: "Contents/MacOS/firefox"),
       privateStrategy: .argument("-private-window")

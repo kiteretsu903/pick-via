@@ -6,18 +6,52 @@ import Testing
 struct BrowserCatalogTests {
   @Test func supportedDescriptorsContainExactlyTheApprovedBrowsers() {
     #expect(
+      BrowserDescriptor.supported.map(\.displayName) == [
+        "Safari",
+        "Safari Technology Preview",
+        "DuckDuckGo",
+        "Google Chrome",
+        "Google Chrome Beta",
+        "Google Chrome Dev",
+        "Google Chrome Canary",
+        "Chromium",
+        "Microsoft Edge",
+        "Microsoft Edge Beta",
+        "Microsoft Edge Dev",
+        "Microsoft Edge Canary",
+        "Brave Browser",
+        "Brave Beta",
+        "Brave Nightly",
+        "Vivaldi",
+        "Vivaldi Snapshot",
+        "Firefox",
+        "Firefox Developer Edition",
+        "Firefox Nightly",
+      ])
+    #expect(
       BrowserDescriptor.supported.map(\.bundleIdentifier) == [
         "com.apple.Safari",
+        "com.apple.SafariTechnologyPreview",
         "com.duckduckgo.macos.browser",
         "com.google.Chrome",
         "com.google.Chrome.beta",
+        "com.google.Chrome.dev",
+        "com.google.Chrome.canary",
         "org.chromium.Chromium",
         "com.microsoft.edgemac",
+        "com.microsoft.edgemac.Beta",
+        "com.microsoft.edgemac.Dev",
+        "com.microsoft.edgemac.Canary",
         "com.brave.Browser",
+        "com.brave.Browser.beta",
+        "com.brave.Browser.nightly",
         "com.vivaldi.Vivaldi",
+        "com.vivaldi.Vivaldi.snapshot",
         "org.mozilla.firefox",
+        "org.mozilla.firefoxdeveloperedition",
+        "org.mozilla.nightly",
       ])
-    #expect(BrowserDescriptor.supported.count == 9)
+    #expect(BrowserDescriptor.supported.count == 20)
   }
 
   @Test func duckDuckGoDescriptorHasNoProfileOrExecutablePaths() throws {
@@ -311,6 +345,74 @@ struct BrowserCatalogTests {
     #expect(browser.profiles.map(\.identifier) == ["Default", "Profile 1"])
     #expect(locator.requestedBundleIdentifiers == ["com.google.Chrome.beta"])
     #expect(fileSystem.readURLs == [betaLocalStateURL])
+  }
+
+  @Test(arguments: profileEditionExpectations)
+  func profileEditionDiscoveryReadsOnlyItsDeclaredMetadataRoot(
+    _ expectation: ProfileEditionExpectation
+  ) throws {
+    let descriptor = try #require(
+      BrowserDescriptor.descriptor(forBundleIdentifier: expectation.bundleIdentifier)
+    )
+    let applicationURL = URL(
+      fileURLWithPath: "/Applications/\(expectation.applicationName).app",
+      isDirectory: true
+    )
+    let markerURL = URL(fileURLWithPath: "/home", isDirectory: true)
+      .appending(path: expectation.profileRoot, directoryHint: .isDirectory)
+      .appending(path: expectation.requiredMarker)
+    let fileSystem = DiscoveryFileSystem(files: [
+      markerURL: try fixtureData(expectation.fixtureName)
+    ])
+    let catalog = BrowserCatalog(
+      descriptors: [descriptor],
+      applicationLocator: StubApplicationLocator(applications: [
+        expectation.bundleIdentifier: applicationURL
+      ]),
+      fileSystem: fileSystem,
+      homeDirectory: URL(fileURLWithPath: "/home", isDirectory: true)
+    )
+
+    let browser = try #require(catalog.scan().first)
+
+    #expect(browser.application.id == expectation.bundleIdentifier)
+    #expect(browser.application.bundleIdentifier == expectation.bundleIdentifier)
+    #expect(browser.application.family == expectation.family)
+    #expect(browser.metadataStatus == .loaded)
+    #expect(!browser.profiles.isEmpty)
+    #expect(fileSystem.readURLs == [markerURL])
+  }
+
+  @Test func missingChannelMetadataNeverFallsBackToStableMetadata() throws {
+    let descriptor = try #require(
+      BrowserDescriptor.descriptor(forBundleIdentifier: "com.google.Chrome.dev")
+    )
+    let stableMarker = URL(
+      fileURLWithPath: "/home/Library/Application Support/Google/Chrome/Local State"
+    )
+    let devMarker = URL(
+      fileURLWithPath: "/home/Library/Application Support/Google/Chrome Dev/Local State"
+    )
+    let fileSystem = DiscoveryFileSystem(files: [
+      stableMarker: try fixtureData("chromium-local-state.json")
+    ])
+    let catalog = BrowserCatalog(
+      descriptors: [descriptor],
+      applicationLocator: StubApplicationLocator(applications: [
+        "com.google.Chrome.dev": URL(
+          fileURLWithPath: "/Applications/Google Chrome Dev.app", isDirectory: true)
+      ]),
+      fileSystem: fileSystem,
+      homeDirectory: URL(fileURLWithPath: "/home", isDirectory: true)
+    )
+
+    let browser = try #require(catalog.scan().first)
+
+    #expect(browser.application.bundleIdentifier == "com.google.Chrome.dev")
+    #expect(browser.metadataStatus == .metadataAbsent)
+    #expect(browser.profiles.isEmpty)
+    #expect(fileSystem.readURLs == [devMarker])
+    #expect(!fileSystem.readURLs.contains(stableMarker))
   }
 
   @Test func chromiumProfileStrategyControlsMetadataIndependentOfFamily() throws {
@@ -2887,6 +2989,89 @@ struct BrowserCatalogTests {
         == second.authoritativeTargetIDByRuntimeTargetID
     )
   }
+}
+
+struct ProfileEditionExpectation: Sendable {
+  let bundleIdentifier: String
+  let family: BrowserFamily
+  let applicationName: String
+  let profileRoot: String
+  let requiredMarker: String
+  let fixtureName: String
+}
+
+private let profileEditionExpectations: [ProfileEditionExpectation] = [
+  chromiumProfileEdition(
+    "com.google.Chrome", "Google Chrome", "Library/Application Support/Google/Chrome"),
+  chromiumProfileEdition(
+    "com.google.Chrome.beta", "Google Chrome Beta",
+    "Library/Application Support/Google/Chrome Beta"),
+  chromiumProfileEdition(
+    "com.google.Chrome.dev", "Google Chrome Dev",
+    "Library/Application Support/Google/Chrome Dev"),
+  chromiumProfileEdition(
+    "com.google.Chrome.canary", "Google Chrome Canary",
+    "Library/Application Support/Google/Chrome Canary"),
+  chromiumProfileEdition(
+    "org.chromium.Chromium", "Chromium", "Library/Application Support/Chromium"),
+  chromiumProfileEdition(
+    "com.microsoft.edgemac", "Microsoft Edge",
+    "Library/Application Support/Microsoft Edge"),
+  chromiumProfileEdition(
+    "com.microsoft.edgemac.Beta", "Microsoft Edge Beta",
+    "Library/Application Support/Microsoft Edge Beta"),
+  chromiumProfileEdition(
+    "com.microsoft.edgemac.Dev", "Microsoft Edge Dev",
+    "Library/Application Support/Microsoft Edge Dev"),
+  chromiumProfileEdition(
+    "com.microsoft.edgemac.Canary", "Microsoft Edge Canary",
+    "Library/Application Support/Microsoft Edge Canary"),
+  chromiumProfileEdition(
+    "com.brave.Browser", "Brave Browser",
+    "Library/Application Support/BraveSoftware/Brave-Browser"),
+  chromiumProfileEdition(
+    "com.brave.Browser.beta", "Brave Browser Beta",
+    "Library/Application Support/BraveSoftware/Brave-Browser-Beta"),
+  chromiumProfileEdition(
+    "com.brave.Browser.nightly", "Brave Browser Nightly",
+    "Library/Application Support/BraveSoftware/Brave-Browser-Nightly"),
+  chromiumProfileEdition(
+    "com.vivaldi.Vivaldi", "Vivaldi", "Library/Application Support/Vivaldi"),
+  chromiumProfileEdition(
+    "com.vivaldi.Vivaldi.snapshot", "Vivaldi Snapshot",
+    "Library/Application Support/Vivaldi Snapshot"),
+  firefoxProfileEdition("org.mozilla.firefox", "Firefox"),
+  firefoxProfileEdition("org.mozilla.firefoxdeveloperedition", "Firefox Developer Edition"),
+  firefoxProfileEdition("org.mozilla.nightly", "Firefox Nightly"),
+]
+
+private func chromiumProfileEdition(
+  _ bundleIdentifier: String,
+  _ applicationName: String,
+  _ profileRoot: String
+) -> ProfileEditionExpectation {
+  ProfileEditionExpectation(
+    bundleIdentifier: bundleIdentifier,
+    family: .chromium,
+    applicationName: applicationName,
+    profileRoot: profileRoot,
+    requiredMarker: "Local State",
+    fixtureName: "chromium-local-state.json"
+  )
+}
+
+private func firefoxProfileEdition(
+  _ bundleIdentifier: String,
+  _ applicationName: String
+) -> ProfileEditionExpectation {
+  ProfileEditionExpectation(
+    bundleIdentifier: bundleIdentifier,
+    family: .firefox,
+    applicationName: applicationName,
+    profileRoot: "Library/Application Support/Firefox",
+    requiredMarker: "profiles.ini",
+    fixtureName: "firefox-profiles.ini"
+  )
 }
 
 private func chrome(profileID: String, profileName: String) -> DiscoveredBrowser {

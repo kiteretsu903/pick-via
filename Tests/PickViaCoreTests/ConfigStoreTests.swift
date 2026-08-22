@@ -91,6 +91,105 @@ final class ConfigStoreTests: XCTestCase {
     XCTAssertEqual(migrated.targets, legacy.targets)
   }
 
+  func testLegacyBrowserFamiliesDecodeUnchanged() throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let data = Data(
+      """
+      {
+        "schemaVersion": 2,
+        "browsers": [
+          {
+            "id": "com.apple.Safari",
+            "family": "safari",
+            "displayName": "Safari",
+            "bundleIdentifier": "com.apple.Safari",
+            "isAvailable": true
+          },
+          {
+            "id": "com.duckduckgo.macos.browser",
+            "family": "duckDuckGo",
+            "displayName": "DuckDuckGo",
+            "bundleIdentifier": "com.duckduckgo.macos.browser",
+            "isAvailable": true
+          },
+          {
+            "id": "com.google.Chrome",
+            "family": "chromium",
+            "displayName": "Google Chrome",
+            "bundleIdentifier": "com.google.Chrome",
+            "isAvailable": true
+          },
+          {
+            "id": "org.mozilla.firefox",
+            "family": "firefox",
+            "displayName": "Firefox",
+            "bundleIdentifier": "org.mozilla.firefox",
+            "isAvailable": true
+          }
+        ],
+        "targets": []
+      }
+      """.utf8
+    )
+    try data.write(to: directory.appending(path: "PickViaConfig.json"))
+
+    let loaded = try JSONConfigStore(directory: directory).load()
+
+    XCTAssertEqual(
+      loaded.browsers.map(\.family),
+      [.safari, .duckDuckGo, .chromium, .firefox]
+    )
+    XCTAssertEqual(
+      loaded.browsers.map(\.id),
+      [
+        "com.apple.Safari",
+        "com.duckduckgo.macos.browser",
+        "com.google.Chrome",
+        "org.mozilla.firefox",
+      ]
+    )
+  }
+
+  func testNewChannelApplicationsAndTargetIDsRoundTripUnchanged() throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let applications = [validChrome] + newChannelApplications
+    let channelTargets = newChannelApplications.enumerated().map { index, application in
+      BrowserTarget(
+        id: BrowserCatalog.targetID(
+          bundleIdentifier: application.bundleIdentifier,
+          profileIdentifier: nil,
+          mode: .normal
+        ),
+        browserID: application.id,
+        label: application.displayName,
+        profileIdentifier: nil,
+        profileDisplayName: nil,
+        mode: .normal,
+        isEnabled: true,
+        sortOrder: index + 1,
+        origin: .detected,
+        availability: .available
+      )
+    }
+    let expected = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: applications,
+      targets: [validTarget] + channelTargets
+    )
+    let store = JSONConfigStore(directory: directory)
+
+    try store.save(expected)
+    let loaded = try store.load()
+
+    XCTAssertEqual(loaded.browsers.map(\.id), expected.browsers.map(\.id))
+    XCTAssertEqual(loaded.browsers.map(\.family), expected.browsers.map(\.family))
+    XCTAssertEqual(loaded.browsers.map(\.displayName), expected.browsers.map(\.displayName))
+    XCTAssertEqual(loaded.targets.map(\.id), expected.targets.map(\.id))
+    XCTAssertEqual(loaded.targets.first?.id, validTarget.id)
+  }
+
   func testSchemaOneNormalizesDetectedTargetEnabledStatesOnce() throws {
     let browser = validChrome
     let detected = [
@@ -927,6 +1026,101 @@ private let validChrome = BrowserApplication(
     fileURLWithPath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
   isAvailable: true
 )
+
+private let newChannelApplications: [BrowserApplication] = [
+  channelApplication(
+    id: "com.apple.SafariTechnologyPreview",
+    family: .safari,
+    displayName: "Safari Technology Preview",
+    executableName: nil
+  ),
+  channelApplication(
+    id: "com.google.Chrome.dev",
+    family: .chromium,
+    displayName: "Google Chrome Dev",
+    executableName: "Google Chrome Dev"
+  ),
+  channelApplication(
+    id: "com.google.Chrome.canary",
+    family: .chromium,
+    displayName: "Google Chrome Canary",
+    executableName: "Google Chrome Canary"
+  ),
+  channelApplication(
+    id: "com.microsoft.edgemac.Beta",
+    family: .chromium,
+    displayName: "Microsoft Edge Beta",
+    executableName: "Microsoft Edge Beta"
+  ),
+  channelApplication(
+    id: "com.microsoft.edgemac.Dev",
+    family: .chromium,
+    displayName: "Microsoft Edge Dev",
+    executableName: "Microsoft Edge Dev"
+  ),
+  channelApplication(
+    id: "com.microsoft.edgemac.Canary",
+    family: .chromium,
+    displayName: "Microsoft Edge Canary",
+    executableName: "Microsoft Edge Canary"
+  ),
+  channelApplication(
+    id: "com.brave.Browser.beta",
+    family: .chromium,
+    displayName: "Brave Beta",
+    applicationName: "Brave Browser Beta",
+    executableName: "Brave Browser Beta"
+  ),
+  channelApplication(
+    id: "com.brave.Browser.nightly",
+    family: .chromium,
+    displayName: "Brave Nightly",
+    applicationName: "Brave Browser Nightly",
+    executableName: "Brave Browser Nightly"
+  ),
+  channelApplication(
+    id: "com.vivaldi.Vivaldi.snapshot",
+    family: .chromium,
+    displayName: "Vivaldi Snapshot",
+    executableName: "Vivaldi Snapshot"
+  ),
+  channelApplication(
+    id: "org.mozilla.firefoxdeveloperedition",
+    family: .firefox,
+    displayName: "Firefox Developer Edition",
+    executableName: "firefox"
+  ),
+  channelApplication(
+    id: "org.mozilla.nightly",
+    family: .firefox,
+    displayName: "Firefox Nightly",
+    executableName: "firefox"
+  ),
+]
+
+private func channelApplication(
+  id: String,
+  family: BrowserFamily,
+  displayName: String,
+  applicationName: String? = nil,
+  executableName: String?
+) -> BrowserApplication {
+  let applicationURL = URL(
+    fileURLWithPath: "/Applications/\(applicationName ?? displayName).app",
+    isDirectory: true
+  )
+  return BrowserApplication(
+    id: id,
+    family: family,
+    displayName: displayName,
+    bundleIdentifier: id,
+    applicationURL: applicationURL,
+    executableURL: executableName.map {
+      applicationURL.appending(path: "Contents/MacOS/\($0)")
+    },
+    isAvailable: true
+  )
+}
 
 private let validTarget = BrowserTarget(
   id: "com.google.Chrome|Default|normal",
