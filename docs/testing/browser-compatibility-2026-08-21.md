@@ -151,3 +151,35 @@ found no Edge Stable, E2E PickVia, or receiver process and no driver-created
 support root. The installed PickVia process remained the same exact generation
 recorded before the pilot. Preexisting named build/review temporary roots were
 left untouched.
+
+### Workspace-launch remediation rerun
+
+Status: **PASS for Microsoft Edge Stable normal routing in cold,
+already-running, and reopen states.** This rerun preserves the earlier failure
+above as evidence for the replaced direct-executable strategy. At `05da88f`,
+browser-level normal Chromium targets changed to exact trusted-application
+workspace delivery; profile and private launch strategies were not exercised by
+this gate.
+
+The rebuilt E2E application passed its identity, signature, smoke, and
+normal-binary isolation gates. One immediate post-build preflight ended in a
+sanitized helper error before selection. Bundle, signature, helper, FIFO, and
+focused driver checks found no reproducible defect; an identical diagnostic
+route then completed with helper compiler and exact-app helper exit status zero,
+`selected`, a fresh receipt, and exact process identities. The authorized cold
+retry and the two remaining classified states all passed independently:
+
+| Browser | Mode/state | Installed identity | Selection | Receipt | Exact process identity | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Microsoft Edge Stable | Normal, cold | 151.0.4129.101; `com.microsoft.edgemac`; team `UBF8T346G9` | `selected` | Fresh receipt | E2E app and Edge Stable generation verified | **PASS** |
+| Microsoft Edge Stable | Normal, already running | Same installed identity | `selected` | Fresh receipt | Same recorded task-owned Edge generation verified and preserved by the driver | **PASS** |
+| Microsoft Edge Stable | Normal, reopen | Same installed identity | `selected` | Fresh receipt | New exact Edge Stable generation verified after the recorded baseline was closed | **PASS** |
+
+No Computer Use call was needed. The report contains no routed address, token,
+browser arguments, raw UI, or profile label, and no profile or private target
+was created or attempted. The driver removed each cold/reopen generation; the
+already-running generation was terminated only after its exact PID and start
+generation were revalidated. Final checks found no Edge Stable, E2E PickVia, or
+receiver process and no driver-created support root. Installed PickVia remained
+the same exact pre-pilot process generation, and preexisting temporary roots
+were left untouched.
