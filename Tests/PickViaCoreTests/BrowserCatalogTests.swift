@@ -3357,6 +3357,33 @@ struct BrowserCatalogTests {
     #expect(result.targets[0].isEnabled)
   }
 
+  @Test(arguments: safariNormalOnlyBrowserExpectations)
+  func safariEditionsIgnoreUnverifiedProfileAndPrivateEvidence(
+    _ expectation: FailClosedBrowserExpectation
+  ) {
+    let discovered = capabilityBrowser(
+      bundleIdentifier: expectation.bundleIdentifier,
+      persistedFamily: expectation.family,
+      profiles: [
+        DiscoveredProfile(
+          identifier: "PickVia E2E",
+          displayName: "PickVia E2E",
+          directoryURL: nil
+        )
+      ],
+      metadataStatus: .loaded,
+      privateModeIsAvailable: true
+    )
+
+    let result = BrowserCatalog.reconcile(discovered: [discovered], with: .initial)
+
+    #expect(result.targets.count == 1)
+    #expect(result.targets[0].browserID == expectation.bundleIdentifier)
+    #expect(result.targets[0].profileIdentifier == nil)
+    #expect(result.targets[0].profileIdentity == nil)
+    #expect(result.targets[0].mode == .normal)
+  }
+
   @Test func targetGenerationUsesDescriptorCapabilitiesRatherThanPersistedFamilyName() {
     let profile = DiscoveredProfile(
       identifier: "Profile 1",
@@ -3752,6 +3779,14 @@ private let normalOnlyBrowserExpectations: [FailClosedBrowserExpectation] =
       displayName: "DuckDuckGo"
     )
   ]
+
+private let safariNormalOnlyBrowserExpectations: [FailClosedBrowserExpectation] = [
+  FailClosedBrowserExpectation(
+    bundleIdentifier: "com.apple.Safari", family: .safari, displayName: "Safari"),
+  FailClosedBrowserExpectation(
+    bundleIdentifier: "com.apple.SafariTechnologyPreview", family: .safari,
+    displayName: "Safari Technology Preview"),
+]
 
 private func failClosedBrowser(
   _ expectation: FailClosedBrowserExpectation

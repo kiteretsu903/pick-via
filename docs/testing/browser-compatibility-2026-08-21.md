@@ -85,3 +85,30 @@ directory was empty.
 
 All enhanced targets therefore remain absent from PickVia. No request may fall
 back to a normal window, another profile, another edition, or another browser.
+
+## Safari Shortcuts proof gate
+
+The user chose to skip the Safari helper and extension route. Safari 27.0
+(`com.apple.Safari`) and Safari Technology Preview 27.0
+(`com.apple.SafariTechnologyPreview`) therefore remain normal-workspace-only.
+Their profile strategies are `.none` and their private strategies are
+`.unsupported`.
+
+| Browser | Capability | Installed version | Result |
+| --- | --- | --- | --- |
+| Safari | Normal | 27.0 | **PENDING — Task 9** |
+| Safari | Profile | 27.0 | **UNSUPPORTED — helper route skipped by user; no routing proof attempted or completed** |
+| Safari | Private | 27.0 | **UNSUPPORTED — helper route skipped by user; no routing proof attempted or completed** |
+| Safari Technology Preview | Normal | 27.0 | **PENDING — Task 9** |
+| Safari Technology Preview | Profile | 27.0 | **UNSUPPORTED — helper route skipped by user; no edition-specific routing proof attempted or completed** |
+| Safari Technology Preview | Private | 27.0 | **UNSUPPORTED — helper route skipped by user; no edition-specific routing proof attempted or completed** |
+
+No Safari profile, Tab Group, Shortcut helper, localhost receiver, or routed
+token was created. The required `/dev/stdin` privacy proof was not run, so this
+gate makes no claim about its behavior. The initial read-only Computer Use
+inspection of Safari returned no state and was aborted after hanging; no further
+Safari or Shortcuts UI, screenshot, or installed-app action was taken. Because
+the resulting Safari/Shortcuts process and window ownership was uncertain, it
+was left untouched. The preexisting ownership-unknown path
+`/private/tmp/pickvia-safari-research.ADchkR` was also left untouched and was
+not inspected.

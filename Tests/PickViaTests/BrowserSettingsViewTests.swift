@@ -149,6 +149,28 @@ final class BrowserSettingsViewTests: XCTestCase {
     )
   }
 
+  func testSafariEditionsDoNotExposeUnverifiedEnhancedTargetControls() throws {
+    for bundleIdentifier in [
+      "com.apple.Safari", "com.apple.SafariTechnologyPreview",
+    ] {
+      let browser = settingsBrowser(
+        bundleIdentifier: bundleIdentifier,
+        persistedFamily: .safari
+      )
+      let targets = [
+        settingsTarget(browser: browser, mode: .normal),
+        settingsTarget(browser: browser, profileIdentifier: "PickVia E2E", mode: .normal),
+        settingsTarget(browser: browser, mode: .private),
+      ]
+
+      XCTAssertEqual(
+        browserTargetCapabilities(for: browser, targets: targets),
+        .normalOnly,
+        "\(bundleIdentifier) must not expose helper, profile, or private controls without proof"
+      )
+    }
+  }
+
   func testAddTargetViewHasNoSafariFamilyPolicyBranches() throws {
     let source = try projectSource("Sources/PickVia/Views/BrowserSettingsView.swift")
     let modelSource = try projectSource("Sources/PickVia/App/AppModel.swift")
