@@ -420,3 +420,47 @@ start-generation revalidation. Final exact-process checks found Chrome Dev,
 Chrome Canary, E2E PickVia, receiver, and driver absent; the preexisting Chrome
 Stable and installed PickVia generations remained unchanged. Preexisting
 temporary roots were left untouched.
+
+## Brave normal routing — 2026-08-22
+
+Status: **Brave Stable NOT RUN because its installed bundle failed strict deep
+signature verification; Brave Beta FAIL at the cold receipt gate.** Brave
+Nightly is outside this entry and was not tested. Both descriptors use PickVia's
+browser-level normal Chromium exact-application workspace strategy.
+
+The read-only installed-identity gate recorded Brave Stable 151.1.93.138,
+`com.brave.Browser`, and team `KL8N8XSYF4`. Its strict deep signature check
+exited nonzero, so no Stable route or UI observation was attempted.
+
+Brave Beta 152.1.95.87, `com.brave.Browser.beta`, team `KL8N8XSYF4`, passed its
+strict deep signature check. Two independent PickVia cold routes from confirmed
+absence each emitted `selected`, verified the exact E2E app and exact Brave Beta
+generation, and failed to receive the fresh receiver receipt within 30 seconds.
+The second run followed exact cleanup and quiescence of the first generation,
+so the repeated cold failure from confirmed absence is not classified as
+first-launch-only.
+Both drivers ultimately reported `cleanup-error` because their exact Beta
+generations remained after the receipt failure; no visible observation was made.
+
+| Browser | Mode/state | Selection | Receipt | Exact process identity | Sanitized visible evidence | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Brave Stable | Normal, cold/already running/reopen | Not attempted | Not attempted | Installed identity recorded; strict deep signature failed | **NOT RUN** | **NOT RUN — installation identity blocker** |
+| Brave Beta | Normal, cold | `selected` on both attempts | No receipt within 30 seconds on either attempt | E2E app and exact Brave Beta generation verified on both attempts | **NOT RUN — stopped before observer** | **FAIL — repeated cold receipt failure** |
+| Brave Beta | Normal, already running | Not attempted | Not attempted | Not attempted | Not attempted | **NOT RUN — stopped at cold gate** |
+| Brave Beta | Normal, reopen | Not attempted | Not attempted | Not attempted | Not attempted | **NOT RUN — stopped at cold gate** |
+
+One independent control bypassed PickVia and used the same exact-application
+NSWorkspace delivery helper with a fresh receiver. The receiver became ready,
+the helper compiled, and the exact Brave Beta generation was verified; the
+helper exited nonzero and the receiver obtained no receipt. The control therefore
+does not isolate the repeated missing receipts to PickVia's selection boundary.
+
+No profile or private target was created or attempted. This entry contains no
+routed address, token, browser arguments, raw UI, screenshot, or profile label.
+Each sole residual Beta generation received SIGTERM only after the originally
+empty prestate plus its exact PID, start generation, executable, bundle, team,
+and task-time start were revalidated. No SIGKILL was used. The final authorized
+control-generation cleanup reached bounded absence and quiescence; final checks
+found no Brave Beta, E2E PickVia, receiver, helper, or driver process. Installed
+PickVia remained the same exact pre-batch generation, and preexisting temporary
+roots were left untouched.
