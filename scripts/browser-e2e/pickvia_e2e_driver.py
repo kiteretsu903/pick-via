@@ -14,6 +14,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from typing import Callable, Mapping, Optional, Sequence
 
@@ -26,9 +27,13 @@ DRIVER_RECEIPT_TIMEOUT = 12
 DRIVER_TIMEOUT = 13
 DRIVER_PROCESS_ERROR = 14
 DRIVER_INVALID_RECEIPT = 15
+DRIVER_PRIVACY_FAILURE = 16
+DRIVER_BROWSER_IDENTITY_TIMEOUT = 17
 
 MAXIMUM_TIMEOUT_SECONDS = 30.0
 MAXIMUM_PROTOCOL_LINE_BYTES = 2_048
+MAXIMUM_CAPTURE_BYTES = 65_536
+MAXIMUM_AUDIT_FILE_BYTES = 8 * 1_024 * 1_024
 _SESSION_PATTERN = re.compile(r"\A[A-Za-z0-9_-]{16,64}\Z")
 _TOKEN_PATTERN = re.compile(r"\A[A-Za-z0-9_-]+\Z")
 _CLOSED_OUTCOMES = frozenset(
@@ -47,7 +52,6 @@ _CLOSED_OUTCOMES = frozenset(
         "launch-error",
     }
 )
-
 _SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 
 
@@ -55,6 +59,7 @@ _SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 class DriverConfig:
     e2e_app: pathlib.Path
     browser_app: pathlib.Path
+    expected_browser_executable: pathlib.Path
     target_id: str
     bundle_identifier: str
     mode: str
@@ -63,11 +68,25 @@ class DriverConfig:
     route_count: int = 1
 
 
-def _ignore_process(*args):
-    return None
+@dataclasses.dataclass(frozen=True)
+class ProcessIdentity:
+    pid: int
+    parent_pid: int
+    start_seconds: int
+    start_microseconds: int
+    executable: pathlib.Path
+
+    @property
+    def generation_key(self):
+        return (
+            self.pid,
+            self.start_seconds,
+            self.start_microseconds,
+            self.executable,
+        )
 
 
-def _ignore_path(*args):
+def _ignore(*args):
     return None
 
 
@@ -75,16 +94,121 @@ def _exact_process_identity(process, executable):
     expected = pathlib.Path(executable)
     if sys.platform != "darwin":
         return process.args == [os.fspath(expected)] and process.poll() is None
+    identity = _darwin_process_identity(process.pid)
+    return identity is not None and identity.executable == expected
+
+
+class _ProcBSDInfo(ctypes.Structure):
+    _fields_ = [
+        ("pbi_flags", ctypes.c_uint32),
+        ("pbi_status", ctypes.c_uint32),
+        ("pbi_xstatus", ctypes.c_uint32),
+        ("pbi_pid", ctypes.c_uint32),
+        ("pbi_ppid", ctypes.c_uint32),
+        ("pbi_uid", ctypes.c_uint32),
+        ("pbi_gid", ctypes.c_uint32),
+        ("pbi_ruid", ctypes.c_uint32),
+        ("pbi_rgid", ctypes.c_uint32),
+        ("pbi_svuid", ctypes.c_uint32),
+        ("pbi_svgid", ctypes.c_uint32),
+        ("rfu_1", ctypes.c_uint32),
+        ("pbi_comm", ctypes.c_char * 16),
+        ("pbi_name", ctypes.c_char * 32),
+        ("pbi_nfiles", ctypes.c_uint32),
+        ("pbi_pgid", ctypes.c_uint32),
+        ("pbi_pjobc", ctypes.c_uint32),
+        ("e_tdev", ctypes.c_uint32),
+        ("e_tpgid", ctypes.c_uint32),
+        ("pbi_nice", ctypes.c_int32),
+        ("pbi_start_tvsec", ctypes.c_uint64),
+        ("pbi_start_tvusec", ctypes.c_uint64),
+    ]
+
+
+def _load_libproc():
+    library = ctypes.CDLL("/usr/lib/libproc.dylib", use_errno=True)
+    library.proc_pidpath.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32]
+    library.proc_pidpath.restype = ctypes.c_int
+    library.proc_pidinfo.argtypes = [
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_uint64,
+        ctypes.c_void_p,
+        ctypes.c_int,
+    ]
+    library.proc_pidinfo.restype = ctypes.c_int
+    library.proc_listpids.argtypes = [
+        ctypes.c_uint32,
+        ctypes.c_uint32,
+        ctypes.c_void_p,
+        ctypes.c_int,
+    ]
+    library.proc_listpids.restype = ctypes.c_int
+    return library
+
+
+def _darwin_process_identity(pid, library=None):
     try:
-        libproc = ctypes.CDLL("/usr/lib/libproc.dylib", use_errno=True)
-        buffer = ctypes.create_string_buffer(4_096)
-        byte_count = libproc.proc_pidpath(process.pid, buffer, len(buffer))
-        if byte_count <= 0:
-            return False
-        observed = pathlib.Path(os.fsdecode(buffer.value))
-        return observed == expected
+        library = library or _load_libproc()
+        path_buffer = ctypes.create_string_buffer(4_096)
+        if library.proc_pidpath(pid, path_buffer, len(path_buffer)) <= 0:
+            return None
+        info = _ProcBSDInfo()
+        if library.proc_pidinfo(
+            pid, 3, 0, ctypes.byref(info), ctypes.sizeof(info)
+        ) != ctypes.sizeof(info):
+            return None
+        return ProcessIdentity(
+            pid=pid,
+            parent_pid=int(info.pbi_ppid),
+            start_seconds=int(info.pbi_start_tvsec),
+            start_microseconds=int(info.pbi_start_tvusec),
+            executable=pathlib.Path(os.fsdecode(path_buffer.value)),
+        )
     except (OSError, ValueError):
+        return None
+
+
+def _snapshot_exact_browser_processes(executable):
+    expected = pathlib.Path(executable)
+    if sys.platform != "darwin":
+        return frozenset()
+    try:
+        library = _load_libproc()
+        required_bytes = library.proc_listpids(1, 0, None, 0)
+        if required_bytes <= 0:
+            return frozenset()
+        count = required_bytes // ctypes.sizeof(ctypes.c_int) + 128
+        pids = (ctypes.c_int * count)()
+        used_bytes = library.proc_listpids(1, 0, pids, ctypes.sizeof(pids))
+        identities = set()
+        for pid in pids[: max(used_bytes, 0) // ctypes.sizeof(ctypes.c_int)]:
+            if pid <= 0:
+                continue
+            identity = _darwin_process_identity(pid, library)
+            if identity is not None and identity.executable == expected:
+                identities.add(identity)
+        return frozenset(identities)
+    except (OSError, ValueError):
+        return frozenset()
+
+
+def _terminate_exact_browser_process(identity, executable):
+    expected = pathlib.Path(executable)
+    current = _snapshot_exact_browser_processes(expected)
+    if not any(item.generation_key == identity.generation_key for item in current):
         return False
+    try:
+        os.kill(identity.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return True
+    deadline = time.monotonic() + 1.0
+    while time.monotonic() < deadline:
+        current = _snapshot_exact_browser_processes(expected)
+        if not any(item.generation_key == identity.generation_key for item in current):
+            return True
+        time.sleep(0.02)
+    return False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -95,13 +219,20 @@ class DriverDependencies:
     monotonic: Callable[[], float] = time.monotonic
     process_observer: Callable[
         [str, subprocess.Popen, Sequence[str], Optional[Mapping[str, str]]], None
-    ] = _ignore_process
-    termination_observer: Callable[[str, int], None] = _ignore_process
-    route_observer: Callable[[str], None] = _ignore_path
-    before_cleanup: Callable[[pathlib.Path], None] = _ignore_path
+    ] = _ignore
+    termination_observer: Callable[[str, int], None] = _ignore
+    route_observer: Callable[[str], None] = _ignore
+    before_cleanup: Callable[[pathlib.Path], None] = _ignore
     process_identity_checker: Callable[[subprocess.Popen, pathlib.Path], bool] = (
         _exact_process_identity
     )
+    browser_process_snapshot: Callable[[pathlib.Path], frozenset] = (
+        _snapshot_exact_browser_processes
+    )
+    browser_process_terminator: Callable[[ProcessIdentity, pathlib.Path], bool] = (
+        _terminate_exact_browser_process
+    )
+    capture_observer: Callable[[str, str, bytes, bool], None] = _ignore
 
 
 @dataclasses.dataclass(frozen=True)
@@ -111,6 +242,15 @@ class DriverResult:
     status_line: bytes = b""
     stdout: bytes = b""
     stderr: bytes = b""
+
+
+@dataclasses.dataclass(frozen=True)
+class _WaitResult:
+    outcome: str
+    token_received: bool
+    status_line: bytes
+    exact_browser_identity: bool
+    owned_browser_identities: frozenset
 
 
 class _DriverInterrupted(Exception):
@@ -133,12 +273,58 @@ class _DeadlineExpired(Exception):
     pass
 
 
+class _ProofTimeout(Exception):
+    def __init__(self, token_received, status_line, browser_identity, owned_browsers):
+        super().__init__()
+        self.token_received = token_received
+        self.status_line = status_line
+        self.browser_identity = browser_identity
+        self.owned_browsers = frozenset(owned_browsers)
+
+
+class _ReceiptTimeout(_ProofTimeout):
+    pass
+
+
+class _BrowserIdentityTimeout(_ProofTimeout):
+    pass
+
+
+class _BoundedCapture:
+    def __init__(self):
+        self._contents = bytearray()
+        self._overflow = False
+        self._lock = threading.Lock()
+
+    def append(self, chunk):
+        with self._lock:
+            remaining = MAXIMUM_CAPTURE_BYTES - len(self._contents)
+            if remaining > 0:
+                self._contents.extend(chunk[:remaining])
+            if len(chunk) > remaining:
+                self._overflow = True
+
+    def snapshot(self):
+        with self._lock:
+            return bytes(self._contents), self._overflow
+
+
+@dataclasses.dataclass
+class _OwnedChild:
+    kind: str
+    process: subprocess.Popen
+    captures: dict
+    threads: list
+    manual_stdout: bool
+
+
 class _OwnedProcesses:
     def __init__(self, dependencies):
         self._dependencies = dependencies
         self._children = []
+        self._closed = False
 
-    def start(self, kind, argv, *, environment=None, stdin=None):
+    def start(self, kind, argv, *, environment=None, stdin=None, manual_stdout=False):
         process = subprocess.Popen(
             [os.fspath(value) for value in argv],
             stdin=stdin,
@@ -147,12 +333,42 @@ class _OwnedProcesses:
             env=None if environment is None else dict(environment),
             close_fds=True,
         )
-        self._children.append((kind, process))
+        captures = {"stdout": _BoundedCapture(), "stderr": _BoundedCapture()}
+        child = _OwnedChild(kind, process, captures, [], manual_stdout)
+        self._children.append(child)
+        if not manual_stdout:
+            child.threads.append(self._start_reader(process.stdout, captures["stdout"]))
+        child.threads.append(self._start_reader(process.stderr, captures["stderr"]))
         self._dependencies.process_observer(kind, process, argv, environment)
         return process
 
+    def _start_reader(self, stream, capture):
+        def drain():
+            try:
+                while True:
+                    chunk = stream.read(4_096)
+                    if not chunk:
+                        return
+                    capture.append(chunk)
+            except (OSError, ValueError):
+                return
+
+        thread = threading.Thread(target=drain, daemon=True)
+        thread.start()
+        return thread
+
+    def append_manual_stdout(self, process, chunk):
+        self._child(process).captures["stdout"].append(chunk)
+
+    def _child(self, process):
+        return next(child for child in self._children if child.process is process)
+
     def close(self):
-        for kind, process in reversed(self._children):
+        if self._closed:
+            return
+        self._closed = True
+        for child in reversed(self._children):
+            process = child.process
             try:
                 if process.poll() is None:
                     try:
@@ -168,25 +384,64 @@ class _OwnedProcesses:
                                 process.wait(timeout=0.5)
                             except subprocess.TimeoutExpired:
                                 pass
+                if child.manual_stdout:
+                    self._drain_manual_stream(process.stdout, child.captures["stdout"])
+                for thread in child.threads:
+                    thread.join(timeout=0.5)
             finally:
                 for stream in (process.stdin, process.stdout, process.stderr):
                     if stream is not None and not stream.closed:
                         stream.close()
-                self._dependencies.termination_observer(kind, process.pid)
+                for channel, capture in child.captures.items():
+                    contents, overflow = capture.snapshot()
+                    self._dependencies.capture_observer(
+                        child.kind, channel, contents, overflow
+                    )
+                self._dependencies.termination_observer(child.kind, process.pid)
+
+    def _drain_manual_stream(self, stream, capture):
+        try:
+            os.set_blocking(stream.fileno(), False)
+            while True:
+                try:
+                    chunk = os.read(stream.fileno(), 4_096)
+                except BlockingIOError:
+                    return
+                if not chunk:
+                    return
+                capture.append(chunk)
+        except (OSError, ValueError):
+            return
+
+    def violates_privacy(self, forbidden):
+        for child in self._children:
+            for capture in child.captures.values():
+                contents, overflow = capture.snapshot()
+                if overflow or forbidden in contents:
+                    return True
+        return False
 
 
-def _empty_result(exit_code, session="invalid", outcome="driver-error", elapsed=0.0):
+def _empty_result(exit_code):
     report = {
-        "session": session,
-        "outcome": outcome,
+        "session": "invalid",
+        "outcome": "driver-error",
         "token_received": False,
         "exact_process_identity": False,
-        "elapsed_bound_seconds": elapsed,
+        "exact_browser_process_identity": False,
+        "elapsed_bound_seconds": 0.0,
     }
-    stdout = (json.dumps(report, separators=(",", ":"), sort_keys=True) + "\n").encode(
+    return DriverResult(
+        exit_code=exit_code,
+        report=report,
+        stdout=_encoded_report(report),
+    )
+
+
+def _encoded_report(report):
+    return (json.dumps(report, separators=(",", ":"), sort_keys=True) + "\n").encode(
         "ascii"
     )
-    return DriverResult(exit_code=exit_code, report=report, stdout=stdout)
 
 
 def _valid_nonempty(value, maximum_bytes):
@@ -202,9 +457,7 @@ def _valid_nonempty(value, maximum_bytes):
 
 
 def _validated_config(config):
-    if config.route_count != 1:
-        return None
-    if config.mode not in {"normal", "private"}:
+    if config.route_count != 1 or config.mode not in {"normal", "private"}:
         return None
     if not _valid_nonempty(config.target_id, 512):
         return None
@@ -221,16 +474,19 @@ def _validated_config(config):
 
     e2e_app = pathlib.Path(config.e2e_app)
     browser_app = pathlib.Path(config.browser_app)
+    browser_executable = pathlib.Path(config.expected_browser_executable)
     if not _physical_app(e2e_app) or not _physical_app(browser_app):
         return None
-    executable = e2e_app / "Contents" / "MacOS" / "PickVia"
-    if (
-        not executable.is_file()
-        or executable.is_symlink()
-        or not os.access(executable, os.X_OK)
-    ):
+    e2e_executable = e2e_app / "Contents" / "MacOS" / "PickVia"
+    if not _physical_executable(e2e_executable):
         return None
-    return timeout, e2e_app, browser_app, executable
+    if not _physical_executable(browser_executable):
+        return None
+    try:
+        browser_executable.relative_to(browser_app / "Contents" / "MacOS")
+    except ValueError:
+        return None
+    return timeout, e2e_app, e2e_executable, browser_executable
 
 
 def _physical_app(path):
@@ -240,6 +496,16 @@ def _physical_app(path):
         and path.is_dir()
         and not path.is_symlink()
         and pathlib.Path(os.path.realpath(path)) == path
+    )
+
+
+def _physical_executable(path):
+    return (
+        path.is_absolute()
+        and path.is_file()
+        and not path.is_symlink()
+        and pathlib.Path(os.path.realpath(path)) == path
+        and os.access(path, os.X_OK)
     )
 
 
@@ -253,6 +519,7 @@ def _make_task_root():
         or metadata.st_uid != os.getuid()
         or pathlib.Path(os.path.realpath(root)) != root
     ):
+        shutil.rmtree(root, ignore_errors=True)
         raise OSError("unsafe task root")
     root.chmod(0o700)
     return root
@@ -265,7 +532,7 @@ def _remaining(deadline, monotonic):
     return remaining
 
 
-def _read_protocol_line(process, deadline, monotonic):
+def _read_protocol_line(processes, process, deadline, monotonic):
     descriptor = process.stdout.fileno()
     os.set_blocking(descriptor, False)
     selector = selectors.DefaultSelector()
@@ -281,6 +548,7 @@ def _read_protocol_line(process, deadline, monotonic):
             chunk = os.read(descriptor, 512)
             if not chunk:
                 raise _ProtocolError
+            processes.append_manual_stdout(process, chunk)
             buffer.extend(chunk)
             if len(buffer) > MAXIMUM_PROTOCOL_LINE_BYTES:
                 raise _ProtocolError
@@ -305,7 +573,7 @@ def _parse_ready(line):
     if (
         not isinstance(port, int)
         or isinstance(port, bool)
-        or not 1 <= port <= 65535
+        or not 1 <= port <= 65_535
         or not isinstance(tokens, list)
         or len(tokens) != 1
         or not isinstance(tokens[0], str)
@@ -322,12 +590,13 @@ def _parse_status(line, expected_session):
         raise _StatusProtocolError from error
     if not isinstance(record, dict) or set(record) != {"session", "outcome"}:
         raise _StatusProtocolError
-    if (
-        record["session"] != expected_session
-        or record["outcome"] not in _CLOSED_OUTCOMES
-    ):
+    session = record["session"]
+    outcome = record["outcome"]
+    if not isinstance(session, str) or not isinstance(outcome, str):
         raise _StatusProtocolError
-    return record["outcome"]
+    if session != expected_session or outcome not in _CLOSED_OUTCOMES:
+        raise _StatusProtocolError
+    return outcome
 
 
 def _parse_receipt(line, expected_token):
@@ -360,7 +629,7 @@ def _compile_helper(processes, source, output, deadline, monotonic):
         stdin=subprocess.DEVNULL,
     )
     try:
-        process.communicate(timeout=_remaining(deadline, monotonic))
+        process.wait(timeout=_remaining(deadline, monotonic))
     except subprocess.TimeoutExpired as error:
         raise _DeadlineExpired from error
     if (
@@ -377,8 +646,6 @@ def _install_signal_guards():
     def interrupt(signum, frame):
         raise _DriverInterrupted
 
-    if not hasattr(signal, "SIGTERM"):
-        return previous
     try:
         for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
             previous[signum] = signal.signal(signum, interrupt)
@@ -394,15 +661,36 @@ def _restore_signal_guards(previous):
         signal.signal(signum, handler)
 
 
-def _wait_for_status_and_receipt(
+def _consume_status_lines(buffer, sequence, expected_session):
+    consumed = []
+    while True:
+        newline = buffer.find(b"\n")
+        if newline < 0:
+            return consumed
+        line = bytes(buffer[: newline + 1])
+        del buffer[: newline + 1]
+        outcome = _parse_status(line, expected_session)
+        if not sequence:
+            sequence.append(outcome)
+        elif sequence == ["selected"] and outcome == "launch-error":
+            sequence.append(outcome)
+        else:
+            raise _StatusProtocolError
+        consumed.append(line)
+
+
+def _wait_for_proof(
+    processes,
     fifo_descriptor,
     receiver,
     helper,
     app,
     expected_session,
     expected_token,
+    expected_browser_executable,
+    preexisting_browsers,
+    dependencies,
     deadline,
-    monotonic,
 ):
     receiver_descriptor = receiver.stdout.fileno()
     os.set_blocking(receiver_descriptor, False)
@@ -410,55 +698,96 @@ def _wait_for_status_and_receipt(
     selector.register(fifo_descriptor, selectors.EVENT_READ, "status")
     selector.register(receiver_descriptor, selectors.EVENT_READ, "receipt")
     buffers = {"status": bytearray(), "receipt": bytearray()}
-    status_line = b""
-    outcome = None
+    status_sequence = []
+    status_lines = []
     receipt = False
+    browser_identity = False
+    owned_browsers = set()
     try:
         while True:
-            if outcome is not None and outcome != "selected":
-                return outcome, receipt, status_line
-            if outcome == "selected" and receipt:
-                return outcome, receipt, status_line
+            if status_sequence == ["selected", "launch-error"]:
+                return _WaitResult(
+                    "launch-error",
+                    receipt,
+                    b"".join(status_lines),
+                    browser_identity,
+                    frozenset(owned_browsers),
+                )
+            if status_sequence and status_sequence[0] != "selected":
+                return _WaitResult(
+                    status_sequence[0],
+                    receipt,
+                    b"".join(status_lines),
+                    browser_identity,
+                    frozenset(owned_browsers),
+                )
+            if status_sequence == ["selected"]:
+                current = set(
+                    dependencies.browser_process_snapshot(expected_browser_executable)
+                )
+                browser_identity = bool(current)
+                owned_browsers.update(
+                    identity
+                    for identity in current
+                    if identity not in preexisting_browsers
+                    and identity.parent_pid == app.pid
+                )
+                if receipt and browser_identity:
+                    return _WaitResult(
+                        "selected",
+                        True,
+                        b"".join(status_lines),
+                        True,
+                        frozenset(owned_browsers),
+                    )
             try:
-                wait = min(_remaining(deadline, monotonic), 0.05)
+                wait = min(_remaining(deadline, dependencies.monotonic), 0.05)
             except _DeadlineExpired:
-                if outcome == "selected" and not receipt:
-                    raise TimeoutError("receipt")
+                if status_sequence == ["selected"] and not receipt:
+                    raise _ReceiptTimeout(
+                        receipt,
+                        b"".join(status_lines),
+                        browser_identity,
+                        owned_browsers,
+                    )
+                if status_sequence == ["selected"] and not browser_identity:
+                    raise _BrowserIdentityTimeout(
+                        receipt,
+                        b"".join(status_lines),
+                        browser_identity,
+                        owned_browsers,
+                    )
                 raise
-            events = selector.select(wait)
-            for key, _ in events:
+            for key, _ in selector.select(wait):
                 try:
                     chunk = os.read(key.fd, 512)
                 except BlockingIOError:
                     continue
                 if not chunk:
                     continue
+                if key.data == "receipt":
+                    processes.append_manual_stdout(receiver, chunk)
                 buffer = buffers[key.data]
                 buffer.extend(chunk)
                 if len(buffer) > MAXIMUM_PROTOCOL_LINE_BYTES:
                     if key.data == "status":
                         raise _StatusProtocolError
                     raise _ReceiptProtocolError
-                newline = buffer.find(b"\n")
-                if newline < 0:
-                    continue
-                if newline != len(buffer) - 1:
-                    if key.data == "status":
-                        raise _StatusProtocolError
-                    raise _ReceiptProtocolError
-                line = bytes(buffer)
                 if key.data == "status":
-                    if outcome is not None:
-                        raise _StatusProtocolError
-                    status_line = line
-                    outcome = _parse_status(line, expected_session)
+                    status_lines.extend(
+                        _consume_status_lines(buffer, status_sequence, expected_session)
+                    )
                 else:
-                    if receipt:
-                        raise _ReceiptProtocolError
-                    receipt = _parse_receipt(line, expected_token)
-            if outcome is None and app.poll() is not None and not buffers["status"]:
+                    newline = buffer.find(b"\n")
+                    if newline >= 0:
+                        line = bytes(buffer[: newline + 1])
+                        del buffer[: newline + 1]
+                        if receipt:
+                            raise _ReceiptProtocolError
+                        receipt = _parse_receipt(line, expected_token)
+            if not status_sequence and app.poll() is not None and not buffers["status"]:
                 raise ChildProcessError
-            if helper.poll() not in (None, 0) and not receipt:
+            if helper.poll() not in (None, 0) and not receipt and not status_sequence:
                 raise ChildProcessError
             if (
                 receiver.poll() not in (None, 0)
@@ -470,24 +799,58 @@ def _wait_for_status_and_receipt(
         selector.close()
 
 
+def _audit_regular_files(root, forbidden):
+    for path in root.rglob("*"):
+        try:
+            metadata = path.lstat()
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(metadata.st_mode):
+            return False
+        if not stat.S_ISREG(metadata.st_mode):
+            continue
+        if metadata.st_size > MAXIMUM_AUDIT_FILE_BYTES:
+            return False
+        previous = b""
+        with path.open("rb") as stream:
+            while True:
+                chunk = stream.read(65_536)
+                if not chunk:
+                    break
+                combined = previous + chunk
+                if forbidden in combined:
+                    return False
+                previous = combined[-max(len(forbidden) - 1, 0) :]
+    return True
+
+
 def run_driver(config, dependencies=None):
     dependencies = dependencies or DriverDependencies()
     validated = _validated_config(config)
     if validated is None:
         return _empty_result(DRIVER_USAGE)
-    timeout, e2e_app, browser_app, e2e_executable = validated
+    timeout, e2e_app, e2e_executable, browser_executable = validated
     started = dependencies.monotonic()
     deadline = started + timeout
     processes = _OwnedProcesses(dependencies)
     task_root = None
     fifo_descriptor = None
+    route_bytes = None
     status_line = b""
     outcome = "driver-error"
     received = False
-    exact_identity = False
+    exact_e2e_identity = False
+    exact_browser_identity = False
     exit_code = DRIVER_PROCESS_ERROR
+    app = None
+    preexisting_browsers = set()
+    owned_browsers = set()
+    cleanup_ok = True
     previous_signals = _install_signal_guards()
     try:
+        preexisting_browsers = set(
+            dependencies.browser_process_snapshot(browser_executable)
+        )
         task_root = _make_task_root()
         fifo = task_root / "status.fifo"
         os.mkfifo(fifo, 0o600)
@@ -496,7 +859,6 @@ def run_driver(config, dependencies=None):
             fifo,
             os.O_RDWR | os.O_NONBLOCK | getattr(os, "O_CLOEXEC", 0),
         )
-
         receiver = processes.start(
             "receiver",
             [
@@ -508,9 +870,12 @@ def run_driver(config, dependencies=None):
                 "1",
             ],
             stdin=subprocess.DEVNULL,
+            manual_stdout=True,
         )
-        ready_line = _read_protocol_line(receiver, deadline, dependencies.monotonic)
-        port, token = _parse_ready(ready_line)
+        ready = _read_protocol_line(
+            processes, receiver, deadline, dependencies.monotonic
+        )
+        port, token = _parse_ready(ready)
 
         environment = dict(os.environ)
         environment.update(
@@ -529,13 +894,12 @@ def run_driver(config, dependencies=None):
             environment=environment,
             stdin=subprocess.DEVNULL,
         )
-        exact_identity = dependencies.process_identity_checker(app, e2e_executable)
-        if not exact_identity:
+        exact_e2e_identity = dependencies.process_identity_checker(app, e2e_executable)
+        if not exact_e2e_identity:
             raise ChildProcessError
 
-        route = f"http://127.0.0.1:{port}/{token}"
-        dependencies.route_observer(route)
-
+        route_bytes = f"http://127.0.0.1:{port}/{token}".encode("ascii")
+        dependencies.route_observer(route_bytes.decode("ascii"))
         helper_executable = dependencies.helper_executable
         if helper_executable is None:
             helper_executable = task_root / "open_with_app"
@@ -546,60 +910,109 @@ def run_driver(config, dependencies=None):
                 deadline,
                 dependencies.monotonic,
             )
-        elif not pathlib.Path(helper_executable).is_file() or not os.access(
-            helper_executable, os.X_OK
-        ):
+        elif not _physical_executable(pathlib.Path(helper_executable)):
             raise _ProtocolError
 
         helper = processes.start(
             "exact-app-helper",
-            [helper_executable, browser_app],
+            [helper_executable, e2e_app],
             environment=dict(os.environ),
             stdin=subprocess.PIPE,
         )
-        helper.stdin.write(route.encode("ascii"))
+        helper.stdin.write(route_bytes)
         helper.stdin.flush()
         helper.stdin.close()
 
-        outcome, received, status_line = _wait_for_status_and_receipt(
+        proof = _wait_for_proof(
+            processes,
             fifo_descriptor,
             receiver,
             helper,
             app,
             config.session_nonce,
             token,
+            browser_executable,
+            preexisting_browsers,
+            dependencies,
             deadline,
-            dependencies.monotonic,
         )
-        if outcome == "selected" and received:
-            exit_code = DRIVER_SUCCESS
-        else:
-            exit_code = DRIVER_SELECTION_REJECTED
-    except TimeoutError:
+        outcome = proof.outcome
+        received = proof.token_received
+        status_line = proof.status_line
+        exact_browser_identity = proof.exact_browser_identity
+        owned_browsers.update(proof.owned_browser_identities)
+        exit_code = (
+            DRIVER_SUCCESS if outcome == "selected" else DRIVER_SELECTION_REJECTED
+        )
+    except _ReceiptTimeout as error:
         outcome = "receipt-timeout"
+        received = error.token_received
+        status_line = error.status_line
+        exact_browser_identity = error.browser_identity
+        owned_browsers.update(error.owned_browsers)
         exit_code = DRIVER_RECEIPT_TIMEOUT
+    except _BrowserIdentityTimeout as error:
+        outcome = "browser-identity-timeout"
+        received = error.token_received
+        status_line = error.status_line
+        exact_browser_identity = error.browser_identity
+        owned_browsers.update(error.owned_browsers)
+        exit_code = DRIVER_BROWSER_IDENTITY_TIMEOUT
     except _DeadlineExpired:
         outcome = "timeout"
         exit_code = DRIVER_TIMEOUT
     except _StatusProtocolError:
-        outcome = "invalid-protocol"
+        outcome = "invalid-status"
         exit_code = DRIVER_INVALID_STATUS
     except _ReceiptProtocolError:
-        outcome = "invalid-protocol"
+        outcome = "invalid-receipt"
         exit_code = DRIVER_INVALID_RECEIPT
     except _ProtocolError:
-        outcome = "invalid-protocol"
+        outcome = "invalid-receipt"
         exit_code = DRIVER_INVALID_RECEIPT
     except ChildProcessError:
         outcome = "process-error"
         exit_code = DRIVER_PROCESS_ERROR
-    except (_DriverInterrupted, OSError, ValueError):
+    except (_DriverInterrupted, OSError, ValueError, TypeError):
         outcome = "driver-error"
         exit_code = DRIVER_PROCESS_ERROR
     finally:
+        if app is not None:
+            try:
+                current = set(dependencies.browser_process_snapshot(browser_executable))
+                owned_browsers.update(
+                    identity
+                    for identity in current
+                    if identity not in preexisting_browsers
+                    and identity.parent_pid == app.pid
+                )
+            except (OSError, ValueError, TypeError):
+                cleanup_ok = False
+        for identity in owned_browsers:
+            try:
+                cleanup_ok = (
+                    dependencies.browser_process_terminator(
+                        identity, browser_executable
+                    )
+                    and cleanup_ok
+                )
+            except (OSError, ValueError, TypeError):
+                cleanup_ok = False
         if fifo_descriptor is not None:
             os.close(fifo_descriptor)
         processes.close()
+        if route_bytes is not None:
+            if processes.violates_privacy(route_bytes):
+                outcome = "privacy-failure"
+                exit_code = DRIVER_PRIVACY_FAILURE
+            if task_root is not None and not _audit_regular_files(
+                task_root, route_bytes
+            ):
+                outcome = "privacy-failure"
+                exit_code = DRIVER_PRIVACY_FAILURE
+        if not cleanup_ok and exit_code == DRIVER_SUCCESS:
+            outcome = "cleanup-error"
+            exit_code = DRIVER_PROCESS_ERROR
         if task_root is not None:
             try:
                 dependencies.before_cleanup(task_root)
@@ -614,17 +1027,15 @@ def run_driver(config, dependencies=None):
         "session": config.session_nonce,
         "outcome": outcome,
         "token_received": received,
-        "exact_process_identity": exact_identity,
+        "exact_process_identity": exact_e2e_identity,
+        "exact_browser_process_identity": exact_browser_identity,
         "elapsed_bound_seconds": round(elapsed, 6),
     }
-    stdout = (json.dumps(report, separators=(",", ":"), sort_keys=True) + "\n").encode(
-        "ascii"
-    )
     return DriverResult(
         exit_code=exit_code,
         report=report,
         status_line=status_line,
-        stdout=stdout,
+        stdout=_encoded_report(report),
     )
 
 
@@ -638,6 +1049,9 @@ def main(argv=None):
     parser = _PrivateArgumentParser(description="Run one bounded PickVia E2E route.")
     parser.add_argument("--e2e-app", type=pathlib.Path, required=True)
     parser.add_argument("--browser-app", type=pathlib.Path, required=True)
+    parser.add_argument(
+        "--expected-browser-executable", type=pathlib.Path, required=True
+    )
     parser.add_argument("--target-id", required=True)
     parser.add_argument("--bundle-id", required=True)
     parser.add_argument("--mode", choices=("normal", "private"), required=True)
@@ -649,6 +1063,7 @@ def main(argv=None):
         DriverConfig(
             e2e_app=arguments.e2e_app,
             browser_app=arguments.browser_app,
+            expected_browser_executable=arguments.expected_browser_executable,
             target_id=arguments.target_id,
             bundle_identifier=arguments.bundle_id,
             mode=arguments.mode,
