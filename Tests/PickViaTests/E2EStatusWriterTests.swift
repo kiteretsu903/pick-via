@@ -97,6 +97,60 @@
       }
     }
 
+    func testWriterRejectsFIFOReplacedBySymlinkAfterInspection() throws {
+      try withTemporaryRoot { root in
+        let fifo = root.appending(path: "status.fifo")
+        let movedFIFO = root.appending(path: "moved.fifo")
+        XCTAssertEqual(mkfifo(fifo.path, 0o600), 0)
+        let reader = try NonblockingFIFOReader(url: fifo)
+        var replacementSucceeded = false
+        let writer = E2EStatusWriter(afterInspection: { inspectedURL in
+          XCTAssertEqual(inspectedURL, fifo)
+          guard rename(fifo.path, movedFIFO.path) == 0 else { return }
+          guard symlink(movedFIFO.path, fifo.path) == 0 else { return }
+          replacementSucceeded = true
+        })
+
+        XCTAssertFalse(
+          writer.write(
+            .selected,
+            sessionNonce: "session_0123456789",
+            to: fifo
+          )
+        )
+        XCTAssertTrue(replacementSucceeded)
+        XCTAssertNil(reader.readLine(deadline: .now() + .milliseconds(50)))
+      }
+    }
+
+    func testWriterRejectsAncestorReplacedBySymlinkAfterInspection() throws {
+      try withTemporaryRoot { container in
+        let root = container.appending(path: "verified-root", directoryHint: .isDirectory)
+        let movedRoot = container.appending(path: "moved-root", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        let fifo = root.appending(path: "status.fifo")
+        XCTAssertEqual(mkfifo(fifo.path, 0o600), 0)
+        let reader = try NonblockingFIFOReader(url: fifo)
+        var replacementSucceeded = false
+        let writer = E2EStatusWriter(afterInspection: { inspectedURL in
+          XCTAssertEqual(inspectedURL, fifo)
+          guard rename(root.path, movedRoot.path) == 0 else { return }
+          guard symlink(movedRoot.path, root.path) == 0 else { return }
+          replacementSucceeded = true
+        })
+
+        XCTAssertFalse(
+          writer.write(
+            .selected,
+            sessionNonce: "session_0123456789",
+            to: fifo
+          )
+        )
+        XCTAssertTrue(replacementSucceeded)
+        XCTAssertNil(reader.readLine(deadline: .now() + .milliseconds(50)))
+      }
+    }
+
     func testEveryOutcomeContainsNoURLOrArbitraryTargetText() throws {
       let outcomes: [E2ESelectionOutcome] = [
         .selected,

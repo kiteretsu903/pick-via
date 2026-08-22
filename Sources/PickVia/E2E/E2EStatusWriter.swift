@@ -56,9 +56,14 @@
     static let maximumRecordBytes = 512
 
     private let currentUID: uid_t
+    private let afterInspection: (URL) -> Void
 
-    init(currentUID: uid_t = getuid()) {
+    init(
+      currentUID: uid_t = getuid(),
+      afterInspection: @escaping (URL) -> Void = { _ in }
+    ) {
       self.currentUID = currentUID
+      self.afterInspection = afterInspection
     }
 
     func write(
@@ -80,10 +85,11 @@
         return lstat(path, &inspected)
       }
       guard inspectionStatus == 0, isOwnedFIFO(inspected) else { return false }
+      afterInspection(fifo)
 
       let descriptor = fifo.withUnsafeFileSystemRepresentation { path in
         guard let path else { return Int32(-1) }
-        return open(path, O_WRONLY | O_NONBLOCK | O_CLOEXEC)
+        return open(path, O_WRONLY | O_NONBLOCK | O_CLOEXEC | O_NOFOLLOW_ANY)
       }
       guard descriptor >= 0 else { return false }
       defer { close(descriptor) }
