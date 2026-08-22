@@ -70,10 +70,15 @@ struct ProfileRootValidatorTests {
     }
   }
 
-  @Test func supportedFamiliesDeclareOnlyTheirApprovedMarkers() {
-    #expect(BrowserProfileRootValidator.requiredMarker(for: .chromium) == "Local State")
-    #expect(BrowserProfileRootValidator.requiredMarker(for: .firefox) == "profiles.ini")
-    #expect(BrowserProfileRootValidator.requiredMarker(for: .safari) == nil)
+  @Test func supportedDescriptorsDeclareOnlyTheirProfileStrategyMarkers() throws {
+    let chrome = try #require(browserDescriptor("com.google.Chrome"))
+    let firefox = try #require(browserDescriptor("org.mozilla.firefox"))
+    let safari = try #require(browserDescriptor("com.apple.Safari"))
+
+    #expect(BrowserProfileRootValidator.requiredMarker(for: chrome) == "Local State")
+    #expect(
+      BrowserProfileRootValidator.requiredMarker(for: firefox.profileStrategy) == "profiles.ini")
+    #expect(BrowserProfileRootValidator.requiredMarker(for: safari) == nil)
   }
 }
 

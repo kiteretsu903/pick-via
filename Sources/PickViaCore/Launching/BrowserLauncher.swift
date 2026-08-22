@@ -123,26 +123,28 @@ public struct BrowserLauncher: RouteLaunching, Sendable {
       throw Self.launchFailure
     }
 
-    switch browserFamily {
-    case .safari:
-      guard
-        options.profileIdentifier == nil,
-        options.profileDisplayName == nil,
-        options.profileIdentity == nil,
-        options.mode == .normal
-      else {
-        throw Self.launchFailure
-      }
+    let hasProfile =
+      options.profileIdentifier != nil
+      || options.profileDisplayName != nil
+      || options.profileIdentity != nil
+      || options.profileLaunchPath != nil
+    guard descriptor.supportsProfiles || !hasProfile else {
+      throw Self.launchFailure
+    }
+    guard descriptor.supportsPrivateMode || options.mode == .normal else {
+      throw Self.launchFailure
+    }
+
+    switch descriptor.launchStrategy {
+    case .workspace:
+      guard !hasProfile, options.mode == .normal else { throw Self.launchFailure }
       return .workspace(application: trustedApplicationURL, url: url)
 
     case .duckDuckGo:
-      guard
-        options.profileIdentifier == nil,
-        options.profileDisplayName == nil,
-        options.profileIdentity == nil,
-        options.profileLaunchPath == nil
-      else {
-        throw Self.launchFailure
+      if options.mode == .private {
+        guard descriptor.privateStrategy == .duckDuckGoFire else {
+          throw Self.launchFailure
+        }
       }
       return .duckDuckGo(
         application: trustedApplicationURL,
@@ -150,9 +152,8 @@ public struct BrowserLauncher: RouteLaunching, Sendable {
         mode: options.mode
       )
 
-    case .chromium:
+    case .chromium(let relativeExecutable, let profileArgument):
       guard
-        let relativeExecutable = descriptor.executableRelativePath,
         let executable = trustedExecutable(
           applicationURL: trustedApplicationURL,
           relativePath: relativeExecutable),
@@ -162,17 +163,19 @@ public struct BrowserLauncher: RouteLaunching, Sendable {
       }
       var arguments: [String] = []
       if let profile = options.profileIdentifier {
-        arguments.append("--profile-directory=\(profile)")
+        arguments.append("\(profileArgument)\(profile)")
       }
       if options.mode == .private {
-        arguments.append("--incognito")
+        guard case .argument(let privateArgument) = descriptor.privateStrategy else {
+          throw Self.launchFailure
+        }
+        arguments.append(privateArgument)
       }
       arguments.append(url.absoluteString)
       return .executable(application: executable, arguments: arguments)
 
-    case .firefox:
+    case .firefox(let relativeExecutable):
       guard
-        let relativeExecutable = descriptor.executableRelativePath,
         let executable = trustedExecutable(
           applicationURL: trustedApplicationURL,
           relativePath: relativeExecutable),
@@ -188,7 +191,14 @@ public struct BrowserLauncher: RouteLaunching, Sendable {
       } else if isProfiled {
         throw Self.launchFailure
       }
-      arguments.append(options.mode == .private ? "-private-window" : "-new-tab")
+      if options.mode == .private {
+        guard case .argument(let privateArgument) = descriptor.privateStrategy else {
+          throw Self.launchFailure
+        }
+        arguments.append(privateArgument)
+      } else {
+        arguments.append("-new-tab")
+      }
       arguments.append(url.absoluteString)
       return .executable(application: executable, arguments: arguments)
     }

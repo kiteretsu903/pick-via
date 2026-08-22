@@ -17,7 +17,7 @@ public struct BrowserProfileRootValidator: Sendable {
     _ root: URL,
     for descriptor: BrowserDescriptor
   ) -> ProfileRootValidation {
-    guard let marker = Self.requiredMarker(for: descriptor.family) else {
+    guard let marker = Self.requiredMarker(for: descriptor) else {
       return .invalid(requiredMarker: "")
     }
 
@@ -34,15 +34,12 @@ public struct BrowserProfileRootValidator: Sendable {
     }
   }
 
-  public static func requiredMarker(for family: BrowserFamily) -> String? {
-    switch family {
-    case .chromium:
-      "Local State"
-    case .firefox:
-      "profiles.ini"
-    case .safari, .duckDuckGo:
-      nil
-    }
+  public static func requiredMarker(for descriptor: BrowserDescriptor) -> String? {
+    descriptor.requiredProfileMarker
+  }
+
+  public static func requiredMarker(for strategy: BrowserProfileStrategy) -> String? {
+    strategy.requiredProfileMarker
   }
 }
 

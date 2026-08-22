@@ -1568,7 +1568,7 @@ public final class AppModel {
       ),
       descriptor.family != .safari,
       let expectedRootSuffix = descriptor.profileRoot,
-      let requiredMarker = BrowserProfileRootValidator.requiredMarker(for: descriptor.family)
+      let requiredMarker = BrowserProfileRootValidator.requiredMarker(for: descriptor)
     else { return nil }
     return BrowserProfileAccessRow(
       bundleIdentifier: descriptor.bundleIdentifier,

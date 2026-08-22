@@ -313,6 +313,81 @@ struct BrowserCatalogTests {
     #expect(fileSystem.readURLs == [betaLocalStateURL])
   }
 
+  @Test func chromiumProfileStrategyControlsMetadataIndependentOfFamily() throws {
+    let descriptor = BrowserDescriptor(
+      bundleIdentifier: "com.example.chromium-profile-strategy",
+      family: .firefox,
+      displayName: "Chromium Strategy",
+      profileStrategy: .chromium(root: "Library/Application Support/Chromium Strategy"),
+      launchStrategy: .workspace,
+      privateStrategy: .unsupported
+    )
+    let marker = URL(
+      fileURLWithPath:
+        "/home/Library/Application Support/Chromium Strategy/Local State"
+    )
+    let fileSystem = DiscoveryFileSystem(files: [
+      marker: try fixtureData("chromium-local-state.json")
+    ])
+    let catalog = BrowserCatalog(
+      descriptors: [descriptor],
+      applicationLocator: StubApplicationLocator(applications: [
+        descriptor.bundleIdentifier: URL(fileURLWithPath: "/Applications/Chromium Strategy.app")
+      ]),
+      fileSystem: fileSystem,
+      homeDirectory: URL(fileURLWithPath: "/home", isDirectory: true)
+    )
+
+    let browser = try #require(catalog.scan().first)
+
+    #expect(browser.metadataStatus == .loaded)
+    #expect(browser.profiles.map(\.identifier) == ["Default", "Profile 1"])
+    #expect(fileSystem.readURLs == [marker])
+  }
+
+  @Test func firefoxProfileStrategyControlsMetadataIndependentOfFamily() throws {
+    let descriptor = BrowserDescriptor(
+      bundleIdentifier: "com.example.firefox-profile-strategy",
+      family: .chromium,
+      displayName: "Firefox Strategy",
+      profileStrategy: .firefox(root: "Library/Application Support/Firefox Strategy"),
+      launchStrategy: .workspace,
+      privateStrategy: .unsupported
+    )
+    let root = URL(
+      fileURLWithPath: "/home/Library/Application Support/Firefox Strategy",
+      isDirectory: true
+    )
+    let marker = root.appending(path: "profiles.ini")
+    let fileSystem = DiscoveryFileSystem(files: [
+      marker: try fixtureData("firefox-profiles.ini")
+    ])
+    let catalog = BrowserCatalog(
+      descriptors: [descriptor],
+      applicationLocator: StubApplicationLocator(applications: [
+        descriptor.bundleIdentifier: URL(fileURLWithPath: "/Applications/Firefox Strategy.app")
+      ]),
+      fileSystem: fileSystem,
+      homeDirectory: URL(fileURLWithPath: "/home", isDirectory: true)
+    )
+
+    let browser = try #require(catalog.scan().first)
+
+    #expect(browser.metadataStatus == .loaded)
+    #expect(
+      Set(browser.profiles.map(\.identifier)) == [
+        FirefoxProfileIdentity.identifier(
+          for: URL(fileURLWithPath: "/Users/example/Firefox/Profiles/work", isDirectory: true)
+        ),
+        FirefoxProfileIdentity.identifier(
+          for: root.appending(
+            path: "Profiles/personal.default-release", directoryHint: .isDirectory)
+        ),
+      ]
+    )
+    #expect(fileSystem.readURLs == [marker])
+  }
+
   @Test func scanReturnsOnlyLocatedSupportedApplicationsInDescriptorOrder() throws {
     let chromeURL = URL(fileURLWithPath: "/Applications/Google Chrome.app", isDirectory: true)
     let firefoxURL = URL(fileURLWithPath: "/Applications/Firefox.app", isDirectory: true)

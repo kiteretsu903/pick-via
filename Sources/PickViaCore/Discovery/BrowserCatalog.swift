@@ -1,89 +1,6 @@
 import AppKit
 import Foundation
 
-public struct BrowserDescriptor: Sendable {
-  public let bundleIdentifier: String
-  public let family: BrowserFamily
-  public let displayName: String
-  public let profileRoot: String?
-  public let executableRelativePath: String?
-
-  public static let supported: [BrowserDescriptor] = [
-    BrowserDescriptor(
-      bundleIdentifier: "com.apple.Safari",
-      family: .safari,
-      displayName: "Safari",
-      profileRoot: nil,
-      executableRelativePath: nil
-    ),
-    BrowserDescriptor(
-      bundleIdentifier: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
-      family: .duckDuckGo,
-      displayName: "DuckDuckGo",
-      profileRoot: nil,
-      executableRelativePath: nil
-    ),
-    BrowserDescriptor(
-      bundleIdentifier: "com.google.Chrome",
-      family: .chromium,
-      displayName: "Google Chrome",
-      profileRoot: "Library/Application Support/Google/Chrome",
-      executableRelativePath: "Contents/MacOS/Google Chrome"
-    ),
-    BrowserDescriptor(
-      bundleIdentifier: "com.google.Chrome.beta",
-      family: .chromium,
-      displayName: "Google Chrome Beta",
-      profileRoot: "Library/Application Support/Google/Chrome Beta",
-      executableRelativePath: "Contents/MacOS/Google Chrome Beta"
-    ),
-    BrowserDescriptor(
-      bundleIdentifier: "org.chromium.Chromium",
-      family: .chromium,
-      displayName: "Chromium",
-      profileRoot: "Library/Application Support/Chromium",
-      executableRelativePath: "Contents/MacOS/Chromium"
-    ),
-    BrowserDescriptor(
-      bundleIdentifier: "com.microsoft.edgemac",
-      family: .chromium,
-      displayName: "Microsoft Edge",
-      profileRoot: "Library/Application Support/Microsoft Edge",
-      executableRelativePath: "Contents/MacOS/Microsoft Edge"
-    ),
-    BrowserDescriptor(
-      bundleIdentifier: "com.brave.Browser",
-      family: .chromium,
-      displayName: "Brave Browser",
-      profileRoot: "Library/Application Support/BraveSoftware/Brave-Browser",
-      executableRelativePath: "Contents/MacOS/Brave Browser"
-    ),
-    BrowserDescriptor(
-      bundleIdentifier: "com.vivaldi.Vivaldi",
-      family: .chromium,
-      displayName: "Vivaldi",
-      profileRoot: "Library/Application Support/Vivaldi",
-      executableRelativePath: "Contents/MacOS/Vivaldi"
-    ),
-    BrowserDescriptor(
-      bundleIdentifier: "org.mozilla.firefox",
-      family: .firefox,
-      displayName: "Firefox",
-      profileRoot: "Library/Application Support/Firefox",
-      executableRelativePath: "Contents/MacOS/firefox"
-    ),
-  ]
-
-  public static func family(forBundleIdentifier bundleIdentifier: String) -> BrowserFamily? {
-    supported.first { $0.bundleIdentifier == bundleIdentifier }?.family
-  }
-
-  public static func descriptor(forBundleIdentifier bundleIdentifier: String) -> BrowserDescriptor?
-  {
-    supported.first { $0.bundleIdentifier == bundleIdentifier }
-  }
-}
-
 public struct DiscoveredBrowser: Equatable, Sendable {
   public let application: RoutedApplication
   public let profiles: [DiscoveredProfile]
@@ -525,7 +442,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     }
 
     let privateModeIsAvailable: Bool
-    if descriptor.family == .duckDuckGo {
+    if descriptor.privateStrategy == .duckDuckGoFire {
       switch duckDuckGoCompatibilityChecker.compatibility(of: applicationURL) {
       case .unsupported:
         return nil
@@ -535,7 +452,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
         privateModeIsAvailable = true
       }
     } else {
-      privateModeIsAvailable = true
+      privateModeIsAvailable = descriptor.supportsPrivateMode
     }
 
     let application = RoutedApplication(
@@ -563,7 +480,13 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   private func readProfiles(
     for descriptor: BrowserDescriptor
   ) -> (profiles: [DiscoveredProfile], status: ProfileMetadataStatus) {
-    guard let profileRoot = descriptor.profileRoot else { return ([], .notApplicable) }
+    let profileRoot: String
+    switch descriptor.profileStrategy {
+    case .none, .safariShortcut:
+      return ([], .notApplicable)
+    case .chromium(let root), .firefox(let root):
+      profileRoot = root
+    }
     let conventionalRoot = homeDirectory.appending(
       path: profileRoot,
       directoryHint: .isDirectory
@@ -594,7 +517,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     for descriptor: BrowserDescriptor,
     usesSavedGrant: Bool
   ) -> (profiles: [DiscoveredProfile], status: ProfileMetadataStatus) {
-    guard let marker = BrowserProfileRootValidator.requiredMarker(for: descriptor.family) else {
+    guard let marker = descriptor.requiredProfileMarker else {
       return ([], .notApplicable)
     }
     let data: Data
@@ -612,10 +535,8 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     }
 
     do {
-      switch descriptor.family {
-      case .safari:
-        return ([], .notApplicable)
-      case .duckDuckGo:
+      switch descriptor.profileStrategy {
+      case .none, .safariShortcut:
         return ([], .notApplicable)
       case .chromium:
         return (try ChromiumProfileParser.parse(data: data), .loaded)

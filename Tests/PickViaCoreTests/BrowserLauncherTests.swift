@@ -329,6 +329,39 @@ struct BrowserLauncherTests {
     #expect(arguments == ["--profile-directory=Profile 1", "--incognito", "https://example.com"])
   }
 
+  @Test func edgePrivatePlanUsesInPrivateArgument() throws {
+    let edgeApplication = application(
+      family: .chromium,
+      bundleIdentifier: "com.microsoft.edgemac"
+    )
+    let launcher = BrowserLauncher(
+      trustedApplicationResolver: StubTrustedApplicationResolver(urls: [
+        "com.microsoft.edgemac": applicationURL
+      ]),
+      processRunner: RecordingProcessRunner(),
+      workspace: RecordingWorkspace(),
+      executableValidator: StubExecutableValidator(isExecutable: true)
+    )
+
+    let plan = try launcher.makePlan(
+      url: url,
+      application: edgeApplication,
+      target: target(
+        family: .chromium,
+        browserID: "com.microsoft.edgemac",
+        profile: "Profile 1",
+        mode: .private
+      )
+    )
+
+    guard case .executable(let executable, let arguments) = plan else {
+      Issue.record("Expected executable launch plan")
+      return
+    }
+    #expect(executable == applicationURL.appending(path: "Contents/MacOS/Microsoft Edge"))
+    #expect(arguments == ["--profile-directory=Profile 1", "--inprivate", url.absoluteString])
+  }
+
   @Test func firefoxRejectsNameOnlyManualProfileWithoutExactLaunchPath() throws {
     let launcher = testLauncher()
 

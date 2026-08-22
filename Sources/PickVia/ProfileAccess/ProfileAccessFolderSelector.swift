@@ -123,9 +123,7 @@ public final class ProfileAccessFolderSelector: ProfileAccessFolderSelecting {
     defer { activePanel = nil }
     let generation = selectionGeneration
     panel.prompt = "Grant Access"
-    let marker =
-      BrowserProfileRootValidator.requiredMarker(for: descriptor.family)
-      ?? "profile metadata"
+    let marker = BrowserProfileRootValidator.requiredMarker(for: descriptor) ?? "profile metadata"
     panel.message = "Select the \(descriptor.displayName) data folder containing \(marker)."
     panel.canChooseDirectories = true
     panel.canChooseFiles = false
