@@ -247,3 +247,42 @@ The sole control generation exited after exact task-time revalidation. Final
 checks found no Edge Beta, E2E PickVia, or receiver process; installed PickVia
 remained the same exact pre-batch process generation, and preexisting temporary
 roots were left untouched.
+
+### Initialized-state reconciliation
+
+Status: **PASS for Microsoft Edge Beta normal routing in the initialized cold,
+already-running, and reopen states.** This result supersedes the earlier stable
+product-failure conclusion, but does not erase the pristine first cold failure
+or the successful direct exact-application control above. The installed
+Microsoft Edge Beta 152.0.4191.41 identity remained
+`com.microsoft.edgemac.Beta`, team `UBF8T346G9`, using PickVia's browser-level
+normal Chromium exact-application workspace strategy.
+
+The E2E harness was subsequently hardened before this reconciliation. Exact-app
+delivery is now bound to the launched E2E process identity, including bounded
+registration and open readiness. Cleanup now bounds and de-duplicates exact
+generation termination, allows a bounded shutdown grace, observes a quiescence
+window for delayed generations, and revokes termination authority after an
+unknown identity state. These changes address the helper, readiness, and cleanup
+uncertainty encountered while investigating the first-launch history; they do
+not reclassify the original missing receipt as a successful route.
+
+Three fresh initialized-state routes then supplied independent causal and
+visible proof:
+
+| Browser | Mode/state | Selection | Receipt | Exact process identity | Sanitized visible evidence | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Microsoft Edge Beta | Normal, cold | `selected` | Fresh receipt | E2E app and exact Edge Beta generation verified | Edge Beta visible; browser window present; onboarding absent | **PASS** |
+| Microsoft Edge Beta | Normal, already running | `selected` | Fresh receipt | Same recorded task-owned Edge Beta generation verified and preserved by the driver | Edge Beta visible; browser window present; onboarding absent | **PASS** |
+| Microsoft Edge Beta | Normal, reopen | `selected` | Fresh receipt | New exact Edge Beta generation verified after the recorded baseline was closed | Edge Beta visible; browser window present; onboarding absent | **PASS** |
+
+No profile or private target was created or attempted. This reconciliation
+contains no routed address, token, browser arguments, raw UI, screenshot, or
+profile label. The final held batch ended with exact Edge Beta, E2E PickVia, and
+receiver absence after every state. The cold and already-running drivers
+reported `selected` and exited successfully; the reopen held proof established
+`selected`, a fresh receipt, and both exact identities before release, and its
+final exact absence was verified without reconstructing the numeric exit status
+lost with the held session output. Installed PickVia remained the same exact
+pre-batch process generation, and preexisting temporary roots were left
+untouched.
