@@ -154,15 +154,14 @@ left untouched.
 
 ### Workspace-launch remediation rerun
 
-Status: **AUTOMATED ROUTE PASS / FINAL PILOT PENDING.** Microsoft Edge Stable
-normal routing passed the selected-status, receipt, and exact-process gates in
-cold, already-running, and reopen states. Mandatory visible edition,
-onboarding, and browser-window evidence remains **NOT RUN**, so the full browser
-matrix remains stopped. This rerun preserves the earlier failure above as
-evidence for the replaced direct-executable strategy. At `05da88f`,
-browser-level normal Chromium targets changed to exact trusted-application
-workspace delivery; profile and private launch strategies were not exercised by
-this gate.
+Status: **PASS for the complete Microsoft Edge Stable normal pilot.** Cold,
+already-running, and reopen each passed the selected-status, receipt,
+exact-process, visible-edition, onboarding, and browser-window gates. The full
+browser matrix was not started in this task. This rerun preserves the earlier
+failure above as evidence for the replaced direct-executable strategy. At
+`05da88f`, browser-level normal Chromium targets changed to exact
+trusted-application workspace delivery; profile and private launch strategies
+were not exercised by this gate.
 
 The rebuilt E2E application passed its identity, signature, smoke, and
 normal-binary isolation gates. One immediate post-build preflight ended in a
@@ -172,24 +171,24 @@ route then completed with helper compiler and exact-app helper exit status zero,
 `selected`, a fresh receipt, and exact process identities. The authorized cold
 retry and the two remaining classified states all passed independently:
 
-| Browser | Mode/state | Installed identity | Selection | Receipt | Exact process identity | Result |
-| --- | --- | --- | --- | --- | --- | --- |
-| Microsoft Edge Stable | Normal, cold | 151.0.4129.101; `com.microsoft.edgemac`; team `UBF8T346G9` | `selected` | Fresh receipt | E2E app and Edge Stable generation verified | **AUTOMATED ROUTE PASS — final pilot pending visible evidence** |
-| Microsoft Edge Stable | Normal, already running | Same installed identity | `selected` | Fresh receipt | Same recorded task-owned Edge generation verified and preserved by the driver | **AUTOMATED ROUTE PASS — final pilot pending visible evidence** |
-| Microsoft Edge Stable | Normal, reopen | Same installed identity | `selected` | Fresh receipt | New exact Edge Stable generation verified after the recorded baseline was closed | **AUTOMATED ROUTE PASS — final pilot pending visible evidence** |
+| Browser | Mode/state | Installed identity | Selection | Receipt | Exact process identity | Sanitized visible evidence | Result |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Microsoft Edge Stable | Normal, cold | 151.0.4129.101; `com.microsoft.edgemac`; team `UBF8T346G9` | `selected` | Fresh receipt | E2E app and Edge Stable generation verified | Edge Stable visible; browser window present; onboarding absent | **PASS** |
+| Microsoft Edge Stable | Normal, already running | Same installed identity | `selected` | Fresh receipt | Same recorded task-owned Edge generation verified and preserved by the driver | Edge Stable visible; browser window present; onboarding absent | **PASS** |
+| Microsoft Edge Stable | Normal, reopen | Same installed identity | `selected` | Fresh receipt | New exact Edge Stable generation verified after the recorded baseline was closed | Edge Stable visible; browser window present; onboarding absent | **PASS** |
 
-A later held cold route repeated `selected`, a fresh receipt, and exact E2E and
-Edge identities. Its process-presence guard passed, but the Mac was locked, so
-the sanitized Computer Use observer could not return browser state. Visible
-Edge Stable edition, onboarding, and browser-window evidence is therefore
-**NOT RUN** for cold, already-running, and reopen states; no further UI attempt
-was made.
+An earlier held cold route repeated the automated proof but could not return
+browser state while the Mac was locked. After unlock, three fresh independent
+routes supplied the visible evidence above through read-only Computer Use calls
+guarded by an exact Edge Stable process. Only the three booleans represented in
+the table were retained; the underlying UI state and screenshots were not
+emitted or recorded.
 
 This remediation-rerun entry contains no routed address, token, browser
 arguments, raw UI, or profile label, and no profile or private target was
-created or attempted. The driver removed each cold/reopen generation; the
-already-running generation was terminated only after its exact PID and start
-generation were revalidated. Final checks found no Edge Stable, E2E PickVia, or
-receiver process and no driver-created support root. Installed PickVia remained
-the same exact pre-pilot process generation, and preexisting temporary roots
-were left untouched.
+created or attempted. Each task-owned cold/reopen generation was removed after
+proof; the already-running generation was terminated only after its exact PID
+and start generation were revalidated. Final checks found no Edge Stable, E2E
+PickVia, or receiver process and no driver-created support root. Installed
+PickVia remained the same exact pre-pilot process generation, and preexisting
+temporary roots were left untouched.
