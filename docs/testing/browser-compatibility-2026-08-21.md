@@ -353,3 +353,70 @@ start-generation revalidation. Final bounded quiescence found no Edge Canary,
 E2E PickVia, receiver, or driver process; installed PickVia remained the same
 exact pre-batch process generation, and preexisting temporary roots were left
 untouched.
+
+## Google Chrome normal routing — 2026-08-22
+
+Status: **two installed-identity blockers and two passing initialized routing
+matrices.** Chrome Stable and Beta were not launched because their installed
+bundles failed strict deep code-signature verification. Chrome Dev and Canary
+passed strict deep Developer ID verification and all three normal routing
+states. All four descriptors use PickVia's browser-level normal Chromium
+exact-application workspace strategy.
+
+The read-only identity gate recorded these exact installed editions:
+
+| Browser | Installed identity | Strict installed signature | Normal state result |
+| --- | --- | --- | --- |
+| Google Chrome Stable | 151.0.7922.172; `com.google.Chrome`; team `EQHXZ8M8AV` | **FAIL — installed bundle is not validly signed** | Cold, already-running, and reopen: **NOT RUN — installation identity blocker** |
+| Google Chrome Beta | 153.0.8010.5; `com.google.Chrome.beta`; team `EQHXZ8M8AV` | **FAIL — installed bundle is not validly signed** | Cold, already-running, and reopen: **NOT RUN — installation identity blocker** |
+| Google Chrome Dev | 154.0.8013.2; `com.google.Chrome.dev`; team `EQHXZ8M8AV` | **PASS — valid on disk and satisfies its designated requirement** | Cold, already-running, and reopen: **PASS** |
+| Google Chrome Canary | 154.0.8016.0; `com.google.Chrome.canary`; team `EQHXZ8M8AV` | **PASS — valid on disk and satisfies its designated requirement** | Cold, already-running, and reopen: **PASS** |
+
+Gatekeeper assessment separately returned an internal Code Signing subsystem
+error for the otherwise strictly valid Dev and Canary bundles. That local
+assessment anomaly is retained as installed-environment evidence and is not
+classified as a PickVia routing failure. Neither blocked edition was opened or
+observed through Computer Use. The exact preexisting Chrome Stable process
+generation was preserved throughout, and Chrome Beta remained absent.
+
+Chrome Dev supplied independent causal proof for each classified state:
+
+| Browser | Mode/state | Selection | Receipt | Exact process identity | Sanitized visible evidence | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Google Chrome Dev | Normal, initialized cold | `selected` | Fresh receipt | E2E app and exact Chrome Dev generation verified | Chrome Dev visible; browser window present; onboarding visible | **PASS** |
+| Google Chrome Dev | Normal, already running | `selected` | Fresh receipt | Same exact task-created Chrome Dev baseline verified and preserved by the driver | Chrome Dev visible; browser window present; onboarding visible | **PASS** |
+| Google Chrome Dev | Normal, reopen | `selected` | Fresh receipt | New exact Chrome Dev generation verified after the recorded baseline was closed | Chrome Dev visible; browser window present; onboarding visible | **PASS** |
+
+An initial noncanonical cold harness invocation was rejected before application
+launch and contributed no evidence. The first canonical initialized cold route
+then encountered an exact-process identity handoff before receipt. The sole
+remaining task-time Dev generation was terminated only after the originally
+empty baseline and exact executable identity were revalidated; bounded absence
+was confirmed before the one authorized retry. That retry passed the complete
+causal gate. Its first read-only observer exceeded the observation bound and
+was excluded; a separate full-path observer returned only the three sanitized
+booleans shown above for the exact held state. The running and reopen observers
+completed within their bounds. The onboarding surface was never advanced, and
+no sign-in, synchronization, import, or default-browser action was taken.
+
+Chrome Canary likewise supplied independent proof for each state:
+
+| Browser | Mode/state | Selection | Receipt | Exact process identity | Sanitized visible evidence | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Google Chrome Canary | Normal, initialized cold | `selected` | Fresh receipt | E2E app and exact Chrome Canary generation verified | Chrome Canary visible; browser window present; onboarding absent | **PASS** |
+| Google Chrome Canary | Normal, already running | `selected` | Fresh receipt | Same exact task-created Chrome Canary baseline verified and preserved by the driver | Chrome Canary visible; browser window present; onboarding absent | **PASS** |
+| Google Chrome Canary | Normal, reopen | `selected` | Fresh receipt | New exact Chrome Canary generation verified after the recorded baseline was closed | Chrome Canary visible; browser window present; onboarding absent | **PASS** |
+
+The first initialized Canary cold route was excluded after an exact-process
+identity handoff. Its sole remaining task-time generation was terminated only
+after the empty prestate and exact identity were revalidated; bounded absence
+preceded the one authorized retry, which passed. All three Canary observers
+used the full application path and completed within their bounds.
+
+No profile or private target was created or attempted. This entry contains no
+routed address, token, browser arguments, raw UI, screenshot, or profile label.
+The task-created running baselines were closed only after exact process and
+start-generation revalidation. Final exact-process checks found Chrome Dev,
+Chrome Canary, E2E PickVia, receiver, and driver absent; the preexisting Chrome
+Stable and installed PickVia generations remained unchanged. Preexisting
+temporary roots were left untouched.
