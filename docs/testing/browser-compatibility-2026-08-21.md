@@ -218,3 +218,32 @@ and start-generation revalidation. Final checks found no DuckDuckGo, E2E
 PickVia, or receiver process; installed PickVia remained the same exact
 pre-batch process generation, and preexisting temporary roots were left
 untouched.
+
+## Microsoft Edge Beta normal routing — 2026-08-22
+
+Status: **FAIL for the cold PickVia route; already-running and reopen were not
+run.** The installed Microsoft Edge Beta 152.0.4191.41 build has bundle
+identifier `com.microsoft.edgemac.Beta`, team `UBF8T346G9`, and uses PickVia's
+browser-level normal Chromium workspace strategy.
+
+| Browser | Mode/state | Selection | Receipt | Exact process identity | Sanitized visible evidence | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Microsoft Edge Beta | Normal, cold | `selected` | No receipt within 30 seconds | E2E app and exact Edge Beta generation verified | **NOT RUN — bounded observer did not return state** | **FAIL — PickVia product route did not deliver** |
+| Microsoft Edge Beta | Normal, already running | Not attempted | Not attempted | Not attempted | Not attempted | **NOT RUN — stopped at cold gate** |
+| Microsoft Edge Beta | Normal, reopen | Not attempted | Not attempted | Not attempted | Not attempted | **NOT RUN — stopped at cold gate** |
+
+One independent control bypassed PickVia and used the same exact-application
+NSWorkspace delivery shape with a fresh receiver. The helper exited
+successfully, an exact Edge Beta generation appeared, and the receiver obtained
+its receipt. This isolates the failed cold cell from target selection, the E2E
+helper, the installed Edge Beta build, and the receiver; the failure remains at
+PickVia's product routing boundary. The visible observer exceeded its bound and
+was interrupted without returning browser state, so no channel-edition,
+browser-window, or onboarding claim is made.
+
+No profile or private target was created or attempted. This entry contains no
+routed address, token, browser arguments, raw UI, screenshot, or profile label.
+The sole control generation exited after exact task-time revalidation. Final
+checks found no Edge Beta, E2E PickVia, or receiver process; installed PickVia
+remained the same exact pre-batch process generation, and preexisting temporary
+roots were left untouched.
