@@ -192,3 +192,29 @@ and start generation were revalidated. Final checks found no Edge Stable, E2E
 PickVia, or receiver process and no driver-created support root. Installed
 PickVia remained the same exact pre-pilot process generation, and preexisting
 temporary roots were left untouched.
+
+## DuckDuckGo normal routing — 2026-08-22
+
+Status: **PASS for DuckDuckGo normal routing in cold, already-running, and
+reopen states.** The installed 1.203.0 build has bundle identifier
+`com.duckduckgo.macos.browser`, team `HKE973VLUW`, and PickVia's `.duckDuckGo`
+launch strategy.
+
+An earlier cold UI observer attempt ended in a capture-start failure and was
+excluded from the result. The coordinated rerun used a fresh independent route
+for every state and held only the exact causal DuckDuckGo generation while a
+bounded read-only observer returned sanitized booleans:
+
+| Browser | Mode/state | Selection | Receipt | Exact process identity | Sanitized visible evidence | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| DuckDuckGo | Normal, cold | `selected` | Fresh receipt | E2E app and DuckDuckGo generation verified | DuckDuckGo visible; browser window present; onboarding absent | **PASS** |
+| DuckDuckGo | Normal, already running | `selected` | Fresh receipt | Same recorded task-owned DuckDuckGo generation verified and preserved by the driver | DuckDuckGo visible; browser window present; onboarding absent | **PASS** |
+| DuckDuckGo | Normal, reopen | `selected` | Fresh receipt | New exact DuckDuckGo generation verified after the recorded baseline was closed | DuckDuckGo visible; browser window present; onboarding absent | **PASS** |
+
+No Fire, private, or profile target was created or attempted. This entry
+contains no routed address, token, browser arguments, raw UI, screenshot, or
+profile label. The already-running baseline was terminated only after exact PID
+and start-generation revalidation. Final checks found no DuckDuckGo, E2E
+PickVia, or receiver process; installed PickVia remained the same exact
+pre-batch process generation, and preexisting temporary roots were left
+untouched.
