@@ -476,3 +476,34 @@ used. Each final control-generation cleanup reached bounded absence and
 quiescence; final checks found no Brave Beta, Brave Nightly, E2E PickVia,
 receiver, helper, or driver process. Installed PickVia remained the same exact
 pre-batch generation, and preexisting temporary roots were left untouched.
+
+## Vivaldi Stable normal routing — 2026-08-22
+
+Status: **AUTOMATED COLD ROUTE PASS / VISIBLE MATRIX INCOMPLETE.** The installed
+Vivaldi Stable 8.1.4087.70 build has bundle identifier
+`com.vivaldi.Vivaldi`, team `4XF3XNRN6Y`, passes strict deep signature
+verification, and uses PickVia's browser-level normal Chromium
+exact-application workspace strategy.
+
+Two fresh independent cold routes from confirmed absence each emitted
+`selected`, received a fresh receiver receipt, verified the exact E2E app and
+exact Vivaldi generation, and exited successfully. Each exact route was held for
+the bounded 240-second full-path observation window, but no observer result was
+returned before either hold expired. No edition, browser-window, or onboarding
+visibility claim is therefore made. The single allowed coordination retry was
+exhausted, and already-running and reopen were not attempted because the
+mandatory visible cold gate remained incomplete.
+
+| Browser | Mode/state | Selection | Receipt | Exact process identity | Sanitized visible evidence | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Vivaldi Stable | Normal, cold | `selected` on both attempts | Fresh receipt on both attempts | E2E app and exact Vivaldi generation verified on both attempts | **NOT RUN — observer result unavailable within both bounds** | **AUTOMATED ROUTE PASS / VISIBLE GATE INCOMPLETE** |
+| Vivaldi Stable | Normal, already running | Not attempted | Not attempted | Not attempted | Not attempted | **NOT RUN — stopped at visible cold gate** |
+| Vivaldi Stable | Normal, reopen | Not attempted | Not attempted | Not attempted | Not attempted | **NOT RUN — stopped at visible cold gate** |
+
+No profile or private target was created or attempted. No onboarding action,
+sign-in, synchronization, import, or default-browser change was taken. This
+entry contains no routed address, token, browser arguments, raw UI, screenshot,
+or profile label. Driver cleanup and bounded quiescence found Vivaldi, E2E
+PickVia, receiver, and driver absent after each cold route. Installed PickVia
+remained the same exact pre-batch process generation, and preexisting temporary
+roots were left untouched.
