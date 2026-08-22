@@ -6,5 +6,7 @@ docs/*dex*/
 .worktrees/
 .build/
 build/
+.build-e2e/
+build-e2e/
 dist/
 .vscode/

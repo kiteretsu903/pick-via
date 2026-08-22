@@ -172,6 +172,7 @@ extension AppModel {
   ) {
     #if PICKVIA_E2E_AUTOMATION
       guard
+        E2EAutomationMarker.isPresent(in: .main),
         let e2eControl = E2EApplicationEnvironment.validatedControl(
           environment: ProcessInfo.processInfo.environment,
           onFailure: { E2EControlFailure.terminateProcess() }
@@ -355,6 +356,14 @@ enum AppComposition {
 }
 
 #if PICKVIA_E2E_AUTOMATION
+  enum E2EAutomationMarker {
+    static let value = "PICKVIA_E2E_AUTOMATION_ENABLED"
+
+    static func isPresent(in bundle: Bundle) -> Bool {
+      bundle.object(forInfoDictionaryKey: "PickViaE2EAutomationMarker") as? String == value
+    }
+  }
+
   enum E2EApplicationEnvironment {
     static func validatedControl(
       environment: [String: String],
