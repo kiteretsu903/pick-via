@@ -112,3 +112,42 @@ the resulting Safari/Shortcuts process and window ownership was uncertain, it
 was left untouched. The preexisting ownership-unknown path
 `/private/tmp/pickvia-safari-research.ADchkR` was also left untouched and was
 not inspected.
+
+## Automated Edge Stable pilot — 2026-08-22
+
+Status: **FAIL — BrowserLauncher Chromium normal direct-executable
+incompatibility in the installed Edge cold state.** The full browser matrix did
+not begin.
+
+The separate E2E build, smoke test, binary-isolation gate, and exact-application
+NSWorkspace control passed. The classified cold run then emitted the closed
+`selected` FIFO outcome, verified the exact E2E application process, and
+observed an exact Microsoft Edge Stable process generation. The one-shot
+loopback receiver did not receive its fresh token within the 30-second bound.
+
+An independent control bypassed PickVia and invoked the exact installed Edge
+executable with the same production single-URL argument shape. It likewise
+observed an exact Edge process generation without a receiver receipt in 30
+seconds. This isolates the failure from E2E target selection, the stdin helper,
+and exact-application delivery: Microsoft Edge 151.0.4129.101 did not navigate
+the supplied route through the direct-executable launch strategy in its current
+cold state.
+
+| Browser | Mode/state | Installed identity | Selection | Receipt | Exact process identity | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Microsoft Edge Stable | Normal, cold | 151.0.4129.101; `com.microsoft.edgemac`; team `UBF8T346G9` | `selected` | No receipt within 30 seconds | E2E app and Edge Stable generation verified | **FAIL — direct-executable browser transport** |
+| Microsoft Edge Stable | Normal, already running | Same installed identity | Not attempted | Not attempted | Not attempted | **NOT RUN — stopped at cold gate** |
+| Microsoft Edge Stable | Normal, reopen | Same installed identity | Not attempted | Not attempted | Not attempted | **NOT RUN — stopped at cold gate** |
+
+No valid browser UI observation was used: the exact Edge main generation was
+too transient to satisfy the read-only presence guard, so no Computer Use call
+was made for the classified run. No raw UI tree, routed address, browser
+arguments, request target, profile label, or token was recorded. No profile or
+private target was created or attempted.
+
+The driver and independent control both stopped their receiver and terminated
+only the unambiguous task-owned Edge generation. Final exact-process checks
+found no Edge Stable, E2E PickVia, or receiver process and no driver-created
+support root. The installed PickVia process remained the same exact generation
+recorded before the pilot. Preexisting named build/review temporary roots were
+left untouched.
