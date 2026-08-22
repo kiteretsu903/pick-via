@@ -197,6 +197,96 @@ struct BrowserCatalogTests {
       })
   }
 
+  @Test func normalOnlyBrowsersNeverAbsorbNoncanonicalResidualProfileEvidence() throws {
+    for expectation in normalOnlyBrowserExpectations {
+      let browser = failClosedBrowser(expectation)
+      for evidence in StaleNormalOnlyProfileEvidence.allCases {
+        let stale = BrowserTarget(
+          id: "noncanonical-residual-\(expectation.family.rawValue)-\(evidence.rawValue)",
+          browserID: expectation.bundleIdentifier,
+          label: "Residual profile evidence",
+          profileIdentifier: nil,
+          profileDisplayName: evidence == .displayName ? "PickVia E2E" : nil,
+          profileIdentity: nil,
+          profileLaunchPath: evidence == .launchPath ? "/synthetic/pickvia-e2e" : nil,
+          mode: .normal,
+          isEnabled: false,
+          sortOrder: 57,
+          origin: .detected,
+          availability: .available,
+          validationError: "Residual profile evidence must not be repointed."
+        )
+        let config = PickViaConfig(
+          schemaVersion: PickViaConfig.currentSchemaVersion,
+          browsers: [browser.application],
+          targets: [stale]
+        )
+
+        let result = BrowserCatalog.reconcile(discovered: [browser], with: config)
+        let preserved = try #require(result.targets.first { $0.id == stale.id })
+        let canonicalID = BrowserCatalog.targetID(
+          bundleIdentifier: expectation.bundleIdentifier,
+          profileIdentifier: nil,
+          mode: .normal
+        )
+        let canonical = try #require(result.targets.first { $0.id == canonicalID })
+
+        #expect(result.targets.count == 2)
+        #expect(preserved.applicationID == stale.applicationID)
+        #expect(preserved.profileDisplayName == stale.profileDisplayName)
+        #expect(preserved.profileLaunchPath == stale.profileLaunchPath)
+        #expect(preserved.validationError == stale.validationError)
+        #expect(preserved.availability == .unavailable)
+        #expect(canonical.availability == .available)
+        #expect(canonical.profileDisplayName == nil)
+        #expect(canonical.profileLaunchPath == nil)
+      }
+    }
+  }
+
+  @Test func normalOnlyBrowsersStillMergeExactBrowserLevelCanonicalTargets() throws {
+    for expectation in normalOnlyBrowserExpectations {
+      let browser = failClosedBrowser(expectation)
+      let canonicalID = BrowserCatalog.targetID(
+        bundleIdentifier: expectation.bundleIdentifier,
+        profileIdentifier: nil,
+        mode: .normal
+      )
+      let exact = BrowserTarget(
+        id: canonicalID,
+        browserID: expectation.bundleIdentifier,
+        label: "Exact customized normal",
+        profileIdentifier: nil,
+        profileDisplayName: nil,
+        profileIdentity: nil,
+        profileLaunchPath: nil,
+        mode: .normal,
+        isEnabled: false,
+        sortOrder: 58,
+        origin: .manual,
+        availability: .unavailable
+      )
+
+      let result = BrowserCatalog.reconcile(
+        discovered: [browser],
+        with: PickViaConfig(
+          schemaVersion: PickViaConfig.currentSchemaVersion,
+          browsers: [browser.application],
+          targets: [exact]
+        )
+      )
+      let merged = try #require(result.targets.first)
+
+      #expect(result.targets.count == 1)
+      #expect(merged.id == canonicalID)
+      #expect(merged.label == exact.label)
+      #expect(merged.origin == exact.origin)
+      #expect(merged.sortOrder == exact.sortOrder)
+      #expect(!merged.isEnabled)
+      #expect(merged.availability == .available)
+    }
+  }
+
   @Test(arguments: failClosedBrowserExpectations)
   func newFamilyCanonicalNormalIDNeverRepointsBrowserLevelPrivateTarget(
     _ expectation: FailClosedBrowserExpectation
@@ -3609,6 +3699,11 @@ struct FailClosedBrowserExpectation: Sendable {
   let displayName: String
 }
 
+enum StaleNormalOnlyProfileEvidence: String, CaseIterable, Sendable {
+  case displayName
+  case launchPath
+}
+
 enum DuckDuckGoModeCollision: CaseIterable, Sendable {
   case normalIDPrivateMode
   case privateIDNormalMode
@@ -3636,6 +3731,15 @@ private let failClosedBrowserExpectations: [FailClosedBrowserExpectation] = [
   FailClosedBrowserExpectation(
     bundleIdentifier: "com.kagi.kagimacOS", family: .orion, displayName: "Orion"),
 ]
+
+private let normalOnlyBrowserExpectations: [FailClosedBrowserExpectation] =
+  failClosedBrowserExpectations + [
+    FailClosedBrowserExpectation(
+      bundleIdentifier: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
+      family: .duckDuckGo,
+      displayName: "DuckDuckGo"
+    )
+  ]
 
 private func failClosedBrowser(
   _ expectation: FailClosedBrowserExpectation

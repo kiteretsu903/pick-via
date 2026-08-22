@@ -271,15 +271,31 @@ public struct JSONConfigStore: ConfigStoring, Sendable {
   public let directory: URL
   private let now: @Sendable () -> Date
   private let fileSystem: any FileSystem
+  private let browserDescriptors: [BrowserDescriptor]
 
   public init(
     directory: URL,
     now: @escaping @Sendable () -> Date = Date.init,
     fileSystem: any FileSystem = FoundationFileSystem()
   ) {
+    self.init(
+      directory: directory,
+      now: now,
+      fileSystem: fileSystem,
+      browserDescriptors: BrowserDescriptor.supported
+    )
+  }
+
+  init(
+    directory: URL,
+    now: @escaping @Sendable () -> Date = Date.init,
+    fileSystem: any FileSystem = FoundationFileSystem(),
+    browserDescriptors: [BrowserDescriptor]
+  ) {
     self.directory = directory
     self.now = now
     self.fileSystem = fileSystem
+    self.browserDescriptors = browserDescriptors
   }
 
   private var fileURL: URL {
@@ -314,7 +330,7 @@ public struct JSONConfigStore: ConfigStoring, Sendable {
 
     do {
       let decoded = try JSONDecoder().decode(PickViaConfig.self, from: data)
-      return .loaded(try decoded.validatedAndMigrated())
+      return .loaded(try decoded.validatedAndMigrated(descriptors: browserDescriptors))
     } catch {
       let quarantine = directory.appending(
         path: "PickViaConfig.json.corrupt-\(Int(now().timeIntervalSince1970))"
@@ -329,12 +345,15 @@ public struct JSONConfigStore: ConfigStoring, Sendable {
   }
 
   public func save(_ config: PickViaConfig) throws {
-    let config = try config.validatedAndMigrated()
+    let config = try config.validatedAndMigrated(descriptors: browserDescriptors)
     guard
       config.targets.allSatisfy({ target in
         guard
           let application = config.applications.first(where: { $0.id == target.applicationID }),
-          application.browserFamily == .firefox,
+          let descriptor = browserDescriptors.first(where: {
+            $0.bundleIdentifier == application.bundleIdentifier
+          }),
+          case .firefox = descriptor.profileStrategy,
           target.browserOptions != nil
         else { return true }
         return FirefoxPersistencePolicy.isPersistenceSafe(target)

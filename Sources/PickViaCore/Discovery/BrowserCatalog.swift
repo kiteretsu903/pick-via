@@ -817,6 +817,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
         && $0.origin == .detected
         && $0.profileIdentity == nil
         && $0.profileIdentifier == candidate.profileIdentifier
+        && (!isBrowserLevelTarget(candidate) || isBrowserLevelTarget($0))
     }
   }
 

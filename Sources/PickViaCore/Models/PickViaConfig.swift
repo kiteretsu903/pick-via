@@ -109,6 +109,12 @@ public struct PickViaConfig: Codable, Equatable, Sendable {
   }
 
   public func validatedAndMigrated() throws -> PickViaConfig {
+    try validatedAndMigrated(descriptors: BrowserDescriptor.supported)
+  }
+
+  func validatedAndMigrated(
+    descriptors: [BrowserDescriptor]
+  ) throws -> PickViaConfig {
     guard (0...Self.currentSchemaVersion).contains(schemaVersion) else {
       throw ConfigDocumentError.unsupportedSchema
     }
@@ -121,6 +127,10 @@ public struct PickViaConfig: Codable, Equatable, Sendable {
     guard Set(bundleIdentifiers).count == bundleIdentifiers.count else {
       throw ConfigDocumentError.duplicateBrowserIdentity
     }
+    let descriptorByBundleIdentifier = Dictionary(
+      descriptors.map { ($0.bundleIdentifier, $0) },
+      uniquingKeysWith: { first, _ in first }
+    )
 
     for application in applications {
       let routeKinds = application.capabilities.map(\.routeKind)
@@ -133,8 +143,9 @@ public struct PickViaConfig: Codable, Equatable, Sendable {
 
       if let browserFamily = application.browserFamily {
         guard
-          BrowserDescriptor.family(forBundleIdentifier: application.bundleIdentifier)
-            == browserFamily
+          let descriptor = descriptorByBundleIdentifier[application.bundleIdentifier],
+          descriptor.family == browserFamily,
+          descriptor.hasCompatibleStrategies
         else { throw ConfigDocumentError.invalidBrowser }
       }
     }
@@ -162,10 +173,14 @@ public struct PickViaConfig: Codable, Equatable, Sendable {
           target.id == RouteTarget.mailID(bundleIdentifier: application.bundleIdentifier)
         else { throw ConfigDocumentError.invalidTarget }
       case .browser(let options):
+        guard let descriptor = descriptorByBundleIdentifier[application.bundleIdentifier] else {
+          throw ConfigDocumentError.invalidTarget
+        }
         try validateBrowserTarget(
           target,
           options: options,
-          application: application
+          application: application,
+          descriptor: descriptor
         )
       }
     }
@@ -175,8 +190,8 @@ public struct PickViaConfig: Codable, Equatable, Sendable {
         schemaVersion < 2,
         target.origin == .detected,
         let application = applicationsByID[target.applicationID],
-        let browserFamily = application.browserFamily,
-        browserFamily == .chromium || browserFamily == .firefox,
+        let descriptor = descriptorByBundleIdentifier[application.bundleIdentifier],
+        Self.hasFileBackedProfiles(descriptor),
         let options = target.browserOptions
       else { return target }
 
@@ -220,7 +235,8 @@ public struct PickViaConfig: Codable, Equatable, Sendable {
   private func validateBrowserTarget(
     _ target: RouteTarget,
     options: BrowserTargetOptions,
-    application: RoutedApplication
+    application: RoutedApplication,
+    descriptor: BrowserDescriptor
   ) throws {
     if let profileIdentifier = options.profileIdentifier,
       profileIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -237,13 +253,18 @@ public struct PickViaConfig: Codable, Equatable, Sendable {
     {
       throw ConfigDocumentError.invalidTarget
     }
-    guard let browserFamily = application.browserFamily else {
+    let hasProfileEvidence =
+      options.profileIdentifier != nil || options.profileDisplayName != nil
+      || options.profileIdentity != nil || options.profileLaunchPath != nil
+    guard !hasProfileEvidence || descriptor.supportsProfiles else {
       throw ConfigDocumentError.invalidTarget
     }
-    if browserFamily == .safari,
-      options.profileIdentifier != nil || options.profileDisplayName != nil
-        || options.profileIdentity != nil || options.mode != .normal
-    {
+    if case .safariShortcut = descriptor.profileStrategy {
+      guard options.profileLaunchPath == nil else {
+        throw ConfigDocumentError.invalidTarget
+      }
+    }
+    guard options.mode == .normal || descriptor.supportsPrivateMode else {
       throw ConfigDocumentError.invalidTarget
     }
     if options.pendingDefaultMigration {
@@ -255,20 +276,24 @@ public struct PickViaConfig: Codable, Equatable, Sendable {
         && options.profileDisplayName == nil
         && options.profileIdentity == nil
         && options.profileLaunchPath == nil
-      let hasExplicitProfile =
-        options.profileIdentity != nil
-        || options.profileIdentifier != nil
-        || options.profileDisplayName != nil
-        || options.profileLaunchPath != nil
       let isMigratedPrivateProfile =
         options.mode == .private
         && target.id != canonicalID
-        && hasExplicitProfile
+        && hasProfileEvidence
       guard
-        browserFamily == .chromium || browserFamily == .firefox,
+        Self.hasFileBackedProfiles(descriptor),
         target.origin == .detected,
         isCanonicalDefault || isMigratedPrivateProfile
       else { throw ConfigDocumentError.invalidTarget }
+    }
+  }
+
+  private static func hasFileBackedProfiles(_ descriptor: BrowserDescriptor) -> Bool {
+    switch descriptor.profileStrategy {
+    case .chromium, .firefox:
+      true
+    case .none, .safariShortcut:
+      false
     }
   }
 }

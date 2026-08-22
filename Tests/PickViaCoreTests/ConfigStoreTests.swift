@@ -586,6 +586,196 @@ final class ConfigStoreTests: XCTestCase {
     }
   }
 
+  func testBrowserTargetValidationUsesDescriptorStrategiesInsteadOfFamily() throws {
+    let shortcut = BrowserDescriptor(
+      bundleIdentifier: "com.example.future-safari-shortcut",
+      family: .safari,
+      displayName: "Future Safari Shortcut",
+      profileStrategy: .safariShortcut,
+      launchStrategy: .workspace,
+      privateStrategy: .safariShortcut
+    )
+    let shortcutApplication = descriptorApplication(shortcut)
+    let enhancedShortcutTarget = BrowserTarget(
+      id: "future-shortcut-target",
+      browserID: shortcutApplication.id,
+      label: "Future Safari Work Private",
+      profileIdentifier: "PickVia Safari Work",
+      profileDisplayName: "Work",
+      profileIdentity: "shortcut:pickvia-safari-work",
+      mode: .private,
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .manual,
+      availability: .available
+    )
+
+    let validatedShortcut = try PickViaConfig(
+      schemaVersion: 1,
+      browsers: [shortcutApplication],
+      targets: [enhancedShortcutTarget]
+    ).validatedAndMigrated(descriptors: [shortcut])
+
+    XCTAssertEqual(validatedShortcut.targets, [enhancedShortcutTarget])
+    XCTAssertFalse(validatedShortcut.targets[0].pendingDefaultMigration)
+    XCTAssertTrue(validatedShortcut.targets[0].isEnabled)
+
+    let operaFamilyFileBacked = BrowserDescriptor(
+      bundleIdentifier: "com.example.opera-family-file-backed",
+      family: .opera,
+      displayName: "Opera Family File Backed",
+      profileStrategy: .chromium(root: "Synthetic Opera"),
+      launchStrategy: .chromium(
+        executableRelativePath: "Contents/MacOS/synthetic",
+        profileArgument: "--profile="
+      ),
+      privateStrategy: .argument("--private")
+    )
+    let fileBackedApplication = descriptorApplication(operaFamilyFileBacked)
+    let legacyPrivateProfile = BrowserTarget(
+      id: "com.example.opera-family-file-backed|Profile 1|private",
+      browserID: fileBackedApplication.id,
+      label: "Legacy private profile",
+      profileIdentifier: "Profile 1",
+      profileDisplayName: "Work",
+      profileIdentity: "Profile 1",
+      mode: .private,
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .detected,
+      availability: .available
+    )
+    let migratedByStrategy = try PickViaConfig(
+      schemaVersion: 1,
+      browsers: [fileBackedApplication],
+      targets: [legacyPrivateProfile]
+    ).validatedAndMigrated(descriptors: [operaFamilyFileBacked])
+
+    XCTAssertTrue(migratedByStrategy.targets[0].pendingDefaultMigration)
+    XCTAssertFalse(migratedByStrategy.targets[0].isEnabled)
+
+    let familyClaimsEnhancement = BrowserDescriptor(
+      bundleIdentifier: "com.example.chromium-family-normal-only",
+      family: .chromium,
+      displayName: "Chromium Family Normal Only",
+      profileStrategy: .none,
+      launchStrategy: .workspace,
+      privateStrategy: .unsupported
+    )
+    let normalOnlyApplication = descriptorApplication(familyClaimsEnhancement)
+    let rejectedTargets = [
+      BrowserTarget(
+        id: "family-only-profile",
+        browserID: normalOnlyApplication.id,
+        label: "Profile",
+        profileIdentifier: "Profile 1",
+        profileDisplayName: "Work",
+        mode: .normal,
+        isEnabled: true,
+        sortOrder: 0,
+        origin: .manual,
+        availability: .available
+      ),
+      BrowserTarget(
+        id: "family-only-private",
+        browserID: normalOnlyApplication.id,
+        label: "Private",
+        profileIdentifier: nil,
+        profileDisplayName: nil,
+        mode: .private,
+        isEnabled: true,
+        sortOrder: 0,
+        origin: .manual,
+        availability: .available
+      ),
+    ]
+    for target in rejectedTargets {
+      XCTAssertThrowsError(
+        try PickViaConfig(
+          schemaVersion: PickViaConfig.currentSchemaVersion,
+          browsers: [normalOnlyApplication],
+          targets: [target]
+        ).validatedAndMigrated(descriptors: [familyClaimsEnhancement])
+      )
+    }
+  }
+
+  func testStoreAppliesFirefoxPersistencePolicyByProfileStrategyNotFamily() throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let firefoxFamilyNormalOnly = BrowserDescriptor(
+      bundleIdentifier: "com.example.firefox-family-normal-only",
+      family: .firefox,
+      displayName: "Firefox Family Normal Only",
+      profileStrategy: .none,
+      launchStrategy: .workspace,
+      privateStrategy: .unsupported
+    )
+    let normalOnlyApplication = descriptorApplication(firefoxFamilyNormalOnly)
+    let pathShapedBrowserLevel = BrowserTarget(
+      id: "/synthetic/manual-browser-level-id",
+      browserID: normalOnlyApplication.id,
+      label: "Browser level",
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .manual,
+      availability: .available
+    )
+    let normalOnlyStore = JSONConfigStore(
+      directory: directory.appending(path: "normal-only"),
+      browserDescriptors: [firefoxFamilyNormalOnly]
+    )
+
+    XCTAssertNoThrow(
+      try normalOnlyStore.save(
+        PickViaConfig(
+          schemaVersion: PickViaConfig.currentSchemaVersion,
+          browsers: [normalOnlyApplication],
+          targets: [pathShapedBrowserLevel]
+        )
+      )
+    )
+
+    let chromiumFamilyFirefoxStrategy = BrowserDescriptor(
+      bundleIdentifier: "com.example.chromium-family-firefox-strategy",
+      family: .chromium,
+      displayName: "Chromium Family Firefox Strategy",
+      profileStrategy: .firefox(root: "Synthetic Firefox"),
+      launchStrategy: .firefox(executableRelativePath: "Contents/MacOS/firefox"),
+      privateStrategy: .argument("-private-window")
+    )
+    let firefoxStrategyApplication = descriptorApplication(chromiumFamilyFirefoxStrategy)
+    let unsafeFirefoxStrategyTarget = BrowserTarget(
+      id: "/synthetic/unsafe-firefox-target-id",
+      browserID: firefoxStrategyApplication.id,
+      label: "Unsafe",
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .manual,
+      availability: .available
+    )
+    let firefoxStrategyStore = JSONConfigStore(
+      directory: directory.appending(path: "firefox-strategy"),
+      browserDescriptors: [chromiumFamilyFirefoxStrategy]
+    )
+
+    XCTAssertThrowsError(
+      try firefoxStrategyStore.save(
+        PickViaConfig(
+          schemaVersion: PickViaConfig.currentSchemaVersion,
+          browsers: [firefoxStrategyApplication],
+          targets: [unsafeFirefoxStrategyTarget]
+        )
+      )
+    )
+  }
+
   func testSavedFirefoxConfigurationContainsNoSelectedRootUsernameOrAbsoluteProfilePath() throws {
     let directory = try temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -1120,6 +1310,18 @@ private let validChrome = BrowserApplication(
     fileURLWithPath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
   isAvailable: true
 )
+
+private func descriptorApplication(_ descriptor: BrowserDescriptor) -> BrowserApplication {
+  BrowserApplication(
+    id: descriptor.bundleIdentifier,
+    family: descriptor.family,
+    displayName: descriptor.displayName,
+    bundleIdentifier: descriptor.bundleIdentifier,
+    applicationURL: URL(fileURLWithPath: "/Applications/\(descriptor.displayName).app"),
+    executableURL: nil,
+    isAvailable: true
+  )
+}
 
 private let newChannelApplications: [BrowserApplication] = [
   channelApplication(
