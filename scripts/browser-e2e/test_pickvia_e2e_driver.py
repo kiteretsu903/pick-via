@@ -588,7 +588,7 @@ signal.signal(signal.SIGTERM, begin_termination)
 print("ready", flush=True)
 while not terminating:
     time.sleep(0.01)
-time.sleep(1.25)
+time.sleep(3.25)
 """
         process = subprocess.Popen(
             [sys.executable, "-c", source],
@@ -611,8 +611,8 @@ time.sleep(1.25)
             )
 
             elapsed = time.monotonic() - started
-            self.assertGreater(elapsed, 1.0)
-            self.assertLess(elapsed, 3.0)
+            self.assertGreater(elapsed, 3.0)
+            self.assertLess(elapsed, 5.0)
             self.assertEqual(process.wait(timeout=1.0), 0)
         finally:
             if process.poll() is None:
@@ -1110,7 +1110,7 @@ time.sleep(1.25)
             self.assertEqual(result.report["route_timeout_seconds"], 1.0)
             self.assertEqual(
                 result.report["browser_cleanup_grace_seconds"],
-                driver.BROWSER_CLEANUP_GRACE_SECONDS,
+                5.0,
             )
             self.assertGreater(result.report["total_elapsed_seconds"], 1.0)
             self.assertLessEqual(

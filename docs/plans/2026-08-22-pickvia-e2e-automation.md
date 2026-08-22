@@ -810,7 +810,7 @@ exact-executable snapshot with both the immutable baseline and every accumulated
 generation. Any remaining non-baseline generation prevents success; terminate it only
 when the accumulated attribution remains unambiguous.
 
-All browser termination attempts share one three-second cleanup deadline. Poll the exact
+All browser termination attempts share one five-second cleanup deadline. Poll the exact
 target PID/start/executable identity during that grace, perform a final target check at the
 deadline boundary, and never signal the same generation twice. Full authoritative
 post-termination and final snapshots still decide replacement, multiple-generation, and

@@ -198,7 +198,7 @@ the FIFO reader disappears.
   exact-executable snapshot. Any non-baseline generation prevents success; one newly
   attributable generation may be terminated, while replacement or multiple accumulated
   generations remain untouched and are reported ambiguous.
-- Browser cleanup has one shared three-second grace deadline. Each exact owned generation
+- Browser cleanup has one shared five-second grace deadline. Each exact owned generation
   receives at most one `SIGTERM`; targeted PID/start/executable checks poll that generation
   during the grace, while authoritative full snapshots remain required after termination
   and at the final sweep. A survivor is never signalled again by the final sweep.
