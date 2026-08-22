@@ -720,6 +720,78 @@ struct BrowserLauncherTests {
     }
   }
 
+  @Test(arguments: failClosedLaunchExpectations)
+  func newFamiliesUseWorkspaceForNormalBrowserLevelTargets(
+    _ expectation: FailClosedLaunchExpectation
+  ) throws {
+    let descriptor = try #require(
+      BrowserDescriptor.descriptor(forBundleIdentifier: expectation.bundleIdentifier)
+    )
+    let browser = application(
+      family: expectation.family,
+      bundleIdentifier: expectation.bundleIdentifier,
+      executable: nil
+    )
+
+    let plan = try launcher(descriptor: descriptor).makePlan(
+      url: url,
+      application: browser,
+      target: target(
+        family: expectation.family,
+        browserID: expectation.bundleIdentifier,
+        profile: nil
+      )
+    )
+
+    #expect(plan == .workspace(application: applicationURL, url: url))
+  }
+
+  @Test(arguments: failClosedLaunchExpectations, ProfileEvidenceField.allCases)
+  func newFamiliesRejectEveryProfileTarget(
+    _ expectation: FailClosedLaunchExpectation,
+    field: ProfileEvidenceField
+  ) throws {
+    let descriptor = try #require(
+      BrowserDescriptor.descriptor(forBundleIdentifier: expectation.bundleIdentifier)
+    )
+
+    #expect(throws: LaunchFailure.self) {
+      try launcher(descriptor: descriptor).makePlan(
+        url: url,
+        application: application(
+          family: expectation.family,
+          bundleIdentifier: expectation.bundleIdentifier,
+          executable: nil
+        ),
+        target: profileEvidenceTarget(browserID: expectation.bundleIdentifier, field: field)
+      )
+    }
+  }
+
+  @Test(arguments: failClosedLaunchExpectations)
+  func newFamiliesRejectPrivateTargets(_ expectation: FailClosedLaunchExpectation) throws {
+    let descriptor = try #require(
+      BrowserDescriptor.descriptor(forBundleIdentifier: expectation.bundleIdentifier)
+    )
+
+    #expect(throws: LaunchFailure.self) {
+      try launcher(descriptor: descriptor).makePlan(
+        url: url,
+        application: application(
+          family: expectation.family,
+          bundleIdentifier: expectation.bundleIdentifier,
+          executable: nil
+        ),
+        target: target(
+          family: expectation.family,
+          browserID: expectation.bundleIdentifier,
+          profile: nil,
+          mode: .private
+        )
+      )
+    }
+  }
+
   @Test func mismatchedBrowserIDIsRejected() {
     let launcher = testLauncher()
 
@@ -980,6 +1052,17 @@ struct ChannelLaunchExpectation: Sendable {
   let privateArguments: [String]
 }
 
+struct FailClosedLaunchExpectation: Sendable {
+  let bundleIdentifier: String
+  let family: BrowserFamily
+}
+
+private let failClosedLaunchExpectations: [FailClosedLaunchExpectation] = [
+  FailClosedLaunchExpectation(bundleIdentifier: "com.operasoftware.Opera", family: .opera),
+  FailClosedLaunchExpectation(bundleIdentifier: "company.thebrowser.Browser", family: .arc),
+  FailClosedLaunchExpectation(bundleIdentifier: "com.kagi.kagimacOS", family: .orion),
+]
+
 private let newChannelLaunchExpectations: [ChannelLaunchExpectation] = [
   chromiumChannelLaunch(
     "com.google.Chrome.dev", "Google Chrome Dev", "--incognito"),
@@ -1172,6 +1255,9 @@ private func bundleID(for family: BrowserFamily) -> String {
   case .duckDuckGo: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier
   case .chromium: "com.google.Chrome"
   case .firefox: "org.mozilla.firefox"
+  case .opera: "com.operasoftware.Opera"
+  case .arc: "company.thebrowser.Browser"
+  case .orion: "com.kagi.kagimacOS"
   }
 }
 

@@ -151,6 +151,100 @@ final class ConfigStoreTests: XCTestCase {
     )
   }
 
+  func testNewBrowserFamiliesRoundTripUnchanged() throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let applications = [
+      channelApplication(
+        id: "com.operasoftware.Opera",
+        family: .opera,
+        displayName: "Opera",
+        executableName: nil
+      ),
+      channelApplication(
+        id: "company.thebrowser.Browser",
+        family: .arc,
+        displayName: "Arc",
+        executableName: nil
+      ),
+      channelApplication(
+        id: "com.kagi.kagimacOS",
+        family: .orion,
+        displayName: "Orion",
+        executableName: nil
+      ),
+    ]
+    let targets = applications.enumerated().map { index, application in
+      BrowserTarget(
+        id: BrowserCatalog.targetID(
+          bundleIdentifier: application.bundleIdentifier,
+          profileIdentifier: nil,
+          mode: .normal
+        ),
+        browserID: application.id,
+        label: application.displayName,
+        profileIdentifier: nil,
+        profileDisplayName: nil,
+        mode: .normal,
+        isEnabled: true,
+        sortOrder: index,
+        origin: .detected,
+        availability: .available
+      )
+    }
+    let expected = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: applications,
+      targets: targets
+    )
+    let store = JSONConfigStore(directory: directory)
+
+    try store.save(expected)
+    let loaded = try store.load()
+
+    XCTAssertEqual(loaded.browsers.map(\.id), expected.browsers.map(\.id))
+    XCTAssertEqual(loaded.browsers.map(\.family), [.opera, .arc, .orion])
+    XCTAssertEqual(loaded.browsers.map(\.displayName), expected.browsers.map(\.displayName))
+    XCTAssertEqual(loaded.targets, expected.targets)
+  }
+
+  func testUnknownBrowserFamilyRetainsCorruptionRecovery() throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let fileURL = directory.appending(path: "PickViaConfig.json")
+    let data = Data(
+      """
+      {
+        "schemaVersion": 2,
+        "browsers": [
+          {
+            "id": "com.example.unknown",
+            "family": "unknown-browser-family",
+            "displayName": "Unknown",
+            "bundleIdentifier": "com.example.unknown",
+            "isAvailable": true
+          }
+        ],
+        "targets": []
+      }
+      """.utf8
+    )
+    try data.write(to: fileURL)
+
+    let outcome = JSONConfigStore(
+      directory: directory,
+      now: { Date(timeIntervalSince1970: 1_700_000_000) }
+    ).loadOutcome()
+
+    XCTAssertEqual(outcome, .recoveredCorruption(.initial))
+    XCTAssertFalse(FileManager.default.fileExists(atPath: fileURL.path))
+    XCTAssertTrue(
+      FileManager.default.fileExists(
+        atPath: directory.appending(path: "PickViaConfig.json.corrupt-1700000000").path
+      )
+    )
+  }
+
   func testNewChannelApplicationsAndTargetIDsRoundTripUnchanged() throws {
     let directory = try temporaryDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }

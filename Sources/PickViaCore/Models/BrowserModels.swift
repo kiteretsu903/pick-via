@@ -5,6 +5,9 @@ public enum BrowserFamily: String, Codable, Sendable {
   case duckDuckGo
   case chromium
   case firefox
+  case opera
+  case arc
+  case orion
 }
 
 public enum BrowserMode: String, Codable, Sendable {

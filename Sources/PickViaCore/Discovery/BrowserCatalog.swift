@@ -215,7 +215,14 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       let candidates = targetCandidates(for: browser)
       for candidate in candidates {
         let canonicalExisting = existingByID[candidate.id]
-        if browser.application.browserFamily == .duckDuckGo,
+        let preservesUnsupportedProfileCollision =
+          switch browser.application.browserFamily {
+          case .duckDuckGo, .opera, .arc, .orion:
+            true
+          case .safari, .chromium, .firefox, nil:
+            false
+          }
+        if preservesUnsupportedProfileCollision,
           isBrowserLevelTarget(candidate),
           let canonicalExisting,
           !isBrowserLevelTarget(canonicalExisting)
@@ -729,6 +736,10 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
               isBrowserLevelTarget(target)
                 && (target.mode == .normal || browser.privateModeIsAvailable)
               ? .available : .unavailable
+          case .opera, .arc, .orion:
+            availability =
+              isBrowserLevelTarget(target) && target.mode == .normal
+              ? .available : .unavailable
           case .chromium, .firefox:
             if isBrowserLevelTarget(target) {
               availability = .available
@@ -754,6 +765,10 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
             availability =
               isBrowserLevelTarget(target)
                 && (target.mode == .normal || browser.privateModeIsAvailable)
+              ? .available : .unavailable
+          case .opera, .arc, .orion:
+            availability =
+              isBrowserLevelTarget(target) && target.mode == .normal
               ? .available : .unavailable
           case .chromium, .firefox:
             if isBrowserLevelTarget(target) {
@@ -1024,6 +1039,13 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       return sanitized
     case .duckDuckGo:
       return copying(sanitized, availability: .unavailable, profileLaunchPath: nil)
+    case .opera, .arc, .orion:
+      return copying(
+        sanitized,
+        availability: isBrowserLevelTarget(sanitized) && sanitized.mode == .normal
+          ? .available : .unavailable,
+        profileLaunchPath: nil
+      )
     case .chromium where isBrowserLevelTarget(sanitized),
       .firefox where isBrowserLevelTarget(sanitized):
       return copying(

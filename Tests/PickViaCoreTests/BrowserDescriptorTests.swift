@@ -190,7 +190,42 @@ let descriptorExpectations = [
     bundleIdentifier: "org.mozilla.nightly",
     displayName: "Firefox Nightly"
   ),
+  failClosedExpectation(
+    bundleIdentifier: "com.operasoftware.Opera",
+    family: .opera,
+    displayName: "Opera"
+  ),
+  failClosedExpectation(
+    bundleIdentifier: "company.thebrowser.Browser",
+    family: .arc,
+    displayName: "Arc"
+  ),
+  failClosedExpectation(
+    bundleIdentifier: "com.kagi.kagimacOS",
+    family: .orion,
+    displayName: "Orion"
+  ),
 ]
+
+func failClosedExpectation(
+  bundleIdentifier: String,
+  family: BrowserFamily,
+  displayName: String
+) -> DescriptorExpectation {
+  DescriptorExpectation(
+    bundleIdentifier: bundleIdentifier,
+    family: family,
+    displayName: displayName,
+    profileStrategy: .none,
+    launchStrategy: .workspace,
+    privateStrategy: .unsupported,
+    profileRoot: nil,
+    requiredProfileMarker: nil,
+    executableRelativePath: nil,
+    supportsProfiles: false,
+    supportsPrivateMode: false
+  )
+}
 
 func chromiumExpectation(
   bundleIdentifier: String,

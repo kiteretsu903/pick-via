@@ -262,6 +262,30 @@ public struct BrowserDescriptor: Equatable, Sendable {
       launchStrategy: .firefox(executableRelativePath: "Contents/MacOS/firefox"),
       privateStrategy: .argument("-private-window")
     ),
+    BrowserDescriptor(
+      bundleIdentifier: "com.operasoftware.Opera",
+      family: .opera,
+      displayName: "Opera",
+      profileStrategy: .none,
+      launchStrategy: .workspace,
+      privateStrategy: .unsupported
+    ),
+    BrowserDescriptor(
+      bundleIdentifier: "company.thebrowser.Browser",
+      family: .arc,
+      displayName: "Arc",
+      profileStrategy: .none,
+      launchStrategy: .workspace,
+      privateStrategy: .unsupported
+    ),
+    BrowserDescriptor(
+      bundleIdentifier: "com.kagi.kagimacOS",
+      family: .orion,
+      displayName: "Orion",
+      profileStrategy: .none,
+      launchStrategy: .workspace,
+      privateStrategy: .unsupported
+    ),
   ]
 
   public static func family(forBundleIdentifier bundleIdentifier: String) -> BrowserFamily? {

@@ -27,6 +27,9 @@ struct BrowserCatalogTests {
         "Firefox",
         "Firefox Developer Edition",
         "Firefox Nightly",
+        "Opera",
+        "Arc",
+        "Orion",
       ])
     #expect(
       BrowserDescriptor.supported.map(\.bundleIdentifier) == [
@@ -50,8 +53,148 @@ struct BrowserCatalogTests {
         "org.mozilla.firefox",
         "org.mozilla.firefoxdeveloperedition",
         "org.mozilla.nightly",
+        "com.operasoftware.Opera",
+        "company.thebrowser.Browser",
+        "com.kagi.kagimacOS",
       ])
-    #expect(BrowserDescriptor.supported.count == 20)
+    #expect(BrowserDescriptor.supported.count == 23)
+  }
+
+  @Test(arguments: failClosedBrowserExpectations)
+  func newFamiliesDiscoverOnlyOneNormalBrowserLevelTarget(
+    _ expectation: FailClosedBrowserExpectation
+  ) throws {
+    let descriptor = try #require(
+      BrowserDescriptor.descriptor(forBundleIdentifier: expectation.bundleIdentifier)
+    )
+    let applicationURL = URL(
+      fileURLWithPath: "/Applications/\(expectation.displayName).app",
+      isDirectory: true
+    )
+    let fileSystem = DiscoveryFileSystem(files: [:])
+    let profileAccess = StubProfileRootAccess()
+    let catalog = BrowserCatalog(
+      descriptors: [descriptor],
+      applicationLocator: StubApplicationLocator(applications: [
+        expectation.bundleIdentifier: applicationURL
+      ]),
+      fileSystem: fileSystem,
+      profileRootAccess: profileAccess
+    )
+
+    let browser = try #require(catalog.scan().first)
+    let reconciled = BrowserCatalog.reconcile(discovered: [browser], with: .initial)
+    let target = try #require(reconciled.targets.first)
+
+    #expect(browser.application.family == expectation.family)
+    #expect(browser.metadataStatus == .notApplicable)
+    #expect(browser.profiles.isEmpty)
+    #expect(!browser.privateModeIsAvailable)
+    #expect(fileSystem.readURLs.isEmpty)
+    #expect(profileAccess.requestedBundleIdentifiers.isEmpty)
+    #expect(reconciled.targets.count == 1)
+    #expect(target.id == "\(expectation.bundleIdentifier)||normal")
+    #expect(target.profileIdentifier == nil)
+    #expect(target.profileDisplayName == nil)
+    #expect(target.profileIdentity == nil)
+    #expect(target.profileLaunchPath == nil)
+    #expect(target.mode == .normal)
+    #expect(target.availability == .available)
+  }
+
+  @Test(arguments: failClosedBrowserExpectations)
+  func newFamilyDisappearancePreservesCustomizationAndMarksTargetUnavailable(
+    _ expectation: FailClosedBrowserExpectation
+  ) throws {
+    let browser = failClosedBrowser(expectation)
+    let initial = BrowserCatalog.reconcile(discovered: [browser], with: .initial)
+    let generated = try #require(initial.targets.first)
+    let customized = copy(generated, label: "Pinned Browser", enabled: false, sortOrder: 41)
+    let config = PickViaConfig(
+      schemaVersion: initial.schemaVersion,
+      browsers: initial.browsers,
+      targets: [customized]
+    )
+
+    let result = BrowserCatalog.reconcile(discovered: [], with: config)
+    let target = try #require(result.targets.first)
+
+    #expect(result.browsers.first?.isAvailable == false)
+    #expect(target.id == customized.id)
+    #expect(target.browserID == expectation.bundleIdentifier)
+    #expect(target.label == "Pinned Browser")
+    #expect(!target.isEnabled)
+    #expect(target.sortOrder == 41)
+    #expect(target.mode == .normal)
+    #expect(target.availability == .unavailable)
+  }
+
+  @Test(arguments: failClosedBrowserExpectations)
+  func newFamilyCapabilityDowngradeNeverRepointsStaleProfileOrPrivateTargets(
+    _ expectation: FailClosedBrowserExpectation
+  ) throws {
+    let browser = failClosedBrowser(expectation)
+    let canonicalNormalID = BrowserCatalog.targetID(
+      bundleIdentifier: expectation.bundleIdentifier,
+      profileIdentifier: nil,
+      mode: .normal
+    )
+    let staleProfile = BrowserTarget(
+      id: canonicalNormalID,
+      browserID: expectation.bundleIdentifier,
+      label: "Pinned PickVia E2E",
+      profileIdentifier: "PickVia E2E",
+      profileDisplayName: "PickVia E2E",
+      profileIdentity: "pickvia-e2e-profile",
+      mode: .normal,
+      isEnabled: false,
+      sortOrder: 51,
+      origin: .detected,
+      availability: .available
+    )
+    let stalePrivate = BrowserTarget(
+      id: BrowserCatalog.targetID(
+        bundleIdentifier: expectation.bundleIdentifier,
+        profileIdentifier: nil,
+        mode: .private
+      ),
+      browserID: expectation.bundleIdentifier,
+      label: "Pinned Private",
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      mode: .private,
+      isEnabled: true,
+      sortOrder: 52,
+      origin: .detected,
+      availability: .available
+    )
+    let config = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: [browser.application],
+      targets: [staleProfile, stalePrivate]
+    )
+
+    let result = BrowserCatalog.reconcile(discovered: [browser], with: config)
+    let profile = try #require(result.targets.first { $0.id == staleProfile.id })
+    let privateTarget = try #require(result.targets.first { $0.id == stalePrivate.id })
+
+    #expect(result.targets.count == 2)
+    #expect(profile.label == "Pinned PickVia E2E")
+    #expect(!profile.isEnabled)
+    #expect(profile.sortOrder == 51)
+    #expect(profile.profileIdentifier == "PickVia E2E")
+    #expect(profile.profileDisplayName == "PickVia E2E")
+    #expect(profile.profileIdentity == "pickvia-e2e-profile")
+    #expect(profile.availability == .unavailable)
+    #expect(privateTarget.label == "Pinned Private")
+    #expect(privateTarget.isEnabled)
+    #expect(privateTarget.sortOrder == 52)
+    #expect(privateTarget.mode == .private)
+    #expect(privateTarget.availability == .unavailable)
+    #expect(
+      !result.targets.contains { target in
+        target.id == canonicalNormalID && target.profileIdentifier == nil
+      })
   }
 
   @Test func duckDuckGoDescriptorHasNoProfileOrExecutablePaths() throws {
@@ -2998,6 +3141,43 @@ struct ProfileEditionExpectation: Sendable {
   let profileRoot: String
   let requiredMarker: String
   let fixtureName: String
+}
+
+struct FailClosedBrowserExpectation: Sendable {
+  let bundleIdentifier: String
+  let family: BrowserFamily
+  let displayName: String
+}
+
+private let failClosedBrowserExpectations: [FailClosedBrowserExpectation] = [
+  FailClosedBrowserExpectation(
+    bundleIdentifier: "com.operasoftware.Opera", family: .opera, displayName: "Opera"),
+  FailClosedBrowserExpectation(
+    bundleIdentifier: "company.thebrowser.Browser", family: .arc, displayName: "Arc"),
+  FailClosedBrowserExpectation(
+    bundleIdentifier: "com.kagi.kagimacOS", family: .orion, displayName: "Orion"),
+]
+
+private func failClosedBrowser(
+  _ expectation: FailClosedBrowserExpectation
+) -> DiscoveredBrowser {
+  DiscoveredBrowser(
+    application: BrowserApplication(
+      id: expectation.bundleIdentifier,
+      family: expectation.family,
+      displayName: expectation.displayName,
+      bundleIdentifier: expectation.bundleIdentifier,
+      applicationURL: URL(
+        fileURLWithPath: "/Applications/\(expectation.displayName).app",
+        isDirectory: true
+      ),
+      executableURL: nil,
+      isAvailable: true
+    ),
+    profiles: [],
+    metadataStatus: .notApplicable,
+    privateModeIsAvailable: false
+  )
 }
 
 private let profileEditionExpectations: [ProfileEditionExpectation] = [
