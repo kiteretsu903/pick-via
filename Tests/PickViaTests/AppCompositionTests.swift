@@ -4,8 +4,79 @@ import XCTest
 
 @testable import PickVia
 
+#if PICKVIA_E2E_AUTOMATION
+  import Darwin
+#endif
+
 @MainActor
 final class AppCompositionTests: XCTestCase {
+  #if PICKVIA_E2E_AUTOMATION
+    func testE2EEnvironmentUsesOnlyValidatedIsolatedSupportDirectory() {
+      let control = CompositionE2EFixtures.control
+
+      XCTAssertEqual(
+        E2EApplicationEnvironment.applicationSupportDirectory(control: control),
+        control.applicationSupportDirectory
+      )
+    }
+
+    func testMalformedE2EEnvironmentInvokesFailureWithoutReturningControl() {
+      var failureCallCount = 0
+
+      let control = E2EApplicationEnvironment.validatedControl(
+        environment: [:],
+        onFailure: { failureCallCount += 1 }
+      )
+
+      XCTAssertNil(control)
+      XCTAssertEqual(failureCallCount, 1)
+    }
+
+    func testE2EControlFailureUsesFixedURLFreeDiagnosticAndEXConfig() {
+      var diagnostics: [String] = []
+      var exitStatuses: [Int32] = []
+
+      E2EControlFailure.terminateProcess(
+        writeDiagnostic: { diagnostics.append($0) },
+        terminate: { exitStatuses.append($0) }
+      )
+
+      XCTAssertEqual(diagnostics, ["PickVia E2E configuration is invalid.\n"])
+      XCTAssertEqual(exitStatuses, [Int32(EX_CONFIG)])
+      XCTAssertFalse(diagnostics[0].contains("://"))
+      XCTAssertFalse(diagnostics[0].contains("PICKVIA_E2E_"))
+      XCTAssertFalse(diagnostics[0].contains("/private/tmp"))
+    }
+
+    func testValidE2EEnvironmentDoesNotInvokeFailure() throws {
+      let root = URL(
+        fileURLWithPath: "/private/tmp/pickvia-e2e-composition-\(UUID().uuidString)",
+        isDirectory: true
+      )
+      try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+      defer { try? FileManager.default.removeItem(at: root) }
+      var failureCallCount = 0
+
+      let control = E2EApplicationEnvironment.validatedControl(
+        environment: CompositionE2EFixtures.environment(supportDirectory: root),
+        onFailure: { failureCallCount += 1 }
+      )
+
+      XCTAssertEqual(control?.applicationSupportDirectory, root)
+      XCTAssertEqual(failureCallCount, 0)
+    }
+
+    func testE2ECompositionWrapsOrdinaryChooser() {
+      let composition = AppComposition.makeChooser(
+        ordinary: CompositionChooserSpy(),
+        e2eControl: CompositionE2EFixtures.control,
+        statusWriter: CompositionE2EStatusWriterSpy()
+      )
+
+      XCTAssertTrue(composition is E2EChooserPresenter)
+    }
+  #endif
+
   func testRoutingUsesAuthoritativeStartupSnapshotWithoutReloadingDisk() throws {
     let chooser = CompositionChooserSpy()
     let stale = PickViaConfig(
@@ -375,6 +446,44 @@ final class AppCompositionTests: XCTestCase {
     )
   }
 }
+
+#if PICKVIA_E2E_AUTOMATION
+  private enum CompositionE2EFixtures {
+    static let supportDirectory = URL(
+      fileURLWithPath: "/private/tmp/pickvia-e2e-composition",
+      isDirectory: true
+    )
+    static let control = E2EControl(
+      targetID: "com.microsoft.edgemac||normal",
+      expectedBundleIdentifier: "com.microsoft.edgemac",
+      expectedMode: .normal,
+      sessionNonce: "session_0123456789",
+      applicationSupportDirectory: supportDirectory,
+      statusFIFO: supportDirectory.appending(path: "status.fifo")
+    )
+
+    static func environment(supportDirectory: URL) -> [String: String] {
+      [
+        E2EEnvironmentKey.targetID: control.targetID,
+        E2EEnvironmentKey.bundleIdentifier: control.expectedBundleIdentifier,
+        E2EEnvironmentKey.mode: control.expectedMode.rawValue,
+        E2EEnvironmentKey.sessionNonce: control.sessionNonce,
+        E2EEnvironmentKey.supportDirectory: supportDirectory.path,
+        E2EEnvironmentKey.statusFIFO: supportDirectory.appending(path: "status.fifo").path,
+      ]
+    }
+  }
+
+  private struct CompositionE2EStatusWriterSpy: E2EStatusWriting {
+    func write(
+      _ outcome: E2ESelectionOutcome,
+      sessionNonce: String,
+      to fifo: URL
+    ) -> Bool {
+      true
+    }
+  }
+#endif
 
 private final class CompositionConfigStore: ConfigStoring, @unchecked Sendable {
   let config: PickViaConfig

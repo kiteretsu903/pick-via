@@ -3,6 +3,10 @@ import Foundation
 import PickViaCore
 import SwiftUI
 
+#if PICKVIA_E2E_AUTOMATION
+  import Darwin
+#endif
+
 @MainActor
 protocol AppLaunchScheduling: AnyObject {
   func schedule(_ action: @escaping @MainActor @Sendable () -> Void)
@@ -166,10 +170,24 @@ extension AppModel {
     profileAccessPresenter: any ProfileAccessPresenting,
     chooserPrewarmer: any ChooserPrewarming
   ) {
-    let applicationSupportDirectory = FileManager.default.urls(
-      for: .applicationSupportDirectory,
-      in: .userDomainMask
-    )[0].appending(path: "PickVia", directoryHint: .isDirectory)
+    #if PICKVIA_E2E_AUTOMATION
+      guard
+        let e2eControl = E2EApplicationEnvironment.validatedControl(
+          environment: ProcessInfo.processInfo.environment,
+          onFailure: { E2EControlFailure.terminateProcess() }
+        )
+      else {
+        preconditionFailure("E2E configuration termination returned unexpectedly")
+      }
+      let applicationSupportDirectory = E2EApplicationEnvironment.applicationSupportDirectory(
+        control: e2eControl
+      )
+    #else
+      let applicationSupportDirectory = FileManager.default.urls(
+        for: .applicationSupportDirectory,
+        in: .userDomainMask
+      )[0].appending(path: "PickVia", directoryHint: .isDirectory)
+    #endif
     let configStore = JSONConfigStore(directory: applicationSupportDirectory)
     let profileAccessStore = JSONProfileAccessStore(directory: applicationSupportDirectory)
     let profileAccessCoordinator = ProfileAccessCoordinator(store: profileAccessStore)
@@ -187,7 +205,7 @@ extension AppModel {
       selectionCoordinator: profileAccessSelectionCoordinator
     )
     let preferences = UserDefaultsPreferences()
-    let chooser = ChooserPanelController(
+    let ordinaryChooser = ChooserPanelController(
       showsURLProvider: {
         preferences.bool(forKey: PreferenceKey.showsURLInChooser) ?? true
       },
@@ -208,7 +226,16 @@ extension AppModel {
         profileAccessPresenter?.environmentDidChange()
       }
     )
-    chooserActivity.chooser = chooser
+    chooserActivity.chooser = ordinaryChooser
+    #if PICKVIA_E2E_AUTOMATION
+      let chooser: any ChooserPresenting = AppComposition.makeChooser(
+        ordinary: ordinaryChooser,
+        e2eControl: e2eControl,
+        statusWriter: E2EStatusWriter()
+      )
+    #else
+      let chooser: any ChooserPresenting = ordinaryChooser
+    #endif
     let model = AppComposition.makeModel(
       configStore: configStore,
       browserCatalog: BrowserCatalog(profileRootAccess: profileAccessCoordinator),
@@ -240,7 +267,7 @@ extension AppModel {
     }
 
     try? model.load()
-    return (model, profileAccessPresenter, chooser)
+    return (model, profileAccessPresenter, ordinaryChooser)
   }
 }
 
@@ -252,6 +279,20 @@ private final class ChooserPresentationActivity {
 
 @MainActor
 enum AppComposition {
+  #if PICKVIA_E2E_AUTOMATION
+    static func makeChooser(
+      ordinary: any ChooserPresenting,
+      e2eControl: E2EControl,
+      statusWriter: any E2EStatusWriting
+    ) -> any ChooserPresenting {
+      E2EChooserPresenter(
+        base: ordinary,
+        control: e2eControl,
+        statusWriter: statusWriter
+      )
+    }
+  #endif
+
   static func makeModel(
     configStore: any ConfigStoring,
     browserCatalog: any BrowserDiscovering,
@@ -312,6 +353,39 @@ enum AppComposition {
     }
   }
 }
+
+#if PICKVIA_E2E_AUTOMATION
+  enum E2EApplicationEnvironment {
+    static func validatedControl(
+      environment: [String: String],
+      onFailure: () -> Void
+    ) -> E2EControl? {
+      guard let control = E2EControl.load(environment: environment) else {
+        onFailure()
+        return nil
+      }
+      return control
+    }
+
+    static func applicationSupportDirectory(control: E2EControl) -> URL {
+      control.applicationSupportDirectory
+    }
+  }
+
+  enum E2EControlFailure {
+    private static let diagnostic = "PickVia E2E configuration is invalid.\n"
+
+    static func terminateProcess(
+      writeDiagnostic: (String) -> Void = { message in
+        FileHandle.standardError.write(Data(message.utf8))
+      },
+      terminate: (Int32) -> Void = { status in Darwin.exit(status) }
+    ) {
+      writeDiagnostic(diagnostic)
+      terminate(Int32(EX_CONFIG))
+    }
+  }
+#endif
 
 @MainActor
 private final class PreviewPresenter {
