@@ -723,7 +723,11 @@ class PickViaE2EDriverTests(unittest.TestCase):
                 if kind == "exact-app-helper"
             )
             self.assertEqual(result.exit_code, driver.DRIVER_SUCCESS)
-            self.assertEqual(helper_argv, (str(fixture.helper), str(fixture.e2e_app)))
+            self.assertEqual(
+                helper_argv,
+                (str(fixture.helper), str(fixture.e2e_app), str(fixture.e2e_pid)),
+            )
+            self.assertGreater(int(helper_argv[2]), 0)
             self.assertNotIn(str(fixture.browser_app), helper_argv)
 
     def test_fake_chain_cannot_select_or_receive_without_helper_delivery_to_e2e(self):
@@ -1044,20 +1048,67 @@ import Foundation
 
 private struct ControlledOpenError: Error {}
 
+private final class CallbackBox: @unchecked Sendable {
+  let callback: (RunningApplicationIdentity?, Error?) -> Void
+
+  init(_ callback: @escaping (RunningApplicationIdentity?, Error?) -> Void) {
+    self.callback = callback
+  }
+}
+
+private final class ResultBox: @unchecked Sendable {
+  private let lock = NSLock()
+  private(set) var attempts = 0
+  private(set) var delays = 0
+  private(set) var completions: [Bool] = []
+  var delayedAction: (() -> Void)?
+
+  func recordAttempt() -> Int {
+    lock.lock()
+    defer { lock.unlock() }
+    attempts += 1
+    return attempts
+  }
+
+  func recordDelay(action: @escaping () -> Void) {
+    lock.lock()
+    delays += 1
+    delayedAction = action
+    lock.unlock()
+  }
+
+  func recordCompletion(_ succeeded: Bool) {
+    lock.lock()
+    completions.append(succeeded)
+    lock.unlock()
+  }
+
+  func snapshot() -> (Int, Int, [Bool]) {
+    lock.lock()
+    defer { lock.unlock() }
+    return (attempts, delays, completions)
+  }
+}
+
 enum OpenWithAppPolicyTestMain {
   static func main() {
     let expectedURL = URL(fileURLWithPath: "/private/tmp/PickVia E2E.app")
+    let expected = ExpectedRunningApplicationIdentity(
+      processIdentifier: 4242,
+      bundleIdentifier: "dev.bozhenpeng.PickVia.E2E",
+      canonicalBundleURL: expectedURL
+    )
     var registrationSnapshots = 0
     var registrationDelays = 0
     let registered = ExactApplicationRegistrationPolicy.wait(
-      expectedBundleIdentifier: "dev.bozhenpeng.PickVia.E2E",
-      expectedCanonicalBundleURL: expectedURL,
-      maximumChecks: 3,
+      expected: expected,
+      maximumChecks: 4,
       snapshot: {
         registrationSnapshots += 1
-        if registrationSnapshots == 3 {
+        if registrationSnapshots == 4 {
           return [
             RunningApplicationIdentity(
+              processIdentifier: 4242,
               bundleIdentifier: "dev.bozhenpeng.PickVia.E2E",
               canonicalBundleURL: expectedURL
             )
@@ -1065,22 +1116,26 @@ enum OpenWithAppPolicyTestMain {
         }
         return [
           RunningApplicationIdentity(
-            bundleIdentifier: "dev.bozhenpeng.PickVia.E2E",
-            canonicalBundleURL: URL(fileURLWithPath: "/private/tmp/Wrong.app")
+            processIdentifier: registrationSnapshots == 1 ? 3131 : 4242,
+            bundleIdentifier: registrationSnapshots == 2
+              ? "dev.bozhenpeng.PickVia.Wrong"
+              : "dev.bozhenpeng.PickVia.E2E",
+            canonicalBundleURL: registrationSnapshots == 3
+              ? URL(fileURLWithPath: "/private/tmp/Wrong.app")
+              : expectedURL
           )
         ]
       },
       delay: { _ in registrationDelays += 1 }
     )
     precondition(registered)
-    precondition(registrationSnapshots == 3)
-    precondition(registrationDelays == 2)
+    precondition(registrationSnapshots == 4)
+    precondition(registrationDelays == 3)
 
     var absentSnapshots = 0
     var absentDelays = 0
     let absent = ExactApplicationRegistrationPolicy.wait(
-      expectedBundleIdentifier: "dev.bozhenpeng.PickVia.E2E",
-      expectedCanonicalBundleURL: expectedURL,
+      expected: expected,
       maximumChecks: 3,
       snapshot: {
         absentSnapshots += 1
@@ -1092,51 +1147,98 @@ enum OpenWithAppPolicyTestMain {
     precondition(absentSnapshots == 3)
     precondition(absentDelays == 2)
 
-    var attempts = 0
-    var retryDelays = 0
-    var completions: [Bool] = []
-    let succeedsAfterErrors = BoundedOpenCoordinator(
+    let lifetimeResults = ResultBox()
+    weak var retainedCoordinator: BoundedOpenCoordinator?
+    do {
+      let coordinator = BoundedOpenCoordinator(
+        expectedApplication: expected,
+        maximumAttempts: 2,
+        scheduleRetry: { _, action in lifetimeResults.recordDelay(action: action) }
+      )
+      retainedCoordinator = coordinator
+      coordinator.start(
+        attempt: { completion in
+          _ = lifetimeResults.recordAttempt()
+          completion(nil, ControlledOpenError())
+        },
+        completion: lifetimeResults.recordCompletion
+      )
+    }
+    precondition(retainedCoordinator != nil)
+    lifetimeResults.delayedAction?()
+    let lifetimeSnapshot = lifetimeResults.snapshot()
+    precondition(lifetimeSnapshot.0 == 2)
+    precondition(lifetimeSnapshot.1 == 1)
+    precondition(lifetimeSnapshot.2 == [false])
+
+    let concurrentResults = ResultBox()
+    let concurrentDone = DispatchSemaphore(value: 0)
+    let concurrentCoordinator = BoundedOpenCoordinator(
+      expectedApplication: expected,
       maximumAttempts: 3,
       scheduleRetry: { _, action in
-        retryDelays += 1
+        concurrentResults.recordDelay(action: action)
         action()
       }
     )
-    succeedsAfterErrors.start(
+    concurrentCoordinator.start(
       attempt: { completion in
-        attempts += 1
-        let attemptNumber = attempts
-        completion(attemptNumber == 3 ? nil : ControlledOpenError())
-        if attemptNumber == 3 {
-          completion(ControlledOpenError())
+        let attemptNumber = concurrentResults.recordAttempt()
+        if attemptNumber == 1 {
+          let callbacks = CallbackBox(completion)
+          for _ in 0..<24 {
+            DispatchQueue.global().async {
+              callbacks.callback(nil, ControlledOpenError())
+            }
+          }
+        } else {
+          completion(
+            RunningApplicationIdentity(
+              processIdentifier: 4242,
+              bundleIdentifier: "dev.bozhenpeng.PickVia.E2E",
+              canonicalBundleURL: expectedURL
+            ),
+            nil
+          )
+          completion(nil, ControlledOpenError())
         }
       },
-      completion: { completions.append($0) }
-    )
-    precondition(attempts == 3)
-    precondition(retryDelays == 2)
-    precondition(completions == [true])
-
-    var failedAttempts = 0
-    var failedDelays = 0
-    var failedCompletions: [Bool] = []
-    let exhaustsErrors = BoundedOpenCoordinator(
-      maximumAttempts: 3,
-      scheduleRetry: { _, action in
-        failedDelays += 1
-        action()
+      completion: {
+        concurrentResults.recordCompletion($0)
+        concurrentDone.signal()
       }
     )
-    exhaustsErrors.start(
-      attempt: { completion in
-        failedAttempts += 1
-        completion(ControlledOpenError())
-      },
-      completion: { failedCompletions.append($0) }
+    precondition(concurrentDone.wait(timeout: .now() + 2) == .success)
+    Thread.sleep(forTimeInterval: 0.1)
+    let concurrentSnapshot = concurrentResults.snapshot()
+    precondition(concurrentSnapshot.0 == 2)
+    precondition(concurrentSnapshot.1 == 1)
+    precondition(concurrentSnapshot.2 == [true])
+
+    let wrongReturnResults = ResultBox()
+    let wrongReturn = BoundedOpenCoordinator(
+      expectedApplication: expected,
+      maximumAttempts: 3,
+      scheduleRetry: { _, _ in preconditionFailure("identity mismatch retried") }
     )
-    precondition(failedAttempts == 3)
-    precondition(failedDelays == 2)
-    precondition(failedCompletions == [false])
+    wrongReturn.start(
+      attempt: { completion in
+        _ = wrongReturnResults.recordAttempt()
+        completion(
+          RunningApplicationIdentity(
+            processIdentifier: 9999,
+            bundleIdentifier: "dev.bozhenpeng.PickVia.E2E",
+            canonicalBundleURL: expectedURL
+          ),
+          nil
+        )
+      },
+      completion: wrongReturnResults.recordCompletion
+    )
+    let wrongReturnSnapshot = wrongReturnResults.snapshot()
+    precondition(wrongReturnSnapshot.0 == 1)
+    precondition(wrongReturnSnapshot.1 == 0)
+    precondition(wrongReturnSnapshot.2 == [false])
   }
 }
 
@@ -1150,7 +1252,16 @@ OpenWithAppPolicyTestMain.main()
         )
         cls.executable = cls.root / "open_with_app"
         completed = subprocess.run(
-            ["xcrun", "swiftc", str(HELPER_SOURCE), "-o", str(cls.executable)],
+            [
+                "xcrun",
+                "swiftc",
+                "-swift-version",
+                "6",
+                "-warnings-as-errors",
+                str(HELPER_SOURCE),
+                "-o",
+                str(cls.executable),
+            ],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -1191,32 +1302,45 @@ OpenWithAppPolicyTestMain.main()
             check=False,
         )
 
-    def test_helper_requires_exactly_one_app_argument(self):
+    def test_helper_requires_exact_app_and_positive_pid_arguments(self):
         missing = self.run_helper([], b"https://127.0.0.1/token")
-        extra = self.run_helper(
-            ["/Applications/A.app", "/Applications/B.app"], b"https://127.0.0.1/token"
+        cases = (
+            missing,
+            self.run_helper(["/Applications/A.app"], b"https://127.0.0.1/token"),
+            self.run_helper(
+                ["/Applications/A.app", "1", "extra"],
+                b"https://127.0.0.1/token",
+            ),
+            self.run_helper(["/Applications/A.app", "0"], b"https://127.0.0.1/token"),
+            self.run_helper(["/Applications/A.app", "-1"], b"https://127.0.0.1/token"),
+            self.run_helper(
+                ["/Applications/A.app", "not-a-pid"],
+                b"https://127.0.0.1/token",
+            ),
         )
-        self.assertNotEqual(missing.returncode, 0)
-        self.assertNotEqual(extra.returncode, 0)
-        self.assertEqual(missing.stdout, b"")
-        self.assertEqual(extra.stdout, b"")
-        self.assertEqual(missing.stderr, b"invalid arguments\n")
-        self.assertEqual(extra.stderr, b"invalid arguments\n")
+        for result in cases:
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(result.stdout, b"")
+            self.assertEqual(result.stderr, b"invalid arguments\n")
 
     def test_helper_rejects_non_http_schemes_and_input_above_byte_cap(self):
         cases = (
             (
-                ["/Applications/not-an-app"],
+                ["/Applications/not-an-app", "123"],
                 b"https://127.0.0.1/token",
                 b"invalid application\n",
             ),
             (
-                ["/Applications/A.app"],
+                ["/Applications/A.app", "123"],
                 b"file:///private/tmp/secret",
                 b"invalid input\n",
             ),
-            (["/Applications/A.app"], b"ftp://127.0.0.1/token", b"invalid input\n"),
-            (["/Applications/A.app"], b"x" * 4097, b"invalid input\n"),
+            (
+                ["/Applications/A.app", "123"],
+                b"ftp://127.0.0.1/token",
+                b"invalid input\n",
+            ),
+            (["/Applications/A.app", "123"], b"x" * 4097, b"invalid input\n"),
         )
         for arguments, stdin, expected_error in cases:
             with self.subTest(arguments=arguments, size=len(stdin)):
@@ -1238,6 +1362,9 @@ OpenWithAppPolicyTestMain.main()
             [
                 "xcrun",
                 "swiftc",
+                "-swift-version",
+                "6",
+                "-warnings-as-errors",
                 "-DPICKVIA_OPEN_WITH_APP_POLICY_TESTS",
                 str(self.policy_source),
                 "-o",

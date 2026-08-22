@@ -9,15 +9,28 @@ private let registrationCheckDelay: TimeInterval = 0.1
 private let maximumOpenAttempts = 3
 private let openRetryDelay: TimeInterval = 0.15
 
-struct RunningApplicationIdentity {
+struct RunningApplicationIdentity: Sendable {
+  let processIdentifier: pid_t
   let bundleIdentifier: String?
   let canonicalBundleURL: URL?
 }
 
+struct ExpectedRunningApplicationIdentity: Sendable {
+  let processIdentifier: pid_t
+  let bundleIdentifier: String
+  let canonicalBundleURL: URL
+
+  func matches(_ candidate: RunningApplicationIdentity?) -> Bool {
+    guard let candidate else { return false }
+    return candidate.processIdentifier == processIdentifier
+      && candidate.bundleIdentifier == bundleIdentifier
+      && candidate.canonicalBundleURL == canonicalBundleURL
+  }
+}
+
 enum ExactApplicationRegistrationPolicy {
   static func wait(
-    expectedBundleIdentifier: String,
-    expectedCanonicalBundleURL: URL,
+    expected: ExpectedRunningApplicationIdentity,
     maximumChecks: Int,
     delayInterval: TimeInterval = registrationCheckDelay,
     snapshot: () -> [RunningApplicationIdentity],
@@ -26,10 +39,7 @@ enum ExactApplicationRegistrationPolicy {
     guard maximumChecks > 0 else { return false }
 
     for check in 0..<maximumChecks {
-      if snapshot().contains(where: {
-        $0.bundleIdentifier == expectedBundleIdentifier
-          && $0.canonicalBundleURL == expectedCanonicalBundleURL
-      }) {
+      if snapshot().contains(where: expected.matches) {
         return true
       }
       if check + 1 < maximumChecks {
@@ -40,22 +50,33 @@ enum ExactApplicationRegistrationPolicy {
   }
 }
 
-final class BoundedOpenCoordinator {
-  typealias OpenAttempt = (@escaping (Error?) -> Void) -> Void
-  typealias RetryScheduler = (TimeInterval, @escaping () -> Void) -> Void
+final class BoundedOpenCoordinator: @unchecked Sendable {
+  typealias OpenCompletion = @Sendable (RunningApplicationIdentity?, (any Error)?) -> Void
+  typealias OpenAttempt = @Sendable (@escaping OpenCompletion) -> Void
+  typealias RetryAction = @Sendable () -> Void
+  typealias RetryScheduler = @Sendable (TimeInterval, @escaping RetryAction) -> Void
+  typealias FinalCompletion = @Sendable (Bool) -> Void
 
+  private let expectedApplication: ExpectedRunningApplicationIdentity
   private let maximumAttempts: Int
   private let retryDelay: TimeInterval
   private let scheduleRetry: RetryScheduler
+  private let lock = NSLock()
   private var attemptCount = 0
+  private var activeAttemptID = 0
+  private var handledAttemptID: Int?
   private var started = false
   private var finished = false
+  private var attempt: OpenAttempt?
+  private var finalCompletion: FinalCompletion?
 
   init(
+    expectedApplication: ExpectedRunningApplicationIdentity,
     maximumAttempts: Int,
     retryDelay: TimeInterval = openRetryDelay,
     scheduleRetry: @escaping RetryScheduler
   ) {
+    self.expectedApplication = expectedApplication
     self.maximumAttempts = maximumAttempts
     self.retryDelay = retryDelay
     self.scheduleRetry = scheduleRetry
@@ -63,47 +84,94 @@ final class BoundedOpenCoordinator {
 
   func start(
     attempt: @escaping OpenAttempt,
-    completion: @escaping (Bool) -> Void
+    completion: @escaping FinalCompletion
   ) {
-    guard !started else { return }
-    started = true
-    runAttempt(attempt, completion: completion)
-  }
-
-  private func runAttempt(
-    _ attempt: @escaping OpenAttempt,
-    completion: @escaping (Bool) -> Void
-  ) {
-    guard !finished, maximumAttempts > 0, attemptCount < maximumAttempts else {
-      finish(false, completion: completion)
+    lock.lock()
+    guard !started else {
+      lock.unlock()
       return
     }
+    started = true
+    self.attempt = attempt
+    finalCompletion = completion
+    lock.unlock()
+    runAttempt()
+  }
 
-    attemptCount += 1
-    var completionHandled = false
-    attempt { [weak self] error in
-      guard let self, !completionHandled, !finished else { return }
-      completionHandled = true
+  private func runAttempt() {
+    var attemptToRun: OpenAttempt?
+    var attemptID = 0
+    var completionToCall: FinalCompletion?
 
-      guard error != nil else {
-        finish(true, completion: completion)
-        return
-      }
-      guard attemptCount < maximumAttempts else {
-        finish(false, completion: completion)
-        return
-      }
+    lock.lock()
+    if !finished, maximumAttempts > 0, attemptCount < maximumAttempts {
+      attemptCount += 1
+      activeAttemptID += 1
+      attemptID = activeAttemptID
+      handledAttemptID = nil
+      attemptToRun = attempt
+    } else {
+      completionToCall = finishLocked()
+    }
+    lock.unlock()
 
-      scheduleRetry(retryDelay) { [weak self] in
-        self?.runAttempt(attempt, completion: completion)
-      }
+    if let completionToCall {
+      completionToCall(false)
+      return
+    }
+    guard let attemptToRun else { return }
+    let currentAttemptID = attemptID
+
+    attemptToRun { [self] application, error in
+      handleCompletion(application, error: error, attemptID: currentAttemptID)
     }
   }
 
-  private func finish(_ succeeded: Bool, completion: (Bool) -> Void) {
-    guard !finished else { return }
+  private func handleCompletion(
+    _ application: RunningApplicationIdentity?,
+    error: (any Error)?,
+    attemptID: Int
+  ) {
+    var completionToCall: FinalCompletion?
+    var result = false
+    var shouldRetry = false
+
+    lock.lock()
+    guard
+      !finished,
+      activeAttemptID == attemptID,
+      handledAttemptID != attemptID
+    else {
+      lock.unlock()
+      return
+    }
+    handledAttemptID = attemptID
+
+    if error == nil {
+      result = expectedApplication.matches(application)
+      completionToCall = finishLocked()
+    } else if attemptCount < maximumAttempts {
+      shouldRetry = true
+    } else {
+      completionToCall = finishLocked()
+    }
+    lock.unlock()
+
+    if shouldRetry {
+      scheduleRetry(retryDelay) { [self] in
+        runAttempt()
+      }
+    } else {
+      completionToCall?(result)
+    }
+  }
+
+  private func finishLocked() -> FinalCompletion? {
+    guard !finished else { return nil }
     finished = true
-    completion(succeeded)
+    attempt = nil
+    defer { finalCompletion = nil }
+    return finalCompletion
   }
 }
 
@@ -136,7 +204,11 @@ final class BoundedOpenCoordinator {
   }
 
   private func runHelper() -> Never {
-    guard CommandLine.arguments.count == 2 else {
+    guard
+      CommandLine.arguments.count == 3,
+      let expectedProcessIdentifier = pid_t(CommandLine.arguments[2]),
+      expectedProcessIdentifier > 0
+    else {
       fail("invalid arguments")
     }
 
@@ -184,16 +256,21 @@ final class BoundedOpenCoordinator {
     else {
       fail("invalid application")
     }
+    let expectedApplication = ExpectedRunningApplicationIdentity(
+      processIdentifier: expectedProcessIdentifier,
+      bundleIdentifier: expectedBundleIdentifier,
+      canonicalBundleURL: expectedCanonicalBundleURL
+    )
 
     let registered = ExactApplicationRegistrationPolicy.wait(
-      expectedBundleIdentifier: expectedBundleIdentifier,
-      expectedCanonicalBundleURL: expectedCanonicalBundleURL,
+      expected: expectedApplication,
       maximumChecks: maximumRegistrationChecks,
       snapshot: {
         NSRunningApplication.runningApplications(
           withBundleIdentifier: expectedBundleIdentifier
         ).map {
           RunningApplicationIdentity(
+            processIdentifier: $0.processIdentifier,
             bundleIdentifier: $0.bundleIdentifier,
             canonicalBundleURL: $0.bundleURL.map(canonicalURL)
           )
@@ -205,10 +282,8 @@ final class BoundedOpenCoordinator {
       fail("application unavailable")
     }
 
-    let configuration = NSWorkspace.OpenConfiguration()
-    configuration.activates = false
-    configuration.addsToRecentItems = false
     let coordinator = BoundedOpenCoordinator(
+      expectedApplication: expectedApplication,
       maximumAttempts: maximumOpenAttempts,
       scheduleRetry: { delay, action in
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: action)
@@ -216,12 +291,24 @@ final class BoundedOpenCoordinator {
     )
     coordinator.start(
       attempt: { completion in
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = false
+        configuration.addsToRecentItems = false
         NSWorkspace.shared.open(
           [url],
           withApplicationAt: lexicalApplicationURL,
           configuration: configuration
-        ) { _, error in
-          completion(error)
+        ) { application, error in
+          completion(
+            application.map {
+              RunningApplicationIdentity(
+                processIdentifier: $0.processIdentifier,
+                bundleIdentifier: $0.bundleIdentifier,
+                canonicalBundleURL: $0.bundleURL.map(canonicalURL)
+              )
+            },
+            error
+          )
         }
       },
       completion: { succeeded in

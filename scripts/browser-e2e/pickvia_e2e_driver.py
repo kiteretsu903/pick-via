@@ -1179,7 +1179,7 @@ def run_driver(config, dependencies=None):
 
         helper = processes.start(
             "exact-app-helper",
-            [helper_executable, e2e_app],
+            [helper_executable, e2e_app, str(app.pid)],
             environment=dict(os.environ),
             stdin=subprocess.PIPE,
         )
