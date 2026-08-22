@@ -12,6 +12,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 HELPER_SOURCE = SCRIPT_DIR / "open_with_app.swift"
@@ -457,6 +458,25 @@ server.server_close()
 
 @unittest.skipIf(driver is None, "PickVia E2E route driver is not implemented")
 class PickViaE2EDriverTests(unittest.TestCase):
+    def test_browser_termination_treats_authoritative_presignal_absence_as_benign(self):
+        executable = pathlib.Path("/Applications/Browser.app/Contents/MacOS/Browser")
+        identity = driver.ProcessIdentity(123, 1, 2, 3, executable)
+        with mock.patch.object(
+            driver, "_snapshot_exact_browser_processes", return_value=frozenset()
+        ), mock.patch.object(driver.os, "kill") as kill:
+            self.assertTrue(
+                driver._terminate_exact_browser_process(identity, executable)
+            )
+            kill.assert_not_called()
+        with mock.patch.object(
+            driver,
+            "_snapshot_exact_browser_processes",
+            side_effect=driver._IdentityInspectionError,
+        ), mock.patch.object(driver.os, "kill") as kill:
+            with self.assertRaises(driver._IdentityInspectionError):
+                driver._terminate_exact_browser_process(identity, executable)
+            kill.assert_not_called()
+
     def test_baseline_identity_inspection_failure_aborts_before_route_delivery(self):
         with DriverFixture(
             preexisting_browser_pids={41}, snapshot_failures={"baseline"}

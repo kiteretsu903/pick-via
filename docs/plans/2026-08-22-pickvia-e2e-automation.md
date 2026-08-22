@@ -704,6 +704,11 @@ git commit -m "build: add isolated PickVia e2e application"
 
 Use fake app/helper processes and temporary FIFOs. Cover:
 
+The driver accepts exactly one initial status record. Only an initial `selected` may be
+followed by exactly one `launch-error`; duplicates, any other second record, malformed
+records, and unknown outcomes are invalid-status failures. Tests cover the valid
+two-record sequence plus duplicate and other invalid second records.
+
 ```python
 def test_driver_keeps_url_out_of_harness_control_and_output_channels(self):
     with DriverFixture() as fixture:

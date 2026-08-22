@@ -141,8 +141,9 @@ targets. The harness never emits unrelated profile labels or paths. Only exact s
 
 ### Status channel
 
-The app writes one newline-delimited sanitized status record per request to the supplied
-FIFO. Allowed outcomes are a small closed set such as:
+The app writes exactly one initial newline-delimited sanitized status record per request
+to the supplied FIFO. Only an initial `selected` may be followed by exactly one
+`launch-error`; no other second record is valid. Allowed outcomes are the closed set:
 
 - `selected`;
 - `control-missing`;
@@ -152,8 +153,9 @@ FIFO. Allowed outcomes are a small closed set such as:
 - `target-disabled`;
 - `target-unavailable`;
 - `target-browser-mismatch`;
-- `target-mode-mismatch`; and
-- `non-web-request`.
+- `target-mode-mismatch`;
+- `non-web-request`;
+- `launch-error`.
 
 Records contain the session nonce and safe outcome only. They never contain a URL, token
 path, profile label, filesystem path, arbitrary error text, or a serialized target.

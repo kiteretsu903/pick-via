@@ -243,7 +243,7 @@ def _terminate_exact_browser_process(identity, executable):
     expected = pathlib.Path(executable)
     current = _snapshot_exact_browser_processes(expected)
     if not any(item.generation_key == identity.generation_key for item in current):
-        return False
+        return True
     try:
         os.kill(identity.pid, signal.SIGTERM)
     except ProcessLookupError:
