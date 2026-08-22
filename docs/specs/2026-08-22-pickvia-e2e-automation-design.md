@@ -154,6 +154,7 @@ to the supplied FIFO. Only an initial `selected` may be followed by exactly one
 - `target-unavailable`;
 - `target-browser-mismatch`;
 - `target-mode-mismatch`;
+- `target-shape-mismatch`;
 - `non-web-request`;
 - `launch-error`.
 
