@@ -564,6 +564,54 @@ class PickViaE2EDriverTests(unittest.TestCase):
                 driver._terminate_exact_browser_process(identity, executable)
             kill.assert_not_called()
 
+    @unittest.skipUnless(sys.platform == "darwin", "requires Darwin process identity")
+    def test_browser_termination_allows_bounded_delayed_exact_process_exit(self):
+        source = """
+import signal
+import time
+
+terminating = False
+
+def begin_termination(_signum, _frame):
+    global terminating
+    terminating = True
+
+signal.signal(signal.SIGTERM, begin_termination)
+print("ready", flush=True)
+while not terminating:
+    time.sleep(0.01)
+time.sleep(1.25)
+"""
+        process = subprocess.Popen(
+            [sys.executable, "-c", source],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        try:
+            self.assertEqual(process.stdout.readline().strip(), "ready")
+            identity = driver._darwin_process_identity(process.pid)
+            started = time.monotonic()
+
+            self.assertTrue(
+                driver._terminate_exact_browser_process(
+                    identity,
+                    identity.executable,
+                )
+            )
+
+            elapsed = time.monotonic() - started
+            self.assertGreater(elapsed, 1.0)
+            self.assertLess(elapsed, 3.0)
+            self.assertEqual(process.wait(timeout=1.0), 0)
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait(timeout=1.0)
+            process.stdout.close()
+            process.stderr.close()
+
     def test_baseline_identity_inspection_failure_aborts_before_route_delivery(self):
         with DriverFixture(
             preexisting_browser_pids={41}, snapshot_failures={"baseline"}

@@ -38,6 +38,7 @@ DRIVER_BROWSER_IDENTITY_AMBIGUOUS = 21
 DRIVER_CLEANUP_FAILURE = 22
 
 MAXIMUM_TIMEOUT_SECONDS = 30.0
+BROWSER_SHUTDOWN_GRACE_SECONDS = 3.0
 MAXIMUM_PROTOCOL_LINE_BYTES = 2_048
 MAXIMUM_CAPTURE_BYTES = 65_536
 MAXIMUM_AUDIT_FILE_BYTES = 8 * 1_024 * 1_024
@@ -248,7 +249,7 @@ def _terminate_exact_browser_process(identity, executable):
         os.kill(identity.pid, signal.SIGTERM)
     except ProcessLookupError:
         return True
-    deadline = time.monotonic() + 1.0
+    deadline = time.monotonic() + BROWSER_SHUTDOWN_GRACE_SECONDS
     while time.monotonic() < deadline:
         current = _snapshot_exact_browser_processes(expected)
         if not any(item.generation_key == identity.generation_key for item in current):
