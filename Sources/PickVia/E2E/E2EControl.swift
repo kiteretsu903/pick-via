@@ -1,4 +1,5 @@
 #if PICKVIA_E2E_AUTOMATION
+  import Darwin
   import Foundation
   import PickViaCore
 
@@ -20,6 +21,18 @@
     let statusFIFO: URL
 
     static func load(environment: [String: String]) -> E2EControl? {
+      load(
+        environment: environment,
+        currentUID: getuid(),
+        inspectSupportDirectory: inspectRealSupportDirectory
+      )
+    }
+
+    static func load(
+      environment: [String: String],
+      currentUID: uid_t,
+      inspectSupportDirectory: (URL) -> E2ESupportDirectoryInspection?
+    ) -> E2EControl? {
       guard
         let targetID = nonempty(environment[E2EEnvironmentKey.targetID], limit: 512),
         let bundleID = nonempty(
@@ -38,18 +51,25 @@
           limit: 1_024
         ),
         let fifoPath = nonempty(environment[E2EEnvironmentKey.statusFIFO], limit: 1_024),
-        supportPath.hasPrefix("/"),
-        fifoPath.hasPrefix("/")
+        let lexicalSupportPath = lexicallyStandardizedAbsolutePath(supportPath),
+        lexicalSupportPath == supportPath,
+        let lexicalFIFOPath = lexicallyStandardizedAbsolutePath(fifoPath),
+        lexicalFIFOPath == fifoPath
       else { return nil }
 
-      let support = URL(fileURLWithPath: supportPath, isDirectory: true).standardizedFileURL
-      let fifo = URL(fileURLWithPath: fifoPath).standardizedFileURL
+      let support = URL(fileURLWithPath: lexicalSupportPath, isDirectory: true)
+      let fifo = URL(fileURLWithPath: lexicalFIFOPath)
       let supportName = support.lastPathComponent
       guard
         support.deletingLastPathComponent().path == "/private/tmp",
         supportName.hasPrefix("pickvia-e2e-"),
         supportName != "pickvia-e2e-",
-        fifo.path.hasPrefix(support.path + "/")
+        fifo.deletingLastPathComponent().path == support.path,
+        let inspection = inspectSupportDirectory(support),
+        inspection.isDirectory,
+        !inspection.isSymbolicLink,
+        inspection.ownerUID == currentUID,
+        inspection.resolvedPath == support.path
       else { return nil }
 
       return E2EControl(
@@ -63,6 +83,13 @@
     }
   }
 
+  struct E2ESupportDirectoryInspection: Equatable {
+    let isDirectory: Bool
+    let isSymbolicLink: Bool
+    let ownerUID: uid_t
+    let resolvedPath: String
+  }
+
   enum E2ESelectionOutcome: String, Equatable {
     case selected
     case controlMissing = "control-missing"
@@ -73,6 +100,7 @@
     case targetUnavailable = "target-unavailable"
     case targetBrowserMismatch = "target-browser-mismatch"
     case targetModeMismatch = "target-mode-mismatch"
+    case targetShapeMismatch = "target-shape-mismatch"
     case nonWebRequest = "non-web-request"
     case launchError = "launch-error"
   }
@@ -95,17 +123,89 @@
       let target = matches[0]
       guard target.isEnabled else { return .reject(.targetDisabled) }
       guard target.availability == .available else { return .reject(.targetUnavailable) }
+
+      let linkedApplications = applications.filter { $0.id == target.applicationID }
       guard
-        let application = applications.first(where: { $0.id == target.applicationID }),
+        linkedApplications.count == 1,
+        let application = linkedApplications.first,
+        application.id == control.expectedBundleIdentifier,
         application.bundleIdentifier == control.expectedBundleIdentifier,
-        application.isAvailable(for: .web)
+        application.isAvailable(for: .web),
+        let descriptor = BrowserDescriptor.descriptor(
+          forBundleIdentifier: application.bundleIdentifier
+        ),
+        descriptor.hasCompatibleStrategies,
+        descriptor.family == application.browserFamily
       else { return .reject(.targetBrowserMismatch) }
       guard
         case .browser(let options) = target.capability,
         options.mode == control.expectedMode
       else { return .reject(.targetModeMismatch) }
+      guard
+        target.applicationID == application.id,
+        target.origin == .detected,
+        isCanonical(target: target, options: options, descriptor: descriptor)
+      else { return .reject(.targetShapeMismatch) }
 
       return .select(target.id)
+    }
+
+    private static func isCanonical(
+      target: RouteTarget,
+      options: BrowserTargetOptions,
+      descriptor: BrowserDescriptor
+    ) -> Bool {
+      if options.mode == .private, !descriptor.supportsPrivateMode {
+        return false
+      }
+
+      let hasProfileEvidence =
+        options.profileIdentifier != nil
+        || options.profileDisplayName != nil
+        || options.profileIdentity != nil
+        || options.profileLaunchPath != nil
+      guard hasProfileEvidence else {
+        return target.id
+          == BrowserCatalog.targetID(
+            bundleIdentifier: descriptor.bundleIdentifier,
+            profileIdentifier: nil,
+            mode: options.mode
+          )
+      }
+
+      guard
+        descriptor.supportsProfiles,
+        let identifier = nonempty(options.profileIdentifier, limit: 512),
+        identifier == options.profileIdentifier,
+        let displayName = nonempty(options.profileDisplayName, limit: 512),
+        displayName == options.profileDisplayName,
+        let identity = nonempty(options.profileIdentity, limit: 512),
+        identity == options.profileIdentity,
+        target.id
+          == BrowserCatalog.targetID(
+            bundleIdentifier: descriptor.bundleIdentifier,
+            profileIdentifier: identity,
+            mode: options.mode
+          )
+      else { return false }
+
+      if let launchPath = options.profileLaunchPath {
+        guard
+          let validatedLaunchPath = nonempty(launchPath, limit: 1_024),
+          validatedLaunchPath == launchPath
+        else { return false }
+      }
+
+      switch descriptor.profileStrategy {
+      case .none:
+        return false
+      case .chromium:
+        return identifier == identity
+      case .firefox:
+        return FirefoxProfileIdentity.isOpaqueIdentifier(identity)
+      case .safariShortcut:
+        return true
+      }
     }
   }
 
@@ -117,5 +217,48 @@
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
     guard trimmed == value, !trimmed.isEmpty, trimmed.utf8.count <= limit else { return nil }
     return trimmed
+  }
+
+  private func lexicallyStandardizedAbsolutePath(_ path: String) -> String? {
+    guard path.hasPrefix("/") else { return nil }
+    var components: [Substring] = []
+    for component in path.split(separator: "/", omittingEmptySubsequences: false).dropFirst() {
+      switch component {
+      case "", ".":
+        continue
+      case "..":
+        guard !components.isEmpty else { return nil }
+        components.removeLast()
+      default:
+        components.append(component)
+      }
+    }
+    return "/" + components.joined(separator: "/")
+  }
+
+  private func inspectRealSupportDirectory(
+    _ directory: URL
+  ) -> E2ESupportDirectoryInspection? {
+    var metadata = stat()
+    let status = directory.withUnsafeFileSystemRepresentation { path in
+      guard let path else { return Int32(-1) }
+      return lstat(path, &metadata)
+    }
+    guard status == 0 else { return nil }
+
+    let resolvedPath = directory.withUnsafeFileSystemRepresentation { path -> String? in
+      guard let path, let resolved = realpath(path, nil) else { return nil }
+      defer { free(resolved) }
+      return String(cString: resolved)
+    }
+    guard let resolvedPath else { return nil }
+
+    let fileType = metadata.st_mode & mode_t(S_IFMT)
+    return E2ESupportDirectoryInspection(
+      isDirectory: fileType == mode_t(S_IFDIR),
+      isSymbolicLink: fileType == mode_t(S_IFLNK),
+      ownerUID: metadata.st_uid,
+      resolvedPath: resolvedPath
+    )
   }
 #endif
