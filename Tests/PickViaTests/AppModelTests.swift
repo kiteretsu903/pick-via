@@ -1906,7 +1906,7 @@ final class AppModelTests: XCTestCase {
     XCTAssertTrue(model.shouldAutomaticallyPresentProfileAccess)
   }
 
-  func testManualManagerContainsEveryInstalledNonSafariBrowserWithApprovedCopy() throws {
+  func testManualManagerContainsEveryInstalledFileBackedBrowserWithApprovedCopy() throws {
     let scan = BrowserScanResult(
       browsers: [
         Fixtures.installedBrowser(
@@ -1951,6 +1951,105 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(chrome.expectedRootSuffix, "Library/Application Support/Google/Chrome")
     XCTAssertEqual(chrome.requiredMarker, "Local State")
     XCTAssertTrue(chrome.hasStoredGrant)
+  }
+
+  func testProfileAccessRowsExistOnlyForFileBackedDescriptorStrategies() throws {
+    let scan = BrowserScanResult(
+      browsers: [
+        Fixtures.installedBrowser("com.apple.Safari", status: .notApplicable),
+        Fixtures.installedBrowser(
+          DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
+          status: .notApplicable
+        ),
+        Fixtures.installedBrowser("com.operasoftware.Opera", status: .notApplicable),
+        Fixtures.installedBrowser("company.thebrowser.Browser", status: .notApplicable),
+        Fixtures.installedBrowser("com.kagi.kagimacOS", status: .notApplicable),
+        Fixtures.installedBrowser("com.google.Chrome", status: .metadataAbsent),
+        Fixtures.installedBrowser("org.mozilla.firefox", status: .metadataAbsent),
+      ],
+      profileAccessIssues: [],
+      isAuthoritative: true
+    )
+    let model = makeModel(catalog: BrowserCatalogStub(scanResult: scan))
+    try model.load()
+
+    model.openProfileAccessManager()
+
+    XCTAssertEqual(
+      model.profileAccessRows.map(\.bundleIdentifier),
+      ["com.google.Chrome", "org.mozilla.firefox"]
+    )
+    XCTAssertEqual(
+      model.profileAccessRows.map(\.expectedRootSuffix),
+      [
+        "Library/Application Support/Google/Chrome",
+        "Library/Application Support/Firefox",
+      ]
+    )
+    XCTAssertEqual(model.profileAccessRows.map(\.requiredMarker), ["Local State", "profiles.ini"])
+  }
+
+  func testFirefoxEditionsKeepBundleKeyedRowsForOneSharedPhysicalRoot() throws {
+    let bundleIdentifiers = [
+      "org.mozilla.firefox",
+      "org.mozilla.firefoxdeveloperedition",
+      "org.mozilla.nightly",
+    ]
+    let browsers = bundleIdentifiers.map {
+      Fixtures.installedBrowser($0, status: .accessRequired)
+    }
+    let scan = BrowserScanResult(
+      browsers: browsers,
+      profileAccessIssues: bundleIdentifiers.map {
+        .accessRequired(bundleIdentifier: $0)
+      },
+      isAuthoritative: true
+    )
+    let stableTargeted = Fixtures.installedBrowser(
+      "org.mozilla.firefox",
+      status: .loaded,
+      profiles: [
+        DiscoveredProfile(
+          identifier: "synthetic-firefox",
+          displayName: "PickVia E2E",
+          directoryURL: nil
+        )
+      ]
+    )
+    let access = ProfileAccessManagerSpy()
+    let catalog = BrowserCatalogStub(
+      scanResult: scan,
+      targeted: ["org.mozilla.firefox": stableTargeted]
+    )
+    let model = makeModel(
+      catalog: catalog,
+      access: access,
+      profileRootValidator: profileRootValidator(validRoots: ["/SharedFirefox"])
+    )
+    try model.load()
+    model.openProfileAccessManager()
+
+    XCTAssertEqual(model.profileAccessRows.map(\.bundleIdentifier), bundleIdentifiers)
+    XCTAssertEqual(Set(model.profileAccessRows.map(\.id)).count, 3)
+    XCTAssertEqual(
+      Set(model.profileAccessRows.map(\.expectedRootSuffix)),
+      ["Library/Application Support/Firefox"]
+    )
+    XCTAssertEqual(Set(model.profileAccessRows.map(\.requiredMarker)), ["profiles.ini"])
+
+    try model.grantProfileAccess(
+      for: "org.mozilla.firefox",
+      root: URL(fileURLWithPath: "/SharedFirefox")
+    )
+
+    XCTAssertEqual(access.installed.map(\.bundleIdentifier), ["org.mozilla.firefox"])
+    XCTAssertEqual(
+      model.profileAccessRows[0].state, .granted(profileCount: 1, persistence: .persistent))
+    XCTAssertEqual(model.profileAccessRows[1].state, .accessNeeded)
+    XCTAssertEqual(model.profileAccessRows[2].state, .accessNeeded)
+    XCTAssertTrue(model.profileAccessRows[0].hasStoredGrant)
+    XCTAssertFalse(model.profileAccessRows[1].hasStoredGrant)
+    XCTAssertFalse(model.profileAccessRows[2].hasStoredGrant)
   }
 
   func testFinishEligibilityRequiresAtLeastOneGrantedRow() throws {
@@ -3915,6 +4014,75 @@ final class AppModelTests: XCTestCase {
     XCTAssertTrue(store.saved.isEmpty)
   }
 
+  func testManualTargetUsesDescriptorProfileAndPrivateCapabilities() throws {
+    let browser = BrowserApplication(
+      id: "com.google.Chrome",
+      family: .chromium,
+      displayName: "Google Chrome",
+      bundleIdentifier: "com.google.Chrome",
+      applicationURL: URL(fileURLWithPath: "/Applications/Google Chrome.app"),
+      executableURL: nil,
+      isAvailable: true
+    )
+    let normal = capabilityTarget(browser: browser, profileIdentifier: nil, mode: .normal)
+    let privateTarget = capabilityTarget(browser: browser, profileIdentifier: nil, mode: .private)
+    let profile = capabilityTarget(
+      browser: browser,
+      profileIdentifier: "Profile 1",
+      mode: .normal
+    )
+    let config = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: [browser],
+      targets: [normal, privateTarget, profile]
+    )
+    let store = ConfigStoreStub(config: config)
+    let model = makeModel(store: store)
+    try model.load()
+
+    let id = try model.addManualTarget(
+      browserID: browser.id,
+      profileIdentifier: "Profile 1",
+      label: "Capability driven",
+      mode: .private
+    )
+
+    let added = try XCTUnwrap(model.targets.first { $0.id == id })
+    XCTAssertEqual(added.profileIdentity, "Profile 1")
+    XCTAssertEqual(added.mode, .private)
+  }
+
+  func testManualTargetRejectsPrivateModeWhenDiscoveryDidNotPublishIt() throws {
+    let browser = BrowserApplication(
+      id: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
+      family: .duckDuckGo,
+      displayName: "DuckDuckGo",
+      bundleIdentifier: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
+      applicationURL: URL(fileURLWithPath: "/Applications/DuckDuckGo.app"),
+      executableURL: nil,
+      isAvailable: true
+    )
+    let normal = capabilityTarget(browser: browser, profileIdentifier: nil, mode: .normal)
+    let config = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: [browser],
+      targets: [normal]
+    )
+    let store = ConfigStoreStub(config: config)
+    let model = makeModel(store: store)
+    try model.load()
+
+    XCTAssertThrowsError(
+      try model.addManualTarget(
+        browserID: browser.id,
+        profileIdentifier: nil,
+        label: "No private capability",
+        mode: .private
+      )
+    )
+    XCTAssertEqual(model.config, config)
+  }
+
   func testManualTargetRequiresInstalledSupportedBrowser() throws {
     let unsupported = BrowserApplication(
       id: "com.example.browser",
@@ -4749,6 +4917,30 @@ final class AppModelTests: XCTestCase {
       })
     return BrowserProfileRootValidator(fileSystem: ProfileRootValidatorFileSystem(files: files))
   }
+}
+
+private func capabilityTarget(
+  browser: BrowserApplication,
+  profileIdentifier: String?,
+  mode: BrowserMode
+) -> BrowserTarget {
+  BrowserTarget(
+    id: BrowserCatalog.targetID(
+      bundleIdentifier: browser.bundleIdentifier,
+      profileIdentifier: profileIdentifier,
+      mode: mode
+    ),
+    browserID: browser.id,
+    label: profileIdentifier ?? browser.displayName,
+    profileIdentifier: profileIdentifier,
+    profileDisplayName: profileIdentifier,
+    profileIdentity: profileIdentifier,
+    mode: mode,
+    isEnabled: true,
+    sortOrder: 0,
+    origin: .detected,
+    availability: .available
+  )
 }
 
 private enum TestError: Error {

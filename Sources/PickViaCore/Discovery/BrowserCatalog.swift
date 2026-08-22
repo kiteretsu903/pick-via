@@ -215,15 +215,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       let candidates = targetCandidates(for: browser)
       for candidate in candidates {
         let canonicalExisting = existingByID[candidate.id]
-        let preservesUnsupportedCanonicalCollision =
-          switch browser.application.browserFamily {
-          case .duckDuckGo, .opera, .arc, .orion:
-            true
-          case .safari, .chromium, .firefox, nil:
-            false
-          }
-        if preservesUnsupportedCanonicalCollision,
-          isBrowserLevelTarget(candidate),
+        if isBrowserLevelTarget(candidate),
           let canonicalExisting,
           !isBrowserLevelTarget(canonicalExisting)
             || canonicalExisting.mode != candidate.mode
@@ -257,7 +249,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
           ?? legacyCanonicalWinner
           ?? canonicalExisting
           ?? legacyAbsolutePathMatches.min(by: stableCustomizationOrder)
-          ?? ((browser.application.browserFamily == .safari || !isBrowserLevelTarget(candidate))
+          ?? ((!supportsProfiles(browser) || !isBrowserLevelTarget(candidate))
             && hasUniqueMutableProfileName(candidate, among: candidates)
             ? legacyProfileMatch(for: candidate, in: browserTargets) : nil)
         consumedExistingIDs.formUnion(canonicalDefaultMatches.map(\.id))
@@ -370,22 +362,28 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   public static func runtimeSanitizedFallbackResult(
     _ config: PickViaConfig
   ) -> BrowserRuntimeFallback {
-    let familyByApplicationID = Dictionary(
-      uniqueKeysWithValues: config.applications.compactMap { application in
-        application.browserFamily.map { (application.id, $0) }
+    let firefoxApplicationIDs: Set<RoutedApplication.ID> = Set(
+      config.applications.compactMap { application in
+        guard
+          let descriptor = BrowserDescriptor.descriptor(
+            forBundleIdentifier: application.bundleIdentifier
+          ),
+          case .firefox = descriptor.profileStrategy
+        else { return nil }
+        return application.id
       }
     )
     var authoritativeTargetIDByRuntimeTargetID: [RouteTarget.ID: RouteTarget.ID] = [:]
     var usedTargetIDs = Set(
       config.targets.compactMap { target in
         target.routeKind == .web
-          && familyByApplicationID[target.applicationID] == .firefox
+          && firefoxApplicationIDs.contains(target.applicationID)
           ? nil : target.id
       })
     let targets = config.targets.enumerated().map { index, target in
       guard
         target.routeKind == .web,
-        familyByApplicationID[target.applicationID] == .firefox
+        firefoxApplicationIDs.contains(target.applicationID)
       else {
         authoritativeTargetIDByRuntimeTargetID[target.id] = target.id
         return target
@@ -584,34 +582,46 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   }
 
   private static func targetCandidates(for browser: DiscoveredBrowser) -> [RouteTarget] {
-    if browser.application.browserFamily == .safari {
-      return [candidate(browser: browser.application, profile: nil, mode: .normal)]
-    }
-
     var defaults = [candidate(browser: browser.application, profile: nil, mode: .normal)]
-    if browser.privateModeIsAvailable {
+    if supportsPrivateMode(browser) {
       defaults.append(candidate(browser: browser.application, profile: nil, mode: .private))
     }
     let explicitProfiles: [DiscoveredProfile]
-    switch browser.metadataStatus {
-    case .notApplicable, .metadataAbsent, .loaded:
+    switch (supportsProfiles(browser), browser.metadataStatus) {
+    case (false, _):
+      explicitProfiles = []
+    case (true, .notApplicable), (true, .metadataAbsent), (true, .loaded):
       let profiles = uniqueProfiles(browser.profiles)
       let markedDefaults = profiles.filter(\.isDefault)
       let absorbedID = markedDefaults.count == 1 ? markedDefaults[0].identifier : nil
       explicitProfiles = profiles.filter { $0.identifier != absorbedID }
-    case .accessRequired, .accessRevoked, .metadataDamaged:
+    case (true, .accessRequired), (true, .accessRevoked), (true, .metadataDamaged):
       explicitProfiles = []
     }
 
     return defaults
       + explicitProfiles.flatMap { profile in
         var candidates = [candidate(browser: browser.application, profile: profile, mode: .normal)]
-        if browser.privateModeIsAvailable {
+        if supportsPrivateMode(browser) {
           candidates.append(
             candidate(browser: browser.application, profile: profile, mode: .private))
         }
         return candidates
       }
+  }
+
+  private static func descriptor(for browser: DiscoveredBrowser) -> BrowserDescriptor? {
+    BrowserDescriptor.descriptor(
+      forBundleIdentifier: browser.application.bundleIdentifier
+    )
+  }
+
+  private static func supportsProfiles(_ browser: DiscoveredBrowser) -> Bool {
+    descriptor(for: browser)?.supportsProfiles == true
+  }
+
+  private static func supportsPrivateMode(_ browser: DiscoveredBrowser) -> Bool {
+    descriptor(for: browser)?.supportsPrivateMode == true && browser.privateModeIsAvailable
   }
 
   private static func candidate(
@@ -698,115 +708,66 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     _ target: RouteTarget,
     discovered: [DiscoveredBrowser]
   ) -> RouteTarget {
-    let targetFamily =
-      discovered.first(where: { $0.application.id == target.applicationID })?
-      .application.browserFamily
-      ?? BrowserDescriptor.family(forBundleIdentifier: target.applicationID)
+    let browser = discovered.first { $0.application.id == target.applicationID }
+    let descriptor =
+      browser.flatMap(descriptor(for:))
+      ?? BrowserDescriptor.descriptor(forBundleIdentifier: target.applicationID)
     let availability: TargetAvailability
     var resolvedProfile: DiscoveredProfile?
     var refreshesMutableLaunchSelector = false
-    if let browser = discovered.first(where: { $0.application.id == target.applicationID }),
+    if let browser,
       browser.application.isAvailable(for: .web),
-      let browserFamily = browser.application.browserFamily,
-      BrowserDescriptor.supported.contains(where: {
-        $0.bundleIdentifier == browser.application.bundleIdentifier
-          && $0.family == browserFamily
-      })
+      let descriptor
     {
-      if browserFamily == .duckDuckGo {
+      if isBrowserLevelTarget(target) {
         availability =
-          isBrowserLevelTarget(target)
-            && (target.mode == .normal || browser.privateModeIsAvailable)
+          target.mode == .normal || supportsPrivateMode(browser)
           ? .available : .unavailable
       } else {
         switch browser.metadataStatus {
-        case .metadataDamaged:
+        case .metadataDamaged, .accessRequired, .accessRevoked:
           return preservingWithoutAuthoritativeMetadata(
             target,
-            family: browserFamily
+            descriptor: descriptor,
+            privateModeIsAvailable: supportsPrivateMode(browser)
           )
-        case .accessRequired, .accessRevoked:
-          switch browserFamily {
-          case .safari:
-            if target.origin == .manual {
-              return preservingWithoutAuthoritativeMetadata(
-                target,
-                family: browserFamily
-              )
-            }
-            availability =
-              target.profileIdentity == nil && target.profileIdentifier == nil
-              ? .available : .unavailable
-          case .duckDuckGo:
-            availability =
-              isBrowserLevelTarget(target)
-                && (target.mode == .normal || browser.privateModeIsAvailable)
-              ? .available : .unavailable
-          case .opera, .arc, .orion:
-            availability =
-              isBrowserLevelTarget(target) && target.mode == .normal
-              ? .available : .unavailable
-          case .chromium, .firefox:
-            if isBrowserLevelTarget(target) {
-              availability = .available
-            } else if target.origin == .manual {
-              return preservingWithoutAuthoritativeMetadata(
-                target,
-                family: browserFamily
-              )
-            } else {
-              availability = .unavailable
-            }
-          }
         case .notApplicable, .metadataAbsent, .loaded:
+          guard descriptor.supportsProfiles else {
+            return copying(
+              target,
+              availability: .unavailable,
+              profileLaunchPath: target.profileLaunchPath
+            )
+          }
           let profiles = uniqueProfiles(browser.profiles)
-          refreshesMutableLaunchSelector = browserFamily == .firefox
-          switch browserFamily {
-          case .safari:
-            availability =
-              target.profileIdentifier == nil && target.mode == .normal
-              ? .available
-              : .unavailable
-          case .duckDuckGo:
-            availability =
-              isBrowserLevelTarget(target)
-                && (target.mode == .normal || browser.privateModeIsAvailable)
-              ? .available : .unavailable
-          case .opera, .arc, .orion:
-            availability =
-              isBrowserLevelTarget(target) && target.mode == .normal
-              ? .available : .unavailable
-          case .chromium, .firefox:
-            if isBrowserLevelTarget(target) {
-              availability = .available
-            } else {
-              if let profileIdentity = target.profileIdentity {
-                if browserFamily == .firefox,
-                  (profileIdentity as NSString).isAbsolutePath
-                {
-                  let normalizedLegacyPath = URL(
-                    fileURLWithPath: profileIdentity,
-                    isDirectory: true
-                  ).standardizedFileURL.path
-                  resolvedProfile = profiles.first {
-                    $0.directoryURL?.standardizedFileURL.path == normalizedLegacyPath
-                  }
-                } else {
-                  resolvedProfile = profiles.first { $0.identifier == profileIdentity }
-                }
-              } else if browserFamily == .firefox {
-                let nameMatches = profiles.filter {
-                  $0.launchIdentifier == target.profileIdentifier
-                }
-                resolvedProfile = nameMatches.count == 1 ? nameMatches[0] : nil
-              } else {
-                resolvedProfile = profiles.first {
-                  $0.identifier == target.profileIdentifier
-                }
+          if let profileIdentity = target.profileIdentity {
+            if case .firefox = descriptor.profileStrategy,
+              (profileIdentity as NSString).isAbsolutePath
+            {
+              let normalizedLegacyPath = URL(
+                fileURLWithPath: profileIdentity,
+                isDirectory: true
+              ).standardizedFileURL.path
+              resolvedProfile = profiles.first {
+                $0.directoryURL?.standardizedFileURL.path == normalizedLegacyPath
               }
-              availability = resolvedProfile == nil ? .unavailable : .available
+            } else {
+              resolvedProfile = profiles.first { $0.identifier == profileIdentity }
+            }
+          } else if case .firefox = descriptor.profileStrategy {
+            let nameMatches = profiles.filter {
+              $0.launchIdentifier == target.profileIdentifier
+            }
+            resolvedProfile = nameMatches.count == 1 ? nameMatches[0] : nil
+          } else {
+            resolvedProfile = profiles.first {
+              $0.identifier == target.profileIdentifier
             }
           }
+          if case .firefox = descriptor.profileStrategy {
+            refreshesMutableLaunchSelector = true
+          }
+          availability = resolvedProfile == nil ? .unavailable : .available
         }
       }
     } else {
@@ -816,13 +777,13 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     let migratedIdentity = migratedProfileIdentity(
       for: target,
       resolvedProfile: resolvedProfile,
-      family: targetFamily
+      profileStrategy: descriptor?.profileStrategy
     )
     return RouteTarget(
       id: migratedTargetID(
         for: target,
         profileIdentity: migratedIdentity,
-        family: targetFamily
+        profileStrategy: descriptor?.profileStrategy
       ),
       browserID: target.applicationID,
       label: target.label,
@@ -833,9 +794,8 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
         ? (resolvedProfile?.displayName ?? target.profileDisplayName)
         : target.profileDisplayName,
       profileIdentity: migratedIdentity,
-      profileLaunchPath: targetFamily == .firefox
-        ? (availability == .available
-          ? resolvedProfile?.directoryURL?.standardizedFileURL.path : nil)
+      profileLaunchPath: availability == .available
+        ? (resolvedProfile?.directoryURL?.standardizedFileURL.path ?? target.profileLaunchPath)
         : target.profileLaunchPath,
       mode: target.mode,
       isEnabled: target.isEnabled,
@@ -884,7 +844,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       else { return false }
       let legacyIdentityPath: String? = target.profileIdentity.flatMap { identity in
         guard
-          browser.application.browserFamily == .firefox,
+          case .firefox? = descriptor(for: browser)?.profileStrategy,
           (identity as NSString).isAbsolutePath
         else { return nil }
         return URL(fileURLWithPath: identity, isDirectory: true).standardizedFileURL.path
@@ -931,8 +891,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     existingTargets: [RouteTarget]
   ) -> Bool {
     guard
-      browser.application.browserFamily == .chromium
-        || browser.application.browserFamily == .firefox,
+      descriptor(for: browser).map(hasFileBackedProfiles) == true,
       isBrowserLevelTarget(candidate),
       hasNonAuthoritativeProfileMetadata(browser.metadataStatus)
     else { return false }
@@ -965,12 +924,21 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     }
   }
 
+  private static func hasFileBackedProfiles(_ descriptor: BrowserDescriptor) -> Bool {
+    switch descriptor.profileStrategy {
+    case .chromium, .firefox:
+      true
+    case .none, .safariShortcut:
+      false
+    }
+  }
+
   private static func migratedProfileIdentity(
     for target: RouteTarget,
     resolvedProfile: DiscoveredProfile?,
-    family: BrowserFamily?
+    profileStrategy: BrowserProfileStrategy?
   ) -> String? {
-    guard family == .firefox else { return target.profileIdentity }
+    guard case .firefox? = profileStrategy else { return target.profileIdentity }
     if let resolvedProfile { return resolvedProfile.identifier }
     guard
       let identity = target.profileIdentity,
@@ -984,10 +952,10 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   private static func migratedTargetID(
     for target: RouteTarget,
     profileIdentity: String?,
-    family: BrowserFamily?
+    profileStrategy: BrowserProfileStrategy?
   ) -> RouteTarget.ID {
     guard
-      family == .firefox,
+      case .firefox? = profileStrategy,
       target.origin == .detected,
       let legacyIdentity = target.profileIdentity,
       (legacyIdentity as NSString).isAbsolutePath
@@ -1001,10 +969,10 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
 
   private static func sanitizingLegacyFirefoxIdentity(
     _ target: RouteTarget,
-    family: BrowserFamily
+    profileStrategy: BrowserProfileStrategy
   ) -> RouteTarget {
     guard
-      family == .firefox,
+      case .firefox = profileStrategy,
       let legacyIdentity = target.profileIdentity,
       (legacyIdentity as NSString).isAbsolutePath
     else { return target }
@@ -1037,38 +1005,21 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
 
   private static func preservingWithoutAuthoritativeMetadata(
     _ target: RouteTarget,
-    family: BrowserFamily
+    descriptor: BrowserDescriptor,
+    privateModeIsAvailable: Bool
   ) -> RouteTarget {
-    let sanitized = sanitizingLegacyFirefoxIdentity(target, family: family)
-    switch family {
-    case .safari:
-      return sanitized
-    case .duckDuckGo:
-      return copying(sanitized, availability: .unavailable, profileLaunchPath: nil)
-    case .opera, .arc, .orion:
-      return copying(
-        sanitized,
-        availability: isBrowserLevelTarget(sanitized) && sanitized.mode == .normal
-          ? .available : .unavailable,
-        profileLaunchPath: nil
-      )
-    case .chromium where isBrowserLevelTarget(sanitized),
-      .firefox where isBrowserLevelTarget(sanitized):
-      return copying(
-        sanitized,
-        availability: .available,
-        profileLaunchPath: sanitized.profileLaunchPath
-      )
-    case .chromium:
-      guard sanitized.profileIdentifier == nil else { return sanitized }
-      return copying(
-        sanitized,
-        availability: .unavailable,
-        profileLaunchPath: sanitized.profileLaunchPath
-      )
-    case .firefox:
-      return copying(sanitized, availability: .unavailable, profileLaunchPath: nil)
-    }
+    let sanitized = sanitizingLegacyFirefoxIdentity(
+      target,
+      profileStrategy: descriptor.profileStrategy
+    )
+    let browserLevelIsAvailable =
+      isBrowserLevelTarget(sanitized)
+      && (sanitized.mode == .normal || privateModeIsAvailable)
+    return copying(
+      sanitized,
+      availability: browserLevelIsAvailable ? .available : .unavailable,
+      profileLaunchPath: sanitized.profileLaunchPath
+    )
   }
 
   private static func hasUniqueMutableProfileName(

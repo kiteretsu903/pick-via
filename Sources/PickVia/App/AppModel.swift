@@ -706,11 +706,12 @@ public final class AppModel {
     guard target.origin == .manual || target.mode == mode else {
       throw TargetEditingError.detectedTargetIdentityIsImmutable
     }
-    guard let browser = config.browsers.first(where: { $0.id == target.browserID }) else {
-      throw TargetEditingError.browserNotFound
+    guard let browser = supportedAvailableBrowser(id: target.browserID, in: config) else {
+      throw TargetEditingError.browserUnavailableOrUnsupported
     }
-    guard browser.family != .safari || mode == .normal else {
-      throw TargetEditingError.safariPrivateModeUnsupported
+    guard mode == .normal || hasAvailableDetectedPrivateTarget(browserID: browser.id, in: config)
+    else {
+      throw TargetEditingError.privateModeUnsupported
     }
     try persistTargetUpdates([
       TargetUpdate(runtimeTargetID: id, edit: .setBrowserMode(mode))
@@ -744,10 +745,7 @@ public final class AppModel {
     }
 
     let selectedRuntimeTargetID: RouteTarget.ID?
-    if browser.family == .safari {
-      guard profileIdentifier == nil else { throw TargetEditingError.invalidProfileIdentity }
-      selectedRuntimeTargetID = nil
-    } else if profileIdentifier == nil {
+    if profileIdentifier == nil {
       selectedRuntimeTargetID = nil
     } else {
       guard
@@ -863,15 +861,13 @@ public final class AppModel {
     guard let browser = supportedAvailableBrowser(id: browserID, in: config) else {
       throw TargetEditingError.browserUnavailableOrUnsupported
     }
-    guard browser.family != .safari || mode == .normal else {
-      throw TargetEditingError.safariPrivateModeUnsupported
+    guard mode == .normal || hasAvailableDetectedPrivateTarget(browserID: browser.id, in: config)
+    else {
+      throw TargetEditingError.privateModeUnsupported
     }
 
     let selectedProfile: BrowserTarget?
-    if browser.family == .safari {
-      guard profileIdentifier == nil else { throw TargetEditingError.invalidProfileIdentity }
-      selectedProfile = nil
-    } else if profileIdentifier == nil {
+    if profileIdentifier == nil {
       selectedProfile = nil
     } else {
       guard
@@ -1145,9 +1141,15 @@ public final class AppModel {
     targets: [RouteTarget],
     identities: [RouteTarget.ID: RouteTarget.ID]
   ) {
-    let firefoxApplicationIDs = Set(
+    let firefoxApplicationIDs: Set<RoutedApplication.ID> = Set(
       authoritativeConfig.applications.compactMap { application in
-        application.browserFamily == .firefox ? application.id : nil
+        guard
+          let descriptor = BrowserDescriptor.descriptor(
+            forBundleIdentifier: application.bundleIdentifier
+          ),
+          case .firefox = descriptor.profileStrategy
+        else { return nil }
+        return application.id
       }
     )
     let runtimeTargetsByID = Dictionary(
@@ -1528,7 +1530,6 @@ public final class AppModel {
   private func manualProfileAccessRows(from scan: BrowserScanResult?) -> [BrowserProfileAccessRow] {
     guard let scan else { return [] }
     return scan.browsers.compactMap { browser in
-      guard browser.application.family != .safari else { return nil }
       let persistence = profileAccess.persistence(
         for: browser.application.bundleIdentifier
       )
@@ -1566,7 +1567,6 @@ public final class AppModel {
       let descriptor = BrowserDescriptor.descriptor(
         forBundleIdentifier: browser.application.bundleIdentifier
       ),
-      descriptor.family != .safari,
       let expectedRootSuffix = descriptor.profileRoot,
       let requiredMarker = BrowserProfileRootValidator.requiredMarker(for: descriptor)
     else { return nil }
@@ -1640,7 +1640,7 @@ public enum TargetEditingError: Error, Equatable {
   case targetNotFound
   case browserNotFound
   case blankLabel
-  case safariPrivateModeUnsupported
+  case privateModeUnsupported
   case browserUnavailableOrUnsupported
   case invalidProfileIdentity
   case detectedTargetIdentityIsImmutable
@@ -1756,9 +1756,35 @@ private func supportedAvailableBrowser(
   guard let browser = config.browsers.first(where: { $0.id == id && $0.isAvailable }) else {
     return nil
   }
-  return BrowserDescriptor.supported.contains {
-    $0.bundleIdentifier == browser.bundleIdentifier && $0.family == browser.family
-  } ? browser : nil
+  return BrowserDescriptor.descriptor(forBundleIdentifier: browser.bundleIdentifier) == nil
+    ? nil : browser
+}
+
+private func hasAvailableDetectedPrivateTarget(
+  browserID: BrowserApplication.ID,
+  in config: PickViaConfig
+) -> Bool {
+  guard
+    let browser = config.browsers.first(where: { $0.id == browserID }),
+    let descriptor = BrowserDescriptor.descriptor(
+      forBundleIdentifier: browser.bundleIdentifier
+    )
+  else { return false }
+  switch descriptor.privateStrategy {
+  case .unsupported:
+    return false
+  case .argument:
+    return true
+  case .duckDuckGoFire, .safariShortcut:
+    break
+  }
+  return config.targets.contains {
+    $0.routeKind == .web
+      && $0.applicationID == browserID
+      && $0.origin == .detected
+      && $0.availability == .available
+      && $0.mode == .private
+  }
 }
 
 private func detectedProfileTarget(
@@ -1766,7 +1792,13 @@ private func detectedProfileTarget(
   profileIdentifier: String,
   in config: PickViaConfig
 ) -> BrowserTarget? {
-  config.targets.first {
+  guard
+    let browser = config.browsers.first(where: { $0.id == browserID }),
+    BrowserDescriptor.descriptor(
+      forBundleIdentifier: browser.bundleIdentifier
+    )?.supportsProfiles == true
+  else { return nil }
+  return config.targets.first {
     $0.routeKind == .web
       && $0.applicationID == browserID
       && ($0.profileIdentifier == profileIdentifier

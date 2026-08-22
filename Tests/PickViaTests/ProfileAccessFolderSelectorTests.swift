@@ -70,6 +70,48 @@ final class ProfileAccessFolderSelectorTests: XCTestCase {
     XCTAssertEqual(selected, expected)
   }
 
+  func testFolderSelectorDoesNotRequestBroadAccessForNormalOnlyDescriptor() async {
+    var makePanelCallCount = 0
+    let selector = ProfileAccessFolderSelector(makePanel: {
+      makePanelCallCount += 1
+      return ProfileAccessOpenPanelDriverSpy(result: nil)
+    })
+    let descriptor = BrowserDescriptor(
+      bundleIdentifier: "com.example.normal-only",
+      family: .opera,
+      displayName: "Normal Only",
+      profileStrategy: .none,
+      launchStrategy: .workspace,
+      privateStrategy: .unsupported
+    )
+
+    let selected = await selector.selectRoot(for: descriptor)
+
+    XCTAssertNil(selected)
+    XCTAssertEqual(makePanelCallCount, 0)
+  }
+
+  func testFolderSelectorDoesNotRequestBroadAccessForSafariShortcutDescriptor() async {
+    var makePanelCallCount = 0
+    let selector = ProfileAccessFolderSelector(makePanel: {
+      makePanelCallCount += 1
+      return ProfileAccessOpenPanelDriverSpy(result: nil)
+    })
+    let descriptor = BrowserDescriptor(
+      bundleIdentifier: "com.example.shortcut",
+      family: .safari,
+      displayName: "Shortcut Browser",
+      profileStrategy: .safariShortcut,
+      launchStrategy: .workspace,
+      privateStrategy: .safariShortcut
+    )
+
+    let selected = await selector.selectRoot(for: descriptor)
+
+    XCTAssertNil(selected)
+    XCTAssertEqual(makePanelCallCount, 0)
+  }
+
   func testFolderSelectorPresentsPanelAsSheetOfOwningWizardWindow() async throws {
     let ownerWindow = NSWindow()
     let panel = ProfileAccessOpenPanelDriverSpy(result: nil)

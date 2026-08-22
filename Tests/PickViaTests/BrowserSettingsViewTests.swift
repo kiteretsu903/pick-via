@@ -56,6 +56,66 @@ final class BrowserSettingsViewTests: XCTestCase {
     )
   }
 
+  func testAddTargetCapabilitiesCoverAllCombinationsWithoutFamilyPolicy() throws {
+    let opera = settingsBrowser(
+      bundleIdentifier: "com.operasoftware.Opera",
+      persistedFamily: .firefox
+    )
+    let duckDuckGo = settingsBrowser(
+      bundleIdentifier: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
+      persistedFamily: .safari
+    )
+    let chrome = settingsBrowser(
+      bundleIdentifier: "com.google.Chrome",
+      persistedFamily: .safari
+    )
+    let normalOnly = [settingsTarget(browser: opera, mode: .normal)]
+    let normalAndPrivate = [
+      settingsTarget(browser: duckDuckGo, mode: .normal),
+      settingsTarget(browser: duckDuckGo, mode: .private),
+    ]
+    let profile = settingsTarget(
+      browser: chrome,
+      profileIdentifier: "Profile 1",
+      mode: .normal
+    )
+    let normalAndProfiles = [settingsTarget(browser: chrome, mode: .normal), profile]
+    let allThree =
+      normalAndProfiles + [
+        settingsTarget(browser: chrome, mode: .private),
+        settingsTarget(browser: chrome, profileIdentifier: "Profile 1", mode: .private),
+      ]
+
+    XCTAssertEqual(
+      browserTargetCapabilities(for: opera, targets: normalOnly),
+      BrowserTargetCapabilities(supportsProfiles: false, supportsPrivateMode: false)
+    )
+    XCTAssertEqual(
+      browserTargetCapabilities(for: duckDuckGo, targets: normalAndPrivate),
+      BrowserTargetCapabilities(supportsProfiles: false, supportsPrivateMode: true)
+    )
+    XCTAssertEqual(
+      browserTargetCapabilities(for: chrome, targets: normalAndProfiles),
+      BrowserTargetCapabilities(supportsProfiles: true, supportsPrivateMode: false)
+    )
+    XCTAssertEqual(
+      browserTargetCapabilities(for: chrome, targets: allThree),
+      BrowserTargetCapabilities(supportsProfiles: true, supportsPrivateMode: true)
+    )
+    XCTAssertEqual(
+      availableBrowsersForManualTargets([opera, duckDuckGo, chrome]).map(\.id),
+      [opera.id, duckDuckGo.id, chrome.id]
+    )
+  }
+
+  func testAddTargetViewHasNoSafariFamilyPolicyBranches() throws {
+    let source = try projectSource("Sources/PickVia/Views/BrowserSettingsView.swift")
+
+    XCTAssertFalse(source.contains("family == .safari"))
+    XCTAssertFalse(source.contains("family != .safari"))
+    XCTAssertTrue(source.contains("browserTargetCapabilities"))
+  }
+
   func testGeneralSettingsContainsSegmentedChooserSizePicker() throws {
     let source = try projectSource("Sources/PickVia/Views/GeneralSettingsView.swift")
 
@@ -165,4 +225,44 @@ final class BrowserSettingsViewTests: XCTestCase {
       encoding: .utf8
     )
   }
+}
+
+private func settingsBrowser(
+  bundleIdentifier: String,
+  persistedFamily: BrowserFamily
+) -> BrowserApplication {
+  let descriptor = BrowserDescriptor.descriptor(forBundleIdentifier: bundleIdentifier)!
+  return BrowserApplication(
+    id: bundleIdentifier,
+    family: persistedFamily,
+    displayName: descriptor.displayName,
+    bundleIdentifier: bundleIdentifier,
+    applicationURL: URL(fileURLWithPath: "/Applications/\(descriptor.displayName).app"),
+    executableURL: nil,
+    isAvailable: true
+  )
+}
+
+private func settingsTarget(
+  browser: BrowserApplication,
+  profileIdentifier: String? = nil,
+  mode: BrowserMode
+) -> BrowserTarget {
+  BrowserTarget(
+    id: BrowserCatalog.targetID(
+      bundleIdentifier: browser.bundleIdentifier,
+      profileIdentifier: profileIdentifier,
+      mode: mode
+    ),
+    browserID: browser.id,
+    label: profileIdentifier ?? browser.displayName,
+    profileIdentifier: profileIdentifier,
+    profileDisplayName: profileIdentifier,
+    profileIdentity: profileIdentifier,
+    mode: mode,
+    isEnabled: true,
+    sortOrder: 0,
+    origin: .detected,
+    availability: .available
+  )
 }

@@ -303,6 +303,52 @@ struct BrowserCatalogTests {
       !result.targets.contains { $0.id == canonicalNormalID && $0.availability == .available })
   }
 
+  @Test func canonicalCollisionWithPersistableSupportedOwnerRemainsOwnedAndUnavailable() throws {
+    let opera = failClosedBrowser(
+      FailClosedBrowserExpectation(
+        bundleIdentifier: "com.operasoftware.Opera",
+        family: .opera,
+        displayName: "Opera"
+      )
+    )
+    let arc = failClosedBrowser(
+      FailClosedBrowserExpectation(
+        bundleIdentifier: "company.thebrowser.Browser",
+        family: .arc,
+        displayName: "Arc"
+      )
+    )
+    let collisionID = BrowserCatalog.targetID(
+      bundleIdentifier: opera.application.bundleIdentifier,
+      profileIdentifier: nil,
+      mode: .normal
+    )
+    let arcOwned = BrowserTarget(
+      id: collisionID,
+      browserID: arc.application.id,
+      label: "Arc owns this persisted identifier",
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      mode: .normal,
+      isEnabled: false,
+      sortOrder: 17,
+      origin: .manual,
+      availability: .available
+    )
+    let persistable = try PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: [opera.application, arc.application],
+      targets: [arcOwned]
+    ).validatedAndMigrated()
+
+    let result = BrowserCatalog.reconcile(discovered: [opera, arc], with: persistable)
+    let preserved = try #require(result.targets.first { $0.id == collisionID })
+
+    #expect(preserved.applicationID == arc.application.id)
+    #expect(preserved.label == arcOwned.label)
+    #expect(preserved.availability == .unavailable)
+  }
+
   @Test(arguments: failClosedBrowserExpectations)
   func newFamilyCanonicalNormalIDStillMergesValidNormalTarget(
     _ expectation: FailClosedBrowserExpectation
@@ -1240,7 +1286,7 @@ struct BrowserCatalogTests {
     #expect(!values[3].0 && values[3].1 == .private && !values[3].2)
   }
 
-  @Test func damagedMetadataPreservesExistingProfileAvailability() throws {
+  @Test func damagedMetadataPreservesExistingProfileButMarksItUnavailable() throws {
     let existingTarget = target(
       bundleID: "com.google.Chrome",
       profileID: "Profile 1",
@@ -1259,7 +1305,7 @@ struct BrowserCatalogTests {
       with: existing
     )
 
-    #expect(result.targets.first { $0.id == existingTarget.id }?.availability == .available)
+    #expect(result.targets.first { $0.id == existingTarget.id }?.availability == .unavailable)
     #expect(result.targets.contains { $0.profileIdentifier == nil && $0.mode == .normal })
     #expect(result.targets.contains { $0.profileIdentifier == nil && $0.mode == .private })
   }
@@ -2830,7 +2876,7 @@ struct BrowserCatalogTests {
     #expect(defaultTarget.availability == .available)
   }
 
-  @Test func legacyManualSafariAvailabilityRemainsFamilySpecific() throws {
+  @Test func normalOnlyDescriptorRejectsLegacyProfileShapeButKeepsBrowserLevelTarget() throws {
     let application = BrowserApplication(
       id: "com.apple.Safari",
       family: .safari,
@@ -2880,7 +2926,7 @@ struct BrowserCatalogTests {
       with: PickViaConfig(schemaVersion: 1, browsers: [application], targets: [legacy])
     )
 
-    #expect(try #require(loaded.targets.first { $0.id == legacy.id }).availability == .available)
+    #expect(try #require(loaded.targets.first { $0.id == legacy.id }).availability == .unavailable)
 
     let canonicalManual = manualTarget(
       id: "manual-safari-default",
@@ -2899,7 +2945,7 @@ struct BrowserCatalogTests {
 
     #expect(
       try #require(damaged.targets.first { $0.id == canonicalManual.id }).availability
-        == .unavailable)
+        == .available)
   }
 
   @Test func legacyDetectedSafariTargetMigratesWithoutDuplicate() throws {
@@ -3209,6 +3255,235 @@ struct BrowserCatalogTests {
     #expect(result.targets[0].isEnabled)
   }
 
+  @Test func targetGenerationUsesDescriptorCapabilitiesRatherThanPersistedFamilyName() {
+    let profile = DiscoveredProfile(
+      identifier: "Profile 1",
+      displayName: "Work",
+      directoryURL: URL(fileURLWithPath: "/profiles/work", isDirectory: true)
+    )
+    let cases: [(DiscoveredBrowser, [(BrowserMode, String?)])] = [
+      (
+        capabilityBrowser(
+          bundleIdentifier: "com.operasoftware.Opera",
+          persistedFamily: .safari,
+          profiles: [],
+          metadataStatus: .notApplicable,
+          privateModeIsAvailable: false
+        ),
+        [(.normal, nil)]
+      ),
+      (
+        capabilityBrowser(
+          bundleIdentifier: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
+          persistedFamily: .safari,
+          profiles: [],
+          metadataStatus: .notApplicable,
+          privateModeIsAvailable: true
+        ),
+        [(.normal, nil), (.private, nil)]
+      ),
+      (
+        capabilityBrowser(
+          bundleIdentifier: "com.google.Chrome",
+          persistedFamily: .safari,
+          profiles: [profile],
+          metadataStatus: .loaded,
+          privateModeIsAvailable: false
+        ),
+        [(.normal, nil), (.normal, "Profile 1")]
+      ),
+      (
+        capabilityBrowser(
+          bundleIdentifier: "com.google.Chrome",
+          persistedFamily: .safari,
+          profiles: [profile],
+          metadataStatus: .loaded,
+          privateModeIsAvailable: true
+        ),
+        [(.normal, nil), (.private, nil), (.normal, "Profile 1"), (.private, "Profile 1")]
+      ),
+    ]
+
+    for (browser, expectedShapes) in cases {
+      let result = BrowserCatalog.reconcile(discovered: [browser], with: .initial)
+      let shapes = result.targets.map { ($0.mode, $0.profileIdentity) }
+      #expect(shapes.count == expectedShapes.count)
+      for expected in expectedShapes {
+        #expect(shapes.contains { $0 == expected })
+      }
+    }
+  }
+
+  @Test(arguments: ["com.google.Chrome", "org.mozilla.firefox"])
+  func fileBackedStrategiesFailClosedPerMetadataState(bundleIdentifier: String) throws {
+    let descriptor = try #require(
+      BrowserDescriptor.descriptor(forBundleIdentifier: bundleIdentifier)
+    )
+    let profileIdentity =
+      bundleIdentifier == "org.mozilla.firefox"
+      ? FirefoxProfileIdentity.identifier(forLegacyValue: "missing-firefox-profile")
+      : "Profile Missing"
+    let stalePath = "/synthetic/profiles/missing"
+    let stale = BrowserTarget(
+      id: BrowserCatalog.targetID(
+        bundleIdentifier: bundleIdentifier,
+        profileIdentifier: profileIdentity,
+        mode: .normal
+      ),
+      browserID: bundleIdentifier,
+      label: "Missing profile",
+      profileIdentifier: bundleIdentifier == "org.mozilla.firefox" ? "Missing" : profileIdentity,
+      profileDisplayName: "Missing",
+      profileIdentity: profileIdentity,
+      profileLaunchPath: stalePath,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 8,
+      origin: .detected,
+      availability: .available,
+      validationError: "Synthetic profile metadata warning"
+    )
+    let application = BrowserApplication(
+      id: bundleIdentifier,
+      family: descriptor.family,
+      displayName: descriptor.displayName,
+      bundleIdentifier: bundleIdentifier,
+      applicationURL: URL(fileURLWithPath: "/Applications/\(descriptor.displayName).app"),
+      executableURL: nil,
+      isAvailable: true
+    )
+
+    for status in [
+      ProfileMetadataStatus.metadataAbsent,
+      .accessRequired,
+      .accessRevoked,
+      .metadataDamaged,
+    ] {
+      let browser = DiscoveredBrowser(
+        application: application,
+        profiles: [],
+        metadataStatus: status,
+        privateModeIsAvailable: true
+      )
+      let result = BrowserCatalog.reconcile(
+        discovered: [browser],
+        with: PickViaConfig(
+          schemaVersion: PickViaConfig.currentSchemaVersion,
+          browsers: [application],
+          targets: [stale]
+        )
+      )
+
+      let browserLevel = result.targets.filter {
+        $0.profileIdentity == nil && $0.profileIdentifier == nil
+      }
+      #expect(Set(browserLevel.map(\.mode)) == [.normal, .private])
+      #expect(browserLevel.allSatisfy { $0.availability == .available })
+      let preserved = try #require(result.targets.first { $0.id == stale.id })
+      #expect(preserved.availability == .unavailable)
+      #expect(preserved.profileLaunchPath == stalePath)
+      #expect(preserved.validationError == stale.validationError)
+    }
+  }
+
+  @Test func firefoxEditionsSharePhysicalRootWithoutSharingApplicationsOrTargetIDs() throws {
+    let profileURL = URL(
+      fileURLWithPath: "/synthetic/Library/Application Support/Firefox/Profiles/pickvia-e2e",
+      isDirectory: true
+    )
+    let profile = DiscoveredProfile(
+      identifier: FirefoxProfileIdentity.identifier(for: profileURL),
+      displayName: "PickVia E2E",
+      directoryURL: profileURL,
+      launchIdentifier: "PickVia E2E"
+    )
+    let bundleIdentifiers = [
+      "org.mozilla.firefox",
+      "org.mozilla.firefoxdeveloperedition",
+      "org.mozilla.nightly",
+    ]
+    let browsers = bundleIdentifiers.map { bundleIdentifier in
+      capabilityBrowser(
+        bundleIdentifier: bundleIdentifier,
+        persistedFamily: .firefox,
+        profiles: [profile],
+        metadataStatus: .loaded,
+        privateModeIsAvailable: true
+      )
+    }
+
+    let result = BrowserCatalog.reconcile(discovered: browsers, with: .initial)
+    let profiled = result.targets.filter { $0.profileIdentity == profile.identifier }
+
+    #expect(Set(result.browsers.map(\.id)) == Set(bundleIdentifiers))
+    #expect(profiled.count == 6)
+    #expect(Set(profiled.map(\.applicationID)) == Set(bundleIdentifiers))
+    #expect(Set(profiled.map(\.id)).count == 6)
+    for bundleIdentifier in bundleIdentifiers {
+      let modes =
+        profiled
+        .filter { $0.applicationID == bundleIdentifier }
+        .map(\.mode.rawValue)
+        .sorted()
+      #expect(modes == [BrowserMode.normal.rawValue, BrowserMode.private.rawValue].sorted())
+    }
+  }
+
+  @Test func profileDisappearancePreservesTransientEvidenceAndReappearanceRefreshesIt() throws {
+    let oldPath = "/synthetic/chrome/old-profile"
+    let newPath = URL(fileURLWithPath: "/synthetic/chrome/new-profile", isDirectory: true)
+    let stale = BrowserTarget(
+      id: BrowserCatalog.targetID(
+        bundleIdentifier: "com.google.Chrome",
+        profileIdentifier: "Profile 9",
+        mode: .normal
+      ),
+      browserID: "com.google.Chrome",
+      label: "Pinned work",
+      profileIdentifier: "Profile 9",
+      profileDisplayName: "Work",
+      profileIdentity: "Profile 9",
+      profileLaunchPath: oldPath,
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 6,
+      origin: .manual,
+      availability: .available,
+      validationError: "Transient synthetic warning"
+    )
+    let config = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: [chrome(profiles: []).application],
+      targets: [stale]
+    )
+
+    let disappeared = BrowserCatalog.reconcile(
+      discovered: [chrome(profileID: "Profile 1", profileName: "Other")],
+      with: config
+    )
+    let missing = try #require(disappeared.targets.first { $0.id == stale.id })
+    #expect(missing.availability == .unavailable)
+    #expect(missing.profileLaunchPath == oldPath)
+    #expect(missing.validationError == stale.validationError)
+
+    let reappeared = BrowserCatalog.reconcile(
+      discovered: [
+        chrome(profiles: [
+          DiscoveredProfile(
+            identifier: "Profile 9",
+            displayName: "Work renamed",
+            directoryURL: newPath
+          )
+        ])
+      ],
+      with: disappeared
+    )
+    let recovered = try #require(reappeared.targets.first { $0.id == stale.id })
+    #expect(recovered.availability == .available)
+    #expect(recovered.profileLaunchPath == newPath.standardizedFileURL.path)
+    #expect(recovered.validationError == nil)
+  }
+
   @Test func reconcileKeepsManualTargetAvailableWhenBrowserAndProfileStillExist() throws {
     let manual = manualTarget(profileID: "Profile 1", availability: .unavailable)
     let existing = PickViaConfig(
@@ -3381,6 +3656,30 @@ private func failClosedBrowser(
     profiles: [],
     metadataStatus: .notApplicable,
     privateModeIsAvailable: false
+  )
+}
+
+private func capabilityBrowser(
+  bundleIdentifier: String,
+  persistedFamily: BrowserFamily,
+  profiles: [DiscoveredProfile],
+  metadataStatus: ProfileMetadataStatus,
+  privateModeIsAvailable: Bool
+) -> DiscoveredBrowser {
+  let descriptor = BrowserDescriptor.descriptor(forBundleIdentifier: bundleIdentifier)!
+  return DiscoveredBrowser(
+    application: BrowserApplication(
+      id: bundleIdentifier,
+      family: persistedFamily,
+      displayName: descriptor.displayName,
+      bundleIdentifier: bundleIdentifier,
+      applicationURL: URL(fileURLWithPath: "/Applications/\(descriptor.displayName).app"),
+      executableURL: nil,
+      isAvailable: true
+    ),
+    profiles: profiles,
+    metadataStatus: metadataStatus,
+    privateModeIsAvailable: privateModeIsAvailable
   )
 }
 

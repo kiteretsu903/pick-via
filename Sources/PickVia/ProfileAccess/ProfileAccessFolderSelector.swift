@@ -117,20 +117,22 @@ public final class ProfileAccessFolderSelector: ProfileAccessFolderSelecting {
   }
 
   public func selectRoot(for descriptor: BrowserDescriptor) async -> URL? {
-    guard !Task.isCancelled, activePanel == nil else { return nil }
+    guard
+      !Task.isCancelled,
+      activePanel == nil,
+      let relativeRoot = descriptor.profileRoot,
+      let marker = BrowserProfileRootValidator.requiredMarker(for: descriptor)
+    else { return nil }
     let panel = makePanel()
     activePanel = panel
     defer { activePanel = nil }
     let generation = selectionGeneration
     panel.prompt = "Grant Access"
-    let marker = BrowserProfileRootValidator.requiredMarker(for: descriptor) ?? "profile metadata"
     panel.message = "Select the \(descriptor.displayName) data folder containing \(marker)."
     panel.canChooseDirectories = true
     panel.canChooseFiles = false
     panel.allowsMultipleSelection = false
-    if let relativeRoot = descriptor.profileRoot {
-      panel.directoryURL = homeDirectory.appending(path: relativeRoot)
-    }
+    panel.directoryURL = homeDirectory.appending(path: relativeRoot)
     let selectedRoot = await panel.beginSheetModal(for: ownerWindow())
     guard generation == selectionGeneration else { return nil }
     return selectedRoot
