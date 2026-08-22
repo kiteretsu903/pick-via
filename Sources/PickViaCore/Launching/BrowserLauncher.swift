@@ -160,6 +160,9 @@ public struct BrowserLauncher: RouteLaunching, Sendable {
       )
 
     case .chromium(let relativeExecutable, let profileArgument):
+      if !hasProfileEvidence, options.mode == .normal {
+        return .workspace(application: trustedApplicationURL, url: url)
+      }
       guard
         let executable = trustedExecutable(
           applicationURL: trustedApplicationURL,

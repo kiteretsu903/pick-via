@@ -76,18 +76,25 @@ struct BrowserLauncherTests {
     }
   }
 
-  @Test func chromiumBrowserLevelTargetStillUsesDefaultProfile() throws {
-    let plan = try testLauncher().makePlan(
+  @Test func chromiumBrowserLevelNormalUsesTrustedWorkspaceWithoutExecutableValidation() throws {
+    let validator = StubExecutableValidator(isExecutable: false)
+    let launcher = BrowserLauncher(
+      trustedApplicationResolver: StubTrustedApplicationResolver(urls: [
+        "com.google.Chrome": applicationURL
+      ]),
+      processRunner: RecordingProcessRunner(),
+      workspace: RecordingWorkspace(),
+      executableValidator: validator
+    )
+
+    let plan = try launcher.makePlan(
       url: url,
       application: application(family: .chromium),
       target: target(family: .chromium, profile: nil)
     )
 
-    guard case .executable(_, let arguments) = plan else {
-      Issue.record("Expected executable launch plan")
-      return
-    }
-    #expect(arguments == [url.absoluteString])
+    #expect(plan == .workspace(application: applicationURL, url: url))
+    #expect(validator.requestedURLs.isEmpty)
   }
 
   @Test(arguments: ProfileEvidenceField.allCases)
@@ -183,14 +190,7 @@ struct BrowserLauncherTests {
       target: target(family: .chromium, profile: nil)
     )
 
-    guard case .executable(let executable, _) = plan else {
-      Issue.record("Expected executable plan")
-      return
-    }
-    #expect(
-      executable
-        == trustedApplication.appending(path: "Contents/MacOS/Google Chrome"))
-    #expect(!executable.path.hasPrefix("/tmp"))
+    #expect(plan == .workspace(application: trustedApplication, url: url))
   }
 
   @Test func chromeBetaUsesTrustedBetaExecutableAndChromiumArguments() throws {
@@ -266,7 +266,7 @@ struct BrowserLauncherTests {
   }
 
   @Test(arguments: newChannelLaunchExpectations)
-  func newChannelPlansUseExactTrustedExecutableAndArguments(
+  func newChannelPlansUseExactTrustedApplicationAndArguments(
     _ expectation: ChannelLaunchExpectation
   ) throws {
     let trustedApplication = URL(
@@ -324,16 +324,24 @@ struct BrowserLauncherTests {
       target: channelTarget(profiled: true, mode: .private)
     )
 
-    #expect(
-      normalPlan
-        == .executable(application: executable, arguments: expectation.normalArguments))
+    if expectation.family == .chromium {
+      #expect(normalPlan == .workspace(application: trustedApplication, url: url))
+    } else {
+      #expect(
+        normalPlan
+          == .executable(application: executable, arguments: expectation.normalArguments))
+    }
     #expect(
       profilePlan
         == .executable(application: executable, arguments: expectation.profileArguments))
     #expect(
       privatePlan
         == .executable(application: executable, arguments: expectation.privateArguments))
-    #expect(validator.requestedURLs == [executable, executable, executable])
+    let expectedValidatedExecutables =
+      expectation.family == .chromium
+      ? [executable, executable]
+      : [executable, executable, executable]
+    #expect(validator.requestedURLs == expectedValidatedExecutables)
   }
 
   @Test func crossEditionTargetMismatchNeverLaunchesAnotherChannel() async {
@@ -466,10 +474,10 @@ struct BrowserLauncherTests {
     }
   }
 
-  @Test func unprofiledChromiumAndFirefoxPlansUseBrowserLevelArguments() throws {
+  @Test func unprofiledChromiumAndFirefoxPlansUseFamilySpecificBrowserLevelRoutes() throws {
     let launcher = testLauncher()
 
-    func arguments(for family: BrowserFamily, mode: BrowserMode) throws -> [String] {
+    func plan(for family: BrowserFamily, mode: BrowserMode) throws -> LaunchPlan {
       let plan = try launcher.makePlan(
         url: url,
         application: application(family: family),
@@ -484,19 +492,30 @@ struct BrowserLauncherTests {
           mode: mode
         )
       )
-      guard case .executable(_, let arguments) = plan else {
-        Issue.record("Expected executable plan")
-        return []
-      }
-      return arguments
+      return plan
     }
 
-    #expect(try arguments(for: .chromium, mode: .normal) == [url.absoluteString])
     #expect(
-      try arguments(for: .chromium, mode: .private) == ["--incognito", url.absoluteString])
-    #expect(try arguments(for: .firefox, mode: .normal) == ["-new-tab", url.absoluteString])
+      try plan(for: .chromium, mode: .normal)
+        == .workspace(application: applicationURL, url: url))
     #expect(
-      try arguments(for: .firefox, mode: .private) == ["-private-window", url.absoluteString])
+      try plan(for: .chromium, mode: .private)
+        == .executable(
+          application: applicationURL.appending(path: "Contents/MacOS/Google Chrome"),
+          arguments: ["--incognito", url.absoluteString]
+        ))
+    #expect(
+      try plan(for: .firefox, mode: .normal)
+        == .executable(
+          application: applicationURL.appending(path: "Contents/MacOS/firefox"),
+          arguments: ["-new-tab", url.absoluteString]
+        ))
+    #expect(
+      try plan(for: .firefox, mode: .private)
+        == .executable(
+          application: applicationURL.appending(path: "Contents/MacOS/firefox"),
+          arguments: ["-private-window", url.absoluteString]
+        ))
   }
 
   @Test func unprofiledManualFirefoxUUIDTargetRemainsBrowserLevelRoutable() throws {
@@ -596,6 +615,40 @@ struct BrowserLauncherTests {
     }
     #expect(executable == applicationURL.appending(path: "Contents/MacOS/Microsoft Edge"))
     #expect(arguments == ["--profile-directory=Profile 1", "--inprivate", url.absoluteString])
+  }
+
+  @Test func edgeBrowserLevelNormalUsesExactTrustedWorkspaceApplication() throws {
+    let trustedEdgeApplication = URL(
+      fileURLWithPath: "/Applications/Microsoft Edge.app",
+      isDirectory: true
+    )
+    let validator = StubExecutableValidator(isExecutable: false)
+    let launcher = BrowserLauncher(
+      trustedApplicationResolver: StubTrustedApplicationResolver(urls: [
+        "com.microsoft.edgemac": trustedEdgeApplication
+      ]),
+      processRunner: RecordingProcessRunner(),
+      workspace: RecordingWorkspace(),
+      executableValidator: validator
+    )
+
+    let plan = try launcher.makePlan(
+      url: url,
+      application: application(
+        family: .chromium,
+        bundleIdentifier: "com.microsoft.edgemac",
+        executable: URL(fileURLWithPath: "/tmp/substituted-edge")
+      ),
+      target: target(
+        family: .chromium,
+        browserID: "com.microsoft.edgemac",
+        profile: nil,
+        mode: .normal
+      )
+    )
+
+    #expect(plan == .workspace(application: trustedEdgeApplication, url: url))
+    #expect(validator.requestedURLs.isEmpty)
   }
 
   @Test func firefoxRejectsNameOnlyManualProfileWithoutExactLaunchPath() throws {
@@ -978,7 +1031,7 @@ struct BrowserLauncherTests {
       try launcher.makePlan(
         url: url,
         application: application(family: .chromium),
-        target: target(family: .chromium, profile: nil)
+        target: target(family: .chromium, profile: "Profile 1")
       )
     }
   }
