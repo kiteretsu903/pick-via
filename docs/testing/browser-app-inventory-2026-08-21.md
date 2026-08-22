@@ -2,13 +2,31 @@
 
 Status: `DONE_WITH_CONCERNS` — complete with one blocked matrix row
 
-Sixteen missing browser applications were downloaded from first-party sources, staged, inspected, installed side by side under their official distinct names, and re-inspected. Each installed identity and executable SHA-256 matched its staged source exactly. The official Chromium arm64 snapshot is the sole blocked row: it is ad-hoc/linker-signed, fails strict code-signature verification, and fails Gatekeeper assessment, so it was not installed.
+Sixteen missing browser applications were downloaded from first-party sources, staged, inspected, installed side by side under their official distinct names, and re-inspected. Each installed identity and executable SHA-256 matched its staged source exactly. Review correction replaced the task-created Orion updater stub with the genuine Orion 1.1.2 browser from Kagi's signed appcast. The official Chromium arm64 snapshot is the sole blocked row: it is ad-hoc/linker-signed, fails strict code-signature verification, and fails Gatekeeper assessment, so it was not installed.
 
-No browser was launched. No browser profile root or profile content was traversed. No existing application was overwritten. No default-browser setting, account, profile, bundled offer, or `/Applications/PickVia.app` state was changed.
+No full browser was launched. No browser profile root or profile content was traversed. No pre-existing user application was overwritten; only the exact task-created Orion updater stub was replaced after preservation and verification. No default-browser setting, account, profile, bundled offer, or `/Applications/PickVia.app` state was changed.
 
 ## Inspector contract
 
-The inspector is `scripts/browser-e2e/inspect-browser-app.sh`.
+The inspector is `$REPO_ROOT/scripts/browser-e2e/inspect-browser-app.sh`; its durable regression driver is `$REPO_ROOT/scripts/browser-e2e/test-inspect-browser-app.sh`. The driver derives `REPO_ROOT` from its own path, creates a unique `/private/tmp/pickvia-inspector-contract.XXXXXX` fixture root, and removes only that exact root on exit. It compiles a real x86_64 Mach-O rejection fixture and a real arm64 unsigned fixture with `xcrun clang`, uses system Safari from the standard or cryptex system path for success, and never depends on a personal third-party app.
+
+The quality-review TDD cycle for control-byte hardening was:
+
+1. With the durable driver present and production unchanged, RED exited `1` because a tab in the emitted `path` value was accepted:
+
+   ```text
+   FAIL: tab control in emitted path unexpectedly succeeded
+   ```
+
+2. After the minimal production change, GREEN exited `0`:
+
+   ```text
+   PASS: inspector contract
+   ```
+
+The durable driver also rejects a DEL byte in the emitted path, asserts all four original rejection cases, and requires exactly nine nonempty, control-free output lines in this order: `path`, `bundle_id`, `display_name`, `executable`, `version`, `architectures`, `team_id`, `authorities`, `sha256`.
+
+The following older evidence records the original implementation cycle. Personal repository prefixes in historical excerpts are normalized as `$REPO_ROOT`; the temporary paths and exit results remain as observed.
 
 The original chronological test driver was the fixed, non-unique path `/private/tmp/pickvia-inspector-contract.sh`; each invocation created its fixtures under a unique `mktemp -d /private/tmp/pickvia-inspector-contract.XXXXXX` directory and removed that fixture directory on exit. The chronological transcript was:
 
@@ -16,7 +34,7 @@ The original chronological test driver was the fixed, non-unique path `/private/
 
    ```text
    FAIL: non-app did not report 'path must be an existing .app bundle'
-   /private/tmp/pickvia-inspector-contract.sh: line 40: /Users/bozhenpeng/gitrepos/pick-via/.worktrees/browser-editions-and-families/scripts/browser-e2e/inspect-browser-app.sh: No such file or directory
+   /private/tmp/pickvia-inspector-contract.sh: line 40: $REPO_ROOT/scripts/browser-e2e/inspect-browser-app.sh: No such file or directory
    ```
 
 2. The first implementation run also exited `1`; it exposed a pipeline-status bug in the assertion driver rather than a production pass:
@@ -31,7 +49,7 @@ The original chronological test driver was the fixed, non-unique path `/private/
    PASS: inspector contract
    ```
 
-That chronological temporary driver was deleted during the original cleanup. The following is a separate, post-hoc reproducibility run; it is not presented as the original RED/GREEN observation. It used the unique driver root `/private/tmp/pickvia-inspector-repro.Kx08YQ`, expanded base commit `80d499d` under `base/`, and verified that the base tree had no inspector. This is the exact assertion body used:
+That chronological temporary driver was deleted during the original cleanup. The following is a separate, historical post-hoc reproducibility run; it is not presented as the original RED/GREEN observation and is superseded by the durable repository driver. It used the unique driver root `/private/tmp/pickvia-inspector-repro.Kx08YQ`, expanded base commit `80d499d` under `base/`, and verified that the base tree had no inspector. The replay body is retained for audit, with only its success-app default normalized to system Safari:
 
 ```bash
 #!/bin/bash
@@ -103,7 +121,7 @@ printf 'int main(void) { return 0; }\n' > "$fixture_root/unsigned.c"
 xcrun clang -arch arm64 "$fixture_root/unsigned.c" -o "$unsigned_app/Contents/MacOS/Unsigned"
 expect_rejection 'unsigned bundle' 'bundle is not validly signed' "$unsigned_app"
 
-known_good_app=${KNOWN_GOOD_APP:-/Applications/Rectangle.app}
+known_good_app=${KNOWN_GOOD_APP:-/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app}
 success_output=$("$inspector" "$known_good_app")
 expected_keys='path bundle_id display_name executable version architectures team_id authorities sha256'
 actual_keys=$(printf '%s\n' "$success_output" | sed 's/=.*//' | paste -sd' ' -)
@@ -128,7 +146,7 @@ git archive 80d499d | tar -x -C /private/tmp/pickvia-inspector-repro.Kx08YQ/base
 FAIL: non-app did not report path\ must\ be\ an\ existing\ .app\ bundle
 /private/tmp/pickvia-inspector-repro.Kx08YQ/contract.sh: line 36: /private/tmp/pickvia-inspector-repro.Kx08YQ/base/scripts/browser-e2e/inspect-browser-app.sh: No such file or directory
 
-KNOWN_GOOD_APP=/Applications/Rectangle.app /private/tmp/pickvia-inspector-repro.Kx08YQ/contract.sh /Users/bozhenpeng/gitrepos/pick-via/.worktrees/browser-editions-and-families/scripts/browser-e2e/inspect-browser-app.sh
+KNOWN_GOOD_APP=/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app /private/tmp/pickvia-inspector-repro.Kx08YQ/contract.sh "$REPO_ROOT/scripts/browser-e2e/inspect-browser-app.sh"
 # exit 0
 PASS: inspector contract
 ```
@@ -150,11 +168,11 @@ Only first-party product pages, feeds, update APIs, or vendor-controlled artifac
 | Firefox channels | [Mozilla Firefox channels](https://www.mozilla.org/firefox/channel/) and [Developer Edition](https://www.mozilla.org/en-US/firefox/developer/) |
 | Opera | [Opera download](https://www.opera.com/download), including its first-party offline-package link |
 | Arc | [Arc](https://arc.net/) and [Arc macOS support](https://resources.arc.net/hc/en-us/articles/19337669022103-Arc-for-macOS) |
-| Orion | [Orion](https://orionbrowser.com/) and [Kagi installation documentation](https://help.kagi.com/orion/getting-started/installing-orion.html) |
+| Orion | [Orion](https://orionbrowser.com/), [Kagi installation documentation](https://help.kagi.com/orion/getting-started/installing-orion.html), and the [official macOS 27 appcast](https://browser.kagi.com/updates/27_0/appcast.xml) |
 
 ## Download evidence
 
-Retrieval time is the artifact modification time after `curl --fail --location` completed, recorded in UTC. SHA-256 values were computed locally with `shasum -a 256`.
+For the original rows, retrieval time is the artifact modification time after `curl --fail --location` completed, recorded in UTC. The Orion correction rows use the separately recorded local curl-completion time because `--remote-time` preserved Kagi's upstream modification time. SHA-256 values were computed locally with `shasum -a 256`.
 
 | Application/artifact | Requested URL | Final URL | Retrieved UTC | Filename | Bytes | SHA-256 |
 | --- | --- | --- | --- | --- | ---: | --- |
@@ -175,11 +193,15 @@ Retrieval time is the artifact modification time after `curl --fail --location` 
 | Opera network bootstrapper, not used for install | `https://net.geo.opera.com/opera/stable/mac` | same | 2026-08-21T22:51:51Z | `Opera-Stable-Mac.zip` | 3591704 | `8c4a1ee7e6f970583a2056e0a49d441a1bf88559d34aed040ec857a9249b14aa` |
 | Opera full offline package | `https://download.opera.com/download/get/?id=79911&location=415&nothanks=yes&sub=marine&utm_tryagain=yes` | `https://download3.operacdn.com/ftp/pub/opera/desktop/135.0.5973.41/mac/Opera_135.0.5973.41_Setup.dmg` | 2026-08-21T23:05:02Z | `Opera_135.0.5973.41_Setup.dmg` | 260489614 | `12f5a0afe3d8544ca1a22eaa9c18da1547ae001eebb9f9ca08ddb1548243b7b4` |
 | Arc | `https://releases.arc.net/release/Arc-latest.dmg` | `https://releases.arc.net/release/Arc-1.161.1-85803.dmg` | 2026-08-21T22:51:46Z | `Arc-latest.dmg` | 446402611 | `36e96867755be036e6c09485eec0e058ad17eb077589f092b2fae58eb5818648` |
-| Orion | `https://orionbrowser.com/download/installer` | `https://cdn.kagi.com/downloads/OrionInstaller.dmg` | 2026-08-21T22:51:41Z | `OrionInstaller.dmg` | 2199684 | `a73039b0408345ac89d390aa1c20eb1f1938708a17d56c6ad53a452c93382427` |
+| Orion updater stub, not browser payload | `https://orionbrowser.com/download/installer` | `https://cdn.kagi.com/downloads/OrionInstaller.dmg` | 2026-08-21T22:51:41Z | `OrionInstaller.dmg` | 2199684 | `a73039b0408345ac89d390aa1c20eb1f1938708a17d56c6ad53a452c93382427` |
+| Orion macOS 27 update feed | `https://browser.kagi.com/updates/27_0/appcast.xml` | `https://cdn.kagi.com/updates/27_0/appcast.xml` | 2026-08-22T00:29:13Z | `orion-appcast.xml` | 71653 | `9de351b61759c0d6c5a97165f3165e57e23194b2567015e85876391b07a704e1` |
+| Orion 1.1.2 browser payload, build 151 | `https://cdn.kagi.com/updates/26_0/151.zip` | same | 2026-08-22T00:29:37Z | `Orion-1.1.2-build-151.zip` | 224442708 | `77a55ae66c0dfae9406856e8e1d20a10dcd06a699175f9059ea395db398f8100` |
 
-### Exact-artifact reproducibility download
+### Time-bounded artifact revalidation
 
-After the initial staging directory had been cleaned, review remediation used a fresh `mktemp -d` directory, `/private/tmp/pickvia-browser-remediation.yNnc5z`. The 17 artifacts that supplied an installed or blocked matrix row were downloaded again from the exact first-party requested/final URLs above between `2026-08-21T16:34:09-0700` and `2026-08-21T16:35:50-0700`. The Opera bootstrapper was not downloaded again because it supplied no staged app and was not used for installation. All 17 byte sizes and SHA-256 values matched the frozen original evidence; in particular, none of the rolling Chrome, Brave, or Orion endpoints had drifted.
+After the initial staging directory had been cleaned, review remediation used a fresh `mktemp -d` directory, `/private/tmp/pickvia-browser-remediation.yNnc5z`. The 17 originally staged artifacts were downloaded again from the first-party requested/final URLs above between `2026-08-21T16:34:09-0700` and `2026-08-21T16:35:50-0700`. The Opera bootstrapper was not downloaded again because it supplied no staged app and was not used for installation. All 17 byte sizes and SHA-256 values matched the frozen original evidence during that window; the Orion DMG match proves only the updater-stub artifact, not a full browser payload.
+
+This is time-bounded evidence, not a promise of permanent artifact availability. Rolling Chrome, Brave, and Orion installer URLs may return different bytes later. Rechecking the recorded hash detects such drift, but a matching hash today does not guarantee that an older rolling artifact can be retrieved in the future.
 
 The fresh `shasum -a 256` transcript was:
 
@@ -206,11 +228,12 @@ dcff851fbb30bd4268e9b977b716134f4a7f6d4d660afd42b7a8faa9691803c5  chromium-16842
 ## Container and signing verification
 
 - All twelve DMGs returned `hdiutil: verify: checksum ... is VALID`.
-- Both ZIPs returned `No errors detected in compressed data` from `unzip -tq`.
+- The original Chromium and Opera ZIPs, and the later Orion 1.1.2 feed ZIP, returned `No errors detected in compressed data` from `unzip -tq`.
 - All four Edge packages passed `pkgutil --check-signature` as `Developer ID Installer: Microsoft Corporation (UBF8T346G9)` with trusted timestamps. Their package hashes exactly matched Microsoft's update API.
 - The Safari Technology Preview package passed `pkgutil --check-signature` as Apple Software with an Apple Software Update certificate chain.
 - ZIP entry names were checked for absolute paths and `..` traversal before expansion.
 - Vendor-page ownership, artifact origin, Developer ID organization, team identifier, strict verification, and Gatekeeper result were compared together. Observed identities were Apple Software; Google LLC (`EQHXZ8M8AV`); Microsoft Corporation (`UBF8T346G9`); Brave Software, Inc. (`KL8N8XSYF4`); Vivaldi Technologies AS (`4XF3XNRN6Y`); Mozilla Corporation (`43AQ936H96`); Opera Software AS (`A2P9LX4JPN`); The Browser Company of New York Inc. (`S6N382Y83G`); Kagi Inc. (`TFVG979488`); and Duck Duck Go, Inc. (`HKE973VLUW`).
+- Kagi's macOS 27 appcast contained 48 signed release items. Its latest item declared Orion `1.1.2`, build `151`, minimum macOS `26.0`, a 224442708-byte payload, and Sparkle EdDSA signature `5qNzYvB4RgTU+dRkdiuSzz5tD5J8jxzndI7qlEnK7SCtGEr2bqaVnWPnonMFS4eUdO/uCwREFP5Fvqd8ITcHBQ==`. The updater stub and full browser both carry public key `yQyyd0ClutgDmBdMGjViB4a21/S4TpnqrPYzLyvoSdM=`; the full app additionally passed strict codesign and Gatekeeper as Kagi Inc. (`TFVG979488`).
 
 ### Extended-attribute normalization evidence
 
@@ -258,6 +281,16 @@ In subcomponent: /Applications/Brave Browser.app/Contents/Frameworks/Brave Brows
 
 The original installed Chrome Stable, Chrome Beta, and Brave Stable bundles remained byte-for-byte untouched. The remediation also made no changes to any installed bundle; all normalization was confined to exact, disposable destinations under the unique temporary directory.
 
+### Orion updater correction and full-browser verification
+
+The 4 MB app from `OrionInstaller.dmg` was initially misclassified. It is an updater stub, not the browser: version `1.0` build `27`, 4044747 file bytes across 66 files, a 193568-byte main executable with SHA-256 `9521b612fe08ee530359bf046b56e52cc4c53569680b2fc2a5ebd2363dffb505`, Sparkle as its only bundled framework, and updater/installer symbols rather than browser resources. Its valid Kagi signature proves vendor identity but not browser functionality, so this stub is retained only as installer evidence and is not a descriptor row.
+
+The exact task-created stub was copied to `/private/tmp/pickvia-orion-install.E1otz9/pre-install/Orion Updater Stub.app` before any installation action. A Computer Use state request may have auto-launched it, but the request returned no UI state and was aborted; no click, prompt acceptance, or update action occurred. A subsequent exact-path process check found no running `/Applications/Orion.app/Contents/MacOS/Orion`, so no process required termination.
+
+The full browser was resolved without installer UI from Kagi's appcast and safely expanded under `/private/tmp/pickvia-orion-install.E1otz9/expanded/Orion.app`. The staged app is version `1.1.2` build `151`, 576264705 file bytes across 1386 files, with a 31240544-byte universal main executable. It links WebKit `625.1.8`, bundles `WebKit.framework`, `WebKitLegacy.framework`, `BrowserAssets.bundle`, browser-window controllers, extension resources, and content-rule lists. Those browser components distinguish it from the updater stub. The staged bundle passed arm64 detection, strict codesign, Gatekeeper notarization, Kagi team identity, and the inspector.
+
+Immediately before replacement, the installed stub's version and executable hash were rechecked against the preserved copy. Only the exact task-owned `/Applications/Orion.app` was moved to `/private/tmp/pickvia-orion-install.E1otz9/replaced-task-owned-stub/Orion.app`; the staged full browser was then copied to that vacated official path. The full browser was not launched.
+
 ## Exact installed descriptors
 
 For every passing row, the `authorities` column is the exact chain emitted by the inspector. Chromium records the manual rejection summary because the inspector intentionally produces no success record for it. All rows except Chromium are installed and available at the listed path.
@@ -286,11 +319,11 @@ For every passing row, the `authorities` column is the exact chain emitted by th
 | DuckDuckGo | `/Applications/DuckDuckGo.app` | `com.duckduckgo.macos.browser` | DuckDuckGo | `DuckDuckGo` | 1.203.0 | `x86_64,arm64` | `HKE973VLUW` | `Developer ID Application: Duck Duck Go, Inc. (HKE973VLUW) \| Developer ID Certification Authority \| Apple Root CA` | `a774871988511bdea99e9b752b1e8bdb6b23e0683ba7c111f39577a431ef0194` | Pre-existing; inspector pass |
 | Opera | `/Applications/Opera.app` | `com.operasoftware.Opera` | Opera | `Opera` | 135.0 | `x86_64,arm64` | `A2P9LX4JPN` | `Developer ID Application: Opera Software AS (A2P9LX4JPN) \| Developer ID Certification Authority \| Apple Root CA` | `7d559460ff879a29ca23dddab7c01dddb59edd3596dfa124cfdf25ab85168626` | Installed; staged match pass |
 | Arc | `/Applications/Arc.app` | `company.thebrowser.Browser` | Arc | `Arc` | 1.161.1 | `x86_64,arm64` | `S6N382Y83G` | `Developer ID Application: The Browser Company of New York Inc. (S6N382Y83G) \| Developer ID Certification Authority \| Apple Root CA` | `c42895c0ac48fe60357705a2ea6cfdb18a9b56e4b2c92b4a2af4d2a30b6ea2ed` | Installed; staged match pass |
-| Orion | `/Applications/Orion.app` | `com.kagi.kagimacOS` | Orion | `Orion` | 1.0 | `x86_64,arm64` | `TFVG979488` | `Developer ID Application: Kagi Inc. (TFVG979488) \| Developer ID Certification Authority \| Apple Root CA` | `9521b612fe08ee530359bf046b56e52cc4c53569680b2fc2a5ebd2363dffb505` | Installed; staged match pass |
+| Orion | `/Applications/Orion.app` | `com.kagi.kagimacOS` | Orion | `Orion` | 1.1.2 | `x86_64,arm64` | `TFVG979488` | `Developer ID Application: Kagi Inc. (TFVG979488) \| Developer ID Certification Authority \| Apple Root CA` | `e0c12e14e14ee998b42bf8a5e02401268119f31aad38a3ee926bcf0c158108e8` | Full browser installed; staged match pass |
 
 ## Recreated staged-versus-installed evidence
 
-Each of the 16 installed artifacts was mounted read-only or expanded without execution into `/private/tmp/pickvia-browser-remediation.yNnc5z`, then copied to `staged-apps/<official name>.app` with the normalization commands documented above. The unchanged inspector ran separately on the staged and installed paths. Its `path=` line was removed, the remaining eight lines were compared byte-for-byte, and the canonical transcript was hashed including its final newline:
+The fifteen non-Orion installed artifacts were mounted read-only or expanded without execution into `/private/tmp/pickvia-browser-remediation.yNnc5z`, then copied to `staged-apps/<official name>.app` with the normalization commands documented above. Orion's corrected full-browser comparison used `/private/tmp/pickvia-orion-install.E1otz9/expanded/Orion.app`. The inspector ran separately on every staged and installed path. Its `path=` line was removed, the remaining eight lines were compared byte-for-byte, and the canonical transcript was hashed including its final newline:
 
 ```bash
 staged_output=$("$inspector" "$staged")
@@ -321,7 +354,7 @@ Thus each canonical digest covers the exact `bundle_id`, `display_name`, `execut
 | Firefox Nightly | 0 / 0 | `55f879b1401259d052d1f78c7e5c7e4b254b5e47f875e75d25ef0d5447b8fe68` | `55f879b1401259d052d1f78c7e5c7e4b254b5e47f875e75d25ef0d5447b8fe68` | `fa25bde3cd9a997b0b7a9d4a48ddabd4ab134aec75e865b98309da6deb113df8` | `fa25bde3cd9a997b0b7a9d4a48ddabd4ab134aec75e865b98309da6deb113df8` | PASS |
 | Opera | 0 / 0 | `768799667cfc649fade2fa2455952408d32a438c38a7fa504c8f3eff80b0ebbb` | `768799667cfc649fade2fa2455952408d32a438c38a7fa504c8f3eff80b0ebbb` | `7d559460ff879a29ca23dddab7c01dddb59edd3596dfa124cfdf25ab85168626` | `7d559460ff879a29ca23dddab7c01dddb59edd3596dfa124cfdf25ab85168626` | PASS |
 | Arc | 0 / 0 | `29766aacef647796bfb181542567bd94b8f25bbe978d2129c4d04a5c3c4ae7ea` | `29766aacef647796bfb181542567bd94b8f25bbe978d2129c4d04a5c3c4ae7ea` | `c42895c0ac48fe60357705a2ea6cfdb18a9b56e4b2c92b4a2af4d2a30b6ea2ed` | `c42895c0ac48fe60357705a2ea6cfdb18a9b56e4b2c92b4a2af4d2a30b6ea2ed` | PASS |
-| Orion | 0 / 0 | `4a3a84f464be2bda735de90b504bbf0a3e4e32c138fa83ae087b45055fb88a61` | `4a3a84f464be2bda735de90b504bbf0a3e4e32c138fa83ae087b45055fb88a61` | `9521b612fe08ee530359bf046b56e52cc4c53569680b2fc2a5ebd2363dffb505` | `9521b612fe08ee530359bf046b56e52cc4c53569680b2fc2a5ebd2363dffb505` | PASS |
+| Orion | 0 / 0 | `ae338aa4245f1862b6f2769b2a2d7f20999d6c62e9b2770227c4a274c38bef81` | `ae338aa4245f1862b6f2769b2a2d7f20999d6c62e9b2770227c4a274c38bef81` | `e0c12e14e14ee998b42bf8a5e02401268119f31aad38a3ee926bcf0c158108e8` | `e0c12e14e14ee998b42bf8a5e02401268119f31aad38a3ee926bcf0c158108e8` | PASS |
 
 All 16 comparisons passed with no field, hash, version, or signing-identity mismatch.
 
@@ -331,11 +364,11 @@ Firefox Beta/ESR, Safari Beta, and Chrome Extended Stable are excluded from this
 
 - The user explicitly authorized all browser EULAs before installation resumed.
 - Opera's initial ZIP contained only an EULA-gated network bootstrapper. The first-party offline link supplied a full valid DMG containing `Opera.app`, so the bootstrapper was not run.
-- `OrionInstaller.dmg` directly contained `Orion.app`; no installer was run.
+- `OrionInstaller.dmg` directly contained an updater app that was initially copied and misclassified as the browser. Review correction preserved and replaced only that task-owned stub with the verified full payload from Kagi's signed appcast. No pre-existing user application was replaced.
 - The signed Safari Technology Preview and Edge packages were expanded without execution. Their inspected app payloads were copied under their official names, an installation mode explicitly allowed by this task.
 - All sixteen destination names were checked immediately before copy. No collision occurred.
 - Each new `/Applications` bundle passed the inspector after installation. All eight identity fields other than `path`, including executable SHA-256, matched the corresponding staged output exactly.
-- No browser or installer UI was opened.
+- No full browser was launched. One aborted Computer Use state request may have opened the Orion updater stub, but no UI state returned and no UI action was taken. The signed Orion feed and full payload were handled directly afterward, without installer UI.
 
 ## Chromium blocker
 
@@ -345,6 +378,16 @@ The official `Mac_Arm/1684265` snapshot produced `Chromium.app` version `154.0.8
 
 The fresh reconstruction first checked every ZIP entry for an absolute path or `..` component and recorded `entry_traversal_check=PASS status=0`. Against the safely expanded app, the inspector exited `1` with `error: bundle is not validly signed`; both the direct strict-signature check and Gatekeeper assessment exited `1` with the exact error above.
 
+## Verification
+
+- `bash -n scripts/browser-e2e/inspect-browser-app.sh` — exit `0`.
+- `bash -n scripts/browser-e2e/test-inspect-browser-app.sh` — exit `0`.
+- `scripts/browser-e2e/test-inspect-browser-app.sh` — exit `0`, `PASS: inspector contract`.
+- Fresh installed canonical-digest verification — 16/16 passing, including Orion 1.1.2 staged/install equality.
+- Report consistency — 23 descriptor rows including the blocked Chromium row, 16 paired staged/install rows, 20 download-evidence rows, and 7 xattr evidence rows.
+- `swift test --disable-sandbox` — exit `0`; Swift Testing reported 283 tests in 12 suites passed.
+- `git diff --check` — exit `0`.
+
 ## Cleanup
 
-For the original run, all twelve disk images were detached and the exact owned staging directory `/private/tmp/pickvia-browser-matrix.Jlmb7U` was removed after evidence and installed matches were frozen. For review remediation, evidence was first preserved in commit `78a2a2d1d7d14ea768df59d3869a4e6d1c608b4d`; only then were all twelve read-only images detached and the exact, ownership-validated directories `/private/tmp/pickvia-browser-remediation.yNnc5z` and `/private/tmp/pickvia-inspector-repro.Kx08YQ` removed. Both paths were verified absent after removal. The contract's unique per-run fixture directories were removed by its `EXIT` trap. All installed browser apps remain in `/Applications`.
+For the original run, all twelve disk images were detached and the exact owned staging directory `/private/tmp/pickvia-browser-matrix.Jlmb7U` was removed after evidence and installed matches were frozen. For review remediation, evidence was first preserved in commit `78a2a2d1d7d14ea768df59d3869a4e6d1c608b4d`; only then were all twelve read-only images detached and the exact, ownership-validated directories `/private/tmp/pickvia-browser-remediation.yNnc5z` and `/private/tmp/pickvia-inspector-repro.Kx08YQ` removed. Both paths were verified absent after removal. The durable contract's unique per-run fixture directories were removed by its `EXIT` trap. The exact Orion correction directory `/private/tmp/pickvia-orion-install.E1otz9`, including both preserved stub copies and the staged full browser, is intentionally retained until the corrected evidence is committed. All installed browser apps remain in `/Applications`.

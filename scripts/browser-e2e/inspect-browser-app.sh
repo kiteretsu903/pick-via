@@ -13,8 +13,11 @@ plist_value() {
 
 require_one_line() {
     case "$2" in
-        *$'\n'*|*$'\r'*) fail "$1 contains a line break" ;;
+        *$'\n'*|*$'\r'*) fail "$1 contains a control character" ;;
     esac
+    if LC_ALL=C /usr/bin/grep -q '[[:cntrl:]]' <<< "$2"; then
+        fail "$1 contains a control character"
+    fi
 }
 
 if [[ $# -ne 1 ]]; then
