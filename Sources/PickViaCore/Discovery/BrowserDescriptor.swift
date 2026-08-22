@@ -94,6 +94,37 @@ public struct BrowserDescriptor: Equatable, Sendable {
     }
   }
 
+  public var hasCompatibleStrategies: Bool {
+    let profileIsCompatible =
+      switch profileStrategy {
+      case .none:
+        true
+      case .chromium:
+        if case .chromium = launchStrategy { true } else { false }
+      case .firefox:
+        if case .firefox = launchStrategy { true } else { false }
+      case .safariShortcut:
+        launchStrategy == .workspace
+      }
+    let privateModeIsCompatible =
+      switch privateStrategy {
+      case .unsupported:
+        true
+      case .argument:
+        switch launchStrategy {
+        case .chromium, .firefox:
+          true
+        case .workspace, .duckDuckGo:
+          false
+        }
+      case .duckDuckGoFire:
+        launchStrategy == .duckDuckGo
+      case .safariShortcut:
+        launchStrategy == .workspace
+      }
+    return profileIsCompatible && privateModeIsCompatible
+  }
+
   public static let supported: [BrowserDescriptor] = [
     BrowserDescriptor(
       bundleIdentifier: "com.apple.Safari",

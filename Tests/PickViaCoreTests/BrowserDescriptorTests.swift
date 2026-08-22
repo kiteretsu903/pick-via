@@ -18,6 +18,20 @@ struct BrowserDescriptorTests {
     #expect(descriptor.supportsProfiles == expectation.supportsProfiles)
     #expect(descriptor.supportsPrivateMode == expectation.supportsPrivateMode)
   }
+
+  @Test func builtInDescriptorsHaveCompatibleStrategies() {
+    #expect(BrowserDescriptor.supported.allSatisfy { $0.hasCompatibleStrategies })
+  }
+
+  @Test(arguments: incompatibleStrategyCombinations)
+  func incompatibleStrategyCombinationsAreRejected(_ combination: StrategyCombination) {
+    #expect(!strategyDescriptor(combination).hasCompatibleStrategies)
+  }
+
+  @Test(arguments: compatibleStrategyCombinations)
+  func compatibleStrategyCombinationsAreAccepted(_ combination: StrategyCombination) {
+    #expect(strategyDescriptor(combination).hasCompatibleStrategies)
+  }
 }
 
 struct DescriptorExpectation: Sendable {
@@ -118,5 +132,106 @@ func chromiumExpectation(
     executableRelativePath: executableRelativePath,
     supportsProfiles: true,
     supportsPrivateMode: true
+  )
+}
+
+struct StrategyCombination: Sendable {
+  let profile: BrowserProfileStrategy
+  let launch: BrowserLaunchStrategy
+  let privateMode: BrowserPrivateStrategy
+}
+
+let incompatibleStrategyCombinations = [
+  StrategyCombination(
+    profile: .chromium(root: "root"), launch: .workspace, privateMode: .unsupported),
+  StrategyCombination(
+    profile: .chromium(root: "root"),
+    launch: .firefox(executableRelativePath: "firefox"),
+    privateMode: .unsupported
+  ),
+  StrategyCombination(
+    profile: .chromium(root: "root"), launch: .duckDuckGo, privateMode: .unsupported),
+  StrategyCombination(
+    profile: .firefox(root: "root"), launch: .workspace, privateMode: .unsupported),
+  StrategyCombination(
+    profile: .firefox(root: "root"),
+    launch: .chromium(executableRelativePath: "chromium", profileArgument: "--profile="),
+    privateMode: .unsupported
+  ),
+  StrategyCombination(
+    profile: .firefox(root: "root"), launch: .duckDuckGo, privateMode: .unsupported),
+  StrategyCombination(
+    profile: .safariShortcut,
+    launch: .chromium(executableRelativePath: "chromium", profileArgument: "--profile="),
+    privateMode: .unsupported
+  ),
+  StrategyCombination(
+    profile: .safariShortcut,
+    launch: .firefox(executableRelativePath: "firefox"),
+    privateMode: .unsupported
+  ),
+  StrategyCombination(profile: .safariShortcut, launch: .duckDuckGo, privateMode: .unsupported),
+  StrategyCombination(profile: .none, launch: .workspace, privateMode: .duckDuckGoFire),
+  StrategyCombination(
+    profile: .none,
+    launch: .chromium(executableRelativePath: "chromium", profileArgument: "--profile="),
+    privateMode: .duckDuckGoFire
+  ),
+  StrategyCombination(
+    profile: .none,
+    launch: .firefox(executableRelativePath: "firefox"),
+    privateMode: .duckDuckGoFire
+  ),
+  StrategyCombination(profile: .none, launch: .workspace, privateMode: .argument("--private")),
+  StrategyCombination(profile: .none, launch: .duckDuckGo, privateMode: .argument("--private")),
+  StrategyCombination(
+    profile: .none,
+    launch: .chromium(executableRelativePath: "chromium", profileArgument: "--profile="),
+    privateMode: .safariShortcut
+  ),
+  StrategyCombination(
+    profile: .none,
+    launch: .firefox(executableRelativePath: "firefox"),
+    privateMode: .safariShortcut
+  ),
+  StrategyCombination(profile: .none, launch: .duckDuckGo, privateMode: .safariShortcut),
+]
+
+let compatibleStrategyCombinations = [
+  StrategyCombination(profile: .none, launch: .workspace, privateMode: .unsupported),
+  StrategyCombination(
+    profile: .none,
+    launch: .chromium(executableRelativePath: "chromium", profileArgument: "--profile="),
+    privateMode: .unsupported
+  ),
+  StrategyCombination(
+    profile: .none,
+    launch: .firefox(executableRelativePath: "firefox"),
+    privateMode: .unsupported
+  ),
+  StrategyCombination(profile: .none, launch: .duckDuckGo, privateMode: .unsupported),
+  StrategyCombination(
+    profile: .chromium(root: "root"),
+    launch: .chromium(executableRelativePath: "chromium", profileArgument: "--profile="),
+    privateMode: .argument("--private")
+  ),
+  StrategyCombination(
+    profile: .firefox(root: "root"),
+    launch: .firefox(executableRelativePath: "firefox"),
+    privateMode: .argument("--private")
+  ),
+  StrategyCombination(
+    profile: .safariShortcut, launch: .workspace, privateMode: .safariShortcut),
+  StrategyCombination(profile: .none, launch: .duckDuckGo, privateMode: .duckDuckGoFire),
+]
+
+func strategyDescriptor(_ combination: StrategyCombination) -> BrowserDescriptor {
+  BrowserDescriptor(
+    bundleIdentifier: "com.example.strategy-test",
+    family: .chromium,
+    displayName: "Strategy Test",
+    profileStrategy: combination.profile,
+    launchStrategy: combination.launch,
+    privateStrategy: combination.privateMode
   )
 }

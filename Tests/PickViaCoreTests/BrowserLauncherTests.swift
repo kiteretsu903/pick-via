@@ -54,6 +54,108 @@ struct BrowserLauncherTests {
     #expect(arguments == ["--profile-directory=Profile 1", "https://example.com/a?x=1"])
   }
 
+  @Test(arguments: [ProfileEvidenceField.displayName, .identity, .launchPath])
+  func chromiumRejectsProfileEvidenceWithoutIdentifier(field: ProfileEvidenceField) {
+    #expect(throws: LaunchFailure.self) {
+      try testLauncher().makePlan(
+        url: url,
+        application: application(family: .chromium),
+        target: profileEvidenceTarget(browserID: "com.google.Chrome", field: field)
+      )
+    }
+  }
+
+  @Test(arguments: EmptyIdentifierCompanion.allCases)
+  func chromiumRejectsEmptyIdentifierWithProfileEvidence(companion: EmptyIdentifierCompanion) {
+    #expect(throws: LaunchFailure.self) {
+      try testLauncher().makePlan(
+        url: url,
+        application: application(family: .chromium),
+        target: emptyIdentifierTarget(companion: companion)
+      )
+    }
+  }
+
+  @Test func chromiumBrowserLevelTargetStillUsesDefaultProfile() throws {
+    let plan = try testLauncher().makePlan(
+      url: url,
+      application: application(family: .chromium),
+      target: target(family: .chromium, profile: nil)
+    )
+
+    guard case .executable(_, let arguments) = plan else {
+      Issue.record("Expected executable launch plan")
+      return
+    }
+    #expect(arguments == [url.absoluteString])
+  }
+
+  @Test(arguments: ProfileEvidenceField.allCases)
+  func workspaceRejectsProfileEvidenceForIncompatibleProfileStrategy(
+    field: ProfileEvidenceField
+  ) {
+    let descriptor = BrowserDescriptor(
+      bundleIdentifier: "com.apple.Safari",
+      family: .safari,
+      displayName: "Safari",
+      profileStrategy: .chromium(root: "unused"),
+      launchStrategy: .workspace,
+      privateStrategy: .unsupported
+    )
+
+    #expect(throws: LaunchFailure.self) {
+      try launcher(descriptor: descriptor).makePlan(
+        url: url,
+        application: application(family: .safari, executable: nil),
+        target: profileEvidenceTarget(browserID: descriptor.bundleIdentifier, field: field)
+      )
+    }
+  }
+
+  @Test(arguments: ProfileEvidenceField.allCases)
+  func duckDuckGoRejectsProfileEvidenceForIncompatibleProfileStrategy(
+    field: ProfileEvidenceField
+  ) {
+    let descriptor = BrowserDescriptor(
+      bundleIdentifier: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
+      family: .duckDuckGo,
+      displayName: "DuckDuckGo",
+      profileStrategy: .firefox(root: "unused"),
+      launchStrategy: .duckDuckGo,
+      privateStrategy: .duckDuckGoFire
+    )
+
+    #expect(throws: LaunchFailure.self) {
+      try launcher(descriptor: descriptor).makePlan(
+        url: url,
+        application: application(family: .duckDuckGo, executable: nil),
+        target: profileEvidenceTarget(browserID: descriptor.bundleIdentifier, field: field)
+      )
+    }
+  }
+
+  @Test func incompatibleDescriptorIsRejectedAtLaunchBoundaryForBrowserLevelTarget() {
+    let descriptor = BrowserDescriptor(
+      bundleIdentifier: "com.google.Chrome",
+      family: .chromium,
+      displayName: "Google Chrome",
+      profileStrategy: .firefox(root: "unused"),
+      launchStrategy: .chromium(
+        executableRelativePath: "Contents/MacOS/Google Chrome",
+        profileArgument: "--profile-directory="
+      ),
+      privateStrategy: .argument("--incognito")
+    )
+
+    #expect(throws: LaunchFailure.self) {
+      try launcher(descriptor: descriptor).makePlan(
+        url: url,
+        application: application(family: .chromium),
+        target: target(family: .chromium, profile: nil)
+      )
+    }
+  }
+
   @Test func persistedApplicationAndExecutablePathsAreIgnoredAtLaunchBoundary() throws {
     let trustedApplication = URL(
       fileURLWithPath: "/Applications/Trusted Google Chrome.app", isDirectory: true)
@@ -740,6 +842,20 @@ enum DuckDuckGoProfileField: CaseIterable, Sendable {
   case launchPath
 }
 
+enum ProfileEvidenceField: CaseIterable, Sendable {
+  case identifier
+  case displayName
+  case identity
+  case launchPath
+}
+
+enum EmptyIdentifierCompanion: CaseIterable, Sendable {
+  case none
+  case displayName
+  case identity
+  case launchPath
+}
+
 private func application(
   family: BrowserFamily,
   bundleIdentifier: String? = nil,
@@ -810,6 +926,43 @@ private func duckDuckGoTarget(
   )
 }
 
+private func profileEvidenceTarget(
+  browserID: BrowserApplication.ID,
+  field: ProfileEvidenceField
+) -> BrowserTarget {
+  BrowserTarget(
+    id: "profile-evidence-\(field)",
+    browserID: browserID,
+    label: "Profile Evidence",
+    profileIdentifier: field == .identifier ? "Profile 1" : nil,
+    profileDisplayName: field == .displayName ? "Profile 1" : nil,
+    profileIdentity: field == .identity ? "profile-identity" : nil,
+    profileLaunchPath: field == .launchPath ? "/profiles/one" : nil,
+    mode: .normal,
+    isEnabled: true,
+    sortOrder: 0,
+    origin: .detected,
+    availability: .available
+  )
+}
+
+private func emptyIdentifierTarget(companion: EmptyIdentifierCompanion) -> BrowserTarget {
+  BrowserTarget(
+    id: "empty-identifier-\(companion)",
+    browserID: "com.google.Chrome",
+    label: "Empty Identifier",
+    profileIdentifier: "",
+    profileDisplayName: companion == .displayName ? "Profile 1" : nil,
+    profileIdentity: companion == .identity ? "profile-identity" : nil,
+    profileLaunchPath: companion == .launchPath ? "/profiles/one" : nil,
+    mode: .normal,
+    isEnabled: true,
+    sortOrder: 0,
+    origin: .detected,
+    availability: .available
+  )
+}
+
 private func bundleID(for family: BrowserFamily) -> String {
   switch family {
   case .safari: "com.apple.Safari"
@@ -843,6 +996,19 @@ private func duckDuckGoLauncher(
     workspace: RecordingWorkspace(),
     executableValidator: StubExecutableValidator(isExecutable: true),
     duckDuckGoRouter: router
+  )
+}
+
+private func launcher(descriptor: BrowserDescriptor) -> BrowserLauncher {
+  BrowserLauncher(
+    trustedApplicationResolver: StubTrustedApplicationResolver(urls: [
+      descriptor.bundleIdentifier: applicationURL
+    ]),
+    processRunner: RecordingProcessRunner(),
+    workspace: RecordingWorkspace(),
+    executableValidator: StubExecutableValidator(isExecutable: true),
+    duckDuckGoRouter: RecordingDuckDuckGoRouter(),
+    descriptors: [descriptor]
   )
 }
 

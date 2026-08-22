@@ -74,6 +74,7 @@ public struct BrowserLauncher: RouteLaunching, Sendable {
   private let executableValidator: any ExecutableValidating
   private let trustedApplicationResolver: any TrustedApplicationResolving
   private let duckDuckGoRouter: any DuckDuckGoRouting
+  private let descriptors: [BrowserDescriptor]
 
   public init(
     trustedApplicationResolver: any TrustedApplicationResolving = WorkspaceApplicationLocator(),
@@ -86,6 +87,7 @@ public struct BrowserLauncher: RouteLaunching, Sendable {
     self.workspace = workspace
     self.executableValidator = executableValidator
     duckDuckGoRouter = DuckDuckGoProcessCoordinator()
+    descriptors = BrowserDescriptor.supported
   }
 
   init(
@@ -93,13 +95,15 @@ public struct BrowserLauncher: RouteLaunching, Sendable {
     processRunner: any ProcessRunning,
     workspace: any WorkspaceOpening,
     executableValidator: any ExecutableValidating,
-    duckDuckGoRouter: any DuckDuckGoRouting
+    duckDuckGoRouter: any DuckDuckGoRouting,
+    descriptors: [BrowserDescriptor] = BrowserDescriptor.supported
   ) {
     self.trustedApplicationResolver = trustedApplicationResolver
     self.processRunner = processRunner
     self.workspace = workspace
     self.executableValidator = executableValidator
     self.duckDuckGoRouter = duckDuckGoRouter
+    self.descriptors = descriptors
   }
 
   public func makePlan(
@@ -112,9 +116,11 @@ public struct BrowserLauncher: RouteLaunching, Sendable {
       application.id == target.applicationID,
       application.id == application.bundleIdentifier,
       let browserFamily = application.browserFamily,
-      let descriptor = BrowserDescriptor.descriptor(
-        forBundleIdentifier: application.bundleIdentifier),
+      let descriptor = descriptors.first(where: {
+        $0.bundleIdentifier == application.bundleIdentifier
+      }),
       descriptor.family == browserFamily,
+      descriptor.hasCompatibleStrategies,
       let trustedApplicationURL = trustedApplicationResolver.applicationURL(
         forBundleIdentifier: application.bundleIdentifier),
       application.isAvailable(for: .web),
@@ -123,12 +129,12 @@ public struct BrowserLauncher: RouteLaunching, Sendable {
       throw Self.launchFailure
     }
 
-    let hasProfile =
+    let hasProfileEvidence =
       options.profileIdentifier != nil
       || options.profileDisplayName != nil
       || options.profileIdentity != nil
       || options.profileLaunchPath != nil
-    guard descriptor.supportsProfiles || !hasProfile else {
+    guard descriptor.supportsProfiles || !hasProfileEvidence else {
       throw Self.launchFailure
     }
     guard descriptor.supportsPrivateMode || options.mode == .normal else {
@@ -137,10 +143,11 @@ public struct BrowserLauncher: RouteLaunching, Sendable {
 
     switch descriptor.launchStrategy {
     case .workspace:
-      guard !hasProfile, options.mode == .normal else { throw Self.launchFailure }
+      guard !hasProfileEvidence, options.mode == .normal else { throw Self.launchFailure }
       return .workspace(application: trustedApplicationURL, url: url)
 
     case .duckDuckGo:
+      guard !hasProfileEvidence else { throw Self.launchFailure }
       if options.mode == .private {
         guard descriptor.privateStrategy == .duckDuckGoFire else {
           throw Self.launchFailure
@@ -162,7 +169,10 @@ public struct BrowserLauncher: RouteLaunching, Sendable {
         throw Self.launchFailure
       }
       var arguments: [String] = []
-      if let profile = options.profileIdentifier {
+      if hasProfileEvidence {
+        guard let profile = options.profileIdentifier, !profile.isEmpty else {
+          throw Self.launchFailure
+        }
         arguments.append("\(profileArgument)\(profile)")
       }
       if options.mode == .private {
