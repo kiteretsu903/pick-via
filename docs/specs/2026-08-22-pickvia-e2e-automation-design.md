@@ -198,6 +198,10 @@ the FIFO reader disappears.
   exact-executable snapshot. Any non-baseline generation prevents success; one newly
   attributable generation may be terminated, while replacement or multiple accumulated
   generations remain untouched and are reported ambiguous.
+- Browser cleanup has one shared three-second grace deadline. Each exact owned generation
+  receives at most one `SIGTERM`; targeted PID/start/executable checks poll that generation
+  during the grace, while authoritative full snapshots remain required after termination
+  and at the final sweep. A survivor is never signalled again by the final sweep.
 - Harness/control failures are reported separately from browser/product failures. They do
   not justify removing a capability unless the real production route itself fails after
   selection.
@@ -274,7 +278,8 @@ and are not redesigned by this E2E work.
 - Tokens may appear in the sanitized compatibility ledger, but the route assembled from
   them may not.
 - Record only version, bundle ID, strategy, exact process identity, bounded state,
-  receipt result, sanitized visible observation, and cleanup result.
+  receipt result, sanitized visible observation, cleanup result, actual total elapsed
+  seconds, the route-proof timeout, and the separate browser-cleanup grace.
 - Do not enumerate or report unrelated profiles. Existing user browser processes are
   preserved unless an exact reversible test step is separately authorized.
 

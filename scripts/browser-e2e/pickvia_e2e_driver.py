@@ -38,7 +38,7 @@ DRIVER_BROWSER_IDENTITY_AMBIGUOUS = 21
 DRIVER_CLEANUP_FAILURE = 22
 
 MAXIMUM_TIMEOUT_SECONDS = 30.0
-BROWSER_SHUTDOWN_GRACE_SECONDS = 3.0
+BROWSER_CLEANUP_GRACE_SECONDS = 3.0
 MAXIMUM_PROTOCOL_LINE_BYTES = 2_048
 MAXIMUM_CAPTURE_BYTES = 65_536
 MAXIMUM_AUDIT_FILE_BYTES = 8 * 1_024 * 1_024
@@ -240,22 +240,35 @@ def _snapshot_exact_browser_processes(executable, library=None):
         raise _IdentityInspectionError from error
 
 
-def _terminate_exact_browser_process(identity, executable):
+def _target_generation_is_live(identity, executable):
     expected = pathlib.Path(executable)
-    current = _snapshot_exact_browser_processes(expected)
-    if not any(item.generation_key == identity.generation_key for item in current):
+    try:
+        current = _darwin_process_identity(identity.pid)
+    except _ProcessDisappeared:
+        return False
+    return (
+        current.executable == expected
+        and current.generation_key == identity.generation_key
+    )
+
+
+def _terminate_exact_browser_process(identity, executable, cleanup_deadline):
+    expected = pathlib.Path(executable)
+    if not _target_generation_is_live(identity, expected):
         return True
+    if time.monotonic() >= cleanup_deadline:
+        return False
     try:
         os.kill(identity.pid, signal.SIGTERM)
     except ProcessLookupError:
         return True
-    deadline = time.monotonic() + BROWSER_SHUTDOWN_GRACE_SECONDS
-    while time.monotonic() < deadline:
-        current = _snapshot_exact_browser_processes(expected)
-        if not any(item.generation_key == identity.generation_key for item in current):
+    while time.monotonic() < cleanup_deadline:
+        if not _target_generation_is_live(identity, expected):
             return True
-        time.sleep(0.02)
-    return False
+        remaining = cleanup_deadline - time.monotonic()
+        if remaining > 0:
+            time.sleep(min(0.02, remaining))
+    return not _target_generation_is_live(identity, expected)
 
 
 def _remove_task_root(root):
@@ -303,9 +316,9 @@ class DriverDependencies:
     browser_process_snapshot: Callable[[pathlib.Path, str], frozenset] = (
         lambda executable, _phase: _snapshot_exact_browser_processes(executable)
     )
-    browser_process_terminator: Callable[[ProcessIdentity, pathlib.Path], bool] = (
-        _terminate_exact_browser_process
-    )
+    browser_process_terminator: Callable[
+        [ProcessIdentity, pathlib.Path, float], bool
+    ] = _terminate_exact_browser_process
     capture_observer: Callable[[str, str, bytes, bool], None] = _ignore
     task_root_remover: Callable[[pathlib.Path], bool] = _remove_task_root
     fifo_closer: Callable[[int], bool] = _close_fifo
@@ -567,7 +580,9 @@ def _empty_result(exit_code):
         "token_received": False,
         "exact_process_identity": False,
         "exact_browser_process_identity": False,
-        "elapsed_bound_seconds": 0.0,
+        "total_elapsed_seconds": 0.0,
+        "route_timeout_seconds": 0.0,
+        "browser_cleanup_grace_seconds": 0.0,
     }
     return DriverResult(
         exit_code=exit_code,
@@ -586,7 +601,9 @@ def _failure_result(config, exit_code, outcome):
         "token_received": False,
         "exact_process_identity": False,
         "exact_browser_process_identity": False,
-        "elapsed_bound_seconds": 0.0,
+        "total_elapsed_seconds": 0.0,
+        "route_timeout_seconds": 0.0,
+        "browser_cleanup_grace_seconds": 0.0,
     }
     return DriverResult(
         exit_code=exit_code,
@@ -1105,6 +1122,7 @@ def run_driver(config, dependencies=None):
     app = None
     preexisting_browsers = set()
     owned_browsers = set()
+    browser_termination_attempts = set()
     cleanup_ok = True
     identity_ambiguous = False
     identity_inspection_failed = False
@@ -1270,6 +1288,9 @@ def run_driver(config, dependencies=None):
         exit_code = DRIVER_PROCESS_ERROR
     finally:
         signal_guard.begin_cleanup()
+        browser_cleanup_deadline = (
+            time.monotonic() + BROWSER_CLEANUP_GRACE_SECONDS
+        )
         browser_cleanup_safe = not identity_inspection_failed
         if app is not None:
             cleanup_ok = processes.stop(app) and cleanup_ok
@@ -1310,8 +1331,14 @@ def run_driver(config, dependencies=None):
                 )
                 if not is_same_generation:
                     continue
+                if identity.generation_key in browser_termination_attempts:
+                    cleanup_ok = False
+                    continue
+                browser_termination_attempts.add(identity.generation_key)
                 terminated = dependencies.browser_process_terminator(
-                    identity, browser_executable
+                    identity,
+                    browser_executable,
+                    browser_cleanup_deadline,
                 )
                 current = _authoritative_browser_snapshot(
                     dependencies,
@@ -1363,21 +1390,32 @@ def run_driver(config, dependencies=None):
                         and len(final_new) == 1
                     ):
                         final_identity = next(iter(final_new))
-                        terminated = dependencies.browser_process_terminator(
-                            final_identity,
-                            browser_executable,
-                        )
-                        final_current = _authoritative_browser_snapshot(
-                            dependencies,
-                            browser_executable,
-                            "final-post-terminate",
-                        )
-                        final_remaining = _accumulate_browser_generations(
-                            final_current,
-                            preexisting_browsers,
-                            owned_browsers,
-                        )
-                        cleanup_ok = terminated and not final_remaining and cleanup_ok
+                        if (
+                            final_identity.generation_key
+                            not in browser_termination_attempts
+                            and time.monotonic() < browser_cleanup_deadline
+                        ):
+                            browser_termination_attempts.add(
+                                final_identity.generation_key
+                            )
+                            terminated = dependencies.browser_process_terminator(
+                                final_identity,
+                                browser_executable,
+                                browser_cleanup_deadline,
+                            )
+                            final_current = _authoritative_browser_snapshot(
+                                dependencies,
+                                browser_executable,
+                                "final-post-terminate",
+                            )
+                            final_remaining = _accumulate_browser_generations(
+                                final_current,
+                                preexisting_browsers,
+                                owned_browsers,
+                            )
+                            cleanup_ok = (
+                                terminated and not final_remaining and cleanup_ok
+                            )
             except _IdentityAmbiguous:
                 identity_ambiguous = True
             except (_IdentityInspectionError, OSError, ValueError, TypeError):
@@ -1420,14 +1458,16 @@ def run_driver(config, dependencies=None):
             exit_code = DRIVER_CLEANUP_FAILURE
         signal_guard.restore()
 
-    elapsed = min(max(dependencies.monotonic() - started, 0.0), timeout)
+    total_elapsed = max(dependencies.monotonic() - started, 0.0)
     report = {
         "session": config.session_nonce,
         "outcome": outcome,
         "token_received": received,
         "exact_process_identity": exact_e2e_identity,
         "exact_browser_process_identity": exact_browser_identity,
-        "elapsed_bound_seconds": round(elapsed, 6),
+        "total_elapsed_seconds": round(total_elapsed, 6),
+        "route_timeout_seconds": round(timeout, 6),
+        "browser_cleanup_grace_seconds": BROWSER_CLEANUP_GRACE_SECONDS,
     }
     return DriverResult(
         exit_code=exit_code,

@@ -796,7 +796,8 @@ The driver:
 6. waits concurrently for one valid FIFO status and one receiver receipt with a monotonic
    deadline;
 7. requires exact E2E and selected-browser process identities and reports only sanitized
-   JSON (`session`, `outcome`, token receipt boolean, identity booleans, elapsed bound); and
+   JSON (`session`, `outcome`, token receipt boolean, identity booleans, actual total
+   elapsed seconds, route-proof timeout, and browser-cleanup grace); and
 8. preserves preexisting browser generations, terminates only one unambiguous task-owned
    generation, drains owned output, then removes the FIFO/root.
 
@@ -808,6 +809,12 @@ race is benign. After closing every direct route producer, compare a final autho
 exact-executable snapshot with both the immutable baseline and every accumulated new
 generation. Any remaining non-baseline generation prevents success; terminate it only
 when the accumulated attribution remains unambiguous.
+
+All browser termination attempts share one three-second cleanup deadline. Poll the exact
+target PID/start/executable identity during that grace, perform a final target check at the
+deadline boundary, and never signal the same generation twice. Full authoritative
+post-termination and final snapshots still decide replacement, multiple-generation, and
+unknown-state failures.
 
 This privacy contract applies to the driver, E2E app/helper controls, status, harness
 output, task root, and clipboard. It does not claim that production `BrowserLauncher` or

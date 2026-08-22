@@ -112,6 +112,7 @@ class DriverFixture:
         self.closed_child_pids = []
         self.terminated_browser_pids = []
         self.terminated_browser_generations = []
+        self.browser_termination_deadlines = []
         self.regular_file_snapshots = []
         self.captured_child_output = []
         self.clock_calls = 0
@@ -408,9 +409,10 @@ server.server_close()
                 identities.add(synthetic)
         return identities
 
-    def _terminate_browser(self, identity, executable):
+    def _terminate_browser(self, identity, executable, deadline=None):
         self.terminated_browser_pids.append(identity.pid)
         self.terminated_browser_generations.append(identity.generation_key)
+        self.browser_termination_deadlines.append(deadline)
         if identity.start_seconds == 9:
             self.synthetic_browser_terminated = True
             return True
@@ -549,19 +551,25 @@ class PickViaE2EDriverTests(unittest.TestCase):
         executable = pathlib.Path("/Applications/Browser.app/Contents/MacOS/Browser")
         identity = driver.ProcessIdentity(123, 1, 2, 3, executable)
         with mock.patch.object(
-            driver, "_snapshot_exact_browser_processes", return_value=frozenset()
+            driver,
+            "_darwin_process_identity",
+            side_effect=driver._ProcessDisappeared,
         ), mock.patch.object(driver.os, "kill") as kill:
             self.assertTrue(
-                driver._terminate_exact_browser_process(identity, executable)
+                driver._terminate_exact_browser_process(
+                    identity, executable, time.monotonic() + 1.0
+                )
             )
             kill.assert_not_called()
         with mock.patch.object(
             driver,
-            "_snapshot_exact_browser_processes",
+            "_darwin_process_identity",
             side_effect=driver._IdentityInspectionError,
         ), mock.patch.object(driver.os, "kill") as kill:
             with self.assertRaises(driver._IdentityInspectionError):
-                driver._terminate_exact_browser_process(identity, executable)
+                driver._terminate_exact_browser_process(
+                    identity, executable, time.monotonic() + 1.0
+                )
             kill.assert_not_called()
 
     @unittest.skipUnless(sys.platform == "darwin", "requires Darwin process identity")
@@ -598,6 +606,7 @@ time.sleep(1.25)
                 driver._terminate_exact_browser_process(
                     identity,
                     identity.executable,
+                    time.monotonic() + driver.BROWSER_CLEANUP_GRACE_SECONDS,
                 )
             )
 
@@ -611,6 +620,64 @@ time.sleep(1.25)
                 process.wait(timeout=1.0)
             process.stdout.close()
             process.stderr.close()
+
+    def test_browser_termination_checks_target_generation_at_deadline_boundary(self):
+        executable = pathlib.Path("/Applications/Browser.app/Contents/MacOS/Browser")
+        identity = driver.ProcessIdentity(123, 1, 2, 3, executable)
+        with mock.patch.object(
+            driver,
+            "_darwin_process_identity",
+            side_effect=(identity, identity, driver._ProcessDisappeared),
+        ) as inspect, mock.patch.object(
+            driver.time, "monotonic", side_effect=(0.0, 0.0, 0.5, 1.0)
+        ), mock.patch.object(driver.time, "sleep"), mock.patch.object(
+            driver, "_snapshot_exact_browser_processes"
+        ) as snapshot, mock.patch.object(driver.os, "kill") as kill:
+            self.assertTrue(
+                driver._terminate_exact_browser_process(identity, executable, 1.0)
+            )
+            self.assertEqual(inspect.call_count, 3)
+            snapshot.assert_not_called()
+            kill.assert_called_once_with(identity.pid, signal.SIGTERM)
+
+    def test_browser_termination_treats_pid_reuse_as_target_generation_absence(self):
+        executable = pathlib.Path("/Applications/Browser.app/Contents/MacOS/Browser")
+        identity = driver.ProcessIdentity(123, 1, 2, 3, executable)
+        replacement = driver.ProcessIdentity(123, 1, 9, 9, executable)
+        with mock.patch.object(
+            driver,
+            "_darwin_process_identity",
+            side_effect=(identity, replacement),
+        ), mock.patch.object(
+            driver.time, "monotonic", return_value=0.0
+        ), mock.patch.object(
+            driver, "_snapshot_exact_browser_processes"
+        ) as snapshot, mock.patch.object(driver.os, "kill") as kill:
+            self.assertTrue(
+                driver._terminate_exact_browser_process(identity, executable, 1.0)
+            )
+            snapshot.assert_not_called()
+            kill.assert_called_once_with(identity.pid, signal.SIGTERM)
+
+    def test_browser_termination_caps_poll_sleep_at_shared_deadline(self):
+        executable = pathlib.Path("/Applications/Browser.app/Contents/MacOS/Browser")
+        identity = driver.ProcessIdentity(123, 1, 2, 3, executable)
+        with mock.patch.object(
+            driver,
+            "_darwin_process_identity",
+            side_effect=(identity, identity, driver._ProcessDisappeared),
+        ), mock.patch.object(
+            driver.time,
+            "monotonic",
+            side_effect=(0.0, 0.99, 0.995, 1.0),
+        ), mock.patch.object(driver.time, "sleep") as sleep, mock.patch.object(
+            driver.os, "kill"
+        ):
+            self.assertTrue(
+                driver._terminate_exact_browser_process(identity, executable, 1.0)
+            )
+            sleep.assert_called_once()
+            self.assertAlmostEqual(sleep.call_args.args[0], 0.005)
 
     def test_baseline_identity_inspection_failure_aborts_before_route_delivery(self):
         with DriverFixture(
@@ -867,7 +934,9 @@ time.sleep(1.25)
                     "token_received",
                     "exact_process_identity",
                     "exact_browser_process_identity",
-                    "elapsed_bound_seconds",
+                    "total_elapsed_seconds",
+                    "route_timeout_seconds",
+                    "browser_cleanup_grace_seconds",
                 },
             )
 
@@ -1013,6 +1082,42 @@ time.sleep(1.25)
                 self.assertEqual(result.exit_code, driver.DRIVER_CLEANUP_FAILURE)
                 self.assertEqual(result.report["outcome"], "cleanup-error")
 
+    def test_ignored_browser_sigterm_uses_one_shared_cleanup_attempt(self):
+        with DriverFixture(browser_survives_termination=True) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_CLEANUP_FAILURE)
+            self.assertEqual(result.report["outcome"], "cleanup-error")
+            self.assertEqual(len(fixture.terminated_browser_generations), 1)
+            self.assertEqual(len(set(fixture.browser_termination_deadlines)), 1)
+            self.assertIsNotNone(fixture.browser_termination_deadlines[0])
+            self.assertIn("final-sweep", fixture.snapshot_phases)
+            self.assertNotIn("final-post-terminate", fixture.snapshot_phases)
+
+    def test_report_distinguishes_route_timeout_from_total_cleanup_elapsed(self):
+        with DriverFixture(timeout=1.0) as fixture:
+            original = fixture._terminate_browser
+
+            def delayed_termination(identity, executable, deadline=None):
+                time.sleep(1.1)
+                return original(identity, executable, deadline)
+
+            result = fixture.run(
+                dependency_overrides={
+                    "browser_process_terminator": delayed_termination,
+                }
+            )
+            self.assertEqual(result.exit_code, driver.DRIVER_SUCCESS)
+            self.assertEqual(result.report["route_timeout_seconds"], 1.0)
+            self.assertEqual(
+                result.report["browser_cleanup_grace_seconds"],
+                driver.BROWSER_CLEANUP_GRACE_SECONDS,
+            )
+            self.assertGreater(result.report["total_elapsed_seconds"], 1.0)
+            self.assertLessEqual(
+                result.report["total_elapsed_seconds"],
+                1.0 + driver.BROWSER_CLEANUP_GRACE_SECONDS,
+            )
+
     def test_driver_closes_every_owned_child_pipe(self):
         with DriverFixture() as fixture:
             fixture.run()
@@ -1025,7 +1130,8 @@ time.sleep(1.25)
         with DriverFixture(timeout=300) as fixture:
             result = fixture.run()
             self.assertEqual(result.exit_code, driver.DRIVER_SUCCESS)
-            self.assertLessEqual(result.report["elapsed_bound_seconds"], 30.0)
+            self.assertEqual(result.report["route_timeout_seconds"], 30.0)
+            self.assertGreaterEqual(result.report["total_elapsed_seconds"], 0.0)
             self.assertGreater(fixture.clock_calls, 1)
 
     def test_driver_fails_before_route_when_e2e_identity_is_wrong(self):
