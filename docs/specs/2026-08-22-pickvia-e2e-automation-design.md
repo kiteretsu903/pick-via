@@ -188,6 +188,9 @@ the FIFO reader disappears.
 - Status-channel failure never enables routing and cannot turn a rejected control into a
   selection.
 - Every receiver, application, browser process, and helper has a bounded supervisor.
+- Browser-process snapshots are authoritative: enumeration or identity-query failures
+  fail closed, and only a confirmed disappeared-PID race may be skipped. An unknown
+  snapshot never proves absence, ownership, or successful cleanup.
 - Harness/control failures are reported separately from browser/product failures. They do
   not justify removing a capability unless the real production route itself fails after
   selection.

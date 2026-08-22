@@ -3,6 +3,7 @@
 import argparse
 import ctypes
 import dataclasses
+import errno
 import json
 import os
 import pathlib
@@ -100,7 +101,10 @@ def _exact_process_identity(process, executable):
     expected = pathlib.Path(executable)
     if sys.platform != "darwin":
         return process.args == [os.fspath(expected)] and process.poll() is None
-    identity = _darwin_process_identity(process.pid)
+    try:
+        identity = _darwin_process_identity(process.pid)
+    except _ProcessDisappeared:
+        return False
     return identity is not None and identity.executable == expected
 
 
@@ -153,17 +157,37 @@ def _load_libproc():
     return library
 
 
+def _raise_identity_query_failure(pid):
+    error_number = ctypes.get_errno()
+    if error_number == errno.ESRCH:
+        raise _ProcessDisappeared
+    if error_number == 0:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError as error:
+            raise _ProcessDisappeared from error
+        except PermissionError:
+            pass
+        except OSError as error:
+            if error.errno == errno.ESRCH:
+                raise _ProcessDisappeared from error
+            raise _IdentityInspectionError from error
+    raise _IdentityInspectionError
+
+
 def _darwin_process_identity(pid, library=None):
     try:
         library = library or _load_libproc()
         path_buffer = ctypes.create_string_buffer(4_096)
+        ctypes.set_errno(0)
         if library.proc_pidpath(pid, path_buffer, len(path_buffer)) <= 0:
-            return None
+            _raise_identity_query_failure(pid)
         info = _ProcBSDInfo()
+        ctypes.set_errno(0)
         if library.proc_pidinfo(
             pid, 3, 0, ctypes.byref(info), ctypes.sizeof(info)
         ) != ctypes.sizeof(info):
-            return None
+            _raise_identity_query_failure(pid)
         return ProcessIdentity(
             pid=pid,
             parent_pid=int(info.pbi_ppid),
@@ -171,32 +195,48 @@ def _darwin_process_identity(pid, library=None):
             start_microseconds=int(info.pbi_start_tvusec),
             executable=pathlib.Path(os.fsdecode(path_buffer.value)),
         )
-    except (OSError, ValueError):
-        return None
+    except (_ProcessDisappeared, _IdentityInspectionError):
+        raise
+    except (OSError, ValueError, TypeError) as error:
+        raise _IdentityInspectionError from error
 
 
-def _snapshot_exact_browser_processes(executable):
+def _snapshot_exact_browser_processes(executable, library=None):
     expected = pathlib.Path(executable)
     if sys.platform != "darwin":
-        return frozenset()
+        raise _IdentityInspectionError
     try:
-        library = _load_libproc()
-        required_bytes = library.proc_listpids(1, 0, None, 0)
+        library = library or _load_libproc()
+        proc_uid_only = 4
+        required_bytes = library.proc_listpids(proc_uid_only, os.getuid(), None, 0)
         if required_bytes <= 0:
-            return frozenset()
+            raise _IdentityInspectionError
         count = required_bytes // ctypes.sizeof(ctypes.c_int) + 128
         pids = (ctypes.c_int * count)()
-        used_bytes = library.proc_listpids(1, 0, pids, ctypes.sizeof(pids))
+        used_bytes = library.proc_listpids(
+            proc_uid_only, os.getuid(), pids, ctypes.sizeof(pids)
+        )
+        if (
+            used_bytes <= 0
+            or used_bytes >= ctypes.sizeof(pids)
+            or used_bytes % ctypes.sizeof(ctypes.c_int) != 0
+        ):
+            raise _IdentityInspectionError
         identities = set()
-        for pid in pids[: max(used_bytes, 0) // ctypes.sizeof(ctypes.c_int)]:
+        for pid in pids[: used_bytes // ctypes.sizeof(ctypes.c_int)]:
             if pid <= 0:
                 continue
-            identity = _darwin_process_identity(pid, library)
-            if identity is not None and identity.executable == expected:
+            try:
+                identity = _darwin_process_identity(pid, library)
+            except _ProcessDisappeared:
+                continue
+            if identity.executable == expected:
                 identities.add(identity)
         return frozenset(identities)
-    except (OSError, ValueError):
-        return frozenset()
+    except _IdentityInspectionError:
+        raise
+    except (OSError, ValueError, TypeError) as error:
+        raise _IdentityInspectionError from error
 
 
 def _terminate_exact_browser_process(identity, executable):
@@ -259,8 +299,8 @@ class DriverDependencies:
     process_identity_checker: Callable[[subprocess.Popen, pathlib.Path], bool] = (
         _exact_process_identity
     )
-    browser_process_snapshot: Callable[[pathlib.Path], frozenset] = (
-        _snapshot_exact_browser_processes
+    browser_process_snapshot: Callable[[pathlib.Path, str], frozenset] = (
+        lambda executable, _phase: _snapshot_exact_browser_processes(executable)
     )
     browser_process_terminator: Callable[[ProcessIdentity, pathlib.Path], bool] = (
         _terminate_exact_browser_process
@@ -305,6 +345,14 @@ class _HelperError(_ProtocolError):
 
 
 class _IdentityError(Exception):
+    pass
+
+
+class _IdentityInspectionError(_IdentityError):
+    pass
+
+
+class _ProcessDisappeared(Exception):
     pass
 
 
@@ -837,6 +885,15 @@ def _generation_map(identities):
     return {identity.generation_key: identity for identity in identities}
 
 
+def _authoritative_browser_snapshot(dependencies, executable, phase):
+    try:
+        return set(dependencies.browser_process_snapshot(executable, phase))
+    except _IdentityInspectionError:
+        raise
+    except Exception as error:
+        raise _IdentityInspectionError from error
+
+
 def _observe_browser_generations(current, preexisting, seen_new):
     current_by_generation = _generation_map(current)
     preexisting_generations = set(_generation_map(preexisting))
@@ -896,10 +953,10 @@ def _wait_for_proof(
                 )
             if status_sequence == ["selected"]:
                 try:
-                    current = set(
-                        dependencies.browser_process_snapshot(
-                            expected_browser_executable
-                        )
+                    current = _authoritative_browser_snapshot(
+                        dependencies,
+                        expected_browser_executable,
+                        "observation",
                     )
                     browser_identity, _ = _observe_browser_generations(
                         current,
@@ -1028,10 +1085,11 @@ def run_driver(config, dependencies=None):
     owned_browsers = set()
     cleanup_ok = True
     identity_ambiguous = False
+    identity_inspection_failed = False
     signal_guard = _SignalGuard().install()
     try:
-        preexisting_browsers = set(
-            dependencies.browser_process_snapshot(browser_executable)
+        preexisting_browsers = _authoritative_browser_snapshot(
+            dependencies, browser_executable, "baseline"
         )
         task_root = _make_task_root()
         fifo = task_root / "status.fifo"
@@ -1151,6 +1209,12 @@ def run_driver(config, dependencies=None):
         owned_browsers.clear()
         identity_ambiguous = True
         exit_code = DRIVER_BROWSER_IDENTITY_AMBIGUOUS
+    except _IdentityInspectionError:
+        outcome = "identity-inspection-error"
+        exact_browser_identity = False
+        owned_browsers.clear()
+        identity_inspection_failed = True
+        exit_code = DRIVER_IDENTITY_FAILURE
     except _DeadlineExpired:
         outcome = "timeout"
         exit_code = DRIVER_TIMEOUT
@@ -1182,23 +1246,35 @@ def run_driver(config, dependencies=None):
         signal_guard.begin_cleanup()
         if app is not None:
             cleanup_ok = processes.stop(app) and cleanup_ok
-            try:
-                current = set(dependencies.browser_process_snapshot(browser_executable))
-                seen_new = _generation_map(owned_browsers)
-                _, swept_owned = _observe_browser_generations(
-                    current,
-                    preexisting_browsers,
-                    seen_new,
-                )
-                owned_browsers = set(swept_owned)
-            except _IdentityAmbiguous:
-                identity_ambiguous = True
+            if identity_inspection_failed:
                 owned_browsers.clear()
-            except (OSError, ValueError, TypeError):
-                cleanup_ok = False
+            else:
+                try:
+                    current = _authoritative_browser_snapshot(
+                        dependencies,
+                        browser_executable,
+                        "cleanup-sweep",
+                    )
+                    seen_new = _generation_map(owned_browsers)
+                    _, swept_owned = _observe_browser_generations(
+                        current,
+                        preexisting_browsers,
+                        seen_new,
+                    )
+                    owned_browsers = set(swept_owned)
+                except _IdentityAmbiguous:
+                    identity_ambiguous = True
+                    owned_browsers.clear()
+                except (_IdentityInspectionError, OSError, ValueError, TypeError):
+                    cleanup_ok = False
+                    owned_browsers.clear()
         for identity in owned_browsers:
             try:
-                current = set(dependencies.browser_process_snapshot(browser_executable))
+                current = _authoritative_browser_snapshot(
+                    dependencies,
+                    browser_executable,
+                    "pre-terminate",
+                )
                 is_same_generation = any(
                     candidate.generation_key == identity.generation_key
                     for candidate in current
@@ -1208,13 +1284,17 @@ def run_driver(config, dependencies=None):
                 terminated = dependencies.browser_process_terminator(
                     identity, browser_executable
                 )
-                current = set(dependencies.browser_process_snapshot(browser_executable))
+                current = _authoritative_browser_snapshot(
+                    dependencies,
+                    browser_executable,
+                    "post-terminate",
+                )
                 survived = any(
                     candidate.generation_key == identity.generation_key
                     for candidate in current
                 )
                 cleanup_ok = terminated and not survived and cleanup_ok
-            except (OSError, ValueError, TypeError):
+            except (_IdentityInspectionError, OSError, ValueError, TypeError):
                 cleanup_ok = False
         if fifo_descriptor is not None:
             try:

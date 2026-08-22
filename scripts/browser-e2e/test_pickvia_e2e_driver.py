@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import ctypes
+import errno
 import os
 import pathlib
 import plistlib
@@ -53,6 +55,7 @@ class DriverFixture:
         app_ignores_term=False,
         hold_output_open=False,
         helper_fails=False,
+        snapshot_failures=frozenset(),
     ):
         self.status_records = status_records or [
             {"session": "session_0123456789", "outcome": "selected"}
@@ -79,6 +82,7 @@ class DriverFixture:
         self.app_ignores_term = app_ignores_term
         self.hold_output_open = hold_output_open
         self.helper_fails = helper_fails
+        self.snapshot_failures = set(snapshot_failures)
         self.fixture_root = pathlib.Path(
             tempfile.mkdtemp(prefix="pickvia-driver-fixture-", dir="/private/tmp")
         )
@@ -106,6 +110,7 @@ class DriverFixture:
         self.identity_checks = []
         self.e2e_pid = None
         self.snapshot_call_count = 0
+        self.snapshot_phases = []
         self._sent_cleanup_signal = False
 
     def __enter__(self):
@@ -343,8 +348,11 @@ server.server_close()
         self.identity_checks.append((process.pid, pathlib.Path(executable)))
         return self.exact_e2e_identity
 
-    def _snapshot_browser_processes(self, executable):
+    def _snapshot_browser_processes(self, executable, phase):
         self.snapshot_call_count += 1
+        self.snapshot_phases.append(phase)
+        if phase in self.snapshot_failures:
+            raise OSError("injected process inspection failure")
         identities = {
             driver.ProcessIdentity(pid, 1, 1, pid, pathlib.Path(executable))
             for pid in self.preexisting_browser_pids
@@ -449,6 +457,122 @@ server.server_close()
 
 @unittest.skipIf(driver is None, "PickVia E2E route driver is not implemented")
 class PickViaE2EDriverTests(unittest.TestCase):
+    def test_baseline_identity_inspection_failure_aborts_before_route_delivery(self):
+        with DriverFixture(
+            preexisting_browser_pids={41}, snapshot_failures={"baseline"}
+        ) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_IDENTITY_FAILURE)
+            self.assertEqual(result.report["outcome"], "identity-inspection-error")
+            self.assertIsNone(fixture.route)
+            self.assertEqual(fixture.launched_kinds, [])
+            self.assertEqual(fixture.terminated_browser_pids, [])
+
+    def test_observation_inspection_failure_never_attributes_or_terminates_browser(
+        self,
+    ):
+        with DriverFixture(
+            preexisting_browser_pids={41}, snapshot_failures={"observation"}
+        ) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_IDENTITY_FAILURE)
+            self.assertEqual(result.report["outcome"], "identity-inspection-error")
+            self.assertIsNotNone(fixture.route)
+            self.assertEqual(fixture.terminated_browser_pids, [])
+            self.assertFalse(result.report["exact_browser_process_identity"])
+
+    def test_cleanup_sweep_inspection_failure_is_cleanup_failure_without_termination(
+        self,
+    ):
+        with DriverFixture(snapshot_failures={"cleanup-sweep"}) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_CLEANUP_FAILURE)
+            self.assertEqual(result.report["outcome"], "cleanup-error")
+            self.assertEqual(fixture.terminated_browser_pids, [])
+
+    def test_pretermination_revalidation_failure_is_cleanup_failure_and_never_kills(
+        self,
+    ):
+        with DriverFixture(snapshot_failures={"pre-terminate"}) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_CLEANUP_FAILURE)
+            self.assertEqual(result.report["outcome"], "cleanup-error")
+            self.assertEqual(fixture.terminated_browser_pids, [])
+
+    def test_posttermination_absence_scan_failure_never_reports_cleanup_success(self):
+        with DriverFixture(snapshot_failures={"post-terminate"}) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_CLEANUP_FAILURE)
+            self.assertEqual(result.report["outcome"], "cleanup-error")
+            self.assertEqual(len(fixture.terminated_browser_pids), 1)
+
+    def test_proc_listpids_failure_and_incomplete_enumeration_are_not_empty_snapshots(
+        self,
+    ):
+        class FailedListPIDs:
+            def proc_listpids(self, *_arguments):
+                return -1
+
+        class IncompleteListPIDs:
+            calls = 0
+
+            def proc_listpids(self, _kind, _uid, _buffer, size):
+                self.calls += 1
+                return ctypes.sizeof(ctypes.c_int) if self.calls == 1 else size
+
+        for library in (FailedListPIDs(), IncompleteListPIDs()):
+            with self.subTest(library=type(library).__name__):
+                with self.assertRaises(driver._IdentityInspectionError):
+                    driver._snapshot_exact_browser_processes(
+                        pathlib.Path(
+                            "/Applications/Browser.app/Contents/MacOS/Browser"
+                        ),
+                        library=library,
+                    )
+
+    def test_only_esrch_process_identity_race_is_benign(self):
+        class FailedPIDInfo:
+            def __init__(self, error_number):
+                self.error_number = error_number
+
+            def proc_pidpath(self, *_arguments):
+                ctypes.set_errno(self.error_number)
+                return -1
+
+            def proc_listpids(self, _kind, _uid, buffer, _size):
+                if buffer is None:
+                    return ctypes.sizeof(ctypes.c_int)
+                buffer[0] = 123
+                return ctypes.sizeof(ctypes.c_int)
+
+        class FailedBSDInfo:
+            def proc_pidpath(self, _pid, buffer, _size):
+                buffer.value = b"/Applications/Browser.app/Contents/MacOS/Browser"
+                return len(buffer.value)
+
+            def proc_pidinfo(self, *_arguments):
+                ctypes.set_errno(errno.EIO)
+                return -1
+
+        with self.assertRaises(driver._ProcessDisappeared):
+            driver._darwin_process_identity(123, FailedPIDInfo(errno.ESRCH))
+        with self.assertRaises(driver._IdentityInspectionError):
+            driver._darwin_process_identity(123, FailedPIDInfo(errno.EIO))
+        self.assertEqual(
+            driver._snapshot_exact_browser_processes(
+                pathlib.Path("/Applications/Browser.app/Contents/MacOS/Browser"),
+                library=FailedPIDInfo(errno.ESRCH),
+            ),
+            frozenset(),
+        )
+        with self.assertRaises(driver._IdentityInspectionError):
+            driver._snapshot_exact_browser_processes(
+                pathlib.Path("/Applications/Browser.app/Contents/MacOS/Browser"),
+                library=FailedPIDInfo(errno.EIO),
+            )
+        with self.assertRaises(driver._IdentityInspectionError):
+            driver._darwin_process_identity(123, FailedBSDInfo())
+
     def test_browser_control_is_bound_to_exact_bundle_metadata_and_executable(self):
         with DriverFixture() as fixture:
             beta_app = fixture.fixture_root / "Microsoft Edge Beta.app"
