@@ -424,9 +424,9 @@ temporary roots were left untouched.
 ## Brave normal routing — 2026-08-22
 
 Status: **Brave Stable NOT RUN because its installed bundle failed strict deep
-signature verification; Brave Beta FAIL at the cold receipt gate.** Brave
-Nightly is outside this entry and was not tested. Both descriptors use PickVia's
-browser-level normal Chromium exact-application workspace strategy.
+signature verification; Brave Beta and Nightly FAIL at the cold receipt gate.**
+All three descriptors use PickVia's browser-level normal Chromium
+exact-application workspace strategy.
 
 The read-only installed-identity gate recorded Brave Stable 151.1.93.138,
 `com.brave.Browser`, and team `KL8N8XSYF4`. Its strict deep signature check
@@ -442,25 +442,37 @@ first-launch-only.
 Both drivers ultimately reported `cleanup-error` because their exact Beta
 generations remained after the receipt failure; no visible observation was made.
 
+Brave Nightly 152.1.96.6, `com.brave.Browser.nightly`, team `KL8N8XSYF4`, also
+passed its strict deep signature check. Its independent cold route from
+confirmed absence through the production driver emitted `selected`, verified
+the exact E2E app and exact Nightly generation, and received no fresh receipt
+within 30 seconds. The driver reported `cleanup-error` because the exact Nightly
+generation remained after the receipt failure. No visible observation was made,
+and the already-running and reopen states were not attempted.
+
 | Browser | Mode/state | Selection | Receipt | Exact process identity | Sanitized visible evidence | Result |
 | --- | --- | --- | --- | --- | --- | --- |
 | Brave Stable | Normal, cold/already running/reopen | Not attempted | Not attempted | Installed identity recorded; strict deep signature failed | **NOT RUN** | **NOT RUN — installation identity blocker** |
 | Brave Beta | Normal, cold | `selected` on both attempts | No receipt within 30 seconds on either attempt | E2E app and exact Brave Beta generation verified on both attempts | **NOT RUN — stopped before observer** | **FAIL — repeated cold receipt failure** |
 | Brave Beta | Normal, already running | Not attempted | Not attempted | Not attempted | Not attempted | **NOT RUN — stopped at cold gate** |
 | Brave Beta | Normal, reopen | Not attempted | Not attempted | Not attempted | Not attempted | **NOT RUN — stopped at cold gate** |
+| Brave Nightly | Normal, cold | `selected` | No receipt within 30 seconds | E2E app and exact Brave Nightly generation verified | **NOT RUN — stopped before observer** | **FAIL — cold receipt failure** |
+| Brave Nightly | Normal, already running | Not attempted | Not attempted | Not attempted | Not attempted | **NOT RUN — stopped at cold gate** |
+| Brave Nightly | Normal, reopen | Not attempted | Not attempted | Not attempted | Not attempted | **NOT RUN — stopped at cold gate** |
 
-One independent control bypassed PickVia and used the same exact-application
-NSWorkspace delivery helper with a fresh receiver. The receiver became ready,
-the helper compiled, and the exact Brave Beta generation was verified; the
-helper exited nonzero and the receiver obtained no receipt. The control therefore
-does not isolate the repeated missing receipts to PickVia's selection boundary.
+Separate independent controls for Beta and Nightly bypassed PickVia and used the
+same exact-application NSWorkspace delivery helper with a fresh receiver. In
+each control the receiver became ready, the helper compiled, and the exact
+edition generation was verified; the helper exited nonzero and the receiver
+obtained no receipt. The controls therefore do not isolate the missing receipts
+to PickVia's selection boundary.
 
 No profile or private target was created or attempted. This entry contains no
 routed address, token, browser arguments, raw UI, screenshot, or profile label.
-Each sole residual Beta generation received SIGTERM only after the originally
-empty prestate plus its exact PID, start generation, executable, bundle, team,
-and task-time start were revalidated. No SIGKILL was used. The final authorized
-control-generation cleanup reached bounded absence and quiescence; final checks
-found no Brave Beta, E2E PickVia, receiver, helper, or driver process. Installed
-PickVia remained the same exact pre-batch generation, and preexisting temporary
-roots were left untouched.
+Each sole residual Beta or Nightly generation received SIGTERM only after the
+originally empty edition prestate plus its exact PID, start generation,
+executable, bundle, team, and task-time start were revalidated. No SIGKILL was
+used. Each final control-generation cleanup reached bounded absence and
+quiescence; final checks found no Brave Beta, Brave Nightly, E2E PickVia,
+receiver, helper, or driver process. Installed PickVia remained the same exact
+pre-batch generation, and preexisting temporary roots were left untouched.
