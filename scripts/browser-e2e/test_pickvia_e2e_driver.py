@@ -1039,6 +1039,110 @@ class PickViaE2EDriverTests(unittest.TestCase):
 
 @unittest.skipIf(driver is None, "PickVia E2E route driver is not implemented")
 class ExactAppHelperTests(unittest.TestCase):
+    POLICY_HARNESS = r"""
+import Foundation
+
+private struct ControlledOpenError: Error {}
+
+enum OpenWithAppPolicyTestMain {
+  static func main() {
+    let expectedURL = URL(fileURLWithPath: "/private/tmp/PickVia E2E.app")
+    var registrationSnapshots = 0
+    var registrationDelays = 0
+    let registered = ExactApplicationRegistrationPolicy.wait(
+      expectedBundleIdentifier: "dev.bozhenpeng.PickVia.E2E",
+      expectedCanonicalBundleURL: expectedURL,
+      maximumChecks: 3,
+      snapshot: {
+        registrationSnapshots += 1
+        if registrationSnapshots == 3 {
+          return [
+            RunningApplicationIdentity(
+              bundleIdentifier: "dev.bozhenpeng.PickVia.E2E",
+              canonicalBundleURL: expectedURL
+            )
+          ]
+        }
+        return [
+          RunningApplicationIdentity(
+            bundleIdentifier: "dev.bozhenpeng.PickVia.E2E",
+            canonicalBundleURL: URL(fileURLWithPath: "/private/tmp/Wrong.app")
+          )
+        ]
+      },
+      delay: { _ in registrationDelays += 1 }
+    )
+    precondition(registered)
+    precondition(registrationSnapshots == 3)
+    precondition(registrationDelays == 2)
+
+    var absentSnapshots = 0
+    var absentDelays = 0
+    let absent = ExactApplicationRegistrationPolicy.wait(
+      expectedBundleIdentifier: "dev.bozhenpeng.PickVia.E2E",
+      expectedCanonicalBundleURL: expectedURL,
+      maximumChecks: 3,
+      snapshot: {
+        absentSnapshots += 1
+        return []
+      },
+      delay: { _ in absentDelays += 1 }
+    )
+    precondition(!absent)
+    precondition(absentSnapshots == 3)
+    precondition(absentDelays == 2)
+
+    var attempts = 0
+    var retryDelays = 0
+    var completions: [Bool] = []
+    let succeedsAfterErrors = BoundedOpenCoordinator(
+      maximumAttempts: 3,
+      scheduleRetry: { _, action in
+        retryDelays += 1
+        action()
+      }
+    )
+    succeedsAfterErrors.start(
+      attempt: { completion in
+        attempts += 1
+        let attemptNumber = attempts
+        completion(attemptNumber == 3 ? nil : ControlledOpenError())
+        if attemptNumber == 3 {
+          completion(ControlledOpenError())
+        }
+      },
+      completion: { completions.append($0) }
+    )
+    precondition(attempts == 3)
+    precondition(retryDelays == 2)
+    precondition(completions == [true])
+
+    var failedAttempts = 0
+    var failedDelays = 0
+    var failedCompletions: [Bool] = []
+    let exhaustsErrors = BoundedOpenCoordinator(
+      maximumAttempts: 3,
+      scheduleRetry: { _, action in
+        failedDelays += 1
+        action()
+      }
+    )
+    exhaustsErrors.start(
+      attempt: { completion in
+        failedAttempts += 1
+        completion(ControlledOpenError())
+      },
+      completion: { failedCompletions.append($0) }
+    )
+    precondition(failedAttempts == 3)
+    precondition(failedDelays == 2)
+    precondition(failedCompletions == [false])
+  }
+}
+
+OpenWithAppPolicyTestMain.main()
+"""
+
     @classmethod
     def setUpClass(cls):
         cls.root = pathlib.Path(
@@ -1055,6 +1159,16 @@ class ExactAppHelperTests(unittest.TestCase):
         )
         if completed.returncode != 0:
             raise AssertionError("exact-app helper did not compile")
+
+        cls.policy_source = cls.root / "main.swift"
+        helper_source = HELPER_SOURCE.read_text(encoding="utf-8")
+        cls.policy_source.write_text(
+            helper_source.removeprefix("#!/usr/bin/env swift\n")
+            + "\n"
+            + cls.POLICY_HARNESS,
+            encoding="utf-8",
+        )
+        cls.policy_executable = cls.root / "open_with_app_policy_tests"
 
     @classmethod
     def tearDownClass(cls):
@@ -1118,6 +1232,35 @@ class ExactAppHelperTests(unittest.TestCase):
         self.assertIn("configuration.addsToRecentItems = false", source)
         self.assertIn("NSWorkspace.shared.open(", source)
         self.assertNotIn("localizedDescription", source)
+
+    def test_helper_registration_and_retry_policies_are_bounded(self):
+        compiled = subprocess.run(
+            [
+                "xcrun",
+                "swiftc",
+                "-DPICKVIA_OPEN_WITH_APP_POLICY_TESTS",
+                str(self.policy_source),
+                "-o",
+                str(self.policy_executable),
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(compiled.returncode, 0, compiled.stderr.decode("utf-8"))
+        completed = subprocess.run(
+            [str(self.policy_executable)],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=3,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr.decode("utf-8"))
+        self.assertEqual(completed.stdout, b"")
+        self.assertEqual(completed.stderr, b"")
 
 
 if __name__ == "__main__":
