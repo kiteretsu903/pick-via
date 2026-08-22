@@ -202,6 +202,12 @@ the FIFO reader disappears.
   receives at most one `SIGTERM`; targeted PID/start/executable checks poll that generation
   during the grace, while authoritative full snapshots remain required after termination
   and at the final sweep. A survivor is never signalled again by the final sweep.
+- After every route producer and the ordinary final sweep stop, cleanup observes a
+  two-second exact-browser quiescence window with repeated authoritative snapshots against
+  the immutable baseline. Any late non-baseline generation prevents success. One newly
+  attributable generation may be terminated once under the remaining shared cleanup
+  deadline and must then be absent; repeated, replacement, multiple, or unknown states
+  remain ambiguous or fail closed.
 - Harness/control failures are reported separately from browser/product failures. They do
   not justify removing a capability unless the real production route itself fails after
   selection.
@@ -279,7 +285,8 @@ and are not redesigned by this E2E work.
   them may not.
 - Record only version, bundle ID, strategy, exact process identity, bounded state,
   receipt result, sanitized visible observation, cleanup result, actual total elapsed
-  seconds, the route-proof timeout, and the separate browser-cleanup grace.
+  seconds, the route-proof timeout, the separate browser-cleanup grace, and the explicit
+  browser-quiescence bound.
 - Do not enumerate or report unrelated profiles. Existing user browser processes are
   preserved unless an exact reversible test step is separately authorized.
 

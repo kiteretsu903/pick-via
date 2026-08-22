@@ -39,6 +39,8 @@ DRIVER_CLEANUP_FAILURE = 22
 
 MAXIMUM_TIMEOUT_SECONDS = 30.0
 BROWSER_CLEANUP_GRACE_SECONDS = 5.0
+BROWSER_QUIESCENCE_SECONDS = 2.0
+BROWSER_QUIESCENCE_POLL_SECONDS = 0.1
 MAXIMUM_PROTOCOL_LINE_BYTES = 2_048
 MAXIMUM_CAPTURE_BYTES = 65_536
 MAXIMUM_AUDIT_FILE_BYTES = 8 * 1_024 * 1_024
@@ -319,6 +321,8 @@ class DriverDependencies:
     browser_process_terminator: Callable[
         [ProcessIdentity, pathlib.Path, float], bool
     ] = _terminate_exact_browser_process
+    quiescence_monotonic: Callable[[], float] = time.monotonic
+    quiescence_sleep: Callable[[float], None] = time.sleep
     capture_observer: Callable[[str, str, bytes, bool], None] = _ignore
     task_root_remover: Callable[[pathlib.Path], bool] = _remove_task_root
     fifo_closer: Callable[[int], bool] = _close_fifo
@@ -583,6 +587,7 @@ def _empty_result(exit_code):
         "total_elapsed_seconds": 0.0,
         "route_timeout_seconds": 0.0,
         "browser_cleanup_grace_seconds": 0.0,
+        "browser_quiescence_seconds": 0.0,
     }
     return DriverResult(
         exit_code=exit_code,
@@ -604,6 +609,7 @@ def _failure_result(config, exit_code, outcome):
         "total_elapsed_seconds": 0.0,
         "route_timeout_seconds": 0.0,
         "browser_cleanup_grace_seconds": 0.0,
+        "browser_quiescence_seconds": 0.0,
     }
     return DriverResult(
         exit_code=exit_code,
@@ -946,6 +952,63 @@ def _accumulate_browser_generations(current, preexisting, accumulated):
         raise
     accumulated.update(swept_owned)
     return current_new
+
+
+def _observe_browser_quiescence(
+    dependencies,
+    executable,
+    preexisting,
+    accumulated,
+    termination_attempts,
+    cleanup_deadline,
+    can_terminate,
+):
+    quiescence_deadline = (
+        dependencies.quiescence_monotonic() + BROWSER_QUIESCENCE_SECONDS
+    )
+    late_generation_seen = False
+    while True:
+        current = _authoritative_browser_snapshot(
+            dependencies,
+            executable,
+            "quiescence",
+        )
+        current_new = _accumulate_browser_generations(
+            current,
+            preexisting,
+            accumulated,
+        )
+        if current_new:
+            late_generation_seen = True
+            if can_terminate and len(current_new) == 1:
+                identity = next(iter(current_new))
+                if (
+                    identity.generation_key not in termination_attempts
+                    and time.monotonic() < cleanup_deadline
+                ):
+                    termination_attempts.add(identity.generation_key)
+                    dependencies.browser_process_terminator(
+                        identity,
+                        executable,
+                        cleanup_deadline,
+                    )
+                    post_termination = _authoritative_browser_snapshot(
+                        dependencies,
+                        executable,
+                        "quiescence-post-terminate",
+                    )
+                    _accumulate_browser_generations(
+                        post_termination,
+                        preexisting,
+                        accumulated,
+                    )
+
+        now = dependencies.quiescence_monotonic()
+        if now >= quiescence_deadline:
+            return late_generation_seen
+        dependencies.quiescence_sleep(
+            min(BROWSER_QUIESCENCE_POLL_SECONDS, quiescence_deadline - now)
+        )
 
 
 def _wait_for_proof(
@@ -1420,6 +1483,25 @@ def run_driver(config, dependencies=None):
                 identity_ambiguous = True
             except (_IdentityInspectionError, OSError, ValueError, TypeError):
                 cleanup_ok = False
+            try:
+                late_generation_seen = _observe_browser_quiescence(
+                    dependencies,
+                    browser_executable,
+                    preexisting_browsers,
+                    owned_browsers,
+                    browser_termination_attempts,
+                    browser_cleanup_deadline,
+                    not identity_inspection_failed
+                    and browser_cleanup_safe
+                    and not identity_ambiguous,
+                )
+                if late_generation_seen:
+                    cleanup_ok = False
+            except _IdentityAmbiguous:
+                identity_ambiguous = True
+            except (_IdentityInspectionError, OSError, ValueError, TypeError):
+                cleanup_ok = False
+                browser_cleanup_safe = False
         if route_bytes is not None:
             try:
                 output_violation = processes.violates_privacy(route_bytes)
@@ -1468,6 +1550,7 @@ def run_driver(config, dependencies=None):
         "total_elapsed_seconds": round(total_elapsed, 6),
         "route_timeout_seconds": round(timeout, 6),
         "browser_cleanup_grace_seconds": BROWSER_CLEANUP_GRACE_SECONDS,
+        "browser_quiescence_seconds": BROWSER_QUIESCENCE_SECONDS,
     }
     return DriverResult(
         exit_code=exit_code,

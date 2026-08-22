@@ -797,7 +797,8 @@ The driver:
    deadline;
 7. requires exact E2E and selected-browser process identities and reports only sanitized
    JSON (`session`, `outcome`, token receipt boolean, identity booleans, actual total
-   elapsed seconds, route-proof timeout, and browser-cleanup grace); and
+   elapsed seconds, route-proof timeout, browser-cleanup grace, and browser-quiescence
+   bound); and
 8. preserves preexisting browser generations, terminates only one unambiguous task-owned
    generation, drains owned output, then removes the FIFO/root.
 
@@ -815,6 +816,13 @@ target PID/start/executable identity during that grace, perform a final target c
 deadline boundary, and never signal the same generation twice. Full authoritative
 post-termination and final snapshots still decide replacement, multiple-generation, and
 unknown-state failures.
+
+After all route producers and the ordinary final sweep stop, require a two-second
+quiescence window of repeated authoritative exact-browser snapshots against the immutable
+baseline. A late generation always prevents success. Terminate one unambiguous late
+generation at most once under the remaining shared cleanup deadline, verify absence, and
+continue observing through the window boundary; repeated, replacement, multiple, and
+unknown states remain ambiguous or fail closed.
 
 This privacy contract applies to the driver, E2E app/helper controls, status, harness
 output, task root, and clipboard. It does not claim that production `BrowserLauncher` or

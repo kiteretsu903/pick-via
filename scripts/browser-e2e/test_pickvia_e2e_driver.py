@@ -60,6 +60,9 @@ class DriverFixture:
         replacement_after_termination=False,
         late_browser_after_close=False,
         late_pid_reuses_baseline=False,
+        delayed_browser_after_final_sweep=False,
+        repeated_delayed_browser=False,
+        real_quiescence_clock=False,
     ):
         self.status_records = status_records or [
             {"session": "session_0123456789", "outcome": "selected"}
@@ -90,6 +93,9 @@ class DriverFixture:
         self.replacement_after_termination = replacement_after_termination
         self.late_browser_after_close = late_browser_after_close
         self.late_pid_reuses_baseline = late_pid_reuses_baseline
+        self.delayed_browser_after_final_sweep = delayed_browser_after_final_sweep
+        self.repeated_delayed_browser = repeated_delayed_browser
+        self.real_quiescence_clock = real_quiescence_clock
         self.fixture_root = pathlib.Path(
             tempfile.mkdtemp(prefix="pickvia-driver-fixture-", dir="/private/tmp")
         )
@@ -121,7 +127,10 @@ class DriverFixture:
         self.snapshot_call_count = 0
         self.snapshot_phases = []
         self.synthetic_browser_terminated = False
+        self.repeated_synthetic_browser_terminated = False
         self.final_sweep_all_children_stopped = False
+        self.quiescence_snapshot_count = 0
+        self.quiescence_clock = 0.0
         self._sent_cleanup_signal = False
 
     def __enter__(self):
@@ -407,6 +416,29 @@ server.server_close()
                 self.replacement_after_termination or self.late_browser_after_close
             ) and not self.synthetic_browser_terminated:
                 identities.add(synthetic)
+        if phase in {"quiescence", "quiescence-post-terminate"}:
+            self.quiescence_snapshot_count += 1
+            if (
+                self.delayed_browser_after_final_sweep
+                and self.quiescence_snapshot_count >= 2
+                and not self.synthetic_browser_terminated
+            ):
+                identities.add(synthetic)
+            if (
+                self.repeated_delayed_browser
+                and self.synthetic_browser_terminated
+                and self.quiescence_snapshot_count >= 4
+                and not self.repeated_synthetic_browser_terminated
+            ):
+                identities.add(
+                    driver.ProcessIdentity(
+                        901,
+                        1,
+                        10,
+                        100,
+                        pathlib.Path(executable),
+                    )
+                )
         return identities
 
     def _terminate_browser(self, identity, executable, deadline=None):
@@ -415,6 +447,9 @@ server.server_close()
         self.browser_termination_deadlines.append(deadline)
         if identity.start_seconds == 9:
             self.synthetic_browser_terminated = True
+            return True
+        if identity.start_seconds == 10:
+            self.repeated_synthetic_browser_terminated = True
             return True
         if self.browser_survives_termination:
             return True
@@ -434,6 +469,17 @@ server.server_close()
 
     def _capture_output(self, kind, channel, contents, overflow):
         self.captured_child_output.append((kind, channel, contents, overflow))
+
+    def _quiescence_monotonic(self):
+        if self.real_quiescence_clock:
+            return time.monotonic()
+        return self.quiescence_clock
+
+    def _quiescence_sleep(self, seconds):
+        if self.real_quiescence_clock:
+            time.sleep(seconds)
+        else:
+            self.quiescence_clock += seconds
 
     def _before_cleanup(self, root):
         self.task_root = pathlib.Path(root)
@@ -466,6 +512,8 @@ server.server_close()
             process_identity_checker=self._check_e2e_identity,
             browser_process_snapshot=self._snapshot_browser_processes,
             browser_process_terminator=self._terminate_browser,
+            quiescence_monotonic=self._quiescence_monotonic,
+            quiescence_sleep=self._quiescence_sleep,
             capture_observer=self._capture_output,
             task_root_remover=self._remove_driver_root,
             fifo_closer=self._close_fifo,
@@ -491,6 +539,68 @@ server.server_close()
 
 @unittest.skipIf(driver is None, "PickVia E2E route driver is not implemented")
 class PickViaE2EDriverTests(unittest.TestCase):
+    def test_delayed_generation_after_final_sweep_is_cleaned_but_never_passes(self):
+        records = [{"session": "session_0123456789", "outcome": "target-missing"}]
+        with DriverFixture(
+            status_records=records,
+            delayed_browser_after_final_sweep=True,
+        ) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_CLEANUP_FAILURE)
+            self.assertEqual(result.report["outcome"], "cleanup-error")
+            self.assertEqual(fixture.terminated_browser_pids, [900])
+            self.assertGreaterEqual(fixture.quiescence_snapshot_count, 2)
+
+    def test_quiescence_preserves_quiet_and_preexisting_browser_baselines(self):
+        records = [{"session": "session_0123456789", "outcome": "target-missing"}]
+        for preexisting in (frozenset(), frozenset({41, 42})):
+            with self.subTest(preexisting=preexisting), DriverFixture(
+                status_records=records,
+                preexisting_browser_pids=preexisting,
+            ) as fixture:
+                result = fixture.run()
+                self.assertEqual(result.exit_code, driver.DRIVER_SELECTION_REJECTED)
+                self.assertEqual(fixture.terminated_browser_pids, [])
+                self.assertGreaterEqual(fixture.quiescence_snapshot_count, 2)
+
+    def test_repeated_late_generation_is_ambiguous_and_never_signalled_twice(self):
+        records = [{"session": "session_0123456789", "outcome": "target-missing"}]
+        with DriverFixture(
+            status_records=records,
+            delayed_browser_after_final_sweep=True,
+            repeated_delayed_browser=True,
+        ) as fixture:
+            result = fixture.run()
+            self.assertEqual(
+                result.exit_code,
+                driver.DRIVER_BROWSER_IDENTITY_AMBIGUOUS,
+            )
+            self.assertEqual(result.report["outcome"], "identity-ambiguous")
+            self.assertEqual(fixture.terminated_browser_pids, [900])
+
+    def test_total_timing_reports_real_quiescence_bound(self):
+        records = [{"session": "session_0123456789", "outcome": "target-missing"}]
+        with DriverFixture(
+            status_records=records,
+            timeout=1.0,
+            real_quiescence_clock=True,
+        ) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.report["browser_quiescence_seconds"], 2.0)
+            self.assertGreaterEqual(result.report["total_elapsed_seconds"], 2.0)
+            self.assertLessEqual(result.report["total_elapsed_seconds"], 8.0)
+
+    def test_unknown_quiescence_snapshot_fails_closed_without_termination(self):
+        records = [{"session": "session_0123456789", "outcome": "target-missing"}]
+        with DriverFixture(
+            status_records=records,
+            snapshot_failures={"quiescence"},
+        ) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_CLEANUP_FAILURE)
+            self.assertEqual(result.report["outcome"], "cleanup-error")
+            self.assertEqual(fixture.terminated_browser_pids, [])
+
     def test_posttermination_replacement_generation_is_preserved_as_ambiguous(self):
         with DriverFixture(replacement_after_termination=True) as fixture:
             result = fixture.run()
@@ -937,6 +1047,7 @@ time.sleep(3.25)
                     "total_elapsed_seconds",
                     "route_timeout_seconds",
                     "browser_cleanup_grace_seconds",
+                    "browser_quiescence_seconds",
                 },
             )
 
