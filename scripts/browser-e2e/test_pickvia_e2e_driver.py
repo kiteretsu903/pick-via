@@ -57,6 +57,9 @@ class DriverFixture:
         hold_output_open=False,
         helper_fails=False,
         snapshot_failures=frozenset(),
+        replacement_after_termination=False,
+        late_browser_after_close=False,
+        late_pid_reuses_baseline=False,
     ):
         self.status_records = status_records or [
             {"session": "session_0123456789", "outcome": "selected"}
@@ -84,6 +87,9 @@ class DriverFixture:
         self.hold_output_open = hold_output_open
         self.helper_fails = helper_fails
         self.snapshot_failures = set(snapshot_failures)
+        self.replacement_after_termination = replacement_after_termination
+        self.late_browser_after_close = late_browser_after_close
+        self.late_pid_reuses_baseline = late_pid_reuses_baseline
         self.fixture_root = pathlib.Path(
             tempfile.mkdtemp(prefix="pickvia-driver-fixture-", dir="/private/tmp")
         )
@@ -105,6 +111,7 @@ class DriverFixture:
         self.launched_kinds = []
         self.closed_child_pids = []
         self.terminated_browser_pids = []
+        self.terminated_browser_generations = []
         self.regular_file_snapshots = []
         self.captured_child_output = []
         self.clock_calls = 0
@@ -112,6 +119,8 @@ class DriverFixture:
         self.e2e_pid = None
         self.snapshot_call_count = 0
         self.snapshot_phases = []
+        self.synthetic_browser_terminated = False
+        self.final_sweep_all_children_stopped = False
         self._sent_cleanup_signal = False
 
     def __enter__(self):
@@ -362,27 +371,49 @@ server.server_close()
             identities.add(
                 driver.ProcessIdentity(700, 1, 1, 1, pathlib.Path(executable))
             )
-        if not self.browser_identity_visible or not self.browser_pid_file.exists():
-            return identities
-        for index, actual_pid in enumerate(self.browser_pids()):
-            try:
-                os.kill(actual_pid, 0)
-            except ProcessLookupError:
-                continue
-            exposed_pid = 700 if self.pid_reuse and index == 0 else actual_pid
-            identities.add(
-                driver.ProcessIdentity(
-                    exposed_pid,
-                    1 if self.workspace_browser_parent else self.e2e_pid,
-                    2,
-                    actual_pid,
-                    pathlib.Path(executable),
+        baseline_identities = set(identities)
+        if self.browser_identity_visible and self.browser_pid_file.exists():
+            for index, actual_pid in enumerate(self.browser_pids()):
+                try:
+                    os.kill(actual_pid, 0)
+                except ProcessLookupError:
+                    continue
+                exposed_pid = 700 if self.pid_reuse and index == 0 else actual_pid
+                identities.add(
+                    driver.ProcessIdentity(
+                        exposed_pid,
+                        1 if self.workspace_browser_parent else self.e2e_pid,
+                        2,
+                        actual_pid,
+                        pathlib.Path(executable),
+                    )
                 )
+        synthetic = driver.ProcessIdentity(
+            700 if self.late_pid_reuses_baseline else 900,
+            1,
+            9,
+            99,
+            pathlib.Path(executable),
+        )
+        if phase == "post-terminate" and self.replacement_after_termination:
+            identities = set(baseline_identities)
+            identities.add(synthetic)
+        if phase in {"final-sweep", "final-post-terminate"}:
+            self.final_sweep_all_children_stopped = all(
+                process.poll() is not None for process in self.launched_processes
             )
+            if (
+                self.replacement_after_termination or self.late_browser_after_close
+            ) and not self.synthetic_browser_terminated:
+                identities.add(synthetic)
         return identities
 
     def _terminate_browser(self, identity, executable):
         self.terminated_browser_pids.append(identity.pid)
+        self.terminated_browser_generations.append(identity.generation_key)
+        if identity.start_seconds == 9:
+            self.synthetic_browser_terminated = True
+            return True
         if self.browser_survives_termination:
             return True
         actual_pid = self.browser_pids()[0] if self.pid_reuse else identity.pid
@@ -458,6 +489,62 @@ server.server_close()
 
 @unittest.skipIf(driver is None, "PickVia E2E route driver is not implemented")
 class PickViaE2EDriverTests(unittest.TestCase):
+    def test_posttermination_replacement_generation_is_preserved_as_ambiguous(self):
+        with DriverFixture(replacement_after_termination=True) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_BROWSER_IDENTITY_AMBIGUOUS)
+            self.assertEqual(result.report["outcome"], "identity-ambiguous")
+            self.assertEqual(len(fixture.terminated_browser_generations), 1)
+            self.assertNotIn(900, fixture.terminated_browser_pids)
+            self.assertTrue(fixture.final_sweep_all_children_stopped)
+            self.assertFalse(fixture.task_root.exists())
+
+    def test_late_browser_after_process_close_is_cleaned_but_prevents_success(self):
+        records = [{"session": "session_0123456789", "outcome": "target-missing"}]
+        with DriverFixture(
+            status_records=records, late_browser_after_close=True
+        ) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_CLEANUP_FAILURE)
+            self.assertEqual(result.report["outcome"], "cleanup-error")
+            self.assertEqual(fixture.terminated_browser_pids, [900])
+            self.assertTrue(fixture.final_sweep_all_children_stopped)
+            self.assertFalse(fixture.task_root.exists())
+
+    def test_final_sweep_allows_only_immutable_baseline_generations(self):
+        records = [{"session": "session_0123456789", "outcome": "target-missing"}]
+        with DriverFixture(
+            status_records=records, preexisting_browser_pids={41, 42}
+        ) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_SELECTION_REJECTED)
+            self.assertEqual(fixture.terminated_browser_pids, [])
+            self.assertTrue(fixture.final_sweep_all_children_stopped)
+
+    def test_final_sweep_treats_reused_baseline_pid_as_new_generation(self):
+        records = [{"session": "session_0123456789", "outcome": "target-missing"}]
+        with DriverFixture(
+            status_records=records,
+            preexisting_browser_pids={700},
+            late_browser_after_close=True,
+            late_pid_reuses_baseline=True,
+        ) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_CLEANUP_FAILURE)
+            self.assertEqual(fixture.terminated_browser_pids, [700])
+            self.assertEqual(fixture.terminated_browser_generations[0][1:3], (9, 99))
+
+    def test_unknown_final_snapshot_is_cleanup_error_and_root_still_closes(self):
+        records = [{"session": "session_0123456789", "outcome": "target-missing"}]
+        with DriverFixture(
+            status_records=records, snapshot_failures={"final-sweep"}
+        ) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_CLEANUP_FAILURE)
+            self.assertEqual(result.report["outcome"], "cleanup-error")
+            self.assertEqual(fixture.terminated_browser_pids, [])
+            self.assertFalse(fixture.task_root.exists())
+
     def test_browser_termination_treats_authoritative_presignal_absence_as_benign(self):
         executable = pathlib.Path("/Applications/Browser.app/Contents/MacOS/Browser")
         identity = driver.ProcessIdentity(123, 1, 2, 3, executable)

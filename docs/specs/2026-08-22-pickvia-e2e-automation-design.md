@@ -194,6 +194,10 @@ the FIFO reader disappears.
 - Browser-process snapshots are authoritative: enumeration or identity-query failures
   fail closed, and only a confirmed disappeared-PID race may be skipped. An unknown
   snapshot never proves absence, ownership, or successful cleanup.
+- After every direct route producer is stopped, cleanup performs one final authoritative
+  exact-executable snapshot. Any non-baseline generation prevents success; one newly
+  attributable generation may be terminated, while replacement or multiple accumulated
+  generations remain untouched and are reported ambiguous.
 - Harness/control failures are reported separately from browser/product failures. They do
   not justify removing a capability unless the real production route itself fails after
   selection.

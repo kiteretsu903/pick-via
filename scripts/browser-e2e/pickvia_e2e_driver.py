@@ -909,6 +909,27 @@ def _observe_browser_generations(current, preexisting, seen_new):
     return exact_identity, frozenset(seen_new.values())
 
 
+def _accumulate_browser_generations(current, preexisting, accumulated):
+    seen_new = _generation_map(accumulated)
+    baseline_generations = set(_generation_map(preexisting))
+    current_new = frozenset(
+        identity
+        for identity in current
+        if identity.generation_key not in baseline_generations
+    )
+    try:
+        _, swept_owned = _observe_browser_generations(
+            current,
+            preexisting,
+            seen_new,
+        )
+    except _IdentityAmbiguous:
+        accumulated.update(seen_new.values())
+        raise
+    accumulated.update(swept_owned)
+    return current_new
+
+
 def _wait_for_proof(
     processes,
     fifo_descriptor,
@@ -1086,11 +1107,14 @@ def run_driver(config, dependencies=None):
     cleanup_ok = True
     identity_ambiguous = False
     identity_inspection_failed = False
+    baseline_authoritative = False
+    route_delivery_attempted = False
     signal_guard = _SignalGuard().install()
     try:
         preexisting_browsers = _authoritative_browser_snapshot(
             dependencies, browser_executable, "baseline"
         )
+        baseline_authoritative = True
         task_root = _make_task_root()
         fifo = task_root / "status.fifo"
         os.mkfifo(fifo, 0o600)
@@ -1159,6 +1183,7 @@ def run_driver(config, dependencies=None):
             environment=dict(os.environ),
             stdin=subprocess.PIPE,
         )
+        route_delivery_attempted = True
         try:
             helper.stdin.write(route_bytes)
             helper.stdin.flush()
@@ -1244,36 +1269,39 @@ def run_driver(config, dependencies=None):
         exit_code = DRIVER_PROCESS_ERROR
     finally:
         signal_guard.begin_cleanup()
+        browser_cleanup_safe = not identity_inspection_failed
         if app is not None:
             cleanup_ok = processes.stop(app) and cleanup_ok
-            if identity_inspection_failed:
-                owned_browsers.clear()
-            else:
+            if browser_cleanup_safe:
                 try:
                     current = _authoritative_browser_snapshot(
                         dependencies,
                         browser_executable,
                         "cleanup-sweep",
                     )
-                    seen_new = _generation_map(owned_browsers)
-                    _, swept_owned = _observe_browser_generations(
+                    _accumulate_browser_generations(
                         current,
                         preexisting_browsers,
-                        seen_new,
+                        owned_browsers,
                     )
-                    owned_browsers = set(swept_owned)
                 except _IdentityAmbiguous:
                     identity_ambiguous = True
-                    owned_browsers.clear()
                 except (_IdentityInspectionError, OSError, ValueError, TypeError):
                     cleanup_ok = False
-                    owned_browsers.clear()
-        for identity in owned_browsers:
+                    browser_cleanup_safe = False
+        for identity in list(owned_browsers):
+            if not browser_cleanup_safe or identity_ambiguous:
+                break
             try:
                 current = _authoritative_browser_snapshot(
                     dependencies,
                     browser_executable,
                     "pre-terminate",
+                )
+                _accumulate_browser_generations(
+                    current,
+                    preexisting_browsers,
+                    owned_browsers,
                 )
                 is_same_generation = any(
                     candidate.generation_key == identity.generation_key
@@ -1289,13 +1317,21 @@ def run_driver(config, dependencies=None):
                     browser_executable,
                     "post-terminate",
                 )
+                _accumulate_browser_generations(
+                    current,
+                    preexisting_browsers,
+                    owned_browsers,
+                )
                 survived = any(
                     candidate.generation_key == identity.generation_key
                     for candidate in current
                 )
                 cleanup_ok = terminated and not survived and cleanup_ok
+            except _IdentityAmbiguous:
+                identity_ambiguous = True
             except (_IdentityInspectionError, OSError, ValueError, TypeError):
                 cleanup_ok = False
+                browser_cleanup_safe = False
         if fifo_descriptor is not None:
             try:
                 cleanup_ok = dependencies.fifo_closer(fifo_descriptor) and cleanup_ok
@@ -1305,6 +1341,46 @@ def run_driver(config, dependencies=None):
             cleanup_ok = processes.close() and cleanup_ok
         except Exception:
             cleanup_ok = False
+        if baseline_authoritative and route_delivery_attempted:
+            try:
+                final_current = _authoritative_browser_snapshot(
+                    dependencies,
+                    browser_executable,
+                    "final-sweep",
+                )
+                final_new = _accumulate_browser_generations(
+                    final_current,
+                    preexisting_browsers,
+                    owned_browsers,
+                )
+                if final_new:
+                    cleanup_ok = False
+                    if (
+                        not identity_inspection_failed
+                        and browser_cleanup_safe
+                        and not identity_ambiguous
+                        and len(final_new) == 1
+                    ):
+                        final_identity = next(iter(final_new))
+                        terminated = dependencies.browser_process_terminator(
+                            final_identity,
+                            browser_executable,
+                        )
+                        final_current = _authoritative_browser_snapshot(
+                            dependencies,
+                            browser_executable,
+                            "final-post-terminate",
+                        )
+                        final_remaining = _accumulate_browser_generations(
+                            final_current,
+                            preexisting_browsers,
+                            owned_browsers,
+                        )
+                        cleanup_ok = terminated and not final_remaining and cleanup_ok
+            except _IdentityAmbiguous:
+                identity_ambiguous = True
+            except (_IdentityInspectionError, OSError, ValueError, TypeError):
+                cleanup_ok = False
         if route_bytes is not None:
             try:
                 output_violation = processes.violates_privacy(route_bytes)

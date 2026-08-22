@@ -804,7 +804,10 @@ Browser process inspection must return an authoritative snapshot or a sanitized
 identity-inspection failure. Abort before route delivery when the baseline is unknown;
 never attribute ownership after an observation failure; and treat unknown cleanup,
 revalidation, or absence scans as cleanup failures. Only a confirmed disappeared-PID
-race is benign.
+race is benign. After closing every direct route producer, compare a final authoritative
+exact-executable snapshot with both the immutable baseline and every accumulated new
+generation. Any remaining non-baseline generation prevents success; terminate it only
+when the accumulated attribution remains unambiguous.
 
 This privacy contract applies to the driver, E2E app/helper controls, status, harness
 output, task root, and clipboard. It does not claim that production `BrowserLauncher` or
