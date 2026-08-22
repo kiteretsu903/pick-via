@@ -107,8 +107,10 @@
       )
     }
 
-    func testExactChromiumAndFirefoxProfileTargetsAreSelected() {
-      for fixture in [Fixtures.edgeProfileFixture, Fixtures.firefoxProfileFixture] {
+    func testExactChromiumAndFirefoxProfileTargetsAreSelected() throws {
+      let firefoxPath = try makeRealFirefoxProfileDirectory(label: "valid")
+      let firefoxFixture = Fixtures.firefoxProfileFixture(profilePath: firefoxPath)
+      for fixture in [Fixtures.edgeProfileFixture, firefoxFixture] {
         XCTAssertEqual(
           E2ETargetDecision.evaluate(
             control: fixture.control,
@@ -119,6 +121,103 @@
           .select(fixture.target.id)
         )
       }
+    }
+
+    func testFirefoxProfileRejectsEveryUnsafeLaunchPathShape() throws {
+      let validPath = try makeRealFirefoxProfileDirectory(label: "expected")
+      let validIdentity = FirefoxProfileIdentity.identifier(for: validPath)
+      let validTargetID = BrowserCatalog.targetID(
+        bundleIdentifier: Fixtures.firefoxBundleIdentifier,
+        profileIdentifier: validIdentity,
+        mode: .normal
+      )
+      let control = Fixtures.control(
+        targetID: validTargetID,
+        bundleIdentifier: Fixtures.firefoxBundleIdentifier
+      )
+      let otherPath = try makeRealFirefoxProfileDirectory(label: "other")
+      let otherIdentity = FirefoxProfileIdentity.identifier(for: otherPath)
+      let nonnormalizedPath =
+        validPath.deletingLastPathComponent().path
+        + "/nested/../"
+        + validPath.lastPathComponent
+      let targets = [
+        Fixtures.firefoxProfileTarget(
+          id: validTargetID,
+          identity: validIdentity,
+          launchPath: nil
+        ),
+        Fixtures.firefoxProfileTarget(
+          id: validTargetID,
+          identity: validIdentity,
+          launchPath: "relative/profile"
+        ),
+        Fixtures.firefoxProfileTarget(
+          id: validTargetID,
+          identity: validIdentity,
+          launchPath: nonnormalizedPath
+        ),
+        Fixtures.firefoxProfileTarget(
+          id: validTargetID,
+          identity: validIdentity,
+          launchPath: otherPath.path
+        ),
+      ]
+
+      for target in targets {
+        assertShapeMismatch(
+          E2ETargetDecision.evaluate(
+            control: control,
+            requestKind: .web,
+            applications: [Fixtures.firefox],
+            targets: [target]
+          )
+        )
+      }
+
+      let wrongIdentityTargetID = BrowserCatalog.targetID(
+        bundleIdentifier: Fixtures.firefoxBundleIdentifier,
+        profileIdentifier: otherIdentity,
+        mode: .normal
+      )
+      assertShapeMismatch(
+        E2ETargetDecision.evaluate(
+          control: Fixtures.control(
+            targetID: wrongIdentityTargetID,
+            bundleIdentifier: Fixtures.firefoxBundleIdentifier
+          ),
+          requestKind: .web,
+          applications: [Fixtures.firefox],
+          targets: [
+            Fixtures.firefoxProfileTarget(
+              id: wrongIdentityTargetID,
+              identity: otherIdentity,
+              launchPath: validPath.path
+            )
+          ]
+        )
+      )
+    }
+
+    func testChromiumProfileRejectsAnyLaunchPath() {
+      let fixture = Fixtures.edgeProfileFixture
+      let target = Fixtures.target(
+        id: fixture.target.id,
+        browserID: fixture.application.id,
+        profileIdentifier: fixture.target.profileIdentifier,
+        profileDisplayName: fixture.target.profileDisplayName,
+        profileIdentity: fixture.target.profileIdentity,
+        profileLaunchPath: "/private/tmp/synthetic-chromium-profile"
+      )
+
+      assertShapeMismatch(
+        E2ETargetDecision.evaluate(
+          control: fixture.control,
+          requestKind: .web,
+          applications: [fixture.application],
+          targets: [target]
+        )
+      )
     }
 
     func testCanonicalBrowserLevelIDRejectsEveryHiddenProfileField() {
@@ -568,6 +667,15 @@
         isDirectory: true
       )
     }
+
+    private func makeRealFirefoxProfileDirectory(label: String) throws -> URL {
+      let profile =
+        supportRoot
+        .appending(path: "firefox-profile-\(label)", directoryHint: .isDirectory)
+        .standardizedFileURL
+      try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: false)
+      return profile
+    }
   }
 
   private enum Fixtures {
@@ -679,11 +787,32 @@
       identity: "Profile 1",
       launchIdentifier: "Profile 1"
     )
-    static let firefoxProfileFixture = profileFixture(
-      application: firefox,
-      identity: FirefoxProfileIdentity.prefix + String(repeating: "a", count: 64),
-      launchIdentifier: "Synthetic profile"
-    )
+    static func firefoxProfileFixture(
+      profilePath: URL
+    ) -> (control: E2EControl, application: RoutedApplication, target: RouteTarget) {
+      let normalizedPath = profilePath.standardizedFileURL
+      return profileFixture(
+        application: firefox,
+        identity: FirefoxProfileIdentity.identifier(for: normalizedPath),
+        launchIdentifier: "Synthetic profile",
+        profileLaunchPath: normalizedPath.path
+      )
+    }
+
+    static func firefoxProfileTarget(
+      id: RouteTarget.ID,
+      identity: String,
+      launchPath: String?
+    ) -> RouteTarget {
+      target(
+        id: id,
+        browserID: firefoxBundleIdentifier,
+        profileIdentifier: "Synthetic profile",
+        profileDisplayName: "Synthetic profile",
+        profileIdentity: identity,
+        profileLaunchPath: launchPath
+      )
+    }
 
     static func application(
       id: String,
@@ -733,7 +862,8 @@
     private static func profileFixture(
       application: RoutedApplication,
       identity: String,
-      launchIdentifier: String
+      launchIdentifier: String,
+      profileLaunchPath: String? = nil
     ) -> (control: E2EControl, application: RoutedApplication, target: RouteTarget) {
       let targetID = BrowserCatalog.targetID(
         bundleIdentifier: application.bundleIdentifier,
@@ -748,7 +878,8 @@
           browserID: application.id,
           profileIdentifier: launchIdentifier,
           profileDisplayName: "Synthetic profile",
-          profileIdentity: identity
+          profileIdentity: identity,
+          profileLaunchPath: profileLaunchPath
         )
       )
     }

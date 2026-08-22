@@ -189,22 +189,28 @@
           )
       else { return false }
 
-      if let launchPath = options.profileLaunchPath {
-        guard
-          let validatedLaunchPath = nonempty(launchPath, limit: 1_024),
-          validatedLaunchPath == launchPath
-        else { return false }
-      }
-
       switch descriptor.profileStrategy {
       case .none:
         return false
       case .chromium:
-        return identifier == identity
+        return identifier == identity && options.profileLaunchPath == nil
       case .firefox:
-        return FirefoxProfileIdentity.isOpaqueIdentifier(identity)
+        guard
+          FirefoxProfileIdentity.isOpaqueIdentifier(identity),
+          let launchPath = nonempty(options.profileLaunchPath, limit: 1_024),
+          launchPath == options.profileLaunchPath,
+          let lexicalLaunchPath = lexicallyStandardizedAbsolutePath(launchPath),
+          lexicalLaunchPath == launchPath
+        else { return false }
+        let normalizedURL = URL(
+          fileURLWithPath: launchPath,
+          isDirectory: true
+        ).standardizedFileURL
+        return normalizedURL.path == launchPath
+          && FirefoxProfileIdentity.identifier(for: normalizedURL) == identity
       case .safariShortcut:
-        return true
+        guard let launchPath = options.profileLaunchPath else { return true }
+        return nonempty(launchPath, limit: 1_024) == launchPath
       }
     }
   }
