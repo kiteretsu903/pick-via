@@ -215,21 +215,27 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       let candidates = targetCandidates(for: browser)
       for candidate in candidates {
         let canonicalExisting = existingByID[candidate.id]
-        let preservesUnsupportedProfileCollision =
+        let preservesUnsupportedCanonicalCollision =
           switch browser.application.browserFamily {
           case .duckDuckGo, .opera, .arc, .orion:
             true
           case .safari, .chromium, .firefox, nil:
             false
           }
-        if preservesUnsupportedProfileCollision,
+        if preservesUnsupportedCanonicalCollision,
           isBrowserLevelTarget(candidate),
           let canonicalExisting,
           !isBrowserLevelTarget(canonicalExisting)
+            || canonicalExisting.mode != candidate.mode
+            || canonicalExisting.applicationID != candidate.applicationID
         {
           consumedExistingIDs.insert(canonicalExisting.id)
           reconciled.append(
-            preservingAvailability(canonicalExisting, discovered: [browser])
+            copying(
+              canonicalExisting,
+              availability: .unavailable,
+              profileLaunchPath: canonicalExisting.profileLaunchPath
+            )
           )
           continue
         }

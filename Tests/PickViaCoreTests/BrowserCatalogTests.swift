@@ -197,6 +197,191 @@ struct BrowserCatalogTests {
       })
   }
 
+  @Test(arguments: failClosedBrowserExpectations)
+  func newFamilyCanonicalNormalIDNeverRepointsBrowserLevelPrivateTarget(
+    _ expectation: FailClosedBrowserExpectation
+  ) throws {
+    let browser = failClosedBrowser(expectation)
+    let canonicalNormalID = BrowserCatalog.targetID(
+      bundleIdentifier: expectation.bundleIdentifier,
+      profileIdentifier: nil,
+      mode: .normal
+    )
+    let stalePrivate = BrowserTarget(
+      id: canonicalNormalID,
+      browserID: expectation.bundleIdentifier,
+      label: "Pinned Browser-Level Private",
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      profileIdentity: nil,
+      profileLaunchPath: nil,
+      mode: .private,
+      isEnabled: false,
+      sortOrder: 61,
+      origin: .manual,
+      availability: .available,
+      validationError: "Previously supported private adapter is unavailable."
+    )
+    let config = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: [browser.application],
+      targets: [stalePrivate]
+    )
+
+    let disappeared = BrowserCatalog.reconcile(discovered: [], with: config)
+    let result = BrowserCatalog.reconcile(discovered: [browser], with: disappeared)
+    let target = try #require(result.targets.first { $0.id == canonicalNormalID })
+
+    #expect(result.targets.count == 1)
+    #expect(target.id == stalePrivate.id)
+    #expect(target.applicationID == stalePrivate.applicationID)
+    #expect(target.label == stalePrivate.label)
+    #expect(target.isEnabled == stalePrivate.isEnabled)
+    #expect(target.sortOrder == stalePrivate.sortOrder)
+    #expect(target.origin == stalePrivate.origin)
+    #expect(target.mode == .private)
+    #expect(target.profileIdentifier == nil)
+    #expect(target.profileDisplayName == nil)
+    #expect(target.profileIdentity == nil)
+    #expect(target.profileLaunchPath == nil)
+    #expect(target.validationError == stalePrivate.validationError)
+    #expect(target.availability == .unavailable)
+    #expect(
+      !result.targets.contains { $0.id == canonicalNormalID && $0.availability == .available })
+  }
+
+  @Test(arguments: failClosedBrowserExpectations)
+  func newFamilyCanonicalNormalIDNeverRepointsTargetForAnotherApplication(
+    _ expectation: FailClosedBrowserExpectation
+  ) throws {
+    let browser = failClosedBrowser(expectation)
+    let ownerID = "com.example.saved-owner.\(expectation.family.rawValue)"
+    let owner = BrowserApplication(
+      id: ownerID,
+      family: expectation.family,
+      displayName: "Saved Owner",
+      bundleIdentifier: ownerID,
+      applicationURL: URL(fileURLWithPath: "/Applications/Saved Owner.app", isDirectory: true),
+      executableURL: nil,
+      isAvailable: true
+    )
+    let canonicalNormalID = BrowserCatalog.targetID(
+      bundleIdentifier: expectation.bundleIdentifier,
+      profileIdentifier: nil,
+      mode: .normal
+    )
+    let mismatched = BrowserTarget(
+      id: canonicalNormalID,
+      browserID: ownerID,
+      label: "Keep Original Owner",
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      mode: .normal,
+      isEnabled: false,
+      sortOrder: 62,
+      origin: .manual,
+      availability: .available
+    )
+    let config = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: [browser.application, owner],
+      targets: [mismatched]
+    )
+
+    let result = BrowserCatalog.reconcile(discovered: [browser], with: config)
+    let target = try #require(result.targets.first { $0.id == canonicalNormalID })
+
+    #expect(result.targets.count == 1)
+    #expect(target.applicationID == ownerID)
+    #expect(target.label == mismatched.label)
+    #expect(!target.isEnabled)
+    #expect(target.sortOrder == 62)
+    #expect(target.origin == .manual)
+    #expect(target.mode == .normal)
+    #expect(target.availability == .unavailable)
+    #expect(
+      !result.targets.contains { $0.id == canonicalNormalID && $0.availability == .available })
+  }
+
+  @Test(arguments: failClosedBrowserExpectations)
+  func newFamilyCanonicalNormalIDStillMergesValidNormalTarget(
+    _ expectation: FailClosedBrowserExpectation
+  ) throws {
+    let browser = failClosedBrowser(expectation)
+    let initial = BrowserCatalog.reconcile(discovered: [browser], with: .initial)
+    let generated = try #require(initial.targets.first)
+    let customized = copy(generated, label: "Valid Normal", enabled: false, sortOrder: 63)
+    let unavailable = BrowserCatalog.reconcile(
+      discovered: [],
+      with: PickViaConfig(
+        schemaVersion: initial.schemaVersion,
+        browsers: initial.browsers,
+        targets: [customized]
+      )
+    )
+
+    let result = BrowserCatalog.reconcile(discovered: [browser], with: unavailable)
+    let target = try #require(result.targets.first)
+
+    #expect(result.targets.count == 1)
+    #expect(target.id == generated.id)
+    #expect(target.applicationID == expectation.bundleIdentifier)
+    #expect(target.label == "Valid Normal")
+    #expect(!target.isEnabled)
+    #expect(target.sortOrder == 63)
+    #expect(target.origin == .detected)
+    #expect(target.mode == .normal)
+    #expect(target.availability == .available)
+  }
+
+  @Test(arguments: DuckDuckGoModeCollision.allCases)
+  func fireCapableDuckDuckGoCanonicalIDModeCollisionRemainsUnavailable(
+    _ collision: DuckDuckGoModeCollision
+  ) throws {
+    let browser = duckDuckGoBrowser(privateModeIsAvailable: true)
+    let stale = BrowserTarget(
+      id: BrowserCatalog.targetID(
+        bundleIdentifier: browser.application.bundleIdentifier,
+        profileIdentifier: nil,
+        mode: collision.canonicalMode
+      ),
+      browserID: browser.application.id,
+      label: "Preserve Wrong Mode",
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      profileIdentity: nil,
+      profileLaunchPath: nil,
+      mode: collision.persistedMode,
+      isEnabled: false,
+      sortOrder: 64,
+      origin: .manual,
+      availability: .available,
+      validationError: "Canonical mode mismatch."
+    )
+    let config = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: [browser.application],
+      targets: [stale]
+    )
+
+    let result = BrowserCatalog.reconcile(discovered: [browser], with: config)
+    let target = try #require(result.targets.first { $0.id == stale.id })
+
+    #expect(target.id == stale.id)
+    #expect(target.applicationID == stale.applicationID)
+    #expect(target.label == stale.label)
+    #expect(target.isEnabled == stale.isEnabled)
+    #expect(target.sortOrder == stale.sortOrder)
+    #expect(target.origin == stale.origin)
+    #expect(target.mode == stale.mode)
+    #expect(target.profileIdentifier == nil)
+    #expect(target.profileDisplayName == nil)
+    #expect(target.profileIdentity == nil)
+    #expect(target.profileLaunchPath == nil)
+    #expect(target.validationError == stale.validationError)
+    #expect(target.availability == .unavailable)
+  }
+
   @Test func duckDuckGoDescriptorHasNoProfileOrExecutablePaths() throws {
     let descriptor = try #require(
       BrowserDescriptor.descriptor(
@@ -3147,6 +3332,25 @@ struct FailClosedBrowserExpectation: Sendable {
   let bundleIdentifier: String
   let family: BrowserFamily
   let displayName: String
+}
+
+enum DuckDuckGoModeCollision: CaseIterable, Sendable {
+  case normalIDPrivateMode
+  case privateIDNormalMode
+
+  var canonicalMode: BrowserMode {
+    switch self {
+    case .normalIDPrivateMode: .normal
+    case .privateIDNormalMode: .private
+    }
+  }
+
+  var persistedMode: BrowserMode {
+    switch self {
+    case .normalIDPrivateMode: .private
+    case .privateIDNormalMode: .normal
+    }
+  }
 }
 
 private let failClosedBrowserExpectations: [FailClosedBrowserExpectation] = [
