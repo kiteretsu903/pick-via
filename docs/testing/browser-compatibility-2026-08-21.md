@@ -320,3 +320,36 @@ exact Edge Dev, E2E PickVia, receiver, and driver absence after the driver's
 bounded cleanup and quiescence checks. Installed PickVia remained the same exact
 pre-batch process generation, and preexisting temporary roots were left
 untouched.
+
+## Microsoft Edge Canary normal routing — 2026-08-22
+
+Status: **PASS for Microsoft Edge Canary normal routing in the initialized
+cold, already-running, and reopen states.** The installed Microsoft Edge Canary
+153.0.4233.0 build has bundle identifier `com.microsoft.edgemac.Canary`, team
+`UBF8T346G9`, and uses PickVia's browser-level normal Chromium exact-application
+workspace strategy.
+
+This result preserves an earlier pristine cold 30-second receiver receipt
+timeout as historical evidence; the missing receipt was not retroactively
+reclassified as a successful route. In the current initialized batch, the first
+cold route passed the causal and visible gates and the driver exited with status
+zero, but an independent
+post-driver check found one delayed exact Canary generation. Because the
+pre-batch Canary baseline was empty, the sole generation was signaled only after
+its exact executable, bundle, team, and task-time start were revalidated.
+Bounded quiescence confirmed absence. One authorized cold retry prompted only
+by that cleanup anomaly then completed the entire gate with clean final absence.
+
+| Browser | Mode/state | Selection | Receipt | Exact process identity | Sanitized visible evidence | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Microsoft Edge Canary | Normal, cold | `selected` | Fresh receipt | E2E app and exact Edge Canary generation verified on the clean retry | Edge Canary visible; browser window present; onboarding absent | **PASS** |
+| Microsoft Edge Canary | Normal, already running | `selected` | Fresh receipt | E2E app and same recorded task-owned Edge Canary generation verified and preserved by the driver | Edge Canary visible; browser window present; onboarding absent | **PASS** |
+| Microsoft Edge Canary | Normal, reopen | `selected` | Fresh receipt | E2E app and new exact Edge Canary generation verified after the recorded baseline was closed | Edge Canary visible; browser window present; onboarding absent | **PASS** |
+
+No profile or private target was created or attempted. This entry contains no
+routed address, token, browser arguments, raw UI, screenshot, or profile label.
+The already-running baseline was terminated only after exact PID and
+start-generation revalidation. Final bounded quiescence found no Edge Canary,
+E2E PickVia, receiver, or driver process; installed PickVia remained the same
+exact pre-batch process generation, and preexisting temporary roots were left
+untouched.
