@@ -1483,6 +1483,7 @@ def run_driver(config, dependencies=None):
                 identity_ambiguous = True
             except (_IdentityInspectionError, OSError, ValueError, TypeError):
                 cleanup_ok = False
+                browser_cleanup_safe = False
             try:
                 late_generation_seen = _observe_browser_quiescence(
                     dependencies,

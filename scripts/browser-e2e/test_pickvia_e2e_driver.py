@@ -657,6 +657,32 @@ class PickViaE2EDriverTests(unittest.TestCase):
             self.assertEqual(fixture.terminated_browser_pids, [])
             self.assertFalse(fixture.task_root.exists())
 
+    def test_unknown_final_sweep_revokes_late_generation_termination_authority(self):
+        records = [{"session": "session_0123456789", "outcome": "target-missing"}]
+        with DriverFixture(
+            status_records=records,
+            snapshot_failures={"final-sweep"},
+            delayed_browser_after_final_sweep=True,
+        ) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_CLEANUP_FAILURE)
+            self.assertEqual(result.report["outcome"], "cleanup-error")
+            self.assertEqual(fixture.terminated_browser_pids, [])
+            self.assertGreaterEqual(fixture.quiescence_snapshot_count, 2)
+
+    def test_unknown_final_posttermination_snapshot_keeps_quiescence_read_only(self):
+        records = [{"session": "session_0123456789", "outcome": "target-missing"}]
+        with DriverFixture(
+            status_records=records,
+            late_browser_after_close=True,
+            snapshot_failures={"final-post-terminate"},
+        ) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_CLEANUP_FAILURE)
+            self.assertEqual(result.report["outcome"], "cleanup-error")
+            self.assertEqual(fixture.terminated_browser_pids, [900])
+            self.assertGreaterEqual(fixture.quiescence_snapshot_count, 2)
+
     def test_browser_termination_treats_authoritative_presignal_absence_as_benign(self):
         executable = pathlib.Path("/Applications/Browser.app/Contents/MacOS/Browser")
         identity = driver.ProcessIdentity(123, 1, 2, 3, executable)
