@@ -86,8 +86,14 @@ func makeBrowserSettingsIssueSummary(
 
   let accessIDs = Set(
     config.browsers.compactMap { browser -> String? in
-      guard browser.isAvailable, browser.family != .safari,
-        BrowserDescriptor.descriptor(forBundleIdentifier: browser.bundleIdentifier) != nil
+      guard
+        browser.isAvailable,
+        let descriptor = BrowserDescriptor.descriptor(
+          forBundleIdentifier: browser.bundleIdentifier
+        ),
+        BrowserRoutingCapabilities(descriptor: descriptor).hasFileBackedProfiles,
+        descriptor.profileRoot != nil,
+        descriptor.requiredProfileMarker != nil
       else { return nil }
       switch statusByBundleID[browser.bundleIdentifier] {
       case .accessRequired?, .accessRevoked?: return browser.id

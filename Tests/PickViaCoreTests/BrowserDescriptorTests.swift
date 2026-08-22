@@ -34,6 +34,132 @@ struct BrowserDescriptorTests {
   func compatibleStrategyCombinationsAreAccepted(_ combination: StrategyCombination) {
     #expect(strategyDescriptor(combination).hasCompatibleStrategies)
   }
+
+  @Test func privateCapabilityResolverKeepsStaticArgumentsAndFailClosedDynamicEvidence() {
+    let applicationID = "com.example.private-capability"
+    let argument = BrowserDescriptor(
+      bundleIdentifier: applicationID,
+      family: .chromium,
+      displayName: "Argument Browser",
+      profileStrategy: .none,
+      launchStrategy: .chromium(
+        executableRelativePath: "Contents/MacOS/browser",
+        profileArgument: "--profile="
+      ),
+      privateStrategy: .argument("--private")
+    )
+    let unsupported = BrowserDescriptor(
+      bundleIdentifier: applicationID,
+      family: .opera,
+      displayName: "Unsupported Browser",
+      profileStrategy: .none,
+      launchStrategy: .workspace,
+      privateStrategy: .unsupported
+    )
+    let duckDuckGo = BrowserDescriptor(
+      bundleIdentifier: applicationID,
+      family: .duckDuckGo,
+      displayName: "Dynamic Browser",
+      profileStrategy: .none,
+      launchStrategy: .duckDuckGo,
+      privateStrategy: .duckDuckGoFire
+    )
+    let safariShortcut = BrowserDescriptor(
+      bundleIdentifier: applicationID,
+      family: .safari,
+      displayName: "Shortcut Browser",
+      profileStrategy: .safariShortcut,
+      launchStrategy: .workspace,
+      privateStrategy: .safariShortcut
+    )
+    let unavailablePrivate = privateCapabilityTarget(
+      applicationID: applicationID,
+      availability: .unavailable
+    )
+    let availablePrivate = privateCapabilityTarget(
+      applicationID: applicationID,
+      availability: .available
+    )
+    let collidingMailTarget = RouteTarget(
+      id: availablePrivate.id,
+      applicationID: applicationID,
+      label: "Private",
+      isEnabled: true,
+      sortOrder: 0,
+      origin: .detected,
+      availability: .available,
+      capability: .mail
+    )
+
+    #expect(
+      BrowserPrivateCapabilityResolver.isAvailable(
+        descriptor: argument,
+        applicationID: applicationID,
+        targets: []
+      ))
+    #expect(
+      !BrowserPrivateCapabilityResolver.isAvailable(
+        descriptor: unsupported,
+        applicationID: applicationID,
+        targets: [availablePrivate]
+      ))
+    for descriptor in [duckDuckGo, safariShortcut] {
+      #expect(
+        !BrowserPrivateCapabilityResolver.isAvailable(
+          descriptor: descriptor,
+          applicationID: applicationID,
+          targets: []
+        ))
+      #expect(
+        !BrowserPrivateCapabilityResolver.isAvailable(
+          descriptor: descriptor,
+          applicationID: applicationID,
+          targets: [unavailablePrivate]
+        ))
+      #expect(
+        !BrowserPrivateCapabilityResolver.isAvailable(
+          descriptor: descriptor,
+          applicationID: applicationID,
+          targets: [collidingMailTarget]
+        ))
+      #expect(
+        BrowserPrivateCapabilityResolver.isAvailable(
+          descriptor: descriptor,
+          applicationID: applicationID,
+          targets: [availablePrivate]
+        ))
+    }
+  }
+}
+
+private func privateCapabilityTarget(
+  applicationID: String,
+  availability: TargetAvailability
+) -> RouteTarget {
+  RouteTarget(
+    id: BrowserCatalog.targetID(
+      bundleIdentifier: applicationID,
+      profileIdentifier: nil,
+      mode: .private
+    ),
+    applicationID: applicationID,
+    label: "Private",
+    isEnabled: true,
+    sortOrder: 0,
+    origin: .detected,
+    availability: availability,
+    capability: .browser(
+      BrowserTargetOptions(
+        profileIdentifier: nil,
+        profileDisplayName: nil,
+        profileIdentity: nil,
+        profileLaunchPath: nil,
+        mode: .private,
+        pendingDefaultMigration: false,
+        validationError: nil
+      )
+    )
+  )
 }
 
 struct DescriptorExpectation: Sendable {

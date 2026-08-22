@@ -401,6 +401,18 @@ func browserTargetCapabilities(
       forBundleIdentifier: browser.bundleIdentifier
     )
   else { return .normalOnly }
+  return browserTargetCapabilities(
+    for: browser,
+    descriptor: descriptor,
+    targets: targets
+  )
+}
+
+func browserTargetCapabilities(
+  for browser: BrowserApplication,
+  descriptor: BrowserDescriptor,
+  targets: [BrowserTarget]
+) -> BrowserTargetCapabilities {
   let detectedAvailableTargets = targets.filter {
     $0.routeKind == .web
       && $0.applicationID == browser.id
@@ -412,8 +424,11 @@ func browserTargetCapabilities(
       && detectedAvailableTargets.contains {
         $0.profileIdentity != nil || $0.profileIdentifier != nil
       },
-    supportsPrivateMode: descriptor.supportsPrivateMode
-      && detectedAvailableTargets.contains { $0.mode == .private }
+    supportsPrivateMode: BrowserPrivateCapabilityResolver.isAvailable(
+      descriptor: descriptor,
+      applicationID: browser.id,
+      targets: targets
+    )
   )
 }
 

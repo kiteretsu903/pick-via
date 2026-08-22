@@ -44,6 +44,61 @@ final class BrowserSettingsIssueSummaryTests: XCTestCase {
     )
   }
 
+  func testAccessSummaryUsesFileBackedDescriptorCapabilityNotFamilyLabel() {
+    let chromeWithSafariFamily = issueBrowser(
+      id: "com.google.Chrome",
+      family: .safari,
+      available: true
+    )
+    let operaWithChromiumFamily = issueBrowser(
+      id: "com.operasoftware.Opera",
+      family: .chromium,
+      available: true
+    )
+    let duckDuckGo = issueBrowser(
+      id: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
+      family: .duckDuckGo,
+      available: true
+    )
+    let scan = BrowserScanResult(
+      browsers: [
+        DiscoveredBrowser(
+          application: chromeWithSafariFamily,
+          profiles: [],
+          metadataStatus: .accessRequired
+        ),
+        DiscoveredBrowser(
+          application: operaWithChromiumFamily,
+          profiles: [],
+          metadataStatus: .accessRequired
+        ),
+        DiscoveredBrowser(
+          application: duckDuckGo,
+          profiles: [],
+          metadataStatus: .accessRevoked
+        ),
+      ],
+      profileAccessIssues: [
+        .accessRequired(bundleIdentifier: chromeWithSafariFamily.id),
+        .accessRequired(bundleIdentifier: operaWithChromiumFamily.id),
+        .accessRevoked(bundleIdentifier: duckDuckGo.id),
+      ]
+    )
+    let config = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: [chromeWithSafariFamily, operaWithChromiumFamily, duckDuckGo],
+      targets: []
+    )
+
+    let summary = makeBrowserSettingsIssueSummary(
+      authoritativeScan: scan,
+      metadataOverrides: [:],
+      config: config
+    )
+
+    XCTAssertEqual(summary.accessIssueBrowserCount, 1)
+  }
+
   func testMissingOnlyRecognizesEachProfileSpecificIdentityField() {
     let chrome = issueBrowser(id: "com.google.Chrome", family: .chromium, available: true)
     let firefox = issueBrowser(id: "org.mozilla.firefox", family: .firefox, available: true)

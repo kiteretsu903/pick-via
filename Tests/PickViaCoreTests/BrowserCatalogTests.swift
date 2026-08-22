@@ -879,14 +879,17 @@ struct BrowserCatalogTests {
     #expect(!fileSystem.readURLs.contains(stableMarker))
   }
 
-  @Test func chromiumProfileStrategyControlsMetadataIndependentOfFamily() throws {
+  @Test func injectedDescriptorCapabilitiesTravelFromScanThroughReconciliation() throws {
     let descriptor = BrowserDescriptor(
       bundleIdentifier: "com.example.chromium-profile-strategy",
       family: .firefox,
       displayName: "Chromium Strategy",
       profileStrategy: .chromium(root: "Library/Application Support/Chromium Strategy"),
-      launchStrategy: .workspace,
-      privateStrategy: .unsupported
+      launchStrategy: .chromium(
+        executableRelativePath: "Contents/MacOS/Chromium Strategy",
+        profileArgument: "--profile="
+      ),
+      privateStrategy: .argument("--private")
     )
     let marker = URL(
       fileURLWithPath:
@@ -905,10 +908,19 @@ struct BrowserCatalogTests {
     )
 
     let browser = try #require(catalog.scan().first)
+    let reconciled = BrowserCatalog.reconcile(discovered: [browser], with: .initial)
 
     #expect(browser.metadataStatus == .loaded)
     #expect(browser.profiles.map(\.identifier) == ["Default", "Profile 1"])
+    #expect(browser.routingCapabilities == BrowserRoutingCapabilities(descriptor: descriptor))
     #expect(fileSystem.readURLs == [marker])
+    #expect(reconciled.targets.count == 4)
+    #expect(
+      Set(reconciled.targets.map { ($0.profileIdentity ?? "default") + "|" + $0.mode.rawValue })
+        == [
+          "default|normal", "default|private", "Profile 1|normal", "Profile 1|private",
+        ]
+    )
   }
 
   @Test func firefoxProfileStrategyControlsMetadataIndependentOfFamily() throws {

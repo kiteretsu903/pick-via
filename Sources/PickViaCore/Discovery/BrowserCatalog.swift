@@ -6,17 +6,24 @@ public struct DiscoveredBrowser: Equatable, Sendable {
   public let profiles: [DiscoveredProfile]
   public let metadataStatus: ProfileMetadataStatus
   public let privateModeIsAvailable: Bool
+  public let routingCapabilities: BrowserRoutingCapabilities?
 
   public init(
     application: RoutedApplication,
     profiles: [DiscoveredProfile],
     metadataStatus: ProfileMetadataStatus = .loaded,
-    privateModeIsAvailable: Bool = true
+    privateModeIsAvailable: Bool = true,
+    routingCapabilities: BrowserRoutingCapabilities? = nil
   ) {
     self.application = application
     self.profiles = profiles
     self.metadataStatus = metadataStatus
     self.privateModeIsAvailable = privateModeIsAvailable
+    self.routingCapabilities =
+      routingCapabilities
+      ?? BrowserDescriptor.descriptor(
+        forBundleIdentifier: application.bundleIdentifier
+      ).map(BrowserRoutingCapabilities.init(descriptor:))
   }
 }
 
@@ -462,6 +469,8 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       case .fire:
         privateModeIsAvailable = true
       }
+    } else if descriptor.privateStrategy == .safariShortcut {
+      privateModeIsAvailable = false
     } else {
       privateModeIsAvailable = descriptor.supportsPrivateMode
     }
@@ -482,7 +491,8 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
         application: application,
         profiles: metadata.profiles,
         metadataStatus: metadata.status,
-        privateModeIsAvailable: privateModeIsAvailable
+        privateModeIsAvailable: privateModeIsAvailable,
+        routingCapabilities: BrowserRoutingCapabilities(descriptor: descriptor)
       ),
       issue(for: metadata.status, bundleIdentifier: descriptor.bundleIdentifier)
     )
@@ -610,18 +620,22 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       }
   }
 
-  private static func descriptor(for browser: DiscoveredBrowser) -> BrowserDescriptor? {
-    BrowserDescriptor.descriptor(
-      forBundleIdentifier: browser.application.bundleIdentifier
-    )
+  private static func routingCapabilities(
+    for browser: DiscoveredBrowser
+  ) -> BrowserRoutingCapabilities? {
+    guard
+      browser.routingCapabilities?.bundleIdentifier
+        == browser.application.bundleIdentifier
+    else { return nil }
+    return browser.routingCapabilities
   }
 
   private static func supportsProfiles(_ browser: DiscoveredBrowser) -> Bool {
-    descriptor(for: browser)?.supportsProfiles == true
+    routingCapabilities(for: browser)?.supportsProfiles == true
   }
 
   private static func supportsPrivateMode(_ browser: DiscoveredBrowser) -> Bool {
-    descriptor(for: browser)?.supportsPrivateMode == true && browser.privateModeIsAvailable
+    routingCapabilities(for: browser)?.supportsPrivateMode == true && browser.privateModeIsAvailable
   }
 
   private static func candidate(
@@ -709,15 +723,16 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     discovered: [DiscoveredBrowser]
   ) -> RouteTarget {
     let browser = discovered.first { $0.application.id == target.applicationID }
-    let descriptor =
-      browser.flatMap(descriptor(for:))
+    let capabilities =
+      browser.flatMap(routingCapabilities(for:))
       ?? BrowserDescriptor.descriptor(forBundleIdentifier: target.applicationID)
+      .map(BrowserRoutingCapabilities.init(descriptor:))
     let availability: TargetAvailability
     var resolvedProfile: DiscoveredProfile?
     var refreshesMutableLaunchSelector = false
     if let browser,
       browser.application.isAvailable(for: .web),
-      let descriptor
+      let capabilities
     {
       if isBrowserLevelTarget(target) {
         availability =
@@ -728,11 +743,11 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
         case .metadataDamaged, .accessRequired, .accessRevoked:
           return preservingWithoutAuthoritativeMetadata(
             target,
-            descriptor: descriptor,
+            capabilities: capabilities,
             privateModeIsAvailable: supportsPrivateMode(browser)
           )
         case .notApplicable, .metadataAbsent, .loaded:
-          guard descriptor.supportsProfiles else {
+          guard capabilities.supportsProfiles else {
             return copying(
               target,
               availability: .unavailable,
@@ -741,7 +756,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
           }
           let profiles = uniqueProfiles(browser.profiles)
           if let profileIdentity = target.profileIdentity {
-            if case .firefox = descriptor.profileStrategy,
+            if case .firefox = capabilities.profileStrategy,
               (profileIdentity as NSString).isAbsolutePath
             {
               let normalizedLegacyPath = URL(
@@ -754,7 +769,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
             } else {
               resolvedProfile = profiles.first { $0.identifier == profileIdentity }
             }
-          } else if case .firefox = descriptor.profileStrategy {
+          } else if case .firefox = capabilities.profileStrategy {
             let nameMatches = profiles.filter {
               $0.launchIdentifier == target.profileIdentifier
             }
@@ -764,7 +779,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
               $0.identifier == target.profileIdentifier
             }
           }
-          if case .firefox = descriptor.profileStrategy {
+          if case .firefox = capabilities.profileStrategy {
             refreshesMutableLaunchSelector = true
           }
           availability = resolvedProfile == nil ? .unavailable : .available
@@ -777,13 +792,13 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     let migratedIdentity = migratedProfileIdentity(
       for: target,
       resolvedProfile: resolvedProfile,
-      profileStrategy: descriptor?.profileStrategy
+      profileStrategy: capabilities?.profileStrategy
     )
     return RouteTarget(
       id: migratedTargetID(
         for: target,
         profileIdentity: migratedIdentity,
-        profileStrategy: descriptor?.profileStrategy
+        profileStrategy: capabilities?.profileStrategy
       ),
       browserID: target.applicationID,
       label: target.label,
@@ -845,7 +860,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       else { return false }
       let legacyIdentityPath: String? = target.profileIdentity.flatMap { identity in
         guard
-          case .firefox? = descriptor(for: browser)?.profileStrategy,
+          case .firefox? = routingCapabilities(for: browser)?.profileStrategy,
           (identity as NSString).isAbsolutePath
         else { return nil }
         return URL(fileURLWithPath: identity, isDirectory: true).standardizedFileURL.path
@@ -892,7 +907,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     existingTargets: [RouteTarget]
   ) -> Bool {
     guard
-      descriptor(for: browser).map(hasFileBackedProfiles) == true,
+      routingCapabilities(for: browser)?.hasFileBackedProfiles == true,
       isBrowserLevelTarget(candidate),
       hasNonAuthoritativeProfileMetadata(browser.metadataStatus)
     else { return false }
@@ -921,15 +936,6 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     case .metadataDamaged, .accessRequired, .accessRevoked:
       true
     case .notApplicable, .metadataAbsent, .loaded:
-      false
-    }
-  }
-
-  private static func hasFileBackedProfiles(_ descriptor: BrowserDescriptor) -> Bool {
-    switch descriptor.profileStrategy {
-    case .chromium, .firefox:
-      true
-    case .none, .safariShortcut:
       false
     }
   }
@@ -1006,12 +1012,12 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
 
   private static func preservingWithoutAuthoritativeMetadata(
     _ target: RouteTarget,
-    descriptor: BrowserDescriptor,
+    capabilities: BrowserRoutingCapabilities,
     privateModeIsAvailable: Bool
   ) -> RouteTarget {
     let sanitized = sanitizingLegacyFirefoxIdentity(
       target,
-      profileStrategy: descriptor.profileStrategy
+      profileStrategy: capabilities.profileStrategy
     )
     let browserLevelIsAvailable =
       isBrowserLevelTarget(sanitized)

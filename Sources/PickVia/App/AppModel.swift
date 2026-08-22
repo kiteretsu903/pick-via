@@ -709,7 +709,7 @@ public final class AppModel {
     guard let browser = supportedAvailableBrowser(id: target.browserID, in: config) else {
       throw TargetEditingError.browserUnavailableOrUnsupported
     }
-    guard mode == .normal || hasAvailableDetectedPrivateTarget(browserID: browser.id, in: config)
+    guard mode == .normal || browserPrivateModeIsAvailable(browserID: browser.id, in: config)
     else {
       throw TargetEditingError.privateModeUnsupported
     }
@@ -861,7 +861,7 @@ public final class AppModel {
     guard let browser = supportedAvailableBrowser(id: browserID, in: config) else {
       throw TargetEditingError.browserUnavailableOrUnsupported
     }
-    guard mode == .normal || hasAvailableDetectedPrivateTarget(browserID: browser.id, in: config)
+    guard mode == .normal || browserPrivateModeIsAvailable(browserID: browser.id, in: config)
     else {
       throw TargetEditingError.privateModeUnsupported
     }
@@ -1760,7 +1760,7 @@ private func supportedAvailableBrowser(
     ? nil : browser
 }
 
-private func hasAvailableDetectedPrivateTarget(
+private func browserPrivateModeIsAvailable(
   browserID: BrowserApplication.ID,
   in config: PickViaConfig
 ) -> Bool {
@@ -1770,21 +1770,11 @@ private func hasAvailableDetectedPrivateTarget(
       forBundleIdentifier: browser.bundleIdentifier
     )
   else { return false }
-  switch descriptor.privateStrategy {
-  case .unsupported:
-    return false
-  case .argument:
-    return true
-  case .duckDuckGoFire, .safariShortcut:
-    break
-  }
-  return config.targets.contains {
-    $0.routeKind == .web
-      && $0.applicationID == browserID
-      && $0.origin == .detected
-      && $0.availability == .available
-      && $0.mode == .private
-  }
+  return BrowserPrivateCapabilityResolver.isAvailable(
+    descriptor: descriptor,
+    applicationID: browserID,
+    targets: config.targets
+  )
 }
 
 private func detectedProfileTarget(

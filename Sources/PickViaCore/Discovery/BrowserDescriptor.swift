@@ -30,6 +30,77 @@ public enum BrowserPrivateStrategy: Equatable, Sendable {
   case safariShortcut
 }
 
+public struct BrowserRoutingCapabilities: Equatable, Sendable {
+  public let bundleIdentifier: String
+  public let profileStrategy: BrowserProfileStrategy
+  public let privateStrategy: BrowserPrivateStrategy
+
+  public init(descriptor: BrowserDescriptor) {
+    bundleIdentifier = descriptor.bundleIdentifier
+    profileStrategy = descriptor.profileStrategy
+    privateStrategy = descriptor.privateStrategy
+  }
+
+  public var supportsProfiles: Bool {
+    switch profileStrategy {
+    case .none:
+      false
+    case .chromium, .firefox, .safariShortcut:
+      true
+    }
+  }
+
+  public var supportsPrivateMode: Bool {
+    privateStrategy != .unsupported
+  }
+
+  public var hasFileBackedProfiles: Bool {
+    switch profileStrategy {
+    case .chromium, .firefox:
+      true
+    case .none, .safariShortcut:
+      false
+    }
+  }
+}
+
+public enum BrowserPrivateCapabilityResolver {
+  public static func isAvailable(
+    descriptor: BrowserDescriptor,
+    applicationID: RoutedApplication.ID,
+    targets: [RouteTarget]
+  ) -> Bool {
+    guard
+      descriptor.bundleIdentifier == applicationID,
+      descriptor.hasCompatibleStrategies
+    else { return false }
+    switch descriptor.privateStrategy {
+    case .unsupported:
+      return false
+    case .argument:
+      return true
+    case .duckDuckGoFire, .safariShortcut:
+      let canonicalID = BrowserCatalog.targetID(
+        bundleIdentifier: applicationID,
+        profileIdentifier: nil,
+        mode: .private
+      )
+      return targets.contains { target in
+        target.routeKind == .web
+          && target.id == canonicalID
+          && target.applicationID == applicationID
+          && target.origin == .detected
+          && target.availability == .available
+          && target.mode == .private
+          && target.profileIdentifier == nil
+          && target.profileDisplayName == nil
+          && target.profileIdentity == nil
+          && target.profileLaunchPath == nil
+      }
+    }
+  }
+}
+
 public struct BrowserDescriptor: Equatable, Sendable {
   public let bundleIdentifier: String
   public let family: BrowserFamily

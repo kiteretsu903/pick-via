@@ -69,6 +69,23 @@ final class BrowserSettingsViewTests: XCTestCase {
       bundleIdentifier: "com.google.Chrome",
       persistedFamily: .safari
     )
+    let shortcutDescriptor = BrowserDescriptor(
+      bundleIdentifier: "com.example.settings-shortcut",
+      family: .safari,
+      displayName: "Shortcut Browser",
+      profileStrategy: .safariShortcut,
+      launchStrategy: .workspace,
+      privateStrategy: .safariShortcut
+    )
+    let shortcut = BrowserApplication(
+      id: shortcutDescriptor.bundleIdentifier,
+      family: shortcutDescriptor.family,
+      displayName: shortcutDescriptor.displayName,
+      bundleIdentifier: shortcutDescriptor.bundleIdentifier,
+      applicationURL: URL(fileURLWithPath: "/Applications/Shortcut Browser.app"),
+      executableURL: nil,
+      isAvailable: true
+    )
     let normalOnly = [settingsTarget(browser: opera, mode: .normal)]
     let normalAndPrivate = [
       settingsTarget(browser: duckDuckGo, mode: .normal),
@@ -79,9 +96,12 @@ final class BrowserSettingsViewTests: XCTestCase {
       profileIdentifier: "Profile 1",
       mode: .normal
     )
-    let normalAndProfiles = [settingsTarget(browser: chrome, mode: .normal), profile]
+    let normalAndProfiles = [
+      settingsTarget(browser: shortcut, mode: .normal),
+      settingsTarget(browser: shortcut, profileIdentifier: "Work Helper", mode: .normal),
+    ]
     let allThree =
-      normalAndProfiles + [
+      [settingsTarget(browser: chrome, mode: .normal), profile] + [
         settingsTarget(browser: chrome, mode: .private),
         settingsTarget(browser: chrome, profileIdentifier: "Profile 1", mode: .private),
       ]
@@ -95,11 +115,32 @@ final class BrowserSettingsViewTests: XCTestCase {
       BrowserTargetCapabilities(supportsProfiles: false, supportsPrivateMode: true)
     )
     XCTAssertEqual(
-      browserTargetCapabilities(for: chrome, targets: normalAndProfiles),
+      browserTargetCapabilities(
+        for: duckDuckGo,
+        targets: [
+          settingsTarget(browser: duckDuckGo, mode: .normal),
+          settingsTarget(browser: duckDuckGo, mode: .private, availability: .unavailable),
+        ]
+      ),
+      BrowserTargetCapabilities(supportsProfiles: false, supportsPrivateMode: false)
+    )
+    XCTAssertEqual(
+      browserTargetCapabilities(
+        for: shortcut,
+        descriptor: shortcutDescriptor,
+        targets: normalAndProfiles
+      ),
       BrowserTargetCapabilities(supportsProfiles: true, supportsPrivateMode: false)
     )
     XCTAssertEqual(
       browserTargetCapabilities(for: chrome, targets: allThree),
+      BrowserTargetCapabilities(supportsProfiles: true, supportsPrivateMode: true)
+    )
+    XCTAssertEqual(
+      browserTargetCapabilities(
+        for: chrome,
+        targets: [settingsTarget(browser: chrome, mode: .normal), profile]
+      ),
       BrowserTargetCapabilities(supportsProfiles: true, supportsPrivateMode: true)
     )
     XCTAssertEqual(
@@ -110,10 +151,14 @@ final class BrowserSettingsViewTests: XCTestCase {
 
   func testAddTargetViewHasNoSafariFamilyPolicyBranches() throws {
     let source = try projectSource("Sources/PickVia/Views/BrowserSettingsView.swift")
+    let modelSource = try projectSource("Sources/PickVia/App/AppModel.swift")
 
     XCTAssertFalse(source.contains("family == .safari"))
     XCTAssertFalse(source.contains("family != .safari"))
     XCTAssertTrue(source.contains("browserTargetCapabilities"))
+    XCTAssertTrue(source.contains("BrowserPrivateCapabilityResolver.isAvailable"))
+    XCTAssertTrue(modelSource.contains("BrowserPrivateCapabilityResolver.isAvailable"))
+    XCTAssertFalse(modelSource.contains("private func hasAvailableDetectedPrivateTarget"))
   }
 
   func testGeneralSettingsContainsSegmentedChooserSizePicker() throws {
@@ -246,7 +291,8 @@ private func settingsBrowser(
 private func settingsTarget(
   browser: BrowserApplication,
   profileIdentifier: String? = nil,
-  mode: BrowserMode
+  mode: BrowserMode,
+  availability: BrowserTargetAvailability = .available
 ) -> BrowserTarget {
   BrowserTarget(
     id: BrowserCatalog.targetID(
@@ -263,6 +309,6 @@ private func settingsTarget(
     isEnabled: true,
     sortOrder: 0,
     origin: .detected,
-    availability: .available
+    availability: availability
   )
 }

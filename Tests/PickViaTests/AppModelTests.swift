@@ -4083,6 +4083,80 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(model.config, config)
   }
 
+  func testDynamicPrivateTargetRequiresAvailableCanonicalDiscoveryEvidence() throws {
+    let browser = BrowserApplication(
+      id: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
+      family: .duckDuckGo,
+      displayName: "DuckDuckGo",
+      bundleIdentifier: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
+      applicationURL: URL(fileURLWithPath: "/Applications/DuckDuckGo.app"),
+      executableURL: nil,
+      isAvailable: true
+    )
+    let normal = capabilityTarget(browser: browser, profileIdentifier: nil, mode: .normal)
+    let unavailablePrivate = BrowserTarget(
+      id: BrowserCatalog.targetID(
+        bundleIdentifier: browser.bundleIdentifier,
+        profileIdentifier: nil,
+        mode: .private
+      ),
+      browserID: browser.id,
+      label: "DuckDuckGo Private",
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      mode: .private,
+      isEnabled: true,
+      sortOrder: 1,
+      origin: .detected,
+      availability: .unavailable
+    )
+    let unavailableConfig = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: [browser],
+      targets: [normal, unavailablePrivate]
+    )
+    let unavailableModel = makeModel(store: ConfigStoreStub(config: unavailableConfig))
+    try unavailableModel.load()
+
+    XCTAssertThrowsError(
+      try unavailableModel.addManualTarget(
+        browserID: browser.id,
+        profileIdentifier: nil,
+        label: "Unavailable private",
+        mode: .private
+      )
+    )
+
+    let availablePrivate = BrowserTarget(
+      id: unavailablePrivate.id,
+      browserID: unavailablePrivate.browserID,
+      label: unavailablePrivate.label,
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      mode: .private,
+      isEnabled: true,
+      sortOrder: unavailablePrivate.sortOrder,
+      origin: .detected,
+      availability: .available
+    )
+    let availableConfig = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: [browser],
+      targets: [normal, availablePrivate]
+    )
+    let availableModel = makeModel(store: ConfigStoreStub(config: availableConfig))
+    try availableModel.load()
+
+    XCTAssertNoThrow(
+      try availableModel.addManualTarget(
+        browserID: browser.id,
+        profileIdentifier: nil,
+        label: "Available private",
+        mode: .private
+      )
+    )
+  }
+
   func testManualTargetRequiresInstalledSupportedBrowser() throws {
     let unsupported = BrowserApplication(
       id: "com.example.browser",
