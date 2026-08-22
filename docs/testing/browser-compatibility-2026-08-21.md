@@ -286,3 +286,37 @@ final exact absence was verified without reconstructing the numeric exit status
 lost with the held session output. Installed PickVia remained the same exact
 pre-batch process generation, and preexisting temporary roots were left
 untouched.
+
+## Microsoft Edge Dev normal routing — 2026-08-22
+
+Status: **PASS for Microsoft Edge Dev normal routing in the initialized cold,
+already-running, and reopen states.** The installed Microsoft Edge Dev
+153.0.4224.0 build has bundle identifier `com.microsoft.edgemac.Dev`, team
+`UBF8T346G9`, and uses PickVia's browser-level normal Chromium exact-application
+workspace strategy.
+
+Two harness attempts were excluded without being converted into browser or
+product evidence. The first cold invocation supplied a noncanonical target
+identifier and closed with `target-missing` before browser launch; its exact E2E
+identity passed, but it produced no receipt or Edge Dev generation. After the
+canonical cold and already-running cells passed, the first reopen invocation
+closed with `identity-ambiguous` before receipt and before visible observation.
+Its remaining exact generation was signaled only after the originally empty
+browser baseline, exact executable, bundle, team, and task-time start generation
+were revalidated; bounded quiescence then confirmed absence. One authorized
+fresh reopen retry from that confirmed absence completed the full gate.
+
+| Browser | Mode/state | Selection | Receipt | Exact process identity | Sanitized visible evidence | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Microsoft Edge Dev | Normal, cold | `selected` | Fresh receipt | E2E app and exact Edge Dev generation verified | Edge Dev visible; browser window present; onboarding absent | **PASS** |
+| Microsoft Edge Dev | Normal, already running | `selected` | Fresh receipt | Same recorded task-owned Edge Dev generation verified and preserved by the driver | Edge Dev visible; browser window present; onboarding absent | **PASS** |
+| Microsoft Edge Dev | Normal, reopen | `selected` | Fresh receipt | New exact Edge Dev generation verified on the fresh retry after the recorded baseline was closed | Edge Dev visible; browser window present; onboarding absent | **PASS** |
+
+No profile or private target was created or attempted. This entry contains no
+routed address, token, browser arguments, raw UI, screenshot, or profile label.
+The already-running baseline was terminated only after exact PID and
+start-generation revalidation. The final held batch and reopen retry ended with
+exact Edge Dev, E2E PickVia, receiver, and driver absence after the driver's
+bounded cleanup and quiescence checks. Installed PickVia remained the same exact
+pre-batch process generation, and preexisting temporary roots were left
+untouched.
