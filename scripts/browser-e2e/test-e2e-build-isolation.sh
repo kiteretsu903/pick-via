@@ -43,6 +43,15 @@ binary_contains() {
   grep -Fq "$needle" < <(strings "$binary")
 }
 
+install_build_contract() {
+  local fixture="$1"
+
+  mkdir -p "$fixture/scripts/browser-e2e"
+  cp "$repo_root/scripts/build-e2e-app.sh" "$fixture/scripts/build-e2e-app.sh"
+  cp "$repo_root/scripts/browser-e2e/build_e2e_bundle.py" \
+    "$fixture/scripts/browser-e2e/build_e2e_bundle.py"
+}
+
 assert_symlinked_root_is_rejected_before_swift() {
   local case_name="$1"
   local unsafe_root="$2"
@@ -52,7 +61,7 @@ assert_symlinked_root_is_rejected_before_swift() {
   local sentinel
 
   mkdir -p "$fixture/scripts" "$fixture/Support/Icons" "$fake_bin"
-  cp "$repo_root/scripts/build-e2e-app.sh" "$fixture/scripts/build-e2e-app.sh"
+  install_build_contract "$fixture"
   print -n -r -- "icon" > "$fixture/Support/Icons/PickVia.icns"
   print -n -r -- "menu" > "$fixture/Support/Icons/PickViaMenuBarTemplate.png"
 
@@ -104,7 +113,7 @@ assert_output_swap_at_removal_preserves_replacement() {
     "$fixture/Support/Icons" \
     "$fixture/.build-e2e/release" \
     "$fixture/build-e2e/PickVia E2E.app"
-  cp "$repo_root/scripts/build-e2e-app.sh" "$fixture/scripts/build-e2e-app.sh"
+  install_build_contract "$fixture"
   cp "$repo_root/Support/Info.plist" "$fixture/Support/Info.plist"
   print -n -r -- "icon" > "$fixture/Support/Icons/PickVia.icns"
   print -n -r -- "menu" > "$fixture/Support/Icons/PickViaMenuBarTemplate.png"
@@ -152,7 +161,7 @@ assert_scratch_swap_before_copy_fails_closed() {
 
   mkdir -p "$fixture/scripts" "$fixture/Support/Icons" "$fixture/.build-e2e" \
     "$fixture/build-e2e"
-  cp "$repo_root/scripts/build-e2e-app.sh" "$fixture/scripts/build-e2e-app.sh"
+  install_build_contract "$fixture"
   cp "$repo_root/Support/Info.plist" "$fixture/Support/Info.plist"
   print -n -r -- "icon" > "$fixture/Support/Icons/PickVia.icns"
   print -n -r -- "menu" > "$fixture/Support/Icons/PickViaMenuBarTemplate.png"
@@ -195,7 +204,7 @@ assert_same_size_scratch_mutation_before_copy_fails_closed() {
 
   mkdir -p "$fixture/scripts" "$fixture/Support/Icons" "$fixture/.build-e2e" \
     "$fixture/build-e2e"
-  cp "$repo_root/scripts/build-e2e-app.sh" "$fixture/scripts/build-e2e-app.sh"
+  install_build_contract "$fixture"
   cp "$repo_root/Support/Info.plist" "$fixture/Support/Info.plist"
   print -n -r -- "icon" > "$fixture/Support/Icons/PickVia.icns"
   print -n -r -- "menu" > "$fixture/Support/Icons/PickViaMenuBarTemplate.png"
@@ -234,7 +243,7 @@ assert_concurrent_publish_entry_is_preserved() {
 
   mkdir -p "$fixture/scripts" "$fixture/Support/Icons" "$fixture/.build-e2e" \
     "$fixture/build-e2e"
-  cp "$repo_root/scripts/build-e2e-app.sh" "$fixture/scripts/build-e2e-app.sh"
+  install_build_contract "$fixture"
   cp "$repo_root/Support/Info.plist" "$fixture/Support/Info.plist"
   cp "$repo_root/Support/Icons/PickVia.icns" "$fixture/Support/Icons/PickVia.icns"
   cp "$repo_root/Support/Icons/PickViaMenuBarTemplate.png" \
@@ -278,7 +287,7 @@ assert_app_entry_replacement_before_open_is_preserved() {
 
   mkdir -p "$fixture/scripts" "$fixture/Support/Icons" "$fixture/.build-e2e" \
     "$fixture/build-e2e/PickVia E2E.app"
-  cp "$repo_root/scripts/build-e2e-app.sh" "$fixture/scripts/build-e2e-app.sh"
+  install_build_contract "$fixture"
   cp "$repo_root/Support/Info.plist" "$fixture/Support/Info.plist"
   cp "$repo_root/Support/Icons/PickVia.icns" "$fixture/Support/Icons/PickVia.icns"
   cp "$repo_root/Support/Icons/PickViaMenuBarTemplate.png" \
@@ -323,7 +332,7 @@ assert_contents_symlink_before_open_is_rejected() {
 
   mkdir -p "$fixture/scripts" "$fixture/Support/Icons" "$fixture/.build-e2e" \
     "$fixture/build-e2e/PickVia E2E.app/Contents" "$external"
-  cp "$repo_root/scripts/build-e2e-app.sh" "$fixture/scripts/build-e2e-app.sh"
+  install_build_contract "$fixture"
   cp "$repo_root/Support/Info.plist" "$fixture/Support/Info.plist"
   cp "$repo_root/Support/Icons/PickVia.icns" "$fixture/Support/Icons/PickVia.icns"
   cp "$repo_root/Support/Icons/PickViaMenuBarTemplate.png" \
@@ -360,6 +369,104 @@ assert_contents_symlink_before_open_is_rejected() {
 }
 
 assert_contents_symlink_before_open_is_rejected
+
+assert_child_directory_swap_is_rejected() {
+  local child="$1"
+  local phase="$2"
+  local case_name="${child//_CodeSignature/signature}-swap"
+  local fixture="$contract_root/$case_name/repo"
+  local hook="$contract_root/$case_name/hook"
+  local external="$contract_root/$case_name/external"
+  local contents="$fixture/build-e2e/PickVia E2E.app/Contents"
+  local sentinel="$external/must-survive"
+
+  mkdir -p "$fixture/scripts" "$fixture/Support/Icons" \
+    "$fixture/.build-e2e/release" "$contents/MacOS" "$contents/Resources" \
+    "$contents/_CodeSignature" "$external"
+  install_build_contract "$fixture"
+  cp "$repo_root/Support/Info.plist" "$fixture/Support/Info.plist"
+  cp "$repo_root/Support/Info.plist" "$contents/Info.plist"
+  cp /usr/bin/true "$fixture/.build-e2e/release/PickVia"
+  cp /usr/bin/true "$contents/MacOS/PickVia"
+  cp "$repo_root/Support/Icons/PickVia.icns" "$fixture/Support/Icons/PickVia.icns"
+  cp "$repo_root/Support/Icons/PickVia.icns" "$contents/Resources/PickVia.icns"
+  cp "$repo_root/Support/Icons/PickViaMenuBarTemplate.png" \
+    "$fixture/Support/Icons/PickViaMenuBarTemplate.png"
+  cp "$repo_root/Support/Icons/PickViaMenuBarTemplate.png" \
+    "$contents/Resources/PickViaMenuBarTemplate.png"
+  print -n -r -- "signature" > "$contents/_CodeSignature/CodeResources"
+  print -n -r -- "preserved" > "$sentinel"
+  {
+    print -r -- '#!/bin/zsh'
+    print -r -- 'fixture="$PICKVIA_BUILD_CONTRACT_FIXTURE"'
+    print -r -- 'external="$PICKVIA_BUILD_CONTRACT_EXTERNAL"'
+    print -r -- 'child="$PICKVIA_BUILD_CONTRACT_CHILD"'
+    print -r -- 'phase="$PICKVIA_BUILD_CONTRACT_PHASE"'
+    print -r -- '[[ "$1" == "$phase" ]] || exit 0'
+    print -r -- 'contents="$fixture/build-e2e/PickVia E2E.app/Contents"'
+    print -r -- '/bin/mv "$contents/$child" "$fixture/build-e2e/${child}-held"'
+    print -r -- '/bin/ln -s "$external" "$contents/$child"'
+  } > "$hook"
+  chmod +x "$hook"
+
+  if PICKVIA_BUILD_CONTRACT_FIXTURE="$fixture" \
+    PICKVIA_BUILD_CONTRACT_EXTERNAL="$external" \
+    PICKVIA_BUILD_CONTRACT_CHILD="$child" \
+    PICKVIA_BUILD_CONTRACT_PHASE="$phase" \
+    PICKVIA_BUILD_E2E_CONTRACT_HOOK="$hook" \
+    zsh "$fixture/scripts/build-e2e-app.sh" >/dev/null 2>&1
+  then
+    print -u2 -r -- "$child replacement was accepted"
+    return 1
+  fi
+  test -f "$sentinel"
+  test "$(<"$sentinel")" = "preserved"
+  test -z "$(find "$external" -mindepth 1 ! -name must-survive -print -quit)"
+}
+
+assert_child_directory_swap_is_rejected MacOS before-macos-open
+assert_child_directory_swap_is_rejected Resources before-resources-open
+assert_child_directory_swap_is_rejected _CodeSignature before-signature-open
+
+assert_hard_linked_destination_is_preserved() {
+  local fixture="$contract_root/hard-linked-destination/repo"
+  local hook="$contract_root/hard-linked-destination/hook"
+  local external="$contract_root/hard-linked-destination/external-executable"
+  local contents="$fixture/build-e2e/PickVia E2E.app/Contents"
+  local before
+
+  mkdir -p "$fixture/scripts" "$fixture/Support/Icons" \
+    "$fixture/.build-e2e/release" "$contents/MacOS" "$contents/Resources" \
+    "$contents/_CodeSignature"
+  install_build_contract "$fixture"
+  cp "$repo_root/Support/Info.plist" "$fixture/Support/Info.plist"
+  cp "$repo_root/Support/Info.plist" "$contents/Info.plist"
+  cp /usr/bin/true "$fixture/.build-e2e/release/PickVia"
+  cp /usr/bin/false "$external"
+  ln "$external" "$contents/MacOS/PickVia"
+  chmod 755 "$contents/MacOS/PickVia"
+  cp "$repo_root/Support/Icons/PickVia.icns" "$fixture/Support/Icons/PickVia.icns"
+  cp "$repo_root/Support/Icons/PickVia.icns" "$contents/Resources/PickVia.icns"
+  cp "$repo_root/Support/Icons/PickViaMenuBarTemplate.png" \
+    "$fixture/Support/Icons/PickViaMenuBarTemplate.png"
+  cp "$repo_root/Support/Icons/PickViaMenuBarTemplate.png" \
+    "$contents/Resources/PickViaMenuBarTemplate.png"
+  print -n -r -- "signature" > "$contents/_CodeSignature/CodeResources"
+  print -r -- '#!/bin/zsh' > "$hook"
+  chmod +x "$hook"
+  before="$(/usr/bin/cksum "$external")"
+
+  if PICKVIA_BUILD_CONTRACT_FIXTURE="$fixture" \
+    PICKVIA_BUILD_E2E_CONTRACT_HOOK="$hook" \
+    zsh "$fixture/scripts/build-e2e-app.sh" >/dev/null 2>&1
+  then
+    print -u2 -r -- "Hard-linked destination was accepted"
+    return 1
+  fi
+  test "$(/usr/bin/cksum "$external")" = "$before"
+}
+
+assert_hard_linked_destination_is_preserved
 
 assert_smoke_contract_is_status_driven_and_browser_free() {
   local smoke="$repo_root/scripts/smoke-test-e2e.sh"

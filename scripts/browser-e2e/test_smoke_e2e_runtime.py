@@ -7,10 +7,102 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
 import smoke_e2e_runtime as runtime
+
+
+class SmokeCompilerTests(unittest.TestCase):
+    def test_compile_helper_launches_resolved_swiftc_without_xcrun_transition(self):
+        root = pathlib.Path(
+            tempfile.mkdtemp(prefix="pickvia-swift-sdk-resolution-", dir="/private/tmp")
+        )
+        physical_sdk = root / "MacOSX.sdk"
+        physical_sdk.mkdir()
+        sdk_alias = root / "MacOSX.test.sdk"
+        sdk_alias.symlink_to(physical_sdk)
+        compiler = mock.Mock()
+        compiler.wait_success.return_value = True
+        compiler._group_state.return_value = "absent"
+        resolved = {
+            ("/usr/bin/xcrun", "--find", "swiftc"): "/usr/bin/true\n",
+            (
+                "/usr/bin/xcrun",
+                "--sdk",
+                "macosx",
+                "--show-sdk-path",
+            ): f"{sdk_alias}\n",
+        }
+
+        def run_resolver(arguments, **kwargs):
+            return subprocess.CompletedProcess(
+                arguments,
+                0,
+                stdout=resolved[tuple(arguments)],
+                stderr="",
+            )
+
+        try:
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+                    "LANG": "C",
+                    "LC_CTYPE": "C",
+                },
+                clear=True,
+            ), mock.patch.object(runtime.subprocess, "run", side_effect=run_resolver), mock.patch.object(
+                runtime.ExactProcess, "start", return_value=compiler
+            ) as start:
+                status = runtime._main(
+                    [
+                        "compile-helper",
+                        "/private/tmp/helper.swift",
+                        "/private/tmp/helper",
+                        "/private/tmp",
+                    ]
+                )
+        finally:
+            shutil.rmtree(root)
+
+        self.assertEqual(status, 0)
+        command = start.call_args.args[0]
+        self.assertEqual(command[0], "/usr/bin/true")
+        self.assertIn("-sdk", command)
+        self.assertEqual(command[command.index("-sdk") + 1], os.fspath(physical_sdk))
+
+
+class ProcessGroupSnapshotTests(unittest.TestCase):
+    def test_reused_group_with_uninspectable_leader_rejects_whole_snapshot(self):
+        process_group = 4242
+
+        class Library:
+            def proc_listpids(self, kind, user_identifier, values, size):
+                if values is None:
+                    return 2 * runtime.ctypes.sizeof(runtime.ctypes.c_int)
+                values[0] = process_group
+                values[1] = 5000
+                return 2 * runtime.ctypes.sizeof(runtime.ctypes.c_int)
+
+            def proc_pidinfo(self, process_identifier, kind, argument, information, size):
+                if process_identifier == process_group:
+                    return 0
+                pointer = runtime.ctypes.cast(
+                    information, runtime.ctypes.POINTER(runtime.driver._ProcBSDInfo)
+                )
+                pointer.contents.pbi_pgid = process_group
+                return runtime.ctypes.sizeof(runtime.driver._ProcBSDInfo)
+
+        identity = runtime.driver.ProcessIdentity(
+            process_group, 1, 10, 20, pathlib.Path("/bin/sleep")
+        )
+        with mock.patch.object(runtime.driver, "_load_libproc", return_value=Library()), mock.patch.object(
+            runtime.driver, "_darwin_process_identity", return_value=identity
+        ):
+            with self.assertRaises(runtime.SmokePolicyError):
+                runtime._darwin_process_group_snapshot(process_group)
 
 
 class SmokeAppIdentityTests(unittest.TestCase):
@@ -219,6 +311,19 @@ class PreferenceSnapshotTests(unittest.TestCase):
 
 
 class ExactProcessTests(unittest.TestCase):
+    def test_exec_transition_is_rejected_and_cleaned(self):
+        process = None
+        with self.assertRaises(runtime.SmokePolicyError):
+            try:
+                process = runtime.ExactProcess.start(
+                    ["/bin/bash", "-c", "exec /bin/sleep 60"],
+                    environment={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin"},
+                )
+            finally:
+                if process is not None:
+                    process.terminate_bounded(term_timeout=1, kill_timeout=1)
+                    process.close_streams()
+
     def test_pid_reuse_is_never_signaled(self):
         signals = []
         identities = iter(("replacement",))
@@ -243,7 +348,7 @@ class ExactProcessTests(unittest.TestCase):
         child_pid_file = fixture / "child.pid"
         process = runtime.ExactProcess.start(
             [
-                "/bin/sh",
+                "/bin/bash",
                 "-c",
                 f"/bin/sleep 60 & child=$!; echo $child > {child_pid_file}; wait",
             ],
@@ -269,7 +374,7 @@ class ExactProcessTests(unittest.TestCase):
         child_pid_file = fixture / "child.pid"
         process = runtime.ExactProcess.start(
             [
-                "/bin/sh",
+                "/bin/bash",
                 "-c",
                 f"/bin/sleep 60 & child=$!; echo $child > {child_pid_file}; /bin/sleep 0.1; exit 0",
             ],
@@ -306,7 +411,7 @@ class ExactProcessTests(unittest.TestCase):
         child_pid_file = fixture / "child.pid"
         process = runtime.ExactProcess.start(
             [
-                "/bin/sh",
+                "/bin/bash",
                 "-c",
                 f"trap 'exit 0' TERM; /bin/sh -c 'trap \"\" TERM; echo $$ > {child_pid_file}; exec /bin/sleep 60' & wait",
             ],
@@ -343,7 +448,7 @@ class ExactProcessTests(unittest.TestCase):
         with self.assertRaises(runtime.SmokePolicyError):
             runtime.ExactProcess.start(
                 [
-                    "/bin/sh",
+                    "/bin/bash",
                     "-c",
                     f"/bin/sleep 60 & child=$!; echo $child > {child_pid_file}; wait",
                 ],

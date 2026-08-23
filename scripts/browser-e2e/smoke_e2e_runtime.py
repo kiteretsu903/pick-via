@@ -52,13 +52,15 @@ def _same_stat(left, right):
 
 def _darwin_process_group_snapshot(process_group):
     library = driver._load_libproc()
-    required_bytes = library.proc_listpids(4, os.getuid(), None, 0)
+    required_bytes = library.proc_listpids(2, process_group, None, 0)
     if required_bytes <= 0:
         raise SmokePolicyError("process group inspection failed")
     count = required_bytes // ctypes.sizeof(ctypes.c_int) + 128
     pids = (ctypes.c_int * count)()
-    used_bytes = library.proc_listpids(4, os.getuid(), pids, ctypes.sizeof(pids))
-    if used_bytes <= 0 or used_bytes >= ctypes.sizeof(pids):
+    used_bytes = library.proc_listpids(2, process_group, pids, ctypes.sizeof(pids))
+    if used_bytes == 0:
+        return frozenset()
+    if used_bytes < 0 or used_bytes >= ctypes.sizeof(pids):
         raise SmokePolicyError("process group inspection failed")
     identities = set()
     for process_identifier in pids[: used_bytes // ctypes.sizeof(ctypes.c_int)]:
@@ -72,14 +74,61 @@ def _darwin_process_group_snapshot(process_group):
             ctypes.byref(information),
             ctypes.sizeof(information),
         ) != ctypes.sizeof(information):
-            continue
+            raise SmokePolicyError("process group member inspection failed")
         if int(information.pbi_pgid) != process_group:
             continue
         try:
             identities.add(driver._darwin_process_identity(process_identifier, library))
         except (driver._ProcessDisappeared, driver._IdentityInspectionError):
-            continue
+            raise SmokePolicyError("process group member identity failed")
     return frozenset(identities)
+
+
+def _physical_executable(executable):
+    candidate = pathlib.Path(executable)
+    if not candidate.is_absolute():
+        raise SmokePolicyError("executable path is not absolute")
+    try:
+        physical = candidate.resolve(strict=True)
+        metadata = physical.stat()
+    except OSError as error:
+        raise SmokePolicyError("executable could not be resolved") from error
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_mode & 0o111 == 0:
+        raise SmokePolicyError("executable identity is invalid")
+    return physical
+
+
+def _resolve_swift_toolchain(environment):
+    commands = (
+        ["/usr/bin/xcrun", "--find", "swiftc"],
+        ["/usr/bin/xcrun", "--sdk", "macosx", "--show-sdk-path"],
+    )
+    values = []
+    for command in commands:
+        completed = subprocess.run(
+            command,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            env=dict(environment),
+            close_fds=True,
+            timeout=5,
+            check=False,
+            text=True,
+        )
+        lines = completed.stdout.splitlines()
+        if completed.returncode != 0 or len(lines) != 1 or not lines[0]:
+            raise SmokePolicyError("Swift toolchain resolution failed")
+        values.append(pathlib.Path(lines[0]))
+    swiftc, sdk = values
+    physical_swiftc = _physical_executable(swiftc)
+    try:
+        physical_sdk = sdk.resolve(strict=True)
+    except OSError as error:
+        raise SmokePolicyError("Swift SDK could not be resolved") from error
+    if not physical_sdk.is_dir():
+        raise SmokePolicyError("Swift SDK path is invalid")
+    return swiftc, physical_swiftc, physical_sdk
 
 
 class PinnedApplication:
@@ -453,7 +502,11 @@ class ExactProcess:
         stdin=subprocess.DEVNULL,
         identity_resolver=driver._darwin_process_identity,
         identity_timeout=0.5,
+        expected_executable=None,
     ):
+        expected_executable = _physical_executable(
+            expected_executable if expected_executable is not None else arguments[0]
+        )
         process = subprocess.Popen(
             [os.fspath(argument) for argument in arguments],
             stdin=stdin,
@@ -471,6 +524,14 @@ class ExactProcess:
                 current_identity = identity_resolver(process.pid)
             except (driver._ProcessDisappeared, driver._IdentityInspectionError):
                 current_identity = None
+            if current_identity is not None:
+                try:
+                    current_executable = _physical_executable(current_identity.executable)
+                except SmokePolicyError:
+                    current_executable = None
+                if current_executable != expected_executable:
+                    cls._cleanup_unpinned_group(process)
+                    raise SmokePolicyError("child executable transition rejected")
             if current_identity is not None and current_identity == previous_identity:
                 expected_identity = current_identity
                 break
@@ -580,6 +641,7 @@ class ExactProcess:
                 )
             except (OSError, ProcessLookupError):
                 return "ambiguous"
+        self._poll()
         try:
             members = self._group_snapshot(self.pid)
         except (OSError, SmokePolicyError):
@@ -616,7 +678,8 @@ class ExactProcess:
                     pass
                 return True
             if state != "owned":
-                return False
+                time.sleep(0.01)
+                continue
             time.sleep(0.01)
         return self._group_state() == "absent"
 
@@ -709,20 +772,21 @@ def _main(arguments=None):
                 "TMPDIR": options.runtime_root,
                 "CFFIXED_USER_HOME": options.runtime_root,
             }
+            swiftc, physical_swiftc, sdk = _resolve_swift_toolchain(environment)
             compiler = ExactProcess.start(
                 [
-                    "/usr/bin/xcrun",
-                    "--sdk",
-                    "macosx",
-                    "swiftc",
+                    os.fspath(swiftc),
                     "-swift-version",
                     "6",
                     "-warnings-as-errors",
+                    "-sdk",
+                    os.fspath(sdk),
                     options.source,
                     "-o",
                     options.output,
                 ],
                 environment=environment,
+                expected_executable=physical_swiftc,
             )
             try:
                 if not compiler.wait_success(30):
