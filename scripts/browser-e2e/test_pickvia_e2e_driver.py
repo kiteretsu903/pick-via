@@ -5,6 +5,7 @@ import errno
 import os
 import pathlib
 import plistlib
+import shutil
 import signal
 import stat
 import subprocess
@@ -148,6 +149,7 @@ class DriverFixture:
         self._proof_clock_base = None
         self._proof_clock_phase_start = None
         self._proof_clock_escape = None
+        self._fixture_child_identities = {}
 
     def __enter__(self):
         self.e2e_executable.parent.mkdir(parents=True)
@@ -167,18 +169,41 @@ class DriverFixture:
 
     def __exit__(self, exc_type, exc_value, traceback):
         for pid in self.browser_pids():
+            self._remember_fixture_child(pid)
+        if self.output_holder_pid_file.exists():
+            try:
+                self._remember_fixture_child(
+                    int(self.output_holder_pid_file.read_text(encoding="ascii"))
+                )
+            except (OSError, ValueError):
+                pass
+        self._terminate_remembered_fixture_children()
+        if self.task_root is not None and self.task_root.exists():
+            self._remove_tree(self.task_root)
+        self._remove_tree(self.fixture_root)
+
+    def _remember_fixture_child(self, pid):
+        try:
+            identity = driver._darwin_process_identity(pid)
+        except (driver._ProcessDisappeared, driver._IdentityInspectionError):
+            return False
+        if self.e2e_pid is None or identity.parent_pid != self.e2e_pid:
+            return False
+        self._fixture_child_identities[pid] = identity
+        return True
+
+    def _terminate_remembered_fixture_children(self):
+        for pid, expected in tuple(self._fixture_child_identities.items()):
+            try:
+                current = driver._darwin_process_identity(pid)
+            except (driver._ProcessDisappeared, driver._IdentityInspectionError):
+                continue
+            if current.generation_key != expected.generation_key:
+                continue
             try:
                 os.kill(pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
-        if self.output_holder_pid_file.exists():
-            try:
-                os.kill(int(self.output_holder_pid_file.read_text()), signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-        if self.task_root is not None and self.task_root.exists():
-            self._remove_tree(self.task_root)
-        self._remove_tree(self.fixture_root)
 
     def write_browser_plist(self, bundle_identifier, executable_name, app=None):
         app = pathlib.Path(app or self.browser_app)
@@ -441,6 +466,15 @@ server.server_close()
     def _snapshot_browser_processes(self, executable, phase):
         self.snapshot_call_count += 1
         self.snapshot_phases.append(phase)
+        for pid in self.browser_pids():
+            self._remember_fixture_child(pid)
+        if self.output_holder_pid_file.exists():
+            try:
+                self._remember_fixture_child(
+                    int(self.output_holder_pid_file.read_text(encoding="ascii"))
+                )
+            except (OSError, ValueError):
+                pass
         if phase in self.snapshot_failures:
             raise OSError("injected process inspection failure")
         identities = {
@@ -563,8 +597,7 @@ server.server_close()
     def _remove_driver_root(self, root):
         if self.root_removal_fails:
             return False
-        self._remove_tree(pathlib.Path(root))
-        return True
+        return root.remove()
 
     def _close_fifo(self, descriptor):
         os.close(descriptor)
@@ -609,6 +642,168 @@ server.server_close()
 
 @unittest.skipIf(driver is None, "PickVia E2E route driver is not implemented")
 class PickViaE2EDriverTests(unittest.TestCase):
+    def _swap_pinned_root(self, pinned):
+        path = pinned.path
+        original = path.with_name(f"{path.name}-original")
+        path.rename(original)
+        path.mkdir(mode=0o700)
+        marker = path / "replacement-must-survive"
+        marker.write_bytes(b"replacement")
+        return path, original, marker
+
+    def _clean_swapped_roots(self, pinned, path, original):
+        pinned.close()
+        for candidate in (path, original):
+            if candidate.exists():
+                shutil.rmtree(candidate)
+
+    def test_task_root_pin_failure_never_deletes_open_time_replacement(self):
+        created = {}
+        real_mkdtemp = tempfile.mkdtemp
+        real_open = os.open
+
+        def make_root(*args, **kwargs):
+            path = pathlib.Path(real_mkdtemp(*args, **kwargs))
+            created["path"] = path
+            return os.fspath(path)
+
+        def swap_before_open(path, flags, *args, **kwargs):
+            candidate = pathlib.Path(path)
+            if candidate == created["path"] and "original" not in created:
+                original = candidate.with_name(f"{candidate.name}-original")
+                candidate.rename(original)
+                candidate.mkdir(mode=0o700)
+                marker = candidate / "replacement-must-survive"
+                marker.write_bytes(b"replacement")
+                created.update(original=original, marker=marker)
+            return real_open(path, flags, *args, **kwargs)
+
+        try:
+            with mock.patch("tempfile.mkdtemp", side_effect=make_root), mock.patch(
+                "os.open", side_effect=swap_before_open
+            ):
+                with self.assertRaises(OSError):
+                    driver._make_task_root()
+            self.assertEqual(created["marker"].read_bytes(), b"replacement")
+            self.assertTrue(created["original"].exists())
+        finally:
+            for key in ("path", "original"):
+                candidate = created.get(key)
+                if candidate is not None and candidate.exists():
+                    shutil.rmtree(candidate)
+
+    def test_pinned_task_root_rejects_replacement_before_fifo_setup(self):
+        pinned = driver._make_task_root()
+        path, original, marker = self._swap_pinned_root(pinned)
+        try:
+            with self.assertRaises(OSError):
+                pinned.create_fifo("status.fifo")
+            self.assertEqual(marker.read_bytes(), b"replacement")
+            self.assertFalse((path / "status.fifo").exists())
+        finally:
+            self._clean_swapped_roots(pinned, path, original)
+
+    def test_pinned_task_root_rejects_replacement_before_environment_handoff(self):
+        pinned = driver._make_task_root()
+        path, original, marker = self._swap_pinned_root(pinned)
+        try:
+            with self.assertRaises(OSError):
+                driver._minimal_child_environment(pinned)
+            self.assertEqual(marker.read_bytes(), b"replacement")
+        finally:
+            self._clean_swapped_roots(pinned, path, original)
+
+    def test_pinned_task_root_rejects_replacement_before_privacy_audit(self):
+        pinned = driver._make_task_root()
+        (pinned.path / "owned").write_bytes(b"owned")
+        path, original, marker = self._swap_pinned_root(pinned)
+        try:
+            self.assertFalse(pinned.audit_regular_files(b"forbidden"))
+            self.assertEqual(marker.read_bytes(), b"replacement")
+            self.assertEqual((original / "owned").read_bytes(), b"owned")
+        finally:
+            self._clean_swapped_roots(pinned, path, original)
+
+    def test_pinned_task_root_cleanup_never_deletes_replacement_contents(self):
+        pinned = driver._make_task_root()
+        (pinned.path / "owned").write_bytes(b"owned")
+        path, original, marker = self._swap_pinned_root(pinned)
+        try:
+            self.assertFalse(pinned.remove())
+            self.assertEqual(marker.read_bytes(), b"replacement")
+            self.assertTrue(path.exists())
+            self.assertTrue(original.exists())
+            self.assertEqual(list(original.iterdir()), [])
+        finally:
+            self._clean_swapped_roots(pinned, path, original)
+
+    def test_fixture_cleanup_revalidates_generation_before_signalling_pid_file(self):
+        fixture = DriverFixture()
+        self.addCleanup(fixture._remove_tree, fixture.fixture_root)
+        fixture.e2e_pid = 222
+        original = driver.ProcessIdentity(333, 222, 10, 20, pathlib.Path("/bin/sleep"))
+        replacement = driver.ProcessIdentity(
+            333, 999, 30, 40, pathlib.Path("/bin/other")
+        )
+        with mock.patch.object(driver, "_darwin_process_identity", return_value=original):
+            self.assertTrue(fixture._remember_fixture_child(333))
+        with mock.patch.object(
+            driver, "_darwin_process_identity", return_value=replacement
+        ), mock.patch("os.kill") as kill:
+            fixture._terminate_remembered_fixture_children()
+        kill.assert_not_called()
+
+    def test_fixture_cleanup_rejects_unowned_pid_file_generation(self):
+        fixture = DriverFixture()
+        self.addCleanup(fixture._remove_tree, fixture.fixture_root)
+        fixture.e2e_pid = 222
+        unrelated = driver.ProcessIdentity(
+            333, 999, 10, 20, pathlib.Path("/bin/sleep")
+        )
+        with mock.patch.object(
+            driver, "_darwin_process_identity", return_value=unrelated
+        ), mock.patch("os.kill") as kill:
+            self.assertFalse(fixture._remember_fixture_child(333))
+            fixture._terminate_remembered_fixture_children()
+        kill.assert_not_called()
+
+    def test_fixture_cleanup_signals_only_unchanged_owned_generation(self):
+        fixture = DriverFixture()
+        self.addCleanup(fixture._remove_tree, fixture.fixture_root)
+        fixture.e2e_pid = 222
+        owned = driver.ProcessIdentity(333, 222, 10, 20, pathlib.Path("/bin/sleep"))
+        with mock.patch.object(driver, "_darwin_process_identity", return_value=owned):
+            self.assertTrue(fixture._remember_fixture_child(333))
+            with mock.patch("os.kill") as kill:
+                fixture._terminate_remembered_fixture_children()
+        kill.assert_called_once_with(333, signal.SIGKILL)
+
+    def test_run_reports_cleanup_error_and_preserves_swapped_replacement_root(self):
+        with DriverFixture() as fixture:
+            swapped = {}
+
+            def replace_before_cleanup(root):
+                path = pathlib.Path(root)
+                original = path.with_name(f"{path.name}-original")
+                path.rename(original)
+                path.mkdir(mode=0o700)
+                marker = path / "replacement-must-survive"
+                marker.write_bytes(b"replacement")
+                fixture.task_root = path
+                swapped.update(path=path, original=original, marker=marker)
+
+            result = fixture.run(
+                dependency_overrides={
+                    "before_cleanup": replace_before_cleanup,
+                    "task_root_remover": driver._remove_task_root,
+                }
+            )
+            self.assertEqual(result.exit_code, driver.DRIVER_CLEANUP_FAILURE)
+            self.assertEqual(result.report["outcome"], "cleanup-error")
+            self.assertEqual(swapped["marker"].read_bytes(), b"replacement")
+            self.assertEqual(list(swapped["original"].iterdir()), [])
+            swapped["original"].rmdir()
+
     def test_delayed_generation_after_final_sweep_is_cleaned_but_never_passes(self):
         records = [{"session": "session_0123456789", "outcome": "target-missing"}]
         with DriverFixture(

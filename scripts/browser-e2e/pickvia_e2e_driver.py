@@ -10,7 +10,6 @@ import pathlib
 import plistlib
 import re
 import selectors
-import shutil
 import signal
 import stat
 import subprocess
@@ -273,23 +272,154 @@ def _terminate_exact_browser_process(identity, executable, cleanup_deadline):
     return not _target_generation_is_live(identity, expected)
 
 
-def _remove_task_root(root):
-    root = pathlib.Path(root)
-    try:
-        metadata = root.lstat()
-        if (
-            root.parent != pathlib.Path("/private/tmp")
-            or not root.name.startswith("pickvia-e2e-")
-            or not stat.S_ISDIR(metadata.st_mode)
-            or stat.S_ISLNK(metadata.st_mode)
-            or metadata.st_uid != os.getuid()
-            or pathlib.Path(os.path.realpath(root)) != root
-        ):
+@dataclasses.dataclass(frozen=True)
+class _DirectoryIdentity:
+    device: int
+    inode: int
+    owner: int
+    mode: int
+
+    @classmethod
+    def from_stat(cls, metadata):
+        return cls(
+            device=metadata.st_dev,
+            inode=metadata.st_ino,
+            owner=metadata.st_uid,
+            mode=stat.S_IMODE(metadata.st_mode),
+        )
+
+
+class _PinnedTaskRoot:
+    def __init__(self, path, descriptor, identity):
+        self.path = pathlib.Path(path)
+        self.descriptor = descriptor
+        self.identity = identity
+        self._closed = False
+
+    def _descriptor_matches(self):
+        if self._closed:
             return False
-        shutil.rmtree(root)
-        return not root.exists()
-    except OSError:
+        metadata = os.fstat(self.descriptor)
+        return (
+            stat.S_ISDIR(metadata.st_mode)
+            and _DirectoryIdentity.from_stat(metadata) == self.identity
+        )
+
+    def require_current(self):
+        try:
+            metadata = self.path.lstat()
+            if (
+                not self._descriptor_matches()
+                or self.path.parent != pathlib.Path("/private/tmp")
+                or not self.path.name.startswith("pickvia-e2e-")
+                or not stat.S_ISDIR(metadata.st_mode)
+                or stat.S_ISLNK(metadata.st_mode)
+                or _DirectoryIdentity.from_stat(metadata) != self.identity
+                or pathlib.Path(os.path.realpath(self.path)) != self.path
+            ):
+                raise OSError("task root identity changed")
+        except (FileNotFoundError, NotADirectoryError) as error:
+            raise OSError("task root identity changed") from error
+        return self.path
+
+    def child_path(self, name):
+        if not isinstance(name, str) or not name or "/" in name or name in {".", ".."}:
+            raise ValueError("invalid task-root child")
+        return self.require_current() / name
+
+    def create_fifo(self, name):
+        self.require_current()
+        os.mkfifo(name, 0o600, dir_fd=self.descriptor)
+        os.chmod(name, 0o600, dir_fd=self.descriptor, follow_symlinks=False)
+
+    def open_fifo(self, name):
+        self.require_current()
+        return os.open(
+            name,
+            os.O_RDWR | os.O_NONBLOCK | getattr(os, "O_CLOEXEC", 0),
+            dir_fd=self.descriptor,
+        )
+
+    def audit_regular_files(self, forbidden):
+        try:
+            self.require_current()
+            return _audit_regular_files_at(self.descriptor, forbidden)
+        except OSError:
+            return False
+
+    def remove(self):
+        contents_removed = False
+        path_is_current = False
+        try:
+            path_is_current = self.require_current() == self.path
+        except OSError:
+            path_is_current = False
+        try:
+            contents_removed = _remove_directory_contents_at(self.descriptor)
+            if not contents_removed or not path_is_current:
+                return False
+            self.require_current()
+            os.rmdir(self.path)
+            return not self.path.exists()
+        except OSError:
+            return False
+        finally:
+            self.close()
+
+    def close(self):
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            os.close(self.descriptor)
+        except OSError:
+            pass
+
+
+def _remove_directory_contents_at(descriptor):
+    success = True
+    for name in os.listdir(descriptor):
+        try:
+            metadata = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+            if stat.S_ISDIR(metadata.st_mode):
+                child = os.open(
+                    name,
+                    os.O_RDONLY
+                    | getattr(os, "O_DIRECTORY", 0)
+                    | getattr(os, "O_NOFOLLOW", 0)
+                    | getattr(os, "O_CLOEXEC", 0),
+                    dir_fd=descriptor,
+                )
+                try:
+                    opened = os.fstat(child)
+                    if (
+                        opened.st_dev != metadata.st_dev
+                        or opened.st_ino != metadata.st_ino
+                        or not _remove_directory_contents_at(child)
+                    ):
+                        success = False
+                        continue
+                finally:
+                    os.close(child)
+                current = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+                if (
+                    current.st_dev != metadata.st_dev
+                    or current.st_ino != metadata.st_ino
+                ):
+                    success = False
+                    continue
+                os.rmdir(name, dir_fd=descriptor)
+            else:
+                os.unlink(name, dir_fd=descriptor)
+        except OSError:
+            success = False
+    return success and not os.listdir(descriptor)
+
+
+def _remove_task_root(root):
+    if not isinstance(root, _PinnedTaskRoot):
         return False
+    return root.remove()
 
 
 def _close_fifo(descriptor):
@@ -324,7 +454,7 @@ class DriverDependencies:
     quiescence_monotonic: Callable[[], float] = time.monotonic
     quiescence_sleep: Callable[[float], None] = time.sleep
     capture_observer: Callable[[str, str, bytes, bool], None] = _ignore
-    task_root_remover: Callable[[pathlib.Path], bool] = _remove_task_root
+    task_root_remover: Callable[[_PinnedTaskRoot], bool] = _remove_task_root
     fifo_closer: Callable[[int], bool] = _close_fifo
 
 
@@ -740,18 +870,51 @@ def _physical_executable(path):
 
 def _make_task_root():
     root = pathlib.Path(tempfile.mkdtemp(prefix="pickvia-e2e-", dir="/private/tmp"))
-    metadata = root.lstat()
-    if (
-        root.parent != pathlib.Path("/private/tmp")
-        or not stat.S_ISDIR(metadata.st_mode)
-        or stat.S_ISLNK(metadata.st_mode)
-        or metadata.st_uid != os.getuid()
-        or pathlib.Path(os.path.realpath(root)) != root
-    ):
-        shutil.rmtree(root, ignore_errors=True)
-        raise OSError("unsafe task root")
-    root.chmod(0o700)
-    return root
+    descriptor = None
+    initial_identity = None
+    pinned = None
+    try:
+        metadata = root.lstat()
+        initial_identity = _DirectoryIdentity.from_stat(metadata)
+        if (
+            root.parent != pathlib.Path("/private/tmp")
+            or not root.name.startswith("pickvia-e2e-")
+            or not stat.S_ISDIR(metadata.st_mode)
+            or stat.S_ISLNK(metadata.st_mode)
+            or metadata.st_uid != os.getuid()
+            or pathlib.Path(os.path.realpath(root)) != root
+        ):
+            raise OSError("unsafe task root")
+        descriptor = os.open(
+            root,
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_CLOEXEC", 0),
+        )
+        opened = os.fstat(descriptor)
+        if (
+            not stat.S_ISDIR(opened.st_mode)
+            or _DirectoryIdentity.from_stat(opened) != initial_identity
+        ):
+            raise OSError("unsafe task root")
+        os.fchmod(descriptor, 0o700)
+        identity = _DirectoryIdentity.from_stat(os.fstat(descriptor))
+        pinned = _PinnedTaskRoot(root, descriptor, identity)
+        pinned.require_current()
+        return pinned
+    except OSError:
+        if pinned is not None:
+            pinned.remove()
+        elif descriptor is not None:
+            os.close(descriptor)
+        elif initial_identity is not None:
+            try:
+                if _DirectoryIdentity.from_stat(root.lstat()) == initial_identity:
+                    os.rmdir(root)
+            except OSError:
+                pass
+        raise
 
 
 def _remaining(deadline, monotonic):
@@ -854,7 +1017,12 @@ def _parse_receipt(line, expected_token):
 
 
 def _minimal_child_environment(task_root):
-    root = os.fspath(task_root)
+    root_path = (
+        task_root.require_current()
+        if isinstance(task_root, _PinnedTaskRoot)
+        else pathlib.Path(task_root)
+    )
+    root = os.fspath(root_path)
     return {
         "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
         "LANG": "en_US.UTF-8",
@@ -1220,28 +1388,62 @@ def _wait_for_proof(
         selector.close()
 
 
-def _audit_regular_files(root, forbidden):
-    for path in root.rglob("*"):
-        try:
-            metadata = path.lstat()
-        except FileNotFoundError:
-            continue
+def _audit_regular_files_at(descriptor, forbidden):
+    for name in os.listdir(descriptor):
+        metadata = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
         if stat.S_ISLNK(metadata.st_mode):
             return False
+        if stat.S_ISDIR(metadata.st_mode):
+            child = os.open(
+                name,
+                os.O_RDONLY
+                | getattr(os, "O_DIRECTORY", 0)
+                | getattr(os, "O_NOFOLLOW", 0)
+                | getattr(os, "O_CLOEXEC", 0),
+                dir_fd=descriptor,
+            )
+            try:
+                opened = os.fstat(child)
+                if (
+                    opened.st_dev != metadata.st_dev
+                    or opened.st_ino != metadata.st_ino
+                    or not _audit_regular_files_at(child, forbidden)
+                ):
+                    return False
+            finally:
+                os.close(child)
+            continue
         if not stat.S_ISREG(metadata.st_mode):
             continue
         if metadata.st_size > MAXIMUM_AUDIT_FILE_BYTES:
             return False
-        previous = b""
-        with path.open("rb") as stream:
+        file_descriptor = os.open(
+            name,
+            os.O_RDONLY
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_CLOEXEC", 0),
+            dir_fd=descriptor,
+        )
+        try:
+            opened = os.fstat(file_descriptor)
+            if (
+                not stat.S_ISREG(opened.st_mode)
+                or opened.st_dev != metadata.st_dev
+                or opened.st_ino != metadata.st_ino
+                or opened.st_size > MAXIMUM_AUDIT_FILE_BYTES
+            ):
+                return False
+            previous = b""
             while True:
-                chunk = stream.read(65_536)
+                chunk = os.read(file_descriptor, 65_536)
                 if not chunk:
                     break
                 combined = previous + chunk
                 if forbidden in combined:
                     return False
                 previous = combined[-max(len(forbidden) - 1, 0) :]
+        finally:
+            os.close(file_descriptor)
     return True
 
 
@@ -1282,14 +1484,11 @@ def run_driver(config, dependencies=None):
         )
         baseline_authoritative = True
         task_root = _make_task_root()
-        fifo = task_root / "status.fifo"
-        os.mkfifo(fifo, 0o600)
-        os.chmod(fifo, 0o600)
-        fifo_descriptor = os.open(
-            fifo,
-            os.O_RDWR | os.O_NONBLOCK | getattr(os, "O_CLOEXEC", 0),
-        )
+        task_root.create_fifo("status.fifo")
+        fifo = task_root.child_path("status.fifo")
+        fifo_descriptor = task_root.open_fifo("status.fifo")
         base_environment = _minimal_child_environment(task_root)
+        task_root.require_current()
         receiver = processes.start(
             "receiver",
             [
@@ -1316,10 +1515,11 @@ def run_driver(config, dependencies=None):
                 "PICKVIA_E2E_BUNDLE_ID": config.bundle_identifier,
                 "PICKVIA_E2E_MODE": config.mode,
                 "PICKVIA_E2E_SESSION_NONCE": config.session_nonce,
-                "PICKVIA_E2E_SUPPORT_DIR": os.fspath(task_root),
+                "PICKVIA_E2E_SUPPORT_DIR": os.fspath(task_root.require_current()),
                 "PICKVIA_E2E_STATUS_FIFO": os.fspath(fifo),
             }
         )
+        task_root.require_current()
         app = processes.start(
             "e2e-app",
             [e2e_executable],
@@ -1334,7 +1534,8 @@ def run_driver(config, dependencies=None):
         dependencies.route_observer(route_bytes.decode("ascii"))
         helper_executable = dependencies.helper_executable
         if helper_executable is None:
-            helper_executable = task_root / "open_with_app"
+            helper_executable = task_root.child_path("open_with_app")
+            task_root.require_current()
             _compile_helper(
                 processes,
                 pathlib.Path(dependencies.helper_source),
@@ -1346,6 +1547,7 @@ def run_driver(config, dependencies=None):
         elif not _physical_executable(pathlib.Path(helper_executable)):
             raise _HelperError
 
+        task_root.require_current()
         helper = processes.start(
             "exact-app-helper",
             [helper_executable, e2e_app, str(app.pid)],
@@ -1610,8 +1812,8 @@ def run_driver(config, dependencies=None):
                 outcome = "privacy-failure"
                 exit_code = DRIVER_PRIVACY_FAILURE
             try:
-                files_are_private = task_root is None or _audit_regular_files(
-                    task_root, route_bytes
+                files_are_private = (
+                    task_root is None or task_root.audit_regular_files(route_bytes)
                 )
             except Exception:
                 files_are_private = False
@@ -1620,13 +1822,15 @@ def run_driver(config, dependencies=None):
                 exit_code = DRIVER_PRIVACY_FAILURE
         if task_root is not None:
             try:
-                dependencies.before_cleanup(task_root)
+                dependencies.before_cleanup(task_root.require_current())
             except Exception:
                 cleanup_ok = False
             try:
                 cleanup_ok = dependencies.task_root_remover(task_root) and cleanup_ok
             except Exception:
                 cleanup_ok = False
+            finally:
+                task_root.close()
         if identity_ambiguous:
             outcome = "identity-ambiguous"
             exact_browser_identity = False
