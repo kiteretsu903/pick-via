@@ -28,12 +28,21 @@ fail() {
   exit 1
 }
 
-app="$(/usr/bin/python3 "$policy" canonical-app "$requested_app")" || \
+policy_command() {
+  /usr/bin/env -i \
+    PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+    LANG=en_US.UTF-8 \
+    LC_CTYPE=UTF-8 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    /usr/bin/python3 "$policy" "$@"
+}
+
+app="$(policy_command canonical-app "$requested_app")" || \
   fail "E2E smoke app path is invalid"
 plist="$app/Contents/Info.plist"
 executable="$app/Contents/MacOS/PickVia"
 resources="$app/Contents/Resources"
-app_identity="$(/usr/bin/python3 "$policy" app-identity "$app")" || \
+app_identity="$(policy_command app-identity "$app")" || \
   fail "E2E smoke app identity is invalid"
 
 wait_child_bounded() {
@@ -51,7 +60,7 @@ wait_child_bounded() {
       REPLY="$exit_status"
       return 0
     fi
-    sleep 0.05
+    /bin/sleep 0.05
     (( index += 1 ))
   done
   return 1
@@ -73,7 +82,7 @@ runtime_process_is_exact() {
   local current_identity
 
   [[ -n "$runtime_pid" && -n "$runtime_identity" ]] || return 1
-  current_identity="$(/usr/bin/python3 "$policy" process-identity \
+  current_identity="$(policy_command process-identity \
     "$runtime_pid" "$executable")" || return 1
   [[ "$current_identity" == "$runtime_identity" ]]
 }
@@ -117,46 +126,47 @@ test "$(/usr/libexec/PlistBuddy -c 'Print :PickViaE2EAutomationMarker' "$plist")
 test "$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$plist")" = "14.0"
 test "$(/usr/libexec/PlistBuddy -c 'Print :LSUIElement' "$plist")" = "true"
 
-test "$(plutil -extract CFBundleURLTypes raw -o - "$plist")" -eq 2
-test "$(plutil -extract CFBundleURLTypes.0.CFBundleURLSchemes raw -o - "$plist")" -eq 2
-scheme0="$(plutil -extract CFBundleURLTypes.0.CFBundleURLSchemes.0 raw -o - "$plist")"
-scheme1="$(plutil -extract CFBundleURLTypes.0.CFBundleURLSchemes.1 raw -o - "$plist")"
+test "$(/usr/bin/plutil -extract CFBundleURLTypes raw -o - "$plist")" -eq 2
+test "$(/usr/bin/plutil -extract CFBundleURLTypes.0.CFBundleURLSchemes raw -o - "$plist")" -eq 2
+scheme0="$(/usr/bin/plutil -extract CFBundleURLTypes.0.CFBundleURLSchemes.0 raw -o - "$plist")"
+scheme1="$(/usr/bin/plutil -extract CFBundleURLTypes.0.CFBundleURLSchemes.1 raw -o - "$plist")"
 test "$scheme0:$scheme1" = "http:https" || test "$scheme0:$scheme1" = "https:http"
-test "$(plutil -extract CFBundleURLTypes.1.CFBundleURLSchemes raw -o - "$plist")" -eq 1
-test "$(plutil -extract CFBundleURLTypes.1.CFBundleURLSchemes.0 raw -o - "$plist")" = \
+test "$(/usr/bin/plutil -extract CFBundleURLTypes.1.CFBundleURLSchemes raw -o - "$plist")" -eq 1
+test "$(/usr/bin/plutil -extract CFBundleURLTypes.1.CFBundleURLSchemes.0 raw -o - "$plist")" = \
   "mailto"
 
 test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$plist")" = "PickVia"
 test -s "$resources/PickVia.icns"
 test -s "$resources/PickViaMenuBarTemplate.png"
-test "$(sips -g pixelWidth "$resources/PickViaMenuBarTemplate.png" | awk '/pixelWidth/ {print $2}')" = \
+test "$(/usr/bin/sips -g pixelWidth "$resources/PickViaMenuBarTemplate.png" | /usr/bin/awk '/pixelWidth/ {print $2}')" = \
   "44"
-test "$(sips -g pixelHeight "$resources/PickViaMenuBarTemplate.png" | awk '/pixelHeight/ {print $2}')" = \
+test "$(/usr/bin/sips -g pixelHeight "$resources/PickViaMenuBarTemplate.png" | /usr/bin/awk '/pixelHeight/ {print $2}')" = \
   "44"
 
 expected_resources=$'PickVia.icns\nPickViaMenuBarTemplate.png'
-actual_resources="$(find "$resources" -mindepth 1 -maxdepth 1 -type f -exec basename {} \; | LC_ALL=C sort)"
+actual_resources="$(/usr/bin/find "$resources" -mindepth 1 -maxdepth 1 -type f -exec /usr/bin/basename {} \; | LC_ALL=C /usr/bin/sort)"
 test "$actual_resources" = "$expected_resources"
-test -z "$(find "$resources" -mindepth 1 -maxdepth 1 ! -type f -print -quit)"
+test -z "$(/usr/bin/find "$resources" -mindepth 1 -maxdepth 1 ! -type f -print -quit)"
 
 binary_contains "$executable" "$marker"
 for key in "${environment_keys[@]}"; do
   binary_contains "$executable" "$key"
 done
 
-/usr/bin/codesign --verify --deep --strict "$app"
+policy_command verify-app "$app" || fail "E2E smoke app signature is invalid"
 
-preferences_before="$(/usr/bin/python3 "$policy" snapshot-preferences "$HOME")" || \
+preferences_before="$(policy_command snapshot-preferences "$HOME")" || \
   fail "Could not pin and snapshot PickVia E2E preferences"
 /usr/bin/mkfifo -m 600 "$runtime_root/status.fifo"
 exec {status_fd}<>"$runtime_root/status.fifo"
 
-/usr/bin/python3 "$policy" compile-helper \
+policy_command compile-helper \
   "$helper_source" "$runtime_root/open_with_app" "$runtime_root" || \
   fail "E2E smoke helper compilation failed"
 
-test "$(/usr/bin/python3 "$policy" app-identity "$app")" = "$app_identity" || \
+test "$(policy_command app-identity "$app")" = "$app_identity" || \
   fail "E2E smoke app changed before launch"
+policy_command verify-app "$app" || fail "E2E smoke app changed before launch"
 
 /usr/bin/env -i \
   PATH=/usr/bin:/bin:/usr/sbin:/sbin \
@@ -175,17 +185,17 @@ runtime_pid=$!
 
 for _ in {1..40}; do
   /bin/kill -0 "$runtime_pid" 2>/dev/null && break
-  sleep 0.05
+  /bin/sleep 0.05
 done
 /bin/kill -0 "$runtime_pid" 2>/dev/null || fail "E2E smoke app did not remain active"
 for _ in {1..40}; do
-  runtime_identity="$(/usr/bin/python3 "$policy" process-identity \
+  runtime_identity="$(policy_command process-identity \
     "$runtime_pid" "$executable")" 2>/dev/null && break
-  sleep 0.05
+  /bin/sleep 0.05
 done
 [[ -n "$runtime_identity" ]] || fail "E2E smoke app identity could not be pinned"
 
-/usr/bin/python3 "$policy" run-helper \
+policy_command run-helper \
   "$runtime_root/open_with_app" "$app" "$runtime_pid" "$runtime_root" || \
   fail "E2E smoke helper failed"
 
@@ -214,14 +224,14 @@ runtime_pid=""
 test "$runtime_status" -eq 143 || fail "Unexpected E2E smoke app exit"
 
 for _ in {1..30}; do
-  sleep 0.1
-  preferences_after="$(/usr/bin/python3 "$policy" snapshot-preferences "$HOME")" || \
+  /bin/sleep 0.1
+  preferences_after="$(policy_command snapshot-preferences "$HOME")" || \
     fail "Could not revalidate PickVia E2E preferences"
   test "$preferences_before" = "$preferences_after" || \
     fail "PickVia E2E preference artifacts changed"
 done
 
-test -z "$(find "$runtime_root" -mindepth 1 -type l -print -quit)"
+test -z "$(/usr/bin/find "$runtime_root" -mindepth 1 -type l -print -quit)"
 print -r -- "E2E smoke status: target-missing"
 
 if /usr/sbin/spctl --assess --type execute "$app" >/dev/null 2>&1; then

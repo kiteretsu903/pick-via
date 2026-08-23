@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import ctypes
 import hashlib
 import os
 import pathlib
@@ -14,6 +15,23 @@ import pickvia_e2e_driver as driver
 
 class SmokePolicyError(RuntimeError):
     pass
+
+
+_ALLOWED_POLICY_ENVIRONMENT_KEYS = frozenset(
+    {
+        "PATH",
+        "LANG",
+        "LC_CTYPE",
+        "TMPDIR",
+        "CFFIXED_USER_HOME",
+        "PYTHONDONTWRITEBYTECODE",
+        "__CF_USER_TEXT_ENCODING",
+        "SDKROOT",
+        "CPATH",
+        "LIBRARY_PATH",
+        "MANPATH",
+    }
+)
 
 
 def _reject_symlink_components(path):
@@ -32,14 +50,168 @@ def _same_stat(left, right):
     )
 
 
+def _darwin_process_group_snapshot(process_group):
+    library = driver._load_libproc()
+    required_bytes = library.proc_listpids(4, os.getuid(), None, 0)
+    if required_bytes <= 0:
+        raise SmokePolicyError("process group inspection failed")
+    count = required_bytes // ctypes.sizeof(ctypes.c_int) + 128
+    pids = (ctypes.c_int * count)()
+    used_bytes = library.proc_listpids(4, os.getuid(), pids, ctypes.sizeof(pids))
+    if used_bytes <= 0 or used_bytes >= ctypes.sizeof(pids):
+        raise SmokePolicyError("process group inspection failed")
+    identities = set()
+    for process_identifier in pids[: used_bytes // ctypes.sizeof(ctypes.c_int)]:
+        if process_identifier <= 0:
+            continue
+        information = driver._ProcBSDInfo()
+        if library.proc_pidinfo(
+            process_identifier,
+            3,
+            0,
+            ctypes.byref(information),
+            ctypes.sizeof(information),
+        ) != ctypes.sizeof(information):
+            continue
+        if int(information.pbi_pgid) != process_group:
+            continue
+        try:
+            identities.add(driver._darwin_process_identity(process_identifier, library))
+        except (driver._ProcessDisappeared, driver._IdentityInspectionError):
+            continue
+    return frozenset(identities)
+
+
 class PinnedApplication:
-    def __init__(self, path, directory_fd, executable_fd, directory_stat, executable_stat):
+    bundle_directories = {
+        "": {"Contents": "directory"},
+        "Contents": {
+            "Info.plist": "file",
+            "MacOS": "directory",
+            "Resources": "directory",
+            "_CodeSignature": "directory",
+        },
+        "Contents/MacOS": {"PickVia": "file"},
+        "Contents/Resources": {
+            "PickVia.icns": "file",
+            "PickViaMenuBarTemplate.png": "file",
+        },
+        "Contents/_CodeSignature": {"CodeResources": "file"},
+    }
+    maximum_bundle_bytes = 64 * 1_024 * 1_024
+
+    def __init__(
+        self,
+        path,
+        directory_fd,
+        executable_fd,
+        directory_stat,
+        executable_stat,
+        bundle_manifest,
+    ):
         self.path = path
         self.directory_fd = directory_fd
         self.executable_fd = executable_fd
         self.directory_stat = directory_stat
         self.executable_stat = executable_stat
         self.executable = path / "Contents" / "MacOS" / "PickVia"
+        self.bundle_manifest = bundle_manifest
+
+    @classmethod
+    def _open_directory(cls, root_fd, relative):
+        descriptor = os.dup(root_fd)
+        try:
+            for component in pathlib.PurePosixPath(relative).parts:
+                if not component or component == ".":
+                    continue
+                child = os.open(
+                    component,
+                    os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                    dir_fd=descriptor,
+                )
+                os.close(descriptor)
+                descriptor = child
+            return descriptor
+        except Exception:
+            os.close(descriptor)
+            raise
+
+    @classmethod
+    def _capture_bundle_manifest(cls, root_fd):
+        records = []
+        total_bytes = 0
+        for relative_directory, expected_entries in cls.bundle_directories.items():
+            directory_fd = cls._open_directory(root_fd, relative_directory)
+            try:
+                directory_stat = os.fstat(directory_fd)
+                if not stat.S_ISDIR(directory_stat.st_mode):
+                    raise SmokePolicyError("bundle directory is invalid")
+                names = set(os.listdir(directory_fd))
+                if names != set(expected_entries):
+                    raise SmokePolicyError("bundle contains unexpected entries")
+                records.append(
+                    (
+                        relative_directory,
+                        "directory",
+                        directory_stat.st_dev,
+                        directory_stat.st_ino,
+                        directory_stat.st_mode,
+                        directory_stat.st_ctime_ns,
+                    )
+                )
+                for name, expected_kind in sorted(expected_entries.items()):
+                    named = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+                    if expected_kind == "directory":
+                        if not stat.S_ISDIR(named.st_mode):
+                            raise SmokePolicyError("bundle directory entry is invalid")
+                        continue
+                    descriptor = os.open(
+                        name,
+                        os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                        dir_fd=directory_fd,
+                    )
+                    try:
+                        before = os.fstat(descriptor)
+                        if not stat.S_ISREG(before.st_mode):
+                            raise SmokePolicyError("bundle file entry is invalid")
+                        total_bytes += before.st_size
+                        if total_bytes > cls.maximum_bundle_bytes:
+                            raise SmokePolicyError("bundle byte budget exceeded")
+                        contents = bytearray()
+                        while len(contents) < before.st_size:
+                            chunk = os.read(descriptor, min(65_536, before.st_size - len(contents)))
+                            if not chunk:
+                                break
+                            contents.extend(chunk)
+                        after = os.fstat(descriptor)
+                        current = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+                        fields = (
+                            "st_dev",
+                            "st_ino",
+                            "st_mode",
+                            "st_size",
+                            "st_mtime_ns",
+                            "st_ctime_ns",
+                        )
+                        if len(contents) != before.st_size or any(
+                            getattr(before, field) != getattr(after, field) for field in fields
+                        ):
+                            raise SmokePolicyError("bundle file changed during read")
+                        if not _same_stat(after, current):
+                            raise SmokePolicyError("bundle file path was replaced")
+                        records.append(
+                            (
+                                f"{relative_directory}/{name}".lstrip("/"),
+                                "file",
+                                *(getattr(before, field) for field in fields),
+                                hashlib.sha256(contents).hexdigest(),
+                            )
+                        )
+                    finally:
+                        os.close(descriptor)
+            finally:
+                os.close(directory_fd)
+        return tuple(records)
 
     @classmethod
     def open(cls, application):
@@ -75,12 +247,14 @@ class PinnedApplication:
                 raise SmokePolicyError("application identity is invalid")
             if executable_stat.st_mode & 0o111 == 0:
                 raise SmokePolicyError("application executable is not executable")
+            bundle_manifest = cls._capture_bundle_manifest(directory_fd)
             pinned = cls(
                 physical,
                 directory_fd,
                 executable_fd,
                 directory_stat,
                 executable_stat,
+                bundle_manifest,
             )
             directory_fd = -1
             executable_fd = -1
@@ -105,7 +279,7 @@ class PinnedApplication:
                 os.stat(self.path, follow_symlinks=False), self.directory_stat
             ) and _same_stat(os.fstat(self.executable_fd), self.executable_stat) and _same_stat(
                 os.stat(self.executable, follow_symlinks=False), self.executable_stat
-            )
+            ) and self._capture_bundle_manifest(self.directory_fd) == self.bundle_manifest
         except OSError:
             return False
 
@@ -256,6 +430,7 @@ class ExactProcess:
         identity,
         signal_group,
         process_group,
+        group_snapshot,
         poll,
         wait,
     ):
@@ -265,11 +440,20 @@ class ExactProcess:
         self._identity = identity
         self._signal_group = signal_group
         self._process_group = process_group
+        self._group_snapshot = group_snapshot
         self._poll = poll
         self._wait = wait
 
     @classmethod
-    def start(cls, arguments, *, environment, stdin=subprocess.DEVNULL):
+    def start(
+        cls,
+        arguments,
+        *,
+        environment,
+        stdin=subprocess.DEVNULL,
+        identity_resolver=driver._darwin_process_identity,
+        identity_timeout=0.5,
+    ):
         process = subprocess.Popen(
             [os.fspath(argument) for argument in arguments],
             stdin=stdin,
@@ -281,9 +465,12 @@ class ExactProcess:
         )
         expected_identity = None
         previous_identity = None
-        deadline = time.monotonic() + 0.5
+        deadline = time.monotonic() + identity_timeout
         while expected_identity is None and time.monotonic() < deadline:
-            current_identity = driver._darwin_process_identity(process.pid)
+            try:
+                current_identity = identity_resolver(process.pid)
+            except (driver._ProcessDisappeared, driver._IdentityInspectionError):
+                current_identity = None
             if current_identity is not None and current_identity == previous_identity:
                 expected_identity = current_identity
                 break
@@ -292,14 +479,7 @@ class ExactProcess:
                 break
             time.sleep(0.005)
         if expected_identity is None:
-            try:
-                process.terminate()
-                process.wait(timeout=0.5)
-            except (ProcessLookupError, subprocess.TimeoutExpired):
-                try:
-                    process.kill()
-                except ProcessLookupError:
-                    pass
+            cls._cleanup_unpinned_group(process)
             raise SmokePolicyError("child identity could not be pinned")
         return cls(
             process,
@@ -307,6 +487,7 @@ class ExactProcess:
             driver._darwin_process_identity,
             os.killpg,
             os.getpgid,
+            _darwin_process_group_snapshot,
             process.poll,
             process.wait,
         )
@@ -322,6 +503,7 @@ class ExactProcess:
         signal_group,
         process_group,
         expected_identity,
+        group_snapshot=None,
     ):
         instance = cls(
             None,
@@ -329,53 +511,128 @@ class ExactProcess:
             identity,
             signal_group,
             process_group,
+            group_snapshot,
             poll,
             wait,
         )
         instance.pid = pid
         return instance
 
-    def _is_exact_generation(self):
+    @staticmethod
+    def _cleanup_unpinned_group(process):
+        process_group = process.pid
         try:
-            return (
-                self._poll() is None
-                and self._process_group(self.pid) == self.pid
-                and self._identity(self.pid) == self.expected_identity
-            )
-        except (OSError, ProcessLookupError):
-            return False
-
-    def _wait_bounded(self, timeout):
-        deadline = time.monotonic() + timeout
+            current_group = os.getpgid(process.pid)
+            if current_group != process_group:
+                return False
+        except ProcessLookupError:
+            try:
+                members = _darwin_process_group_snapshot(process_group)
+            except SmokePolicyError:
+                return False
+            if not members or any(member.pid == process_group for member in members):
+                return not members
         try:
-            self._wait(timeout)
+            os.killpg(process_group, signal.SIGTERM)
+        except ProcessLookupError:
+            return True
+        try:
+            process.wait(timeout=0.5)
         except subprocess.TimeoutExpired:
-            return False
+            pass
+        deadline = time.monotonic() + 0.5
         while time.monotonic() < deadline:
-            if self._group_is_absent():
+            try:
+                if not _darwin_process_group_snapshot(process_group):
+                    return True
+            except SmokePolicyError:
+                return False
+            time.sleep(0.01)
+        try:
+            members = _darwin_process_group_snapshot(process_group)
+        except SmokePolicyError:
+            return False
+        if not members or any(member.pid == process_group for member in members):
+            return not members
+        os.killpg(process_group, signal.SIGKILL)
+        deadline = time.monotonic() + 0.5
+        while time.monotonic() < deadline:
+            if not _darwin_process_group_snapshot(process_group):
+                try:
+                    process.wait(timeout=0)
+                except (subprocess.TimeoutExpired, ChildProcessError):
+                    pass
                 return True
             time.sleep(0.01)
-        return self._group_is_absent()
+        return False
 
-    def _group_is_absent(self):
+    def _group_state(self):
+        if self._group_snapshot is None:
+            try:
+                if self._poll() is not None:
+                    return "absent" if self._group_is_absent_fallback() else "ambiguous"
+                if self._process_group(self.pid) != self.pid:
+                    return "ambiguous"
+                return (
+                    "owned"
+                    if self._identity(self.pid) == self.expected_identity
+                    else "ambiguous"
+                )
+            except (OSError, ProcessLookupError):
+                return "ambiguous"
+        try:
+            members = self._group_snapshot(self.pid)
+        except (OSError, SmokePolicyError):
+            return "ambiguous"
+        if not members:
+            return "absent"
+        expected_start = (
+            self.expected_identity.start_seconds,
+            self.expected_identity.start_microseconds,
+        )
+        for member in members:
+            member_start = (member.start_seconds, member.start_microseconds)
+            if member.pid == self.pid and member != self.expected_identity:
+                return "ambiguous"
+            if member_start < expected_start:
+                return "ambiguous"
+        return "owned"
+
+    def _group_is_absent_fallback(self):
         try:
             self._signal_group(self.pid, 0)
             return False
         except (OSError, ProcessLookupError):
             return True
 
+    def _wait_for_group_absence(self, timeout):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            state = self._group_state()
+            if state == "absent":
+                try:
+                    self._wait(0)
+                except (subprocess.TimeoutExpired, ChildProcessError):
+                    pass
+                return True
+            if state != "owned":
+                return False
+            time.sleep(0.01)
+        return self._group_state() == "absent"
+
     def terminate_bounded(self, *, term_timeout, kill_timeout):
-        if self._poll() is not None:
-            return self._group_is_absent()
-        if not self._is_exact_generation():
+        state = self._group_state()
+        if state == "absent":
+            return True
+        if state != "owned":
             return False
         self._signal_group(self.pid, signal.SIGTERM)
-        if self._wait_bounded(term_timeout):
+        if self._wait_for_group_absence(term_timeout):
             return True
-        if not self._is_exact_generation():
+        if self._group_state() != "owned":
             return False
         self._signal_group(self.pid, signal.SIGKILL)
-        return self._wait_bounded(kill_timeout)
+        return self._wait_for_group_absence(kill_timeout)
 
     def wait_success(self, timeout):
         deadline = time.monotonic() + timeout
@@ -383,11 +640,9 @@ class ExactProcess:
             return_code = self._wait(timeout)
         except subprocess.TimeoutExpired:
             return False
-        while time.monotonic() < deadline:
-            if self._group_is_absent():
-                return return_code == 0
-            time.sleep(0.01)
-        return False
+        return return_code == 0 and self._wait_for_group_absence(
+            max(0, deadline - time.monotonic())
+        )
 
     def close_streams(self):
         if self.process is None:
@@ -398,6 +653,8 @@ class ExactProcess:
 
 
 def _main(arguments=None):
+    if not set(os.environ).issubset(_ALLOWED_POLICY_ENVIRONMENT_KEYS):
+        return 1
     parser = argparse.ArgumentParser(add_help=False)
     subparsers = parser.add_subparsers(dest="command", required=True)
     canonical = subparsers.add_parser("canonical-app", add_help=False)
@@ -418,6 +675,8 @@ def _main(arguments=None):
     process_identity = subparsers.add_parser("process-identity", add_help=False)
     process_identity.add_argument("process_identifier", type=int)
     process_identity.add_argument("expected_executable")
+    verify_app = subparsers.add_parser("verify-app", add_help=False)
+    verify_app.add_argument("application")
     try:
         options = parser.parse_args(arguments)
         if options.command in ("canonical-app", "app-identity"):
@@ -436,6 +695,7 @@ def _main(arguments=None):
                         pinned.executable_stat.st_size,
                         pinned.executable_stat.st_mtime_ns,
                         pinned.executable_stat.st_ctime_ns,
+                        pinned.bundle_manifest,
                     )
                     print(hashlib.sha256(repr(fields).encode("utf-8")).hexdigest())
             finally:
@@ -507,6 +767,31 @@ def _main(arguments=None):
             )
             print(hashlib.sha256(repr(fields).encode("utf-8")).hexdigest())
             return 0
+        if options.command == "verify-app":
+            pinned = PinnedApplication.open(options.application)
+            verifier = None
+            try:
+                verifier = ExactProcess.start(
+                    [
+                        "/usr/bin/codesign",
+                        "--verify",
+                        "--deep",
+                        "--strict",
+                        pinned.path,
+                    ],
+                    environment={
+                        "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+                        "LANG": "en_US.UTF-8",
+                        "LC_CTYPE": "UTF-8",
+                    },
+                )
+                return 0 if verifier.wait_success(5) and pinned.validate() else 1
+            finally:
+                if verifier is not None:
+                    if verifier._group_state() == "owned":
+                        verifier.terminate_bounded(term_timeout=1, kill_timeout=1)
+                    verifier.close_streams()
+                pinned.close()
         preferences = PreferenceDirectorySnapshot.open(options.home)
         try:
             records = preferences.capture()

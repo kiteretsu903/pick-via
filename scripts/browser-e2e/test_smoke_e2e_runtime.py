@@ -3,7 +3,6 @@
 import os
 import pathlib
 import shutil
-import stat
 import subprocess
 import sys
 import tempfile
@@ -24,6 +23,14 @@ class SmokeAppIdentityTests(unittest.TestCase):
         self.executable.parent.mkdir(parents=True)
         shutil.copyfile("/usr/bin/true", self.executable)
         self.executable.chmod(0o700)
+        (self.app / "Contents" / "Info.plist").write_bytes(b"plist")
+        resources = self.app / "Contents" / "Resources"
+        resources.mkdir()
+        (resources / "PickVia.icns").write_bytes(b"icon")
+        (resources / "PickViaMenuBarTemplate.png").write_bytes(b"menu")
+        signature = self.app / "Contents" / "_CodeSignature"
+        signature.mkdir()
+        (signature / "CodeResources").write_bytes(b"signature")
 
     def tearDown(self):
         shutil.rmtree(self.root)
@@ -86,6 +93,60 @@ class SmokeAppIdentityTests(unittest.TestCase):
         )
         self.assertEqual((before.returncode, after.returncode), (0, 0))
         self.assertNotEqual(before.stdout, after.stdout)
+
+    def test_cli_app_identity_changes_when_info_plist_is_modified(self):
+        command = [
+            sys.executable,
+            str(pathlib.Path(runtime.__file__).resolve()),
+            "app-identity",
+            str(self.app),
+        ]
+        environment = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin"}
+        before = subprocess.run(
+            command,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=environment,
+            timeout=3,
+            check=False,
+        )
+        (self.app / "Contents" / "Info.plist").write_bytes(b"modified plist")
+        after = subprocess.run(
+            command,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=environment,
+            timeout=3,
+            check=False,
+        )
+        self.assertEqual((before.returncode, after.returncode), (0, 0))
+        self.assertNotEqual(before.stdout, after.stdout)
+
+    def test_cli_rejects_parent_secret_environment(self):
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(pathlib.Path(runtime.__file__).resolve()),
+                "canonical-app",
+                str(self.app),
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env={
+                "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+                "LANG": "en_US.UTF-8",
+                "LC_CTYPE": "UTF-8",
+                "PICKVIA_PARENT_SENTINEL_SECRET": "must-not-enter-policy",
+            },
+            timeout=3,
+            check=False,
+        )
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertEqual(completed.stdout, b"")
+        self.assertEqual(completed.stderr, b"")
 
     def test_symlinked_app_argument_is_rejected(self):
         alias = self.root / "Alias.app"
@@ -200,6 +261,104 @@ class ExactProcessTests(unittest.TestCase):
         finally:
             process.close_streams()
             shutil.rmtree(fixture)
+
+    def test_leader_exit_before_termination_still_cleans_owned_descendant(self):
+        fixture = pathlib.Path(
+            tempfile.mkdtemp(prefix="pickvia-smoke-leader-exit-", dir="/private/tmp")
+        )
+        child_pid_file = fixture / "child.pid"
+        process = runtime.ExactProcess.start(
+            [
+                "/bin/sh",
+                "-c",
+                f"/bin/sleep 60 & child=$!; echo $child > {child_pid_file}; /bin/sleep 0.1; exit 0",
+            ],
+            environment={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin"},
+        )
+        child_pid = None
+        try:
+            for _ in range(100):
+                if child_pid_file.exists():
+                    break
+                runtime.time.sleep(0.01)
+            child_pid = int(child_pid_file.read_text(encoding="ascii"))
+            process.process.wait(timeout=1)
+            self.assertTrue(process.terminate_bounded(term_timeout=1, kill_timeout=1))
+            with self.assertRaises(ProcessLookupError):
+                os.kill(child_pid, 0)
+        finally:
+            if child_pid is not None:
+                try:
+                    os.killpg(process.pid, 9)
+                except ProcessLookupError:
+                    pass
+            try:
+                process.process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                pass
+            process.close_streams()
+            shutil.rmtree(fixture)
+
+    def test_leader_exit_after_term_still_kills_term_ignoring_descendant(self):
+        fixture = pathlib.Path(
+            tempfile.mkdtemp(prefix="pickvia-smoke-term-exit-", dir="/private/tmp")
+        )
+        child_pid_file = fixture / "child.pid"
+        process = runtime.ExactProcess.start(
+            [
+                "/bin/sh",
+                "-c",
+                f"trap 'exit 0' TERM; /bin/sh -c 'trap \"\" TERM; echo $$ > {child_pid_file}; exec /bin/sleep 60' & wait",
+            ],
+            environment={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin"},
+        )
+        child_pid = None
+        try:
+            for _ in range(100):
+                if child_pid_file.exists():
+                    break
+                runtime.time.sleep(0.01)
+            child_pid = int(child_pid_file.read_text(encoding="ascii"))
+            self.assertTrue(process.terminate_bounded(term_timeout=0.1, kill_timeout=1))
+            with self.assertRaises(ProcessLookupError):
+                os.kill(child_pid, 0)
+        finally:
+            if child_pid is not None:
+                try:
+                    os.killpg(process.pid, 9)
+                except ProcessLookupError:
+                    pass
+            try:
+                process.process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                pass
+            process.close_streams()
+            shutil.rmtree(fixture)
+
+    def test_identity_pin_failure_cleans_attributable_process_group(self):
+        fixture = pathlib.Path(
+            tempfile.mkdtemp(prefix="pickvia-smoke-pin-failure-", dir="/private/tmp")
+        )
+        child_pid_file = fixture / "child.pid"
+        with self.assertRaises(runtime.SmokePolicyError):
+            runtime.ExactProcess.start(
+                [
+                    "/bin/sh",
+                    "-c",
+                    f"/bin/sleep 60 & child=$!; echo $child > {child_pid_file}; wait",
+                ],
+                environment={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin"},
+                identity_resolver=lambda pid: None,
+                identity_timeout=0.05,
+            )
+        for _ in range(100):
+            if child_pid_file.exists():
+                break
+            runtime.time.sleep(0.01)
+        child_pid = int(child_pid_file.read_text(encoding="ascii"))
+        with self.assertRaises(ProcessLookupError):
+            os.kill(child_pid, 0)
+        shutil.rmtree(fixture)
 
 
 if __name__ == "__main__":
