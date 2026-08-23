@@ -9,6 +9,7 @@ import os
 import pathlib
 import plistlib
 import re
+import secrets
 import selectors
 import signal
 import stat
@@ -289,11 +290,62 @@ class _DirectoryIdentity:
         )
 
 
+@dataclasses.dataclass(frozen=True)
+class _EntryIdentity:
+    device: int
+    inode: int
+    owner: int
+    mode: int
+    size: int
+    modified_ns: int
+    changed_ns: int
+
+    @classmethod
+    def from_stat(cls, metadata):
+        return cls(
+            device=metadata.st_dev,
+            inode=metadata.st_ino,
+            owner=metadata.st_uid,
+            mode=metadata.st_mode,
+            size=metadata.st_size,
+            modified_ns=metadata.st_mtime_ns,
+            changed_ns=metadata.st_ctime_ns,
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class _DeletionIdentity:
+    device: int
+    inode: int
+    owner: int
+    mode: int
+    size: int
+
+    @classmethod
+    def from_stat(cls, metadata):
+        return cls(
+            device=metadata.st_dev,
+            inode=metadata.st_ino,
+            owner=metadata.st_uid,
+            mode=metadata.st_mode,
+            size=metadata.st_size,
+        )
+
+
 class _PinnedTaskRoot:
-    def __init__(self, path, descriptor, identity):
+    def __init__(
+        self,
+        path,
+        descriptor,
+        identity,
+        parent_descriptor,
+        parent_identity,
+    ):
         self.path = pathlib.Path(path)
         self.descriptor = descriptor
         self.identity = identity
+        self.parent_descriptor = parent_descriptor
+        self.parent_identity = parent_identity
         self._closed = False
 
     def _descriptor_matches(self):
@@ -310,6 +362,8 @@ class _PinnedTaskRoot:
             metadata = self.path.lstat()
             if (
                 not self._descriptor_matches()
+                or _DirectoryIdentity.from_stat(os.fstat(self.parent_descriptor))
+                != self.parent_identity
                 or self.path.parent != pathlib.Path("/private/tmp")
                 or not self.path.name.startswith("pickvia-e2e-")
                 or not stat.S_ISDIR(metadata.st_mode)
@@ -343,7 +397,13 @@ class _PinnedTaskRoot:
     def audit_regular_files(self, forbidden):
         try:
             self.require_current()
-            return _audit_regular_files_at(self.descriptor, forbidden)
+            budget = _AuditBudget()
+            return _audit_regular_files_at(
+                self.descriptor,
+                forbidden,
+                self.identity.device,
+                budget,
+            )
         except OSError:
             return False
 
@@ -355,11 +415,33 @@ class _PinnedTaskRoot:
         except OSError:
             path_is_current = False
         try:
-            contents_removed = _remove_directory_contents_at(self.descriptor)
+            contents_removed = _remove_directory_contents_at(
+                self.descriptor, self.identity.device
+            )
             if not contents_removed or not path_is_current:
                 return False
             self.require_current()
-            os.rmdir(self.path)
+            quarantine = _quarantine_entry(
+                self.parent_descriptor,
+                self.path.name,
+                self.identity,
+            )
+            if quarantine is None:
+                return False
+            quarantined = os.stat(
+                quarantine,
+                dir_fd=self.parent_descriptor,
+                follow_symlinks=False,
+            )
+            if (
+                _DirectoryIdentity.from_stat(quarantined) != self.identity
+                or not self._descriptor_matches()
+            ):
+                _restore_quarantine(
+                    self.parent_descriptor, quarantine, self.path.name
+                )
+                return False
+            os.rmdir(quarantine, dir_fd=self.parent_descriptor)
             return not self.path.exists()
         except OSError:
             return False
@@ -374,14 +456,67 @@ class _PinnedTaskRoot:
             os.close(self.descriptor)
         except OSError:
             pass
+        try:
+            os.close(self.parent_descriptor)
+        except OSError:
+            pass
 
 
-def _remove_directory_contents_at(descriptor):
+def _restore_quarantine(descriptor, quarantine, original):
+    try:
+        os.stat(original, dir_fd=descriptor, follow_symlinks=False)
+        return False
+    except FileNotFoundError:
+        pass
+    try:
+        os.rename(
+            quarantine,
+            original,
+            src_dir_fd=descriptor,
+            dst_dir_fd=descriptor,
+        )
+        return True
+    except OSError:
+        return False
+
+
+def _quarantine_entry(descriptor, name, expected):
+    quarantine = f".pickvia-cleanup-{secrets.token_hex(16)}"
+    try:
+        os.stat(quarantine, dir_fd=descriptor, follow_symlinks=False)
+        return None
+    except FileNotFoundError:
+        pass
+    try:
+        os.rename(
+            name,
+            quarantine,
+            src_dir_fd=descriptor,
+            dst_dir_fd=descriptor,
+        )
+        observed = os.stat(
+            quarantine,
+            dir_fd=descriptor,
+            follow_symlinks=False,
+        )
+        if type(expected).from_stat(observed) != expected:
+            _restore_quarantine(descriptor, quarantine, name)
+            return None
+        return quarantine
+    except OSError:
+        return None
+
+
+def _remove_directory_contents_at(descriptor, root_device):
     success = True
     for name in os.listdir(descriptor):
         try:
             metadata = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+            expected = _DeletionIdentity.from_stat(metadata)
             if stat.S_ISDIR(metadata.st_mode):
+                if metadata.st_dev != root_device:
+                    success = False
+                    continue
                 child = os.open(
                     name,
                     os.O_RDONLY
@@ -393,24 +528,47 @@ def _remove_directory_contents_at(descriptor):
                 try:
                     opened = os.fstat(child)
                     if (
-                        opened.st_dev != metadata.st_dev
-                        or opened.st_ino != metadata.st_ino
-                        or not _remove_directory_contents_at(child)
+                        _DeletionIdentity.from_stat(opened) != expected
+                        or opened.st_dev != root_device
                     ):
+                        success = False
+                        continue
+                    quarantine = _quarantine_entry(
+                        descriptor,
+                        name,
+                        _DirectoryIdentity.from_stat(metadata),
+                    )
+                    if quarantine is None:
+                        success = False
+                        continue
+                    if not _remove_directory_contents_at(child, root_device):
                         success = False
                         continue
                 finally:
                     os.close(child)
-                current = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+                current = os.stat(
+                    quarantine, dir_fd=descriptor, follow_symlinks=False
+                )
                 if (
                     current.st_dev != metadata.st_dev
                     or current.st_ino != metadata.st_ino
                 ):
                     success = False
                     continue
-                os.rmdir(name, dir_fd=descriptor)
+                os.rmdir(quarantine, dir_fd=descriptor)
             else:
-                os.unlink(name, dir_fd=descriptor)
+                quarantine = _quarantine_entry(descriptor, name, expected)
+                if quarantine is None:
+                    success = False
+                    continue
+                current = os.stat(
+                    quarantine, dir_fd=descriptor, follow_symlinks=False
+                )
+                if _DeletionIdentity.from_stat(current) != expected:
+                    _restore_quarantine(descriptor, quarantine, name)
+                    success = False
+                    continue
+                os.unlink(quarantine, dir_fd=descriptor)
         except OSError:
             success = False
     return success and not os.listdir(descriptor)
@@ -869,15 +1027,28 @@ def _physical_executable(path):
 
 
 def _make_task_root():
-    root = pathlib.Path(tempfile.mkdtemp(prefix="pickvia-e2e-", dir="/private/tmp"))
+    parent = pathlib.Path("/private/tmp")
+    parent_descriptor = None
+    root = None
     descriptor = None
     initial_identity = None
     pinned = None
     try:
+        parent_descriptor = os.open(
+            parent,
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_CLOEXEC", 0),
+        )
+        parent_identity = _DirectoryIdentity.from_stat(os.fstat(parent_descriptor))
+        root = pathlib.Path(
+            tempfile.mkdtemp(prefix="pickvia-e2e-", dir="/private/tmp")
+        )
         metadata = root.lstat()
         initial_identity = _DirectoryIdentity.from_stat(metadata)
         if (
-            root.parent != pathlib.Path("/private/tmp")
+            root.parent != parent
             or not root.name.startswith("pickvia-e2e-")
             or not stat.S_ISDIR(metadata.st_mode)
             or stat.S_ISLNK(metadata.st_mode)
@@ -898,22 +1069,50 @@ def _make_task_root():
             or _DirectoryIdentity.from_stat(opened) != initial_identity
         ):
             raise OSError("unsafe task root")
+        pinned = _PinnedTaskRoot(
+            root,
+            descriptor,
+            _DirectoryIdentity.from_stat(opened),
+            parent_descriptor,
+            parent_identity,
+        )
         os.fchmod(descriptor, 0o700)
-        identity = _DirectoryIdentity.from_stat(os.fstat(descriptor))
-        pinned = _PinnedTaskRoot(root, descriptor, identity)
+        pinned.identity = _DirectoryIdentity.from_stat(os.fstat(descriptor))
         pinned.require_current()
         return pinned
-    except OSError:
+    except BaseException:
         if pinned is not None:
-            pinned.remove()
+            try:
+                pinned.identity = _DirectoryIdentity.from_stat(
+                    os.fstat(pinned.descriptor)
+                )
+            except OSError:
+                pass
+            try:
+                pinned.remove()
+            except BaseException:
+                pinned.close()
         elif descriptor is not None:
-            os.close(descriptor)
-        elif initial_identity is not None:
+            try:
+                os.close(descriptor)
+            finally:
+                if parent_descriptor is not None:
+                    os.close(parent_descriptor)
+        elif root is not None and initial_identity is not None:
             try:
                 if _DirectoryIdentity.from_stat(root.lstat()) == initial_identity:
                     os.rmdir(root)
             except OSError:
                 pass
+            if parent_descriptor is not None:
+                os.close(parent_descriptor)
+        elif parent_descriptor is not None:
+            if root is not None:
+                try:
+                    os.rmdir(root)
+                except OSError:
+                    pass
+            os.close(parent_descriptor)
         raise
 
 
@@ -1388,9 +1587,28 @@ def _wait_for_proof(
         selector.close()
 
 
-def _audit_regular_files_at(descriptor, forbidden):
-    for name in os.listdir(descriptor):
+@dataclasses.dataclass
+class _AuditBudget:
+    bytes_seen: int = 0
+
+
+def _snapshot_directory_at(descriptor, root_device):
+    names = os.listdir(descriptor)
+    entries = {}
+    for name in names:
         metadata = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+        if stat.S_ISDIR(metadata.st_mode) and metadata.st_dev != root_device:
+            raise OSError("task root crosses a device boundary")
+        entries[name] = _EntryIdentity.from_stat(metadata)
+    return entries
+
+
+def _audit_regular_files_at(descriptor, forbidden, root_device, budget):
+    initial = _snapshot_directory_at(descriptor, root_device)
+    for name, expected in initial.items():
+        metadata = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+        if _EntryIdentity.from_stat(metadata) != expected:
+            return False
         if stat.S_ISLNK(metadata.st_mode):
             return False
         if stat.S_ISDIR(metadata.st_mode):
@@ -1405,9 +1623,11 @@ def _audit_regular_files_at(descriptor, forbidden):
             try:
                 opened = os.fstat(child)
                 if (
-                    opened.st_dev != metadata.st_dev
-                    or opened.st_ino != metadata.st_ino
-                    or not _audit_regular_files_at(child, forbidden)
+                    _EntryIdentity.from_stat(opened) != expected
+                    or opened.st_dev != root_device
+                    or not _audit_regular_files_at(
+                        child, forbidden, root_device, budget
+                    )
                 ):
                     return False
             finally:
@@ -1416,6 +1636,9 @@ def _audit_regular_files_at(descriptor, forbidden):
         if not stat.S_ISREG(metadata.st_mode):
             continue
         if metadata.st_size > MAXIMUM_AUDIT_FILE_BYTES:
+            return False
+        budget.bytes_seen += metadata.st_size
+        if budget.bytes_seen > MAXIMUM_AUDIT_FILE_BYTES:
             return False
         file_descriptor = os.open(
             name,
@@ -1428,23 +1651,33 @@ def _audit_regular_files_at(descriptor, forbidden):
             opened = os.fstat(file_descriptor)
             if (
                 not stat.S_ISREG(opened.st_mode)
-                or opened.st_dev != metadata.st_dev
-                or opened.st_ino != metadata.st_ino
+                or _EntryIdentity.from_stat(opened) != expected
                 or opened.st_size > MAXIMUM_AUDIT_FILE_BYTES
             ):
                 return False
             previous = b""
+            bytes_read = 0
             while True:
                 chunk = os.read(file_descriptor, 65_536)
                 if not chunk:
                     break
+                bytes_read += len(chunk)
+                if bytes_read > metadata.st_size:
+                    return False
                 combined = previous + chunk
                 if forbidden in combined:
                     return False
                 previous = combined[-max(len(forbidden) - 1, 0) :]
+            final_opened = os.fstat(file_descriptor)
+            if (
+                bytes_read != metadata.st_size
+                or _EntryIdentity.from_stat(final_opened) != expected
+            ):
+                return False
         finally:
             os.close(file_descriptor)
-    return True
+    final = _snapshot_directory_at(descriptor, root_device)
+    return final == initial
 
 
 def run_driver(config, dependencies=None):

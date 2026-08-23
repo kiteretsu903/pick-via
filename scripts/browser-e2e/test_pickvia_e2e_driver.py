@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import types
 import unittest
 from unittest import mock
 
@@ -138,6 +139,7 @@ class DriverFixture:
         self.clock_calls = 0
         self.identity_checks = []
         self.e2e_pid = None
+        self.e2e_identity = None
         self.snapshot_call_count = 0
         self.snapshot_phases = []
         self.synthetic_browser_terminated = False
@@ -187,7 +189,17 @@ class DriverFixture:
             identity = driver._darwin_process_identity(pid)
         except (driver._ProcessDisappeared, driver._IdentityInspectionError):
             return False
-        if self.e2e_pid is None or identity.parent_pid != self.e2e_pid:
+        if (
+            self.e2e_pid is None
+            or self.e2e_identity is None
+            or identity.parent_pid != self.e2e_pid
+        ):
+            return False
+        try:
+            current_parent = driver._darwin_process_identity(self.e2e_pid)
+        except (driver._ProcessDisappeared, driver._IdentityInspectionError):
+            return False
+        if current_parent.generation_key != self.e2e_identity.generation_key:
             return False
         self._fixture_child_identities[pid] = identity
         return True
@@ -450,6 +462,10 @@ server.server_close()
         )
         if kind == "e2e-app":
             self.e2e_pid = process.pid
+            try:
+                self.e2e_identity = driver._darwin_process_identity(process.pid)
+            except (driver._ProcessDisappeared, driver._IdentityInspectionError):
+                self.e2e_identity = None
         if kind == self.interrupt_on_kind:
             raise driver._DriverInterrupted
 
@@ -642,6 +658,17 @@ server.server_close()
 
 @unittest.skipIf(driver is None, "PickVia E2E route driver is not implemented")
 class PickViaE2EDriverTests(unittest.TestCase):
+    def _metadata_on_device(self, metadata, device):
+        return types.SimpleNamespace(
+            st_mode=metadata.st_mode,
+            st_ino=metadata.st_ino,
+            st_dev=device,
+            st_uid=metadata.st_uid,
+            st_size=metadata.st_size,
+            st_mtime_ns=metadata.st_mtime_ns,
+            st_ctime_ns=metadata.st_ctime_ns,
+        )
+
     def _swap_pinned_root(self, pinned):
         path = pinned.path
         original = path.with_name(f"{path.name}-original")
@@ -669,7 +696,11 @@ class PickViaE2EDriverTests(unittest.TestCase):
 
         def swap_before_open(path, flags, *args, **kwargs):
             candidate = pathlib.Path(path)
-            if candidate == created["path"] and "original" not in created:
+            if (
+                "path" in created
+                and candidate == created["path"]
+                and "original" not in created
+            ):
                 original = candidate.with_name(f"{candidate.name}-original")
                 candidate.rename(original)
                 candidate.mkdir(mode=0o700)
@@ -691,6 +722,249 @@ class PickViaE2EDriverTests(unittest.TestCase):
                 candidate = created.get(key)
                 if candidate is not None and candidate.exists():
                     shutil.rmtree(candidate)
+
+    def test_task_root_fchmod_interrupt_closes_descriptor_and_removes_root(self):
+        created = {"descriptors": []}
+        real_mkdtemp = tempfile.mkdtemp
+        real_open = os.open
+
+        def make_root(*args, **kwargs):
+            path = pathlib.Path(real_mkdtemp(*args, **kwargs))
+            created["path"] = path
+            return os.fspath(path)
+
+        def record_open(*args, **kwargs):
+            descriptor = real_open(*args, **kwargs)
+            created["descriptors"].append(descriptor)
+            return descriptor
+
+        def interrupt(_descriptor, _mode):
+            raise driver._DriverInterrupted
+
+        try:
+            with mock.patch("tempfile.mkdtemp", side_effect=make_root), mock.patch(
+                "os.open", side_effect=record_open
+            ), mock.patch("os.fchmod", side_effect=interrupt):
+                with self.assertRaises(driver._DriverInterrupted):
+                    driver._make_task_root()
+            self.assertFalse(created["path"].exists())
+            self.assertEqual(len(created["descriptors"]), 2)
+            for descriptor in created["descriptors"]:
+                with self.assertRaises(OSError):
+                    os.fstat(descriptor)
+        finally:
+            path = created.get("path")
+            if path is not None and path.exists():
+                shutil.rmtree(path)
+            for descriptor in created["descriptors"]:
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    pass
+
+    def test_audit_rejects_recursive_device_boundary(self):
+        pinned = driver._make_task_root()
+        boundary = pinned.path / "boundary"
+        boundary.mkdir()
+        real_stat = os.stat
+        real_fstat = os.fstat
+
+        def cross_device_stat(path, *args, **kwargs):
+            metadata = real_stat(path, *args, **kwargs)
+            if path == "boundary":
+                return self._metadata_on_device(metadata, pinned.identity.device + 1)
+            return metadata
+
+        def cross_device_fstat(descriptor):
+            metadata = real_fstat(descriptor)
+            if descriptor != pinned.descriptor and stat.S_ISDIR(metadata.st_mode):
+                return self._metadata_on_device(metadata, pinned.identity.device + 1)
+            return metadata
+
+        try:
+            with mock.patch("os.stat", side_effect=cross_device_stat), mock.patch(
+                "os.fstat", side_effect=cross_device_fstat
+            ):
+                self.assertFalse(pinned.audit_regular_files(b"forbidden"))
+        finally:
+            pinned.close()
+            shutil.rmtree(pinned.path)
+
+    def test_cleanup_rejects_recursive_device_boundary_without_touching_it(self):
+        pinned = driver._make_task_root()
+        boundary = pinned.path / "boundary"
+        boundary.mkdir()
+        marker = boundary / "must-survive"
+        marker.write_bytes(b"replacement")
+        real_stat = os.stat
+        real_fstat = os.fstat
+
+        def cross_device_stat(path, *args, **kwargs):
+            metadata = real_stat(path, *args, **kwargs)
+            if path == "boundary":
+                return self._metadata_on_device(metadata, pinned.identity.device + 1)
+            return metadata
+
+        def cross_device_fstat(descriptor):
+            metadata = real_fstat(descriptor)
+            if descriptor != pinned.descriptor and stat.S_ISDIR(metadata.st_mode):
+                return self._metadata_on_device(metadata, pinned.identity.device + 1)
+            return metadata
+
+        try:
+            with mock.patch("os.stat", side_effect=cross_device_stat), mock.patch(
+                "os.fstat", side_effect=cross_device_fstat
+            ):
+                self.assertFalse(pinned.remove())
+            self.assertEqual(marker.read_bytes(), b"replacement")
+        finally:
+            pinned.close()
+            if pinned.path.exists():
+                shutil.rmtree(pinned.path)
+
+    def test_audit_detects_file_added_after_initial_directory_listing(self):
+        pinned = driver._make_task_root()
+        (pinned.path / "initial").write_bytes(b"safe")
+        real_listdir = os.listdir
+        calls = 0
+
+        def add_before_rescan(descriptor):
+            nonlocal calls
+            if descriptor == pinned.descriptor:
+                calls += 1
+                if calls == 2:
+                    (pinned.path / "late").write_bytes(b"late")
+            return real_listdir(descriptor)
+
+        try:
+            with mock.patch("os.listdir", side_effect=add_before_rescan):
+                self.assertFalse(pinned.audit_regular_files(b"forbidden"))
+        finally:
+            pinned.close()
+            shutil.rmtree(pinned.path)
+
+    def test_audit_detects_file_growth_during_content_scan(self):
+        pinned = driver._make_task_root()
+        target = pinned.path / "growing"
+        target.write_bytes(b"safe")
+        real_fstat = os.fstat
+        regular_fstats = 0
+
+        def grow_before_final_fstat(descriptor):
+            nonlocal regular_fstats
+            metadata = real_fstat(descriptor)
+            if stat.S_ISREG(metadata.st_mode):
+                regular_fstats += 1
+                if regular_fstats == 2:
+                    with target.open("ab") as stream:
+                        stream.write(b"growth")
+                    metadata = real_fstat(descriptor)
+            return metadata
+
+        try:
+            with mock.patch("os.fstat", side_effect=grow_before_final_fstat):
+                self.assertFalse(pinned.audit_regular_files(b"forbidden"))
+        finally:
+            pinned.close()
+            shutil.rmtree(pinned.path)
+
+    def test_audit_enforces_cumulative_regular_file_byte_cap(self):
+        pinned = driver._make_task_root()
+        (pinned.path / "one").write_bytes(b"123")
+        (pinned.path / "two").write_bytes(b"456")
+        try:
+            with mock.patch.object(driver, "MAXIMUM_AUDIT_FILE_BYTES", 5):
+                self.assertFalse(pinned.audit_regular_files(b"forbidden"))
+        finally:
+            pinned.close()
+            shutil.rmtree(pinned.path)
+
+    def test_child_cleanup_operation_time_swap_preserves_replacement(self):
+        pinned = driver._make_task_root()
+        (pinned.path / "owned").write_bytes(b"owned")
+        real_rename = os.rename
+        swapped = {}
+
+        def swap_quarantined_child(source, destination, *args, **kwargs):
+            result = real_rename(source, destination, *args, **kwargs)
+            if source == "owned" and str(destination).startswith(".pickvia-cleanup-"):
+                held = ".pickvia-held-original"
+                real_rename(
+                    destination,
+                    held,
+                    src_dir_fd=pinned.descriptor,
+                    dst_dir_fd=pinned.descriptor,
+                )
+                replacement = os.open(
+                    destination,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                    0o600,
+                    dir_fd=pinned.descriptor,
+                )
+                try:
+                    os.write(replacement, b"replacement")
+                finally:
+                    os.close(replacement)
+                swapped.update(held=held, quarantine=destination)
+            return result
+
+        try:
+            with mock.patch("os.rename", side_effect=swap_quarantined_child):
+                self.assertFalse(pinned.remove())
+            self.assertEqual((pinned.path / "owned").read_bytes(), b"replacement")
+            self.assertEqual(
+                (pinned.path / swapped["held"]).read_bytes(), b"owned"
+            )
+        finally:
+            pinned.close()
+            if pinned.path.exists():
+                shutil.rmtree(pinned.path)
+
+    def test_root_cleanup_operation_time_swap_preserves_replacement(self):
+        pinned = driver._make_task_root()
+        real_rename = os.rename
+        swapped = {}
+
+        def swap_quarantined_root(source, destination, *args, **kwargs):
+            result = real_rename(source, destination, *args, **kwargs)
+            if source == pinned.path.name and str(destination).startswith(
+                ".pickvia-cleanup-"
+            ):
+                held = f"{destination}-held-original"
+                real_rename(destination, held, *args, **kwargs)
+                parent_descriptor = kwargs["dst_dir_fd"]
+                os.mkdir(destination, mode=0o700, dir_fd=parent_descriptor)
+                marker = os.open(
+                    f"{destination}/replacement-must-survive",
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                    0o600,
+                    dir_fd=parent_descriptor,
+                )
+                try:
+                    os.write(marker, b"replacement")
+                finally:
+                    os.close(marker)
+                swapped.update(held=held, quarantine=destination)
+            return result
+
+        try:
+            with mock.patch("os.rename", side_effect=swap_quarantined_root):
+                self.assertFalse(pinned.remove())
+            self.assertEqual(
+                (pinned.path / "replacement-must-survive").read_bytes(),
+                b"replacement",
+            )
+            held = pathlib.Path("/private/tmp") / swapped["held"]
+            self.assertTrue(held.exists())
+        finally:
+            pinned.close()
+            if pinned.path.exists():
+                shutil.rmtree(pinned.path)
+            held_name = swapped.get("held")
+            if held_name is not None:
+                held = pathlib.Path("/private/tmp") / held_name
+                if held.exists():
+                    shutil.rmtree(held)
 
     def test_pinned_task_root_rejects_replacement_before_fifo_setup(self):
         pinned = driver._make_task_root()
@@ -741,11 +1015,19 @@ class PickViaE2EDriverTests(unittest.TestCase):
         fixture = DriverFixture()
         self.addCleanup(fixture._remove_tree, fixture.fixture_root)
         fixture.e2e_pid = 222
+        parent = driver.ProcessIdentity(
+            222, 1, 1, 2, pathlib.Path("/usr/bin/python3")
+        )
+        fixture.e2e_identity = parent
         original = driver.ProcessIdentity(333, 222, 10, 20, pathlib.Path("/bin/sleep"))
         replacement = driver.ProcessIdentity(
             333, 999, 30, 40, pathlib.Path("/bin/other")
         )
-        with mock.patch.object(driver, "_darwin_process_identity", return_value=original):
+        with mock.patch.object(
+            driver,
+            "_darwin_process_identity",
+            side_effect=lambda pid: original if pid == 333 else parent,
+        ):
             self.assertTrue(fixture._remember_fixture_child(333))
         with mock.patch.object(
             driver, "_darwin_process_identity", return_value=replacement
@@ -757,6 +1039,9 @@ class PickViaE2EDriverTests(unittest.TestCase):
         fixture = DriverFixture()
         self.addCleanup(fixture._remove_tree, fixture.fixture_root)
         fixture.e2e_pid = 222
+        fixture.e2e_identity = driver.ProcessIdentity(
+            222, 1, 1, 2, pathlib.Path("/usr/bin/python3")
+        )
         unrelated = driver.ProcessIdentity(
             333, 999, 10, 20, pathlib.Path("/bin/sleep")
         )
@@ -771,12 +1056,53 @@ class PickViaE2EDriverTests(unittest.TestCase):
         fixture = DriverFixture()
         self.addCleanup(fixture._remove_tree, fixture.fixture_root)
         fixture.e2e_pid = 222
+        parent = driver.ProcessIdentity(
+            222, 1, 1, 2, pathlib.Path("/usr/bin/python3")
+        )
+        fixture.e2e_identity = parent
         owned = driver.ProcessIdentity(333, 222, 10, 20, pathlib.Path("/bin/sleep"))
-        with mock.patch.object(driver, "_darwin_process_identity", return_value=owned):
+        with mock.patch.object(
+            driver,
+            "_darwin_process_identity",
+            side_effect=lambda pid: owned if pid == 333 else parent,
+        ):
             self.assertTrue(fixture._remember_fixture_child(333))
             with mock.patch("os.kill") as kill:
                 fixture._terminate_remembered_fixture_children()
         kill.assert_called_once_with(333, signal.SIGKILL)
+
+    def test_fixture_cleanup_rejects_reused_e2e_parent_pid_generation(self):
+        fixture = DriverFixture()
+        self.addCleanup(fixture._remove_tree, fixture.fixture_root)
+        fixture.e2e_pid = 222
+        fixture.e2e_identity = driver.ProcessIdentity(
+            222, 1, 10, 20, pathlib.Path("/usr/bin/python3")
+        )
+        child = driver.ProcessIdentity(333, 222, 30, 40, pathlib.Path("/bin/sleep"))
+        reused_parent = driver.ProcessIdentity(
+            222, 1, 50, 60, pathlib.Path("/usr/bin/python3")
+        )
+        with mock.patch.object(
+            driver,
+            "_darwin_process_identity",
+            side_effect=lambda pid: child if pid == 333 else reused_parent,
+        ):
+            self.assertFalse(fixture._remember_fixture_child(333))
+
+    def test_fixture_cleanup_rejects_child_discovered_only_after_reparent(self):
+        fixture = DriverFixture()
+        self.addCleanup(fixture._remove_tree, fixture.fixture_root)
+        fixture.e2e_pid = 222
+        fixture.e2e_identity = driver.ProcessIdentity(
+            222, 1, 10, 20, pathlib.Path("/usr/bin/python3")
+        )
+        reparented = driver.ProcessIdentity(
+            333, 1, 30, 40, pathlib.Path("/bin/sleep")
+        )
+        with mock.patch.object(
+            driver, "_darwin_process_identity", return_value=reparented
+        ):
+            self.assertFalse(fixture._remember_fixture_child(333))
 
     def test_run_reports_cleanup_error_and_preserves_swapped_replacement_root(self):
         with DriverFixture() as fixture:
