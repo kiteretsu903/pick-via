@@ -1005,6 +1005,110 @@ time.sleep(3.25)
             for _, contents in fixture.regular_file_snapshots:
                 self.assertNotIn(route_bytes, contents)
 
+    def test_e2e_app_uses_exact_task_root_as_fixed_user_home_without_url_leak(self):
+        with DriverFixture() as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_SUCCESS)
+            environment = dict(
+                item.decode("utf-8").split("=", 1)
+                for kind, items in fixture.observed_environment
+                if kind == "e2e-app"
+                for item in items
+            )
+            task_root = str(fixture.task_root)
+
+            self.assertEqual(environment["CFFIXED_USER_HOME"], task_root)
+            self.assertNotEqual(environment.get("HOME"), task_root)
+            self.assertNotIn(fixture.route, environment["CFFIXED_USER_HOME"])
+
+    def test_every_child_environment_is_minimal_and_excludes_parent_secrets(self):
+        sentinel = "must-not-reach-any-child"
+        with mock.patch.dict(
+            os.environ,
+            {
+                "PICKVIA_PARENT_SENTINEL_SECRET": sentinel,
+                "AGENT_RUNTIME_SENTINEL": sentinel,
+            },
+            clear=False,
+        ), DriverFixture() as fixture:
+            result = fixture.run()
+
+            self.assertEqual(result.exit_code, driver.DRIVER_SUCCESS)
+            environments = {
+                kind: dict(
+                    item.decode("utf-8").split("=", 1)
+                    for item in items
+                )
+                for kind, items in fixture.observed_environment
+            }
+            self.assertEqual(set(environments), {"receiver", "e2e-app", "exact-app-helper"})
+            task_root = str(fixture.task_root)
+            base_keys = {"PATH", "LANG", "LC_CTYPE", "TMPDIR", "CFFIXED_USER_HOME"}
+            control_keys = {
+                "PICKVIA_E2E_TARGET_ID",
+                "PICKVIA_E2E_BUNDLE_ID",
+                "PICKVIA_E2E_MODE",
+                "PICKVIA_E2E_SESSION_NONCE",
+                "PICKVIA_E2E_SUPPORT_DIR",
+                "PICKVIA_E2E_STATUS_FIFO",
+            }
+            for kind, environment in environments.items():
+                self.assertTrue(base_keys.issubset(environment), kind)
+                self.assertEqual(environment["CFFIXED_USER_HOME"], task_root, kind)
+                self.assertEqual(environment["TMPDIR"], task_root, kind)
+                self.assertNotIn("HOME", environment, kind)
+                self.assertNotIn("PICKVIA_PARENT_SENTINEL_SECRET", environment, kind)
+                self.assertNotIn("AGENT_RUNTIME_SENTINEL", environment, kind)
+                self.assertNotIn(sentinel, environment.values(), kind)
+                self.assertNotIn(fixture.route, "\0".join(environment.values()), kind)
+            self.assertEqual(set(environments["receiver"]), base_keys)
+            self.assertEqual(set(environments["exact-app-helper"]), base_keys)
+            self.assertEqual(set(environments["e2e-app"]), base_keys | control_keys)
+
+    def test_helper_compiler_receives_only_supplied_minimal_environment(self):
+        root = pathlib.Path(tempfile.mkdtemp(prefix="pickvia-compiler-env-", dir="/private/tmp"))
+        source = root / "helper.swift"
+        output = root / "helper"
+        source.write_text("print(\"ok\")\n", encoding="utf-8")
+        expected_environment = {
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+            "LANG": "en_US.UTF-8",
+            "LC_CTYPE": "UTF-8",
+            "TMPDIR": str(root),
+            "CFFIXED_USER_HOME": str(root),
+        }
+        observed = {}
+
+        class CompilerProcess:
+            returncode = 0
+
+            def wait(self, timeout):
+                return 0
+
+        class CompilerProcesses:
+            def start(self, kind, argv, *, environment=None, stdin=None):
+                observed["kind"] = kind
+                observed["environment"] = dict(environment or {})
+                output.write_text("compiled", encoding="utf-8")
+                output.chmod(0o700)
+                return CompilerProcess()
+
+        try:
+            driver._compile_helper(
+                CompilerProcesses(),
+                source,
+                output,
+                time.monotonic() + 1,
+                time.monotonic,
+                environment=expected_environment,
+            )
+            self.assertEqual(observed["kind"], "helper-compiler")
+            self.assertEqual(observed["environment"], expected_environment)
+        finally:
+            for path in root.iterdir():
+                path.unlink()
+            root.rmdir()
+
     def test_child_output_route_leaks_fail_privately_for_every_owned_channel(self):
         channels = (
             "app-stdout",
@@ -1541,6 +1645,7 @@ OpenWithAppPolicyTestMain.main()
         cls.root = pathlib.Path(
             tempfile.mkdtemp(prefix="pickvia-helper-test-", dir="/private/tmp")
         )
+        cls.environment = driver._minimal_child_environment(cls.root)
         cls.executable = cls.root / "open_with_app"
         completed = subprocess.run(
             [
@@ -1556,6 +1661,7 @@ OpenWithAppPolicyTestMain.main()
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            env=cls.environment,
             timeout=30,
             check=False,
         )
@@ -1589,6 +1695,7 @@ OpenWithAppPolicyTestMain.main()
             input=stdin,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            env=self.environment,
             timeout=3,
             check=False,
         )

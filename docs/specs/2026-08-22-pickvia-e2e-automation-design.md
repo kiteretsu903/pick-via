@@ -38,6 +38,8 @@ release-build control surface.
 - Fail closed on every missing, ambiguous, unavailable, disabled, or mismatched target.
 - Keep the E2E application, configuration, status channel, and cleanup independent from
   the installed PickVia application.
+- Keep parent-process secrets and unrelated environment variables out of every harness
+  child and out of any browser process started directly by the E2E application.
 
 ## Non-goals
 
@@ -101,10 +103,14 @@ At E2E-app launch, the harness supplies only:
 - an isolated PickVia configuration-directory path; and
 - a task-owned status FIFO path.
 
-These values may be inherited through environment variables because none contains the
-routed URL or a human profile label. The target must refer only to task-created synthetic
-state. Controls are immutable for the lifetime of one E2E app process; the app is
-relaunched when the target changes.
+These values are supplied in an allowlisted child environment because none contains the
+routed URL or a human profile label. The driver does not copy its full environment. The
+allowlist contains only a fixed system `PATH`, fixed locale values, a task-root `TMPDIR`,
+`CFFIXED_USER_HOME` set to the validated task root, and the six controls for the E2E app.
+Receiver, helper compiler, and helper processes receive only the non-control base. Parent
+secrets, agent-runtime variables, `HOME`, and unrelated runtime variables are excluded. The target
+must refer only to task-created synthetic state. Controls are immutable for the lifetime
+of one E2E app process; the app is relaunched when the target changes.
 
 ### E2E chooser presenter
 
@@ -130,14 +136,24 @@ closed/reopen checks. Selection is at most once per request identifier.
 
 ### Isolated application state
 
-The E2E build resolves PickVia's configuration, profile-access bookmarks, and preferences
-under a unique task-owned directory instead of the user's ordinary PickVia support
-directory. Its distinct bundle identifier also separates `UserDefaults` and LaunchServices
-identity.
+The E2E build resolves PickVia's configuration and profile-access bookmarks under a unique
+task-owned directory instead of the user's ordinary PickVia support directory. Its browser
+catalog also uses that validated directory as its explicit home. A missing profile grant
+therefore probes only the isolated home and can never fall back to the user's real
+`Local State` or `profiles.ini`. Only an explicit task-owned grant may expose a synthetic
+profile root to E2E discovery.
 
-The browser catalog still reads the real supported browser metadata necessary to discover
-targets. The harness never emits unrelated profile labels or paths. Only exact synthetic
-`PickVia E2E` selectors created through supported browser flows are eligible for controls.
+PickVia preferences in the E2E build are per-process, in-memory values. They do not use
+`UserDefaults`, do not share state between E2E launches, and do not create the real
+`~/Library/Preferences/dev.bozhenpeng.PickVia.E2E.plist`. AppKit standard defaults resolve
+under the validated task root through `CFFIXED_USER_HOME`; the driver audits and removes
+that root with the rest of its owned state. Smoke testing snapshots the exact real E2E
+preference file before and after a bounded E2E launch and fails on either creation or hash
+change without attempting to restore it.
+
+The harness never emits unrelated profile labels or paths. Only exact synthetic
+`PickVia E2E` selectors created through supported browser flows and exposed by task-owned
+grants are eligible for controls.
 
 ### Status channel
 

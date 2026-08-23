@@ -205,7 +205,7 @@ extension AppModel {
       driver: profileAccessPanelDriver,
       selectionCoordinator: profileAccessSelectionCoordinator
     )
-    let preferences = UserDefaultsPreferences()
+    let preferences = AppComposition.makePreferences()
     let ordinaryChooser = ChooserPanelController(
       showsURLProvider: {
         preferences.bool(forKey: PreferenceKey.showsURLInChooser) ?? true
@@ -237,9 +237,19 @@ extension AppModel {
     #else
       let chooser: any ChooserPresenting = ordinaryChooser
     #endif
+    #if PICKVIA_E2E_AUTOMATION
+      let browserCatalog: any BrowserDiscovering = E2EApplicationEnvironment.browserCatalog(
+        control: e2eControl,
+        profileRootAccess: profileAccessCoordinator
+      )
+    #else
+      let browserCatalog: any BrowserDiscovering = BrowserCatalog(
+        profileRootAccess: profileAccessCoordinator
+      )
+    #endif
     let model = AppComposition.makeModel(
       configStore: configStore,
-      browserCatalog: BrowserCatalog(profileRootAccess: profileAccessCoordinator),
+      browserCatalog: browserCatalog,
       mailCatalog: MailCatalog(
         pickViaBundleIdentifier: Bundle.main.bundleIdentifier!
       ),
@@ -280,6 +290,14 @@ private final class ChooserPresentationActivity {
 
 @MainActor
 enum AppComposition {
+  static func makePreferences() -> any PreferencesStoring {
+    #if PICKVIA_E2E_AUTOMATION
+      E2EEphemeralPreferences()
+    #else
+      UserDefaultsPreferences()
+    #endif
+  }
+
   #if PICKVIA_E2E_AUTOMATION
     static func makeChooser(
       ordinary: any ChooserPresenting,
@@ -379,6 +397,36 @@ enum AppComposition {
     static func applicationSupportDirectory(control: E2EControl) -> URL {
       control.applicationSupportDirectory
     }
+
+    static func browserCatalog(
+      control: E2EControl,
+      descriptors: [BrowserDescriptor] = BrowserDescriptor.supported,
+      applicationLocator: any ApplicationLocating = WorkspaceApplicationLocator(),
+      fileSystem: any FileSystem = FoundationFileSystem(),
+      profileRootAccess: any ProfileRootAccessProviding,
+      duckDuckGoCompatibilityChecker: any DuckDuckGoBuildCompatibilityChecking =
+        DuckDuckGoBuildCompatibilityChecker()
+    ) -> BrowserCatalog {
+      BrowserCatalog(
+        descriptors: descriptors,
+        applicationLocator: applicationLocator,
+        fileSystem: fileSystem,
+        profileRootAccess: profileRootAccess,
+        duckDuckGoCompatibilityChecker: duckDuckGoCompatibilityChecker,
+        homeDirectory: control.applicationSupportDirectory
+      )
+    }
+  }
+
+  @MainActor
+  final class E2EEphemeralPreferences: PreferencesStoring {
+    private var booleans: [String: Bool] = [:]
+    private var integers: [String: Int] = [:]
+
+    func bool(forKey key: String) -> Bool? { booleans[key] }
+    func integer(forKey key: String) -> Int? { integers[key] }
+    func set(_ value: Bool, forKey key: String) { booleans[key] = value }
+    func set(_ value: Int, forKey key: String) { integers[key] = value }
   }
 
   enum E2EControlFailure {

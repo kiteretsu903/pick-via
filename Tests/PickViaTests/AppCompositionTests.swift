@@ -75,6 +75,77 @@ final class AppCompositionTests: XCTestCase {
 
       XCTAssertTrue(composition is E2EChooserPresenter)
     }
+
+    func testE2ECatalogUsesIsolatedHomeWhenProfileGrantIsMissing() throws {
+      let root = URL(
+        fileURLWithPath: "/private/tmp/pickvia-e2e-catalog-\(UUID().uuidString)",
+        isDirectory: true
+      )
+      let realHome = root.appending(path: "real-home", directoryHint: .isDirectory)
+      let isolatedHome = root.appending(path: "isolated-home", directoryHint: .isDirectory)
+      let realMarker = realHome.appending(
+        path: "Library/Application Support/Google/Chrome/Local State"
+      )
+      let isolatedMarker = isolatedHome.appending(
+        path: "Library/Application Support/Google/Chrome/Local State"
+      )
+      let sentinel = Data(
+        #"{"profile":{"info_cache":{"Default":{"name":"Default"},"Profile 99":{"name":"REAL-HOME-SENTINEL"}}}}"#
+          .utf8
+      )
+      let fileSystem = CompositionRecordingFileSystem(files: [realMarker: sentinel])
+      let chrome = try XCTUnwrap(
+        BrowserDescriptor.supported.first { $0.bundleIdentifier == "com.google.Chrome" }
+      )
+      let control = CompositionE2EFixtures.control(supportDirectory: isolatedHome)
+      let catalog = E2EApplicationEnvironment.browserCatalog(
+        control: control,
+        descriptors: [chrome],
+        applicationLocator: CompositionApplicationLocator(applications: [
+          chrome.bundleIdentifier: URL(fileURLWithPath: "/Applications/Google Chrome.app")
+        ]),
+        fileSystem: fileSystem,
+        profileRootAccess: MissingProfileAccessManager()
+      )
+
+      let scan = catalog.scanResult()
+      let config = catalog.reconcile(discovered: scan.browsers, with: .initial)
+
+      XCTAssertEqual(fileSystem.readURLs, [isolatedMarker])
+      XCTAssertFalse(fileSystem.readURLs.contains(realMarker))
+      XCTAssertEqual(scan.browsers.first?.profiles, [])
+      XCTAssertFalse(config.targets.isEmpty)
+      XCTAssertTrue(
+        config.targets.allSatisfy {
+          $0.profileIdentifier == nil
+            && $0.profileDisplayName == nil
+            && $0.profileIdentity == nil
+            && $0.profileLaunchPath == nil
+            && !$0.label.contains("REAL-HOME-SENTINEL")
+        }
+      )
+    }
+
+    func testE2EPreferencesAreEphemeralAndNotSharedAcrossInstances() {
+      let first = AppComposition.makePreferences()
+      let second = AppComposition.makePreferences()
+
+      XCTAssertTrue(first is E2EEphemeralPreferences)
+      XCTAssertTrue(second is E2EEphemeralPreferences)
+      first.set(true, forKey: "ephemeral-bool")
+      first.set(42, forKey: "ephemeral-integer")
+
+      XCTAssertEqual(first.bool(forKey: "ephemeral-bool"), true)
+      XCTAssertEqual(first.integer(forKey: "ephemeral-integer"), 42)
+      XCTAssertNil(second.bool(forKey: "ephemeral-bool"))
+      XCTAssertNil(second.integer(forKey: "ephemeral-integer"))
+    }
+  #endif
+
+  #if !PICKVIA_E2E_AUTOMATION
+    func testNormalCompositionStillUsesUserDefaultsPreferences() {
+      XCTAssertTrue(AppComposition.makePreferences() is UserDefaultsPreferences)
+    }
   #endif
 
   func testRoutingUsesAuthoritativeStartupSnapshotWithoutReloadingDisk() throws {
@@ -417,7 +488,11 @@ final class AppCompositionTests: XCTestCase {
     XCTAssertEqual(sources.components(separatedBy: "ProfileAccessCoordinator(").count - 1, 1)
     XCTAssertEqual(sources.components(separatedBy: "ProfileAccessFolderSelector(").count - 1, 1)
     XCTAssertEqual(sources.components(separatedBy: "ProfileAccessPanelController(").count - 1, 1)
-    XCTAssertTrue(sources.contains("BrowserCatalog(profileRootAccess: profileAccessCoordinator)"))
+    XCTAssertEqual(
+      sources.components(separatedBy: "profileRootAccess: profileAccessCoordinator").count - 1,
+      2
+    )
+    XCTAssertTrue(sources.contains("let browserCatalog: any BrowserDiscovering"))
     XCTAssertTrue(sources.contains("profileAccess: profileAccessCoordinator"))
     XCTAssertTrue(sources.contains("isChooserActive:"))
     XCTAssertTrue(sources.contains("chooser?.hasActivePresentation"))
@@ -462,6 +537,17 @@ final class AppCompositionTests: XCTestCase {
       statusFIFO: supportDirectory.appending(path: "status.fifo")
     )
 
+    static func control(supportDirectory: URL) -> E2EControl {
+      E2EControl(
+        targetID: control.targetID,
+        expectedBundleIdentifier: control.expectedBundleIdentifier,
+        expectedMode: control.expectedMode,
+        sessionNonce: control.sessionNonce,
+        applicationSupportDirectory: supportDirectory,
+        statusFIFO: supportDirectory.appending(path: "status.fifo")
+      )
+    }
+
     static func environment(supportDirectory: URL) -> [String: String] {
       [
         E2EEnvironmentKey.targetID: control.targetID,
@@ -471,6 +557,38 @@ final class AppCompositionTests: XCTestCase {
         E2EEnvironmentKey.supportDirectory: supportDirectory.path,
         E2EEnvironmentKey.statusFIFO: supportDirectory.appending(path: "status.fifo").path,
       ]
+    }
+  }
+
+  private final class CompositionRecordingFileSystem: FileSystem, @unchecked Sendable {
+    private let files: [URL: Data]
+    private(set) var readURLs: [URL] = []
+
+    init(files: [URL: Data]) {
+      self.files = files
+    }
+
+    func createDirectory(at url: URL) throws {}
+    func fileExists(at url: URL) -> Bool { files[url] != nil }
+    func read(from url: URL) throws -> Data {
+      readURLs.append(url)
+      guard let data = files[url] else { throw CocoaError(.fileNoSuchFile) }
+      return data
+    }
+    func writeAtomically(_ data: Data, to url: URL) throws {}
+    func moveItem(at source: URL, to destination: URL) throws {}
+    func replaceItem(at destination: URL, with source: URL) throws {}
+  }
+
+  private final class CompositionApplicationLocator: ApplicationLocating, @unchecked Sendable {
+    private let applications: [String: URL]
+
+    init(applications: [String: URL]) {
+      self.applications = applications
+    }
+
+    func applicationURL(forBundleIdentifier bundleIdentifier: String) -> URL? {
+      applications[bundleIdentifier]
     }
   }
 

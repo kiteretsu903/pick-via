@@ -20,6 +20,7 @@ e2e_types=(
   PickVia.E2EControl
   PickVia.E2EStatusWriter
   PickVia.E2EAutomationMarker
+  PickVia.E2EEphemeralPreferences
 )
 
 contract_root="$(mktemp -d /private/tmp/pickvia-e2e-build-isolation.XXXXXX)"

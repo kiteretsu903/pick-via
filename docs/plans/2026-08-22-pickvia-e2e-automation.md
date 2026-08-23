@@ -6,7 +6,7 @@
 
 **Goal:** Build a separately compiled PickVia E2E application that selects one exact browser target internally, leaves normal/release binaries free of automation code, and unblocks the real installed-browser routing matrix.
 
-**Architecture:** E2E-only code is compiled behind `PICKVIA_E2E_AUTOMATION`. A validated immutable control selects one exact enabled/available target through the existing chooser callback, then production `RoutingCoordinator` and `BrowserLauncher` perform the route. A bounded FIFO emits only a closed sanitized status. The helper receives the route over stdin and opens it with the exact E2E app; the URL stays out of driver/E2E/helper arguments and environment, status, harness output, task-root files, and clipboard. Production delivery from `BrowserLauncher` to the selected browser may use browser arguments, AppleEvents, or `NSWorkspace`, and browser-owned persistence is outside this harness guarantee.
+**Architecture:** E2E-only code is compiled behind `PICKVIA_E2E_AUTOMATION`. A validated immutable control selects one exact enabled/available target through the existing chooser callback, then production `RoutingCoordinator` and `BrowserLauncher` perform the route. A bounded FIFO emits only a closed sanitized status. The helper receives the route over stdin and opens it with the exact E2E app; the URL stays out of driver/E2E/helper arguments and environment, status, harness output, task-root files, and clipboard. The driver launches every child from a minimal allowlisted environment, binds `CFFIXED_USER_HOME` and `TMPDIR` to the validated task root, and never forwards parent secrets or agent-runtime variables. E2E profile discovery uses the task root as its explicit home when a task-owned grant is missing, and E2E preferences are per-process memory only. Production delivery from `BrowserLauncher` to the selected browser may use browser arguments, AppleEvents, or `NSWorkspace`, and browser-owned persistence is outside this harness guarantee.
 
 **Tech Stack:** Swift 6, SwiftUI/AppKit, Swift Package Manager compile conditions, POSIX FIFO APIs, zsh packaging scripts, Python 3 localhost receiver/driver, XCTest and Swift Testing.
 
@@ -27,7 +27,7 @@
 - Create `Tests/PickViaTests/E2EChooserPresenterTests.swift`: selection, rejection, and
   one-selection-per-request tests.
 - Modify `Tests/PickViaTests/AppCompositionTests.swift`: compile-gated composition and
-  isolated-support assertions.
+  isolated-support, catalog-home, ephemeral-preference, and normal-composition assertions.
 - Create `scripts/build-e2e-app.sh`: separate scratch build and `build-e2e/PickVia E2E.app`
   packaging.
 - Create `scripts/smoke-test-e2e.sh`: E2E bundle identity, marker, resources, and signature.
@@ -791,7 +791,10 @@ The driver:
 1. creates one unique `/private/tmp/pickvia-e2e-...` root and `0600` FIFO;
 2. starts `localhost_probe.py` for one token;
 3. constructs the route only in Python memory;
-4. launches the exact E2E executable with the six non-URL control values;
+4. launches the exact E2E executable with the six non-URL control values in a minimal
+   allowlisted environment whose `CFFIXED_USER_HOME` and `TMPDIR` are the validated task
+   root and which contains no `HOME`, parent secrets, agent-runtime variables, or unrelated
+   keys;
 5. compiles/starts the exact-app helper and writes the route to its stdin;
 6. waits concurrently for one valid FIFO status and one receiver receipt with a monotonic
    deadline;
@@ -823,6 +826,16 @@ baseline. A late generation always prevents success. Terminate one unambiguous l
 generation at most once under the remaining shared cleanup deadline, verify absence, and
 continue observing through the window boundary; repeated, replacement, multiple, and
 unknown states remain ambiguous or fail closed.
+
+The receiver, helper compiler, and helper receive only the fixed non-control base
+environment. Because direct profile/private browser processes inherit from the E2E app,
+the application environment is the same safe base plus the six controls; the full driver
+environment is never copied. E2E composition passes the validated support directory as
+`BrowserCatalog.homeDirectory`, so a missing bookmark cannot inspect the real home, and
+uses independent in-memory preferences instead of `UserDefaults`. AppKit state resolves
+under `CFFIXED_USER_HOME`, is audited with task-root files, and is removed with that root.
+The smoke gate snapshots the exact real E2E preference plist before and after launch and
+fails on creation or content change without restoring it.
 
 This privacy contract applies to the driver, E2E app/helper controls, status, harness
 output, task root, and clipboard. It does not claim that production `BrowserLauncher` or

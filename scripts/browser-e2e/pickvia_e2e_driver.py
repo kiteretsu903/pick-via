@@ -838,12 +838,26 @@ def _parse_receipt(line, expected_token):
     return True
 
 
-def _compile_helper(processes, source, output, deadline, monotonic):
+def _minimal_child_environment(task_root):
+    root = os.fspath(task_root)
+    return {
+        "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+        "LANG": "en_US.UTF-8",
+        "LC_CTYPE": "UTF-8",
+        "TMPDIR": root,
+        "CFFIXED_USER_HOME": root,
+    }
+
+
+def _compile_helper(
+    processes, source, output, deadline, monotonic, *, environment
+):
     if not source.is_file() or source.is_symlink():
         raise _HelperError
     process = processes.start(
         "helper-compiler",
         ["/usr/bin/xcrun", "swiftc", source, "-o", output],
+        environment=environment,
         stdin=subprocess.DEVNULL,
     )
     try:
@@ -1205,6 +1219,7 @@ def run_driver(config, dependencies=None):
             fifo,
             os.O_RDWR | os.O_NONBLOCK | getattr(os, "O_CLOEXEC", 0),
         )
+        base_environment = _minimal_child_environment(task_root)
         receiver = processes.start(
             "receiver",
             [
@@ -1215,6 +1230,7 @@ def run_driver(config, dependencies=None):
                 "--wait-for-receipts",
                 "1",
             ],
+            environment=base_environment,
             stdin=subprocess.DEVNULL,
             manual_stdout=True,
         )
@@ -1223,8 +1239,8 @@ def run_driver(config, dependencies=None):
         )
         port, token = _parse_ready(ready)
 
-        environment = dict(os.environ)
-        environment.update(
+        app_environment = dict(base_environment)
+        app_environment.update(
             {
                 "PICKVIA_E2E_TARGET_ID": config.target_id,
                 "PICKVIA_E2E_BUNDLE_ID": config.bundle_identifier,
@@ -1237,7 +1253,7 @@ def run_driver(config, dependencies=None):
         app = processes.start(
             "e2e-app",
             [e2e_executable],
-            environment=environment,
+            environment=app_environment,
             stdin=subprocess.DEVNULL,
         )
         exact_e2e_identity = dependencies.process_identity_checker(app, e2e_executable)
@@ -1255,6 +1271,7 @@ def run_driver(config, dependencies=None):
                 helper_executable,
                 deadline,
                 dependencies.monotonic,
+                environment=base_environment,
             )
         elif not _physical_executable(pathlib.Path(helper_executable)):
             raise _HelperError
@@ -1262,7 +1279,7 @@ def run_driver(config, dependencies=None):
         helper = processes.start(
             "exact-app-helper",
             [helper_executable, e2e_app, str(app.pid)],
-            environment=dict(os.environ),
+            environment=base_environment,
             stdin=subprocess.PIPE,
         )
         route_delivery_attempted = True
