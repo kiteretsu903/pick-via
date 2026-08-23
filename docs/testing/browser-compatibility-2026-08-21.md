@@ -547,3 +547,48 @@ bundle, team, and task-time start were revalidated; no SIGKILL was used. Bounded
 absence and quiescence then found Vivaldi Snapshot, E2E PickVia, receiver,
 helper, and driver absent. Installed PickVia remained the same exact pre-batch
 process generation, and preexisting temporary roots were left untouched.
+
+## Firefox normal routing — 2026-08-22
+
+Status: **FAIL at the first attempted receipt or exact-generation gate for
+Firefox Stable, Developer Edition, and Nightly.** All three installed bundles
+pass strict deep signature verification, carry team `43AQ936H96`, and use
+PickVia's normal Firefox launch strategy.
+
+The read-only identity gate recorded Firefox Stable 153.0.3
+(`org.mozilla.firefox`), Firefox Developer Edition 155.0
+(`org.mozilla.firefoxdeveloperedition`), and Firefox Nightly 156.0a1
+(`org.mozilla.nightly`).
+
+| Browser | Mode/state | Selection | Receipt | Exact process identity | Sanitized visible evidence | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Firefox Stable | Normal, cold | Not attempted | Not attempted | Exact preexisting Stable generation recorded | **NOT RUN** | **NOT RUN — preexisting browser state** |
+| Firefox Stable | Normal, already running | `selected` | No receipt within 30 seconds | E2E app and same exact Stable generation verified | **NOT RUN — causal failure and observer incompatibility** | **FAIL — receipt failure** |
+| Firefox Stable | Normal, reopen | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at running gate** |
+| Firefox Developer Edition | Normal, cold | `selected` | No receipt within 30 seconds | E2E app and exact Developer Edition generation verified | **NOT RUN — causal failure and observer incompatibility** | **FAIL — receipt failure** |
+| Firefox Developer Edition | Normal, already running | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold gate** |
+| Firefox Developer Edition | Normal, reopen | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold gate** |
+| Firefox Nightly | Normal, cold | `selected` before final `identity-ambiguous` driver outcome | No receipt | Exact E2E app verified; multiple exact Nightly generations prevented exact browser proof | **NOT RUN — causal failure and observer incompatibility** | **FAIL — driver outcome `identity-ambiguous`** |
+| Firefox Nightly | Normal, already running | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold gate** |
+| Firefox Nightly | Normal, reopen | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold gate** |
+
+Independent exact-application NSWorkspace controls for all three editions used
+fresh receivers. Each receiver became ready, each helper compiled, and the
+edition's exact application identity was verified; each helper exited nonzero
+and no receiver obtained a receipt. The controls therefore do not isolate the
+missing receipts to PickVia's selection boundary. The Stable control used the
+recorded preexisting generation and preserved its exact PID and start generation
+without signaling it. Across both the production already-running route and the
+control, the preexisting Stable generation was never signaled.
+
+No Computer Use call was made because the classified causal gates failed and a
+Firefox observer was already known to exceed its bound. Missing visible evidence
+is not itself classified as a product failure. No profile or private target was
+created or attempted. This entry contains no routed address, token, browser
+arguments, raw UI, screenshot, or profile label. Developer Edition and Nightly
+task generations were cleaned only after exact identity and ownership checks;
+the sole post-ambiguity Nightly survivor received SIGTERM after exact task-time
+revalidation, and no SIGKILL was used. Final checks found Developer Edition,
+Nightly, E2E PickVia, receiver, helper, and driver absent. The preexisting
+Firefox Stable and installed PickVia generations remained unchanged, and
+preexisting temporary roots were left untouched.
