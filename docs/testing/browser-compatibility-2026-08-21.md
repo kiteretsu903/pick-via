@@ -651,3 +651,45 @@ routed address, token, browser arguments, raw UI, screenshot, or profile label.
 Final checks found Opera, Arc, Orion, E2E PickVia, receiver, and driver absent;
 installed PickVia remained the same exact pre-batch generation, and preexisting
 temporary roots were left untouched.
+
+## DuckDuckGo private/Fire routing — 2026-08-22
+
+Status: **cold PASS; already-running NOT RUN / HARNESS BLOCKED; reopen NOT
+RUN.** DuckDuckGo 1.203.0 (`com.duckduckgo.macos.browser`, team `HKE973VLUW`)
+passed strict deep signature verification and began from exact process absence.
+The canonical private target used PickVia's managed DuckDuckGo Fire strategy;
+no profile target was attempted.
+
+The cold production route emitted `selected`, received its fresh receipt,
+verified the exact E2E app and one exact DuckDuckGo generation, and exited
+successfully. While that generation was held, sanitized isolation checks found
+one managed session, a marker matching the exact process, no quarantine state,
+an isolated home matching the process environment, and no normal-browser
+fallback. Bounded full-path observation found the DuckDuckGo edition visible,
+a browser window present, the private-or-Fire indicator visible, and onboarding
+absent.
+
+For the already-running setup, a separate production private route created and
+held one exact managed Fire baseline. That setup route itself emitted
+`selected`, received its fresh receipt, and verified the exact E2E app and exact
+DuckDuckGo generation. The baseline retained the same exact process generation
+and managed session throughout both classified attempts. The first classified
+already-running invocation stopped with a helper error before selection,
+receipt, or browser proof. The one authorized helper-only retry stopped at the
+same preselection helper boundary. Accordingly, the already-running product
+route was **not run** and is classified as a harness block, not a PickVia or
+DuckDuckGo product failure. No UI observation was made for either invocation.
+The reopen state was not attempted after that harness gate.
+
+| Browser | Mode/state | Selection | Receipt | Exact process identity | Sanitized visible evidence | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| DuckDuckGo | Private/Fire, cold | `selected` | Fresh receipt | E2E app and one exact managed DuckDuckGo generation verified | Edition visible; window present; private-or-Fire indicator visible; onboarding absent | **PASS** |
+| DuckDuckGo | Private/Fire, already running | Not reached; helper error on both attempts before selection | Not reached | Exact baseline remained unchanged; classified invocations produced no browser proof | **NOT RUN — harness blocked before observation** | **NOT RUN / HARNESS BLOCKED** |
+| DuckDuckGo | Private/Fire, reopen | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at running harness gate** |
+
+After each successful setup or cold route reached exact browser absence, only
+its validated task-owned managed session was removed. The preexisting managed
+root was restored as the same real, empty directory. Final checks found
+DuckDuckGo, E2E PickVia, receiver, helper, and driver absent; installed PickVia
+remained the same exact pre-batch generation. This entry contains no routed
+address, token, browser arguments, raw UI, screenshot, or profile label.
