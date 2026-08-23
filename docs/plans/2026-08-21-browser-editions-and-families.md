@@ -683,7 +683,8 @@ spctl --assess --type execute --verbose=4 build/PickVia.app
 ```
 
 Expected: build and smoke test pass, the deep signature verifies, Gatekeeper output is
-recorded accurately for the existing ad-hoc signature, and bundle ID is `com.pickvia.app`.
+recorded accurately for the existing ad-hoc signature, and bundle ID is
+`dev.bozhenpeng.PickVia`.
 Do not replace `/Applications/PickVia.app`.
 
 - [ ] **Step 3: Audit privacy and capability assumptions**
