@@ -359,7 +359,18 @@ class _ReadinessError(_ProtocolError):
 
 
 class _HelperError(_ProtocolError):
-    pass
+    def __init__(
+        self,
+        token_received=False,
+        status_line=b"",
+        browser_identity=False,
+        owned_browsers=(),
+    ):
+        super().__init__()
+        self.token_received = token_received
+        self.status_line = status_line
+        self.browser_identity = browser_identity
+        self.owned_browsers = frozenset(owned_browsers)
 
 
 class _IdentityError(Exception):
@@ -407,6 +418,10 @@ class _ReceiptTimeout(_ProofTimeout):
 
 
 class _BrowserIdentityTimeout(_ProofTimeout):
+    pass
+
+
+class _HelperExitTimeout(_ProofTimeout):
     pass
 
 
@@ -1051,6 +1066,14 @@ def _wait_for_proof(
     seen_new_browsers = {}
     try:
         while True:
+            helper_exit_code = helper.poll()
+            if helper_exit_code not in (None, 0):
+                raise _HelperError(
+                    receipt,
+                    b"".join(status_lines),
+                    browser_identity,
+                    seen_new_browsers.values(),
+                )
             if status_sequence == ["selected", "launch-error"]:
                 return _WaitResult(
                     "launch-error",
@@ -1067,9 +1090,6 @@ def _wait_for_proof(
                     browser_identity,
                     frozenset(seen_new_browsers.values()),
                 )
-            helper_exit_code = helper.poll()
-            if helper_exit_code not in (None, 0):
-                raise _HelperError
             if status_sequence == ["selected"]:
                 try:
                     current = _authoritative_browser_snapshot(
@@ -1097,8 +1117,14 @@ def _wait_for_proof(
             try:
                 wait = min(_remaining(deadline, dependencies.monotonic), 0.05)
             except _DeadlineExpired:
-                if helper.poll() not in (None, 0):
-                    raise _HelperError
+                helper_exit_code = helper.poll()
+                if helper_exit_code not in (None, 0):
+                    raise _HelperError(
+                        receipt,
+                        b"".join(status_lines),
+                        browser_identity,
+                        seen_new_browsers.values(),
+                    )
                 if status_sequence == ["selected"] and not receipt:
                     raise _ReceiptTimeout(
                         receipt,
@@ -1113,6 +1139,21 @@ def _wait_for_proof(
                         browser_identity,
                         seen_new_browsers.values(),
                     )
+                if status_sequence == ["selected"] and receipt and browser_identity:
+                    if helper_exit_code == 0:
+                        return _WaitResult(
+                            "selected",
+                            True,
+                            b"".join(status_lines),
+                            True,
+                            frozenset(seen_new_browsers.values()),
+                        )
+                    raise _HelperExitTimeout(
+                        receipt,
+                        b"".join(status_lines),
+                        browser_identity,
+                        seen_new_browsers.values(),
+                    )
                 raise
             for key, _ in selector.select(wait):
                 try:
@@ -1120,6 +1161,7 @@ def _wait_for_proof(
                 except BlockingIOError:
                     continue
                 if not chunk:
+                    selector.unregister(key.fd)
                     continue
                 if key.data == "receipt":
                     processes.append_manual_stdout(receiver, chunk)
@@ -1330,6 +1372,13 @@ def run_driver(config, dependencies=None):
         exact_browser_identity = error.browser_identity
         owned_browsers.update(error.owned_browsers)
         exit_code = DRIVER_BROWSER_IDENTITY_TIMEOUT
+    except _HelperExitTimeout as error:
+        outcome = "helper-exit-timeout"
+        received = error.token_received
+        status_line = error.status_line
+        exact_browser_identity = error.browser_identity
+        owned_browsers.update(error.owned_browsers)
+        exit_code = DRIVER_HELPER_FAILURE
     except _IdentityAmbiguous as error:
         outcome = "identity-ambiguous"
         received = error.token_received
@@ -1356,8 +1405,12 @@ def run_driver(config, dependencies=None):
     except _ReadinessError:
         outcome = "readiness-error"
         exit_code = DRIVER_READINESS_FAILURE
-    except _HelperError:
+    except _HelperError as error:
         outcome = "helper-error"
+        received = error.token_received
+        status_line = error.status_line
+        exact_browser_identity = error.browser_identity
+        owned_browsers.update(error.owned_browsers)
         exit_code = DRIVER_HELPER_FAILURE
     except _IdentityError:
         outcome = "identity-error"

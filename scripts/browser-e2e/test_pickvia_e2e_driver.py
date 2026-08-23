@@ -57,6 +57,7 @@ class DriverFixture:
         hold_output_open=False,
         helper_fails=False,
         helper_failure_phase=None,
+        helper_hangs_after_delivery=False,
         snapshot_failures=frozenset(),
         replacement_after_termination=False,
         late_browser_after_close=False,
@@ -91,6 +92,7 @@ class DriverFixture:
         self.hold_output_open = hold_output_open
         self.helper_fails = helper_fails
         self.helper_failure_phase = helper_failure_phase
+        self.helper_hangs_after_delivery = helper_hangs_after_delivery
         self.snapshot_failures = set(snapshot_failures)
         self.replacement_after_termination = replacement_after_termination
         self.late_browser_after_close = late_browser_after_close
@@ -281,12 +283,16 @@ if %r:
         if marker.name == "browser.pid": time.sleep(0.1)
         if marker.name == "receipt-delivered": time.sleep(0.5)
         raise SystemExit(23)
+    if %r:
+        import time
+        time.sleep(60)
 """ % (
             self.helper_fails,
             self.leak_channel,
             self.leak_channel,
             self.helper_delivers_to_app,
             self.helper_failure_phase,
+            self.helper_hangs_after_delivery,
         )
 
     def _leaking_probe_source(self):
@@ -1031,6 +1037,56 @@ time.sleep(3.25)
                 if kind == "receiver" and channel == "stdout"
             )
             self.assertGreaterEqual(receiver_output.count(b"\n"), 2)
+            self.assertTrue(result.report["token_received"])
+            self.assertTrue(result.report["exact_browser_process_identity"])
+
+    def test_selected_launch_error_with_nonzero_helper_is_helper_error(self):
+        class ManualProcesses:
+            def append_manual_stdout(self, _process, _chunk):
+                pass
+
+        class ManualProcess:
+            def __init__(self, stdout=None, exit_codes=(None,)):
+                self.stdout = stdout
+                self.exit_codes = list(exit_codes)
+
+            def poll(self):
+                if len(self.exit_codes) > 1:
+                    return self.exit_codes.pop(0)
+                return self.exit_codes[0]
+
+        status_read, status_write = os.pipe()
+        receipt_read, receipt_write = os.pipe()
+        receiver_stream = os.fdopen(receipt_read, "rb", buffering=0)
+        os.write(
+            status_write,
+            b'{"outcome":"selected","session":"session_0123456789"}\n'
+            b'{"outcome":"launch-error","session":"session_0123456789"}\n',
+        )
+        try:
+            with self.assertRaises(driver._HelperError) as raised:
+                driver._wait_for_proof(
+                    ManualProcesses(),
+                    status_read,
+                    ManualProcess(receiver_stream),
+                    ManualProcess(exit_codes=(None, 23)),
+                    ManualProcess(),
+                    "session_0123456789",
+                    "TOKEN",
+                    pathlib.Path("/Applications/Browser.app/Browser"),
+                    set(),
+                    driver.DriverDependencies(
+                        browser_process_snapshot=lambda _executable, _phase: set(),
+                    ),
+                    time.monotonic() + 1.0,
+                )
+        finally:
+            os.close(status_read)
+            os.close(status_write)
+            os.close(receipt_write)
+            receiver_stream.close()
+
+        self.assertIn(b'"outcome":"launch-error"', raised.exception.status_line)
 
     def test_selected_without_receipt_and_nonzero_helper_is_not_receipt_timeout(self):
         with DriverFixture(
@@ -1042,6 +1098,106 @@ time.sleep(3.25)
             self.assertEqual(result.exit_code, driver.DRIVER_HELPER_FAILURE)
             self.assertEqual(result.report["outcome"], "helper-error")
             self.assertIn("observation", fixture.snapshot_phases)
+
+    def test_complete_proof_with_hanging_helper_preserves_proof_at_timeout(self):
+        with DriverFixture(
+            helper_hangs_after_delivery=True,
+            timeout=2.0,
+        ) as fixture:
+            result = fixture.run()
+
+            self.assertEqual(result.exit_code, driver.DRIVER_HELPER_FAILURE)
+            self.assertEqual(result.report["outcome"], "helper-exit-timeout")
+            self.assertTrue(result.report["token_received"])
+            self.assertTrue(result.report["exact_browser_process_identity"])
+
+    def test_exhausted_receipt_descriptor_does_not_busy_spin_at_helper_timeout(self):
+        with DriverFixture(
+            helper_hangs_after_delivery=True,
+            timeout=2.0,
+        ) as fixture:
+            fixture.run()
+
+            self.assertLess(fixture.clock_calls, 100)
+
+    def test_helper_exit_zero_at_deadline_boundary_completes_existing_proof(self):
+        class ManualProcesses:
+            def append_manual_stdout(self, _process, _chunk):
+                pass
+
+        class ManualProcess:
+            def __init__(self, stdout=None, exit_code=None):
+                self.stdout = stdout
+                self.exit_code = exit_code
+
+            def poll(self):
+                return self.exit_code
+
+        status_read, status_write = os.pipe()
+        receipt_read, receipt_write = os.pipe()
+        receiver_stream = os.fdopen(receipt_read, "rb", buffering=0)
+        helper = ManualProcess()
+        receiver = ManualProcess(receiver_stream, 0)
+        app = ManualProcess(exit_code=None)
+        browser_executable = pathlib.Path("/Applications/Browser.app/Browser")
+        browser_identity = driver.ProcessIdentity(
+            123,
+            1,
+            2,
+            3,
+            browser_executable,
+        )
+        os.write(
+            status_write,
+            b'{"outcome":"selected","session":"session_0123456789"}\n',
+        )
+        os.write(
+            receipt_write,
+            b'{"remote_address":"127.0.0.1","receipt_time":1,"token":"TOKEN"}\n',
+        )
+        remaining_calls = 0
+
+        def reach_deadline_after_events(_deadline, _monotonic):
+            nonlocal remaining_calls
+            remaining_calls += 1
+            if remaining_calls == 1:
+                return 0.05
+            helper.exit_code = 0
+            raise driver._DeadlineExpired
+
+        dependencies = driver.DriverDependencies(
+            browser_process_snapshot=lambda _executable, _phase: {
+                browser_identity
+            },
+        )
+        try:
+            with mock.patch.object(
+                driver,
+                "_remaining",
+                side_effect=reach_deadline_after_events,
+            ):
+                result = driver._wait_for_proof(
+                    ManualProcesses(),
+                    status_read,
+                    receiver,
+                    helper,
+                    app,
+                    "session_0123456789",
+                    "TOKEN",
+                    browser_executable,
+                    set(),
+                    dependencies,
+                    1.0,
+                )
+        finally:
+            os.close(status_read)
+            os.close(status_write)
+            os.close(receipt_write)
+            receiver_stream.close()
+
+        self.assertEqual(result.outcome, "selected")
+        self.assertTrue(result.token_received)
+        self.assertTrue(result.exact_browser_identity)
 
     def test_driver_keeps_url_out_of_harness_control_and_output_channels(self):
         with DriverFixture() as fixture:
