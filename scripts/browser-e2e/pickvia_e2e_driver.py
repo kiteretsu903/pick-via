@@ -44,6 +44,11 @@ BROWSER_QUIESCENCE_POLL_SECONDS = 0.1
 MAXIMUM_PROTOCOL_LINE_BYTES = 2_048
 MAXIMUM_CAPTURE_BYTES = 65_536
 MAXIMUM_AUDIT_FILE_BYTES = 8 * 1_024 * 1_024
+MAXIMUM_AUDIT_ENTRIES = 4_096
+MAXIMUM_AUDIT_PASSES = 3
+MAXIMUM_AUDIT_SECONDS = 2.0
+MAXIMUM_AUDIT_WORK_BYTES = MAXIMUM_AUDIT_FILE_BYTES * MAXIMUM_AUDIT_PASSES
+MAXIMUM_AUDIT_WORK_ENTRIES = MAXIMUM_AUDIT_ENTRIES * MAXIMUM_AUDIT_PASSES * 4
 _SESSION_PATTERN = re.compile(r"\A[A-Za-z0-9_-]{16,64}\Z")
 _TOKEN_PATTERN = re.compile(r"\A[A-Za-z0-9_-]+\Z")
 _CLOSED_OUTCOMES = frozenset(
@@ -397,13 +402,22 @@ class _PinnedTaskRoot:
     def audit_regular_files(self, forbidden):
         try:
             self.require_current()
-            budget = _AuditBudget()
-            return _audit_regular_files_at(
-                self.descriptor,
-                forbidden,
-                self.identity.device,
-                budget,
-            )
+            budget = _AuditBudget(time.monotonic() + MAXIMUM_AUDIT_SECONDS)
+            previous = None
+            for _ in range(MAXIMUM_AUDIT_PASSES):
+                current = _audit_regular_files_at(
+                    self.descriptor,
+                    forbidden,
+                    self.identity.device,
+                    budget,
+                    _AuditPass(),
+                )
+                if current is None or current is False:
+                    return False
+                if previous == current:
+                    return True
+                previous = current
+            return False
         except OSError:
             return False
 
@@ -1094,10 +1108,35 @@ def _make_task_root():
                 pinned.close()
         elif descriptor is not None:
             try:
-                os.close(descriptor)
+                recovered = os.fstat(descriptor)
+                if (
+                    initial_identity is not None
+                    and _DirectoryIdentity.from_stat(recovered) == initial_identity
+                    and parent_descriptor is not None
+                ):
+                    recovery_root = _PinnedTaskRoot(
+                        root,
+                        descriptor,
+                        initial_identity,
+                        parent_descriptor,
+                        parent_identity,
+                    )
+                    recovery_root.remove()
+                    descriptor = None
+                    parent_descriptor = None
+            except BaseException:
+                pass
             finally:
+                if descriptor is not None:
+                    try:
+                        os.close(descriptor)
+                    except OSError:
+                        pass
                 if parent_descriptor is not None:
-                    os.close(parent_descriptor)
+                    try:
+                        os.close(parent_descriptor)
+                    except OSError:
+                        pass
         elif root is not None and initial_identity is not None:
             try:
                 if _DirectoryIdentity.from_stat(root.lstat()) == initial_identity:
@@ -1589,13 +1628,60 @@ def _wait_for_proof(
 
 @dataclasses.dataclass
 class _AuditBudget:
+    deadline: float
+    work_bytes: int = 0
+    work_entries: int = 0
+
+    def check_deadline(self):
+        if time.monotonic() > self.deadline:
+            raise OSError("privacy audit deadline exceeded")
+
+    def spend_entries(self, count, audit_pass, *, count_toward_tree):
+        self.check_deadline()
+        if count_toward_tree:
+            audit_pass.entries_seen += count
+        self.work_entries += count
+        if (
+            audit_pass.entries_seen > MAXIMUM_AUDIT_ENTRIES
+            or self.work_entries > MAXIMUM_AUDIT_WORK_ENTRIES
+        ):
+            raise OSError("privacy audit entry budget exceeded")
+
+    def spend_file(self, size, audit_pass):
+        self.check_deadline()
+        audit_pass.bytes_seen += size
+        if audit_pass.bytes_seen > MAXIMUM_AUDIT_FILE_BYTES:
+            raise OSError("privacy audit tree byte cap exceeded")
+
+    def spend_work_bytes(self, count):
+        self.check_deadline()
+        self.work_bytes += count
+        if self.work_bytes > MAXIMUM_AUDIT_WORK_BYTES:
+            raise OSError("privacy audit work byte budget exceeded")
+
+
+@dataclasses.dataclass
+class _AuditPass:
     bytes_seen: int = 0
+    entries_seen: int = 0
 
 
-def _snapshot_directory_at(descriptor, root_device):
+def _snapshot_directory_at(
+    descriptor,
+    root_device,
+    budget,
+    audit_pass,
+    *,
+    count_toward_tree,
+):
+    budget.check_deadline()
     names = os.listdir(descriptor)
+    budget.spend_entries(
+        len(names), audit_pass, count_toward_tree=count_toward_tree
+    )
     entries = {}
     for name in names:
+        budget.check_deadline()
         metadata = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
         if stat.S_ISDIR(metadata.st_mode) and metadata.st_dev != root_device:
             raise OSError("task root crosses a device boundary")
@@ -1603,12 +1689,28 @@ def _snapshot_directory_at(descriptor, root_device):
     return entries
 
 
-def _audit_regular_files_at(descriptor, forbidden, root_device, budget):
-    initial = _snapshot_directory_at(descriptor, root_device)
+def _audit_regular_files_at(
+    descriptor,
+    forbidden,
+    root_device,
+    budget,
+    audit_pass,
+):
+    budget.check_deadline()
+    directory_before = _EntryIdentity.from_stat(os.fstat(descriptor))
+    initial = _snapshot_directory_at(
+        descriptor,
+        root_device,
+        budget,
+        audit_pass,
+        count_toward_tree=True,
+    )
+    fingerprints = []
     for name, expected in initial.items():
+        budget.check_deadline()
         metadata = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
         if _EntryIdentity.from_stat(metadata) != expected:
-            return False
+            return None
         if stat.S_ISLNK(metadata.st_mode):
             return False
         if stat.S_ISDIR(metadata.st_mode):
@@ -1622,24 +1724,29 @@ def _audit_regular_files_at(descriptor, forbidden, root_device, budget):
             )
             try:
                 opened = os.fstat(child)
-                if (
-                    _EntryIdentity.from_stat(opened) != expected
-                    or opened.st_dev != root_device
-                    or not _audit_regular_files_at(
-                        child, forbidden, root_device, budget
-                    )
-                ):
+                if _EntryIdentity.from_stat(opened) != expected:
+                    return None
+                if opened.st_dev != root_device:
                     return False
+                child_fingerprint = _audit_regular_files_at(
+                    child,
+                    forbidden,
+                    root_device,
+                    budget,
+                    audit_pass,
+                )
+                if child_fingerprint is None or child_fingerprint is False:
+                    return child_fingerprint
             finally:
                 os.close(child)
+            fingerprints.append((name, expected, child_fingerprint))
             continue
         if not stat.S_ISREG(metadata.st_mode):
+            fingerprints.append((name, expected, None))
             continue
         if metadata.st_size > MAXIMUM_AUDIT_FILE_BYTES:
             return False
-        budget.bytes_seen += metadata.st_size
-        if budget.bytes_seen > MAXIMUM_AUDIT_FILE_BYTES:
-            return False
+        budget.spend_file(metadata.st_size, audit_pass)
         file_descriptor = os.open(
             name,
             os.O_RDONLY
@@ -1662,6 +1769,7 @@ def _audit_regular_files_at(descriptor, forbidden, root_device, budget):
                 if not chunk:
                     break
                 bytes_read += len(chunk)
+                budget.spend_work_bytes(len(chunk))
                 if bytes_read > metadata.st_size:
                     return False
                 combined = previous + chunk
@@ -1676,8 +1784,19 @@ def _audit_regular_files_at(descriptor, forbidden, root_device, budget):
                 return False
         finally:
             os.close(file_descriptor)
-    final = _snapshot_directory_at(descriptor, root_device)
-    return final == initial
+        fingerprints.append((name, expected, None))
+    final = _snapshot_directory_at(
+        descriptor,
+        root_device,
+        budget,
+        audit_pass,
+        count_toward_tree=False,
+    )
+    budget.check_deadline()
+    directory_after = _EntryIdentity.from_stat(os.fstat(descriptor))
+    if final != initial or directory_after != directory_before:
+        return None
+    return (directory_before, tuple(sorted(fingerprints, key=lambda item: item[0])))
 
 
 def run_driver(config, dependencies=None):

@@ -762,6 +762,95 @@ class PickViaE2EDriverTests(unittest.TestCase):
                 except OSError:
                     pass
 
+    def test_task_root_second_fstat_interrupt_closes_both_fds_and_removes_root(self):
+        created = {"descriptors": [], "fstat_calls": 0}
+        real_mkdtemp = tempfile.mkdtemp
+        real_open = os.open
+        real_fstat = os.fstat
+
+        def make_root(*args, **kwargs):
+            path = pathlib.Path(real_mkdtemp(*args, **kwargs))
+            created["path"] = path
+            return os.fspath(path)
+
+        def record_open(*args, **kwargs):
+            descriptor = real_open(*args, **kwargs)
+            created["descriptors"].append(descriptor)
+            return descriptor
+
+        def interrupt_second_fstat(descriptor):
+            created["fstat_calls"] += 1
+            if created["fstat_calls"] == 2:
+                raise driver._DriverInterrupted
+            return real_fstat(descriptor)
+
+        try:
+            with mock.patch("tempfile.mkdtemp", side_effect=make_root), mock.patch(
+                "os.open", side_effect=record_open
+            ), mock.patch("os.fstat", side_effect=interrupt_second_fstat):
+                with self.assertRaises(driver._DriverInterrupted):
+                    driver._make_task_root()
+            self.assertFalse(created["path"].exists())
+            self.assertEqual(len(created["descriptors"]), 2)
+            for descriptor in created["descriptors"]:
+                with self.assertRaises(OSError):
+                    os.fstat(descriptor)
+        finally:
+            path = created.get("path")
+            if path is not None and path.exists():
+                shutil.rmtree(path)
+            for descriptor in created["descriptors"]:
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    pass
+
+    def test_task_root_open_interrupt_preserves_replacement_and_closes_parent_fd(self):
+        created = {"descriptors": []}
+        real_mkdtemp = tempfile.mkdtemp
+        real_open = os.open
+
+        def make_root(*args, **kwargs):
+            path = pathlib.Path(real_mkdtemp(*args, **kwargs))
+            created["path"] = path
+            return os.fspath(path)
+
+        def interrupt_root_open(path, flags, *args, **kwargs):
+            candidate = pathlib.Path(path)
+            if "path" in created and candidate == created["path"]:
+                original = candidate.with_name(f"{candidate.name}-original")
+                candidate.rename(original)
+                candidate.mkdir(mode=0o700)
+                marker = candidate / "replacement-must-survive"
+                marker.write_bytes(b"replacement")
+                created.update(original=original, marker=marker)
+                raise driver._DriverInterrupted
+            descriptor = real_open(path, flags, *args, **kwargs)
+            created["descriptors"].append(descriptor)
+            return descriptor
+
+        try:
+            with mock.patch("tempfile.mkdtemp", side_effect=make_root), mock.patch(
+                "os.open", side_effect=interrupt_root_open
+            ):
+                with self.assertRaises(driver._DriverInterrupted):
+                    driver._make_task_root()
+            self.assertEqual(created["marker"].read_bytes(), b"replacement")
+            self.assertTrue(created["original"].exists())
+            self.assertEqual(len(created["descriptors"]), 1)
+            with self.assertRaises(OSError):
+                os.fstat(created["descriptors"][0])
+        finally:
+            for key in ("path", "original"):
+                candidate = created.get(key)
+                if candidate is not None and candidate.exists():
+                    shutil.rmtree(candidate)
+            for descriptor in created["descriptors"]:
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    pass
+
     def test_audit_rejects_recursive_device_boundary(self):
         pinned = driver._make_task_root()
         boundary = pinned.path / "boundary"
@@ -838,6 +927,78 @@ class PickViaE2EDriverTests(unittest.TestCase):
 
         try:
             with mock.patch("os.listdir", side_effect=add_before_rescan):
+                self.assertFalse(pinned.audit_regular_files(b"forbidden"))
+        finally:
+            pinned.close()
+            shutil.rmtree(pinned.path)
+
+    def test_audit_detects_file_added_after_final_listing_before_return(self):
+        pinned = driver._make_task_root()
+        (pinned.path / "initial").write_bytes(b"safe")
+        real_listdir = os.listdir
+        root_listings = 0
+
+        def add_after_final_listing(descriptor):
+            nonlocal root_listings
+            result = real_listdir(descriptor)
+            if descriptor == pinned.descriptor:
+                root_listings += 1
+                if root_listings == 2:
+                    (pinned.path / "late").write_bytes(b"late")
+            return result
+
+        try:
+            with mock.patch("os.listdir", side_effect=add_after_final_listing):
+                self.assertFalse(pinned.audit_regular_files(b"forbidden"))
+        finally:
+            pinned.close()
+            shutil.rmtree(pinned.path)
+
+    def test_audit_requires_two_matching_bracketed_tree_passes(self):
+        pinned = driver._make_task_root()
+        (pinned.path / "stable").write_bytes(b"safe")
+        real_listdir = os.listdir
+        root_listings = 0
+
+        def count_root_listings(descriptor):
+            nonlocal root_listings
+            if descriptor == pinned.descriptor:
+                root_listings += 1
+            return real_listdir(descriptor)
+
+        try:
+            with mock.patch("os.listdir", side_effect=count_root_listings):
+                self.assertTrue(pinned.audit_regular_files(b"forbidden"))
+            self.assertGreaterEqual(root_listings, 4)
+        finally:
+            pinned.close()
+            shutil.rmtree(pinned.path)
+
+    def test_audit_enforces_entry_and_repeated_work_budgets(self):
+        pinned = driver._make_task_root()
+        (pinned.path / "one").write_bytes(b"123")
+        (pinned.path / "two").write_bytes(b"456")
+        try:
+            with mock.patch.object(driver, "MAXIMUM_AUDIT_ENTRIES", 1):
+                self.assertFalse(pinned.audit_regular_files(b"forbidden"))
+            with mock.patch.object(driver, "MAXIMUM_AUDIT_WORK_BYTES", 10):
+                self.assertFalse(pinned.audit_regular_files(b"forbidden"))
+        finally:
+            pinned.close()
+            shutil.rmtree(pinned.path)
+
+    def test_audit_enforces_deadline_during_bracketed_passes(self):
+        pinned = driver._make_task_root()
+        (pinned.path / "stable").write_bytes(b"safe")
+        clock_calls = 0
+
+        def expired_clock():
+            nonlocal clock_calls
+            clock_calls += 1
+            return 0.0 if clock_calls <= 2 else 3.0
+
+        try:
+            with mock.patch("time.monotonic", side_effect=expired_clock):
                 self.assertFalse(pinned.audit_regular_files(b"forbidden"))
         finally:
             pinned.close()
