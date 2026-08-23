@@ -95,7 +95,7 @@ assert_symlinked_root_is_rejected_before_swift output-symlink output
 
 assert_output_swap_at_removal_preserves_replacement() {
   local fixture="$contract_root/output-operation-swap/repo"
-  local fake_bin="$contract_root/output-operation-swap/bin"
+  local hook="$contract_root/output-operation-swap/hook"
   local swap_marker="$contract_root/output-operation-swap/swap-ran"
   local replacement_sentinel
 
@@ -103,35 +103,33 @@ assert_output_swap_at_removal_preserves_replacement() {
     "$fixture/scripts" \
     "$fixture/Support/Icons" \
     "$fixture/.build-e2e/release" \
-    "$fixture/build-e2e/PickVia E2E.app" \
-    "$fake_bin"
+    "$fixture/build-e2e/PickVia E2E.app"
   cp "$repo_root/scripts/build-e2e-app.sh" "$fixture/scripts/build-e2e-app.sh"
   cp "$repo_root/Support/Info.plist" "$fixture/Support/Info.plist"
   print -n -r -- "icon" > "$fixture/Support/Icons/PickVia.icns"
   print -n -r -- "menu" > "$fixture/Support/Icons/PickViaMenuBarTemplate.png"
-  cp /usr/bin/true "$fixture/.build-e2e/release/PickVia"
-
-  {
-    print -r -- '#!/bin/zsh'
-    print -r -- 'exit 0'
-  } > "$fake_bin/swift"
-  chmod +x "$fake_bin/swift"
-
   {
     print -r -- '#!/bin/zsh'
     print -r -- 'fixture="$PICKVIA_BUILD_CONTRACT_FIXTURE"'
-    print -r -- 'mv "$fixture/build-e2e" "$fixture/build-e2e-held"'
-    print -r -- 'mkdir -p "$fixture/build-e2e/PickVia E2E.app"'
-    print -r -- 'print -n -r -- "replacement" > "$fixture/build-e2e/PickVia E2E.app/replacement-must-survive"'
-    print -r -- 'print -n -r -- "swapped" > "$PICKVIA_BUILD_CONTRACT_SWAP_MARKER"'
-    print -r -- '/bin/rm "$@"'
-  } > "$fake_bin/rm"
-  chmod +x "$fake_bin/rm"
+    print -r -- 'case "$1" in'
+    print -r -- '  build)'
+    print -r -- '    /bin/mkdir -p "$fixture/.build-e2e/release"'
+    print -r -- '    /bin/cp /usr/bin/true "$fixture/.build-e2e/release/PickVia"'
+    print -r -- '    ;;'
+    print -r -- '  before-output-removal)'
+    print -r -- '    /bin/mv "$fixture/build-e2e" "$fixture/build-e2e-held"'
+    print -r -- '    /bin/mkdir -p "$fixture/build-e2e/PickVia E2E.app"'
+    print -r -- '    print -n -r -- "replacement" > "$fixture/build-e2e/PickVia E2E.app/replacement-must-survive"'
+    print -r -- '    print -n -r -- "swapped" > "$PICKVIA_BUILD_CONTRACT_SWAP_MARKER"'
+    print -r -- '    ;;'
+    print -r -- 'esac'
+  } > "$hook"
+  chmod +x "$hook"
 
   replacement_sentinel="$fixture/build-e2e/PickVia E2E.app/replacement-must-survive"
   if PICKVIA_BUILD_CONTRACT_FIXTURE="$fixture" \
     PICKVIA_BUILD_CONTRACT_SWAP_MARKER="$swap_marker" \
-    PATH="$fake_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+    PICKVIA_BUILD_E2E_CONTRACT_HOOK="$hook" \
     zsh "$fixture/scripts/build-e2e-app.sh" >/dev/null 2>&1
   then
     print -u2 -r -- "Operation-time output replacement was accepted"
@@ -147,20 +145,119 @@ assert_output_swap_at_removal_preserves_replacement() {
 
 assert_output_swap_at_removal_preserves_replacement
 
+assert_scratch_swap_before_copy_fails_closed() {
+  local fixture="$contract_root/scratch-operation-swap/repo"
+  local hook="$contract_root/scratch-operation-swap/hook"
+  local replacement="$fixture/.build-e2e/release/PickVia"
+
+  mkdir -p "$fixture/scripts" "$fixture/Support/Icons" "$fixture/.build-e2e" \
+    "$fixture/build-e2e"
+  cp "$repo_root/scripts/build-e2e-app.sh" "$fixture/scripts/build-e2e-app.sh"
+  cp "$repo_root/Support/Info.plist" "$fixture/Support/Info.plist"
+  print -n -r -- "icon" > "$fixture/Support/Icons/PickVia.icns"
+  print -n -r -- "menu" > "$fixture/Support/Icons/PickViaMenuBarTemplate.png"
+  {
+    print -r -- '#!/bin/zsh'
+    print -r -- 'fixture="$PICKVIA_BUILD_CONTRACT_FIXTURE"'
+    print -r -- 'case "$1" in'
+    print -r -- '  build)'
+    print -r -- '    /bin/mkdir -p "$fixture/.build-e2e/release"'
+    print -r -- '    /bin/cp /usr/bin/true "$fixture/.build-e2e/release/PickVia"'
+    print -r -- '    ;;'
+    print -r -- '  before-scratch-copy)'
+    print -r -- '    /bin/mv "$fixture/.build-e2e" "$fixture/.build-e2e-held"'
+    print -r -- '    /bin/mkdir -p "$fixture/.build-e2e/release"'
+    print -r -- '    print -n -r -- "replacement" > "$fixture/.build-e2e/release/PickVia"'
+    print -r -- '    /bin/chmod 700 "$fixture/.build-e2e/release/PickVia"'
+    print -r -- '    ;;'
+    print -r -- 'esac'
+  } > "$hook"
+  chmod +x "$hook"
+
+  if PICKVIA_BUILD_CONTRACT_FIXTURE="$fixture" \
+    PICKVIA_BUILD_E2E_CONTRACT_HOOK="$hook" \
+    zsh "$fixture/scripts/build-e2e-app.sh" >/dev/null 2>&1
+  then
+    print -u2 -r -- "Operation-time scratch replacement was accepted"
+    return 1
+  fi
+
+  test -f "$replacement"
+  test "$(<"$replacement")" = "replacement"
+  test ! -e "$fixture/build-e2e/PickVia E2E.app/Contents/MacOS/PickVia"
+}
+
+assert_scratch_swap_before_copy_fails_closed
+
+assert_concurrent_publish_entry_is_preserved() {
+  local fixture="$contract_root/concurrent-publish/repo"
+  local hook="$contract_root/concurrent-publish/hook"
+  local sentinel="$fixture/build-e2e/PickVia E2E.app/concurrent-must-survive"
+
+  mkdir -p "$fixture/scripts" "$fixture/Support/Icons" "$fixture/.build-e2e" \
+    "$fixture/build-e2e"
+  cp "$repo_root/scripts/build-e2e-app.sh" "$fixture/scripts/build-e2e-app.sh"
+  cp "$repo_root/Support/Info.plist" "$fixture/Support/Info.plist"
+  cp "$repo_root/Support/Icons/PickVia.icns" "$fixture/Support/Icons/PickVia.icns"
+  cp "$repo_root/Support/Icons/PickViaMenuBarTemplate.png" \
+    "$fixture/Support/Icons/PickViaMenuBarTemplate.png"
+  {
+    print -r -- '#!/bin/zsh'
+    print -r -- 'fixture="$PICKVIA_BUILD_CONTRACT_FIXTURE"'
+    print -r -- 'case "$1" in'
+    print -r -- '  build)'
+    print -r -- '    /bin/mkdir -p "$fixture/.build-e2e/release"'
+    print -r -- '    /bin/cp /usr/bin/true "$fixture/.build-e2e/release/PickVia"'
+    print -r -- '    ;;'
+    print -r -- '  before-app-reservation)'
+    print -r -- '    /bin/mkdir -p "$fixture/build-e2e/PickVia E2E.app"'
+    print -r -- '    print -n -r -- "concurrent" > "$fixture/build-e2e/PickVia E2E.app/concurrent-must-survive"'
+    print -r -- '    ;;'
+    print -r -- 'esac'
+  } > "$hook"
+  chmod +x "$hook"
+
+  if PICKVIA_BUILD_CONTRACT_FIXTURE="$fixture" \
+    PICKVIA_BUILD_E2E_CONTRACT_HOOK="$hook" \
+    zsh "$fixture/scripts/build-e2e-app.sh" >/dev/null 2>&1
+  then
+    print -u2 -r -- "Concurrent publish entry was overwritten"
+    return 1
+  fi
+
+  test -f "$sentinel"
+  test "$(<"$sentinel")" = "concurrent"
+  test -z "$(find "$fixture/build-e2e/PickVia E2E.app" -mindepth 1 \
+    ! -name concurrent-must-survive -print -quit)"
+}
+
+assert_concurrent_publish_entry_is_preserved
+
 assert_smoke_contract_is_status_driven_and_browser_free() {
   local smoke="$repo_root/scripts/smoke-test-e2e.sh"
+  local policy="$repo_root/scripts/browser-e2e/smoke_e2e_runtime.py"
 
   grep -Fq "dev.bozhenpeng.PickVia.E2E.Missing||normal" "$smoke"
   grep -Fq '"outcome":"target-missing"' "$smoke"
   grep -Fq 'read -r -t ' "$smoke"
   grep -Fq 'kill -KILL' "$smoke"
-  grep -Fq 'E2E smoke helper compilation timed out' "$smoke"
-  grep -Fq 'Library/Preferences/ByHost' "$smoke"
+  grep -Fq 'compile-helper' "$smoke"
+  grep -Fq 'run-helper' "$smoke"
+  grep -Fq '"Library" / "Preferences"' "$policy"
+  grep -Fq '"ByHost"' "$policy"
+  grep -Fq 'os.O_NOFOLLOW' "$policy"
   ! grep -Fq "com.microsoft.edgemac||normal" "$smoke"
   ! grep -Fq "sleep 0.25" "$smoke"
 }
 
 assert_smoke_contract_is_status_driven_and_browser_free
+
+/usr/bin/env -i \
+  PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+  LANG=en_US.UTF-8 \
+  LC_CTYPE=UTF-8 \
+  PYTHONDONTWRITEBYTECODE=1 \
+  /usr/bin/python3 "$repo_root/scripts/browser-e2e/test_smoke_e2e_runtime.py" >/dev/null
 
 zsh "$repo_root/scripts/build-app.sh" >/dev/null
 zsh "$repo_root/scripts/build-e2e-app.sh" >/dev/null

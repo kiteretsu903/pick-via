@@ -1,11 +1,11 @@
 #!/bin/zsh
 set -euo pipefail
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd -P)"
-app="${1:-$repo_root/build-e2e/PickVia E2E.app}"
-plist="$app/Contents/Info.plist"
-executable="$app/Contents/MacOS/PickVia"
-resources="$app/Contents/Resources"
+policy="$repo_root/scripts/browser-e2e/smoke_e2e_runtime.py"
+requested_app="${1:-$repo_root/build-e2e/PickVia E2E.app}"
+app=""
 helper_source="$repo_root/scripts/browser-e2e/open_with_app.swift"
 marker="PICKVIA_E2E_AUTOMATION_ENABLED"
 session_nonce="smoke_session_0123456789"
@@ -18,17 +18,23 @@ environment_keys=(
   PICKVIA_E2E_SUPPORT_DIR
   PICKVIA_E2E_STATUS_FIFO
 )
-preferences_root="${HOME:?}/Library/Preferences"
-preferences_by_host="$HOME/Library/Preferences/ByHost"
 runtime_root=""
 runtime_pid=""
-helper_pid=""
+runtime_identity=""
 status_fd=""
 
 fail() {
   print -u2 -r -- "$1"
   exit 1
 }
+
+app="$(/usr/bin/python3 "$policy" canonical-app "$requested_app")" || \
+  fail "E2E smoke app path is invalid"
+plist="$app/Contents/Info.plist"
+executable="$app/Contents/MacOS/PickVia"
+resources="$app/Contents/Resources"
+app_identity="$(/usr/bin/python3 "$policy" app-identity "$app")" || \
+  fail "E2E smoke app identity is invalid"
 
 wait_child_bounded() {
   local child_pid="$1"
@@ -37,7 +43,7 @@ wait_child_bounded() {
   local index=0
 
   while (( index < attempts )); do
-    if ! kill -0 "$child_pid" 2>/dev/null; then
+    if ! /bin/kill -0 "$child_pid" 2>/dev/null; then
       set +e
       wait "$child_pid" 2>/dev/null
       exit_status=$?
@@ -54,27 +60,36 @@ wait_child_bounded() {
 stop_child_bounded() {
   local child_pid="$1"
 
-  kill -TERM "$child_pid" 2>/dev/null || true
+  runtime_process_is_exact || return 1
+  /bin/kill -TERM "$child_pid" 2>/dev/null || true
   if wait_child_bounded "$child_pid" 40; then
     return 0
   fi
-  kill -KILL "$child_pid" 2>/dev/null || true
+  /bin/kill -KILL "$child_pid" 2>/dev/null || true
   wait_child_bounded "$child_pid" 40 || return 1
 }
 
+runtime_process_is_exact() {
+  local current_identity
+
+  [[ -n "$runtime_pid" && -n "$runtime_identity" ]] || return 1
+  current_identity="$(/usr/bin/python3 "$policy" process-identity \
+    "$runtime_pid" "$executable")" || return 1
+  [[ "$current_identity" == "$runtime_identity" ]]
+}
+
 cleanup_runtime() {
-  if [[ -n "$helper_pid" ]] && kill -0 "$helper_pid" 2>/dev/null; then
-    stop_child_bounded "$helper_pid" >/dev/null 2>&1 || true
-  fi
-  if [[ -n "$runtime_pid" ]] && kill -0 "$runtime_pid" 2>/dev/null; then
-    stop_child_bounded "$runtime_pid" >/dev/null 2>&1 || true
+  if [[ -n "$runtime_pid" ]] && /bin/kill -0 "$runtime_pid" 2>/dev/null; then
+    if runtime_process_is_exact; then
+      stop_child_bounded "$runtime_pid" >/dev/null 2>&1 || true
+    fi
   fi
   if [[ -n "$status_fd" ]]; then
     exec {status_fd}>&-
     status_fd=""
   fi
   if [[ -n "$runtime_root" ]]; then
-    rm -rf -- "$runtime_root"
+    /bin/rm -rf -- "$runtime_root"
   fi
 }
 trap cleanup_runtime EXIT HUP INT TERM
@@ -82,40 +97,10 @@ trap cleanup_runtime EXIT HUP INT TERM
 binary_contains() {
   local binary="$1"
   local needle="$2"
-  grep -Fq "$needle" < <(strings "$binary")
+  /usr/bin/grep -Fq "$needle" < <(/usr/bin/strings "$binary")
 }
 
-snapshot_preferences() {
-  local destination="$1"
-  local unsorted="$destination.unsorted"
-  local directory
-  local artifact
-  local relative
-  local metadata
-  local digest
-
-  : > "$unsorted"
-  for directory in "$preferences_root" "$preferences_by_host"; do
-    [[ -d "$directory" ]] || continue
-    while IFS= read -r -d '' artifact; do
-      [[ -f "$artifact" && ! -L "$artifact" ]] || \
-        fail "Unsafe PickVia E2E preference artifact"
-      relative="${artifact#$preferences_root/}"
-      metadata="$(/usr/bin/stat -f '%d:%i:%z:%p:%m' "$artifact")" || \
-        fail "Could not inspect PickVia E2E preference artifact"
-      digest="$(shasum -a 256 "$artifact" | awk '{print $1}')" || \
-        fail "Could not snapshot PickVia E2E preference artifact"
-      print -r -- "$relative\t$metadata\t$digest" >> "$unsorted"
-    done < <(
-      find -P "$directory" -mindepth 1 -maxdepth 1 \
-        -name 'dev.bozhenpeng.PickVia.E2E*' -print0
-    )
-  done
-  LC_ALL=C sort "$unsorted" > "$destination"
-  rm -f -- "$unsorted"
-}
-
-runtime_root="$(mktemp -d /private/tmp/pickvia-e2e-smoke.XXXXXX)"
+runtime_root="$(/usr/bin/mktemp -d /private/tmp/pickvia-e2e-smoke.XXXXXX)"
 case "$runtime_root" in
   /private/tmp/pickvia-e2e-smoke.*) ;;
   *) fail "Unsafe E2E smoke root" ;;
@@ -161,28 +146,19 @@ done
 
 /usr/bin/codesign --verify --deep --strict "$app"
 
-snapshot_preferences "$runtime_root/preferences-before"
-mkfifo -m 600 "$runtime_root/status.fifo"
+preferences_before="$(/usr/bin/python3 "$policy" snapshot-preferences "$HOME")" || \
+  fail "Could not pin and snapshot PickVia E2E preferences"
+/usr/bin/mkfifo -m 600 "$runtime_root/status.fifo"
 exec {status_fd}<>"$runtime_root/status.fifo"
 
-env -i \
-  PATH=/usr/bin:/bin:/usr/sbin:/sbin \
-  LANG=en_US.UTF-8 \
-  LC_CTYPE=UTF-8 \
-  TMPDIR="$runtime_root" \
-  CFFIXED_USER_HOME="$runtime_root" \
-  /usr/bin/xcrun swiftc -swift-version 6 -warnings-as-errors \
-    "$helper_source" -o "$runtime_root/open_with_app" >/dev/null 2>&1 &
-helper_pid=$!
-if ! wait_child_bounded "$helper_pid" 600; then
-  stop_child_bounded "$helper_pid" >/dev/null 2>&1 || true
-  fail "E2E smoke helper compilation timed out"
-fi
-helper_status="$REPLY"
-helper_pid=""
-test "$helper_status" -eq 0 || fail "E2E smoke helper compilation failed"
+/usr/bin/python3 "$policy" compile-helper \
+  "$helper_source" "$runtime_root/open_with_app" "$runtime_root" || \
+  fail "E2E smoke helper compilation failed"
 
-env -i \
+test "$(/usr/bin/python3 "$policy" app-identity "$app")" = "$app_identity" || \
+  fail "E2E smoke app changed before launch"
+
+/usr/bin/env -i \
   PATH=/usr/bin:/bin:/usr/sbin:/sbin \
   LANG=en_US.UTF-8 \
   LC_CTYPE=UTF-8 \
@@ -198,37 +174,36 @@ env -i \
 runtime_pid=$!
 
 for _ in {1..40}; do
-  kill -0 "$runtime_pid" 2>/dev/null && break
+  /bin/kill -0 "$runtime_pid" 2>/dev/null && break
   sleep 0.05
 done
-kill -0 "$runtime_pid" 2>/dev/null || fail "E2E smoke app did not remain active"
+/bin/kill -0 "$runtime_pid" 2>/dev/null || fail "E2E smoke app did not remain active"
+for _ in {1..40}; do
+  runtime_identity="$(/usr/bin/python3 "$policy" process-identity \
+    "$runtime_pid" "$executable")" 2>/dev/null && break
+  sleep 0.05
+done
+[[ -n "$runtime_identity" ]] || fail "E2E smoke app identity could not be pinned"
 
-{
-  print -n -r -- 'https://127.0.0.1/pickvia-e2e-smoke' | env -i \
-    PATH=/usr/bin:/bin:/usr/sbin:/sbin \
-    LANG=en_US.UTF-8 \
-    LC_CTYPE=UTF-8 \
-    TMPDIR="$runtime_root" \
-    CFFIXED_USER_HOME="$runtime_root" \
-    "$runtime_root/open_with_app" "$app" "$runtime_pid"
-} >/dev/null 2>&1 &
-helper_pid=$!
+/usr/bin/python3 "$policy" run-helper \
+  "$runtime_root/open_with_app" "$app" "$runtime_pid" "$runtime_root" || \
+  fail "E2E smoke helper failed"
 
 status_line=""
 IFS= read -r -t 10 status_line <&$status_fd || fail "E2E smoke status timed out"
 test "$status_line" = "$expected_status" || fail "Unexpected E2E smoke status"
 
-if ! wait_child_bounded "$helper_pid" 200; then
-  stop_child_bounded "$helper_pid" >/dev/null 2>&1 || true
-  fail "E2E smoke helper timed out"
+if ! runtime_process_is_exact; then
+  runtime_pid=""
+  fail "E2E smoke app generation changed before termination"
 fi
-helper_status="$REPLY"
-helper_pid=""
-test "$helper_status" -eq 0 || fail "E2E smoke helper failed"
-
-kill -TERM "$runtime_pid" 2>/dev/null || fail "E2E smoke app exited unexpectedly"
+/bin/kill -TERM "$runtime_pid" 2>/dev/null || fail "E2E smoke app exited unexpectedly"
 if ! wait_child_bounded "$runtime_pid" 80; then
-  kill -KILL "$runtime_pid" 2>/dev/null || true
+  if ! runtime_process_is_exact; then
+    runtime_pid=""
+    fail "E2E smoke app generation changed during termination"
+  fi
+  /bin/kill -KILL "$runtime_pid" 2>/dev/null || true
   if wait_child_bounded "$runtime_pid" 40; then
     runtime_pid=""
   fi
@@ -240,8 +215,9 @@ test "$runtime_status" -eq 143 || fail "Unexpected E2E smoke app exit"
 
 for _ in {1..30}; do
   sleep 0.1
-  snapshot_preferences "$runtime_root/preferences-after"
-  cmp -s "$runtime_root/preferences-before" "$runtime_root/preferences-after" || \
+  preferences_after="$(/usr/bin/python3 "$policy" snapshot-preferences "$HOME")" || \
+    fail "Could not revalidate PickVia E2E preferences"
+  test "$preferences_before" = "$preferences_after" || \
     fail "PickVia E2E preference artifacts changed"
 done
 
