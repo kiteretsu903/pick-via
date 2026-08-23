@@ -1074,7 +1074,10 @@ def _wait_for_proof(
                     browser_identity,
                     seen_new_browsers.values(),
                 )
-            if status_sequence == ["selected", "launch-error"]:
+            if (
+                status_sequence == ["selected", "launch-error"]
+                and helper_exit_code == 0
+            ):
                 return _WaitResult(
                     "launch-error",
                     receipt,
@@ -1082,7 +1085,11 @@ def _wait_for_proof(
                     browser_identity,
                     frozenset(seen_new_browsers.values()),
                 )
-            if status_sequence and status_sequence[0] != "selected":
+            if (
+                status_sequence
+                and status_sequence[0] != "selected"
+                and helper_exit_code == 0
+            ):
                 return _WaitResult(
                     status_sequence[0],
                     receipt,
@@ -1125,6 +1132,29 @@ def _wait_for_proof(
                         browser_identity,
                         seen_new_browsers.values(),
                     )
+                if helper_exit_code is None:
+                    raise _HelperExitTimeout(
+                        receipt,
+                        b"".join(status_lines),
+                        browser_identity,
+                        seen_new_browsers.values(),
+                    )
+                if status_sequence == ["selected", "launch-error"]:
+                    return _WaitResult(
+                        "launch-error",
+                        receipt,
+                        b"".join(status_lines),
+                        browser_identity,
+                        frozenset(seen_new_browsers.values()),
+                    )
+                if status_sequence and status_sequence[0] != "selected":
+                    return _WaitResult(
+                        status_sequence[0],
+                        receipt,
+                        b"".join(status_lines),
+                        browser_identity,
+                        frozenset(seen_new_browsers.values()),
+                    )
                 if status_sequence == ["selected"] and not receipt:
                     raise _ReceiptTimeout(
                         receipt,
@@ -1140,19 +1170,12 @@ def _wait_for_proof(
                         seen_new_browsers.values(),
                     )
                 if status_sequence == ["selected"] and receipt and browser_identity:
-                    if helper_exit_code == 0:
-                        return _WaitResult(
-                            "selected",
-                            True,
-                            b"".join(status_lines),
-                            True,
-                            frozenset(seen_new_browsers.values()),
-                        )
-                    raise _HelperExitTimeout(
-                        receipt,
+                    return _WaitResult(
+                        "selected",
+                        True,
                         b"".join(status_lines),
-                        browser_identity,
-                        seen_new_browsers.values(),
+                        True,
+                        frozenset(seen_new_browsers.values()),
                     )
                 raise
             for key, _ in selector.select(wait):

@@ -1069,7 +1069,7 @@ time.sleep(3.25)
                     ManualProcesses(),
                     status_read,
                     ManualProcess(receiver_stream),
-                    ManualProcess(exit_codes=(None, 23)),
+                    ManualProcess(exit_codes=(None, None, None, 23)),
                     ManualProcess(),
                     "session_0123456789",
                     "TOKEN",
@@ -1110,6 +1110,20 @@ time.sleep(3.25)
             self.assertEqual(result.report["outcome"], "helper-exit-timeout")
             self.assertTrue(result.report["token_received"])
             self.assertTrue(result.report["exact_browser_process_identity"])
+
+    def test_hanging_helper_precedes_incomplete_receipt_proof_at_deadline(self):
+        with DriverFixture(
+            delivers_receipt=False,
+            helper_hangs_after_delivery=True,
+            timeout=2.0,
+        ) as fixture:
+            result = fixture.run()
+
+            self.assertEqual(result.exit_code, driver.DRIVER_HELPER_FAILURE)
+            self.assertEqual(result.report["outcome"], "helper-exit-timeout")
+            self.assertFalse(result.report["token_received"])
+            self.assertTrue(result.report["exact_browser_process_identity"])
+            self.assertTrue(result.status_line)
 
     def test_exhausted_receipt_descriptor_does_not_busy_spin_at_helper_timeout(self):
         with DriverFixture(
@@ -1464,10 +1478,11 @@ time.sleep(3.25)
             with self.subTest(kind=kind), DriverFixture(probe_kind=kind) as fixture:
                 self.assertEqual(fixture.run().exit_code, driver.DRIVER_INVALID_RECEIPT)
 
-    def test_driver_times_out_and_closes_exact_direct_children(self):
+    def test_hanging_route_delivery_is_helper_timeout_and_closes_children(self):
         with DriverFixture(app_hangs=True, timeout=0.25) as fixture:
             result = fixture.run()
-            self.assertEqual(result.exit_code, driver.DRIVER_TIMEOUT)
+            self.assertEqual(result.exit_code, driver.DRIVER_HELPER_FAILURE)
+            self.assertEqual(result.report["outcome"], "helper-exit-timeout")
             self.assertEqual(
                 set(fixture.closed_child_pids), set(fixture.launched_child_pids)
             )
