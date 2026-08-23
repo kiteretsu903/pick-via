@@ -65,7 +65,15 @@ class DriverFixture:
         delayed_browser_after_final_sweep=False,
         repeated_delayed_browser=False,
         real_quiescence_clock=False,
+        proof_deadline_phase=None,
     ):
+        if proof_deadline_phase not in {
+            None,
+            "helper-and-browser",
+            "helper-and-receipt",
+            "complete-proof",
+        }:
+            raise ValueError("unknown proof deadline phase")
         self.status_records = status_records or [
             {"session": "session_0123456789", "outcome": "selected"}
         ]
@@ -100,6 +108,7 @@ class DriverFixture:
         self.delayed_browser_after_final_sweep = delayed_browser_after_final_sweep
         self.repeated_delayed_browser = repeated_delayed_browser
         self.real_quiescence_clock = real_quiescence_clock
+        self.proof_deadline_phase = proof_deadline_phase
         self.fixture_root = pathlib.Path(
             tempfile.mkdtemp(prefix="pickvia-driver-fixture-", dir="/private/tmp")
         )
@@ -136,6 +145,9 @@ class DriverFixture:
         self.quiescence_snapshot_count = 0
         self.quiescence_clock = 0.0
         self._sent_cleanup_signal = False
+        self._proof_clock_base = None
+        self._proof_clock_phase_start = None
+        self._proof_clock_escape = None
 
     def __enter__(self):
         self.e2e_executable.parent.mkdir(parents=True)
@@ -218,7 +230,9 @@ with open(os.environ["PICKVIA_E2E_STATUS_FIFO"], "w", encoding="utf-8") as strea
 outcomes = [record.get("outcome") for record in records if isinstance(record, dict)]
 if "selected" in outcomes and "launch-error" not in outcomes:
     if %r:
-        try: urllib.request.urlopen(route.decode("ascii"), timeout=1).read()
+        try:
+            urllib.request.urlopen(route.decode("ascii"), timeout=1).read()
+            (root / "receipt-delivered").touch()
         except Exception: pass
     elif %r:
         executable = root / "Browser.app" / "Contents" / "MacOS" / "Browser"
@@ -362,7 +376,38 @@ server.server_close()
 
     def _monotonic(self):
         self.clock_calls += 1
-        return time.monotonic()
+        now = time.monotonic()
+        if self.proof_deadline_phase is None:
+            return now
+        if self._proof_clock_base is None:
+            self._proof_clock_base = now
+            self._proof_clock_escape = now + 5.0
+        if self._proof_phase_is_ready():
+            if self._proof_clock_phase_start is None:
+                self._proof_clock_phase_start = now
+            return self._proof_clock_base + (
+                now - self._proof_clock_phase_start
+            )
+        if now >= self._proof_clock_escape:
+            return self._proof_clock_base + self.timeout + (
+                now - self._proof_clock_escape
+            )
+        return self._proof_clock_base
+
+    def _proof_phase_is_ready(self):
+        helper_succeeded = any(
+            kind == "exact-app-helper" and process.poll() == 0
+            for kind, process in zip(self.launched_kinds, self.launched_processes)
+        )
+        browser_started = self.browser_pid_file.exists()
+        receipt_delivered = (self.fixture_root / "receipt-delivered").exists()
+        return {
+            "helper-and-browser": helper_succeeded and browser_started,
+            "helper-and-receipt": helper_succeeded and receipt_delivered,
+            "complete-proof": (
+                helper_succeeded and browser_started and receipt_delivered
+            ),
+        }.get(self.proof_deadline_phase, False)
 
     def _observe_process(self, kind, process, argv, environment):
         self.launched_child_pids.append(process.pid)
@@ -1373,10 +1418,17 @@ time.sleep(3.25)
             self.assertTrue(app_stdout[3])
 
     def test_selected_requires_independent_receipt_and_exact_browser_identity(self):
-        with DriverFixture(delivers_receipt=False, timeout=0.3) as fixture:
+        with DriverFixture(
+            delivers_receipt=False,
+            timeout=0.3,
+            proof_deadline_phase="helper-and-browser",
+        ) as fixture:
             self.assertEqual(fixture.run().exit_code, driver.DRIVER_RECEIPT_TIMEOUT)
         with DriverFixture(
-            receipt_without_browser=True, spawn_browser=False, timeout=1.0
+            receipt_without_browser=True,
+            spawn_browser=False,
+            timeout=1.0,
+            proof_deadline_phase="helper-and-receipt",
         ) as fixture:
             result = fixture.run()
             self.assertEqual(result.exit_code, driver.DRIVER_BROWSER_IDENTITY_TIMEOUT)
@@ -1561,7 +1613,10 @@ time.sleep(3.25)
             self.assertNotIn("final-post-terminate", fixture.snapshot_phases)
 
     def test_report_distinguishes_route_timeout_from_total_cleanup_elapsed(self):
-        with DriverFixture(timeout=1.0) as fixture:
+        with DriverFixture(
+            timeout=1.0,
+            proof_deadline_phase="complete-proof",
+        ) as fixture:
             original = fixture._terminate_browser
 
             def delayed_termination(identity, executable, deadline=None):
