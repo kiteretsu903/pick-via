@@ -694,6 +694,53 @@ DuckDuckGo, E2E PickVia, receiver, helper, and driver absent; installed PickVia
 remained the same exact pre-batch generation. This entry contains no routed
 address, token, browser arguments, raw UI, screenshot, or profile label.
 
+## Brave private routing — 2026-08-22
+
+Status: **Brave Stable NOT RUN at the installation-identity gate; Brave Beta
+and Nightly FAIL at the cold causal gate.** No Brave profile target was created
+or attempted, and neither eligible edition advanced to already-running or
+reopen.
+
+Brave Stable 151.1.93.138 (`com.brave.Browser`, team `KL8N8XSYF4`) again failed
+strict deep signature verification. Its exact preexisting process generation
+was recorded and preserved without signaling it. Stable received no private
+route, process launch, or UI observation.
+
+Brave Beta 152.1.95.87 (`com.brave.Browser.beta`, team `KL8N8XSYF4`) and Brave
+Nightly 152.1.96.6 (`com.brave.Browser.nightly`, team `KL8N8XSYF4`) passed
+strict deep signature verification and each began from exact process absence.
+Each canonical browser-level private production route verified the exact E2E
+app but stopped with an exact-browser identity ambiguity before any fresh
+receiver receipt. Exact browser proof was therefore false for each classified
+route. Neither route reached the guarded visible-observation gate, and neither
+failure is presented as proof that Brave's private transport itself is broken.
+
+| Browser | Mode/state | Selection | Receipt | Exact process identity | Sanitized visible evidence | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Brave Stable | Private, cold/already running/reopen | Not attempted | Not attempted | Installed identity and exact preexisting generation recorded; strict deep signature failed | **NOT RUN** | **NOT RUN — installation identity blocker** |
+| Brave Beta | Private, cold | Not authoritatively retained before the identity gate | No receipt | Exact E2E app verified; exact browser proof false after generation ambiguity | **NOT RUN — causal gate failed** | **FAIL — identity-ambiguous before receipt** |
+| Brave Beta | Private, already running | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold gate** |
+| Brave Beta | Private, reopen | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold gate** |
+| Brave Nightly | Private, cold | Not authoritatively retained before the identity gate | No receipt | Exact E2E app verified; exact browser proof false after generation ambiguity | **NOT RUN — causal gate failed** | **FAIL — identity-ambiguous before receipt** |
+| Brave Nightly | Private, already running | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold gate** |
+| Brave Nightly | Private, reopen | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold gate** |
+
+Independent exact-executable private controls then ran from confirmed absence
+for Beta and Nightly. Each used a fresh bounded receiver, verified one exact
+edition generation, and received its fresh receipt. These controls demonstrate
+that both installed editions can deliver the private control route outside
+PickVia, while leaving the production driver's exact-generation attribution
+failure unresolved. No visible evidence was collected from a control.
+
+After each production failure, its sole residual edition generation was
+sent SIGTERM only after the originally empty prestate and exact task generation
+were revalidated. Each direct control likewise used one guarded bounded
+SIGTERM attempt; subsequent bounded absence and quiescence checks passed. No
+SIGKILL was used. Final checks found Brave Beta, Brave Nightly, E2E PickVia,
+receiver, helper, and driver absent. The exact preexisting Brave Stable and
+installed PickVia generations remained unchanged. This entry contains no
+routed address, token, browser arguments, raw UI, screenshot, or profile label.
+
 ## Microsoft Edge private routing — 2026-08-22
 
 Status: **Edge Dev and Canary PASS in cold, already-running, and reopen;
