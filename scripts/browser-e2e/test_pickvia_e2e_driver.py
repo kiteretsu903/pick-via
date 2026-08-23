@@ -2878,6 +2878,39 @@ OpenWithAppPolicyTestMain.main()
             check=False,
         )
 
+    def run_policy_subprocess(self, arguments, *, timeout):
+        return subprocess.run(
+            arguments,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=self.environment,
+            timeout=timeout,
+            check=False,
+        )
+
+    def test_policy_subprocess_runner_uses_only_the_fixed_minimal_environment(self):
+        sentinel = "policy-test-parent-secret"
+        agent_home_key = "".join(
+            chr(value) for value in (67, 79, 68, 69, 88, 95, 72, 79, 77, 69)
+        )
+        with mock.patch.dict(
+            os.environ,
+            {
+                "PICKVIA_PARENT_SENTINEL_SECRET": sentinel,
+                agent_home_key: sentinel,
+            },
+        ), mock.patch("subprocess.run") as run:
+            self.run_policy_subprocess(["/usr/bin/true"], timeout=1)
+
+        environment = run.call_args.kwargs["env"]
+        self.assertEqual(environment, self.environment)
+        self.assertEqual(
+            set(environment),
+            {"PATH", "LANG", "LC_CTYPE", "TMPDIR", "CFFIXED_USER_HOME"},
+        )
+        self.assertNotIn(sentinel, environment.values())
+
     def test_helper_requires_exact_app_and_positive_pid_arguments(self):
         missing = self.run_helper([], b"https://127.0.0.1/token")
         cases = (
@@ -2934,7 +2967,7 @@ OpenWithAppPolicyTestMain.main()
         self.assertNotIn("localizedDescription", source)
 
     def test_helper_registration_and_retry_policies_are_bounded(self):
-        compiled = subprocess.run(
+        compiled = self.run_policy_subprocess(
             [
                 "xcrun",
                 "swiftc",
@@ -2946,20 +2979,12 @@ OpenWithAppPolicyTestMain.main()
                 "-o",
                 str(self.policy_executable),
             ],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
             timeout=30,
-            check=False,
         )
         self.assertEqual(compiled.returncode, 0, compiled.stderr.decode("utf-8"))
-        completed = subprocess.run(
+        completed = self.run_policy_subprocess(
             [str(self.policy_executable)],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
             timeout=3,
-            check=False,
         )
         self.assertEqual(completed.returncode, 0, completed.stderr.decode("utf-8"))
         self.assertEqual(completed.stdout, b"")
