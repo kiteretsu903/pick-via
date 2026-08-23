@@ -507,3 +507,43 @@ or profile label. Driver cleanup and bounded quiescence found Vivaldi, E2E
 PickVia, receiver, and driver absent after each cold route. Installed PickVia
 remained the same exact pre-batch process generation, and preexisting temporary
 roots were left untouched.
+
+## Vivaldi Snapshot normal routing — 2026-08-22
+
+Status: **FAIL at the cold receipt gate; already-running and reopen NOT RUN.**
+The installed Vivaldi Snapshot 8.2.4133.24 build has bundle identifier
+`com.vivaldi.Vivaldi.snapshot`, team `4XF3XNRN6Y`, passes strict deep signature
+verification, and uses PickVia's browser-level normal Chromium
+exact-application workspace strategy.
+
+An initial CLI invocation supplied a non-absolute E2E application path and was
+rejected as `driver-error` before any application or browser launch. It
+contributed no routing evidence. From the unchanged empty Snapshot prestate,
+the corrected production-driver cold route emitted `selected`, verified the
+exact E2E app and exact Vivaldi Snapshot generation, and received no fresh
+receiver receipt within 30 seconds. The driver ultimately reported
+`cleanup-error` because the exact Snapshot generation remained after the
+receipt failure.
+
+One independent control bypassed PickVia and used the same exact-application
+NSWorkspace delivery helper with a fresh receiver. The receiver became ready,
+the helper compiled, and the exact Snapshot generation was verified; the helper
+exited nonzero and the receiver obtained no receipt. The control therefore does
+not isolate the missing receipt to PickVia's selection boundary.
+
+| Browser | Mode/state | Selection | Receipt | Exact process identity | Sanitized visible evidence | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Vivaldi Snapshot | Normal, cold | `selected` | No receipt within 30 seconds | E2E app and exact Vivaldi Snapshot generation verified | **NOT RUN — Vivaldi observer incompatibility** | **FAIL — cold receipt failure** |
+| Vivaldi Snapshot | Normal, already running | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold gate** |
+| Vivaldi Snapshot | Normal, reopen | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold gate** |
+
+No Computer Use call was made for Snapshot, and the missing visible evidence is
+not itself classified as a product failure. No onboarding action, profile, or
+private target was created or attempted. This entry contains no routed address,
+token, browser arguments, raw UI, screenshot, or profile label. Each sole
+residual cold or control Snapshot generation received SIGTERM only after the
+originally empty prestate plus its exact PID, start generation, executable,
+bundle, team, and task-time start were revalidated; no SIGKILL was used. Bounded
+absence and quiescence then found Vivaldi Snapshot, E2E PickVia, receiver,
+helper, and driver absent. Installed PickVia remained the same exact pre-batch
+process generation, and preexisting temporary roots were left untouched.
