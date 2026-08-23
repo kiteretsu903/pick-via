@@ -1067,6 +1067,9 @@ def _wait_for_proof(
                     browser_identity,
                     frozenset(seen_new_browsers.values()),
                 )
+            helper_exit_code = helper.poll()
+            if helper_exit_code not in (None, 0):
+                raise _HelperError
             if status_sequence == ["selected"]:
                 try:
                     current = _authoritative_browser_snapshot(
@@ -1083,7 +1086,7 @@ def _wait_for_proof(
                     error.token_received = receipt
                     error.status_line = b"".join(status_lines)
                     raise
-                if receipt and browser_identity:
+                if receipt and browser_identity and helper_exit_code == 0:
                     return _WaitResult(
                         "selected",
                         True,
@@ -1094,6 +1097,8 @@ def _wait_for_proof(
             try:
                 wait = min(_remaining(deadline, dependencies.monotonic), 0.05)
             except _DeadlineExpired:
+                if helper.poll() not in (None, 0):
+                    raise _HelperError
                 if status_sequence == ["selected"] and not receipt:
                     raise _ReceiptTimeout(
                         receipt,

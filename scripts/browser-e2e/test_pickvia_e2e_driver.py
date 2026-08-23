@@ -56,6 +56,7 @@ class DriverFixture:
         app_ignores_term=False,
         hold_output_open=False,
         helper_fails=False,
+        helper_failure_phase=None,
         snapshot_failures=frozenset(),
         replacement_after_termination=False,
         late_browser_after_close=False,
@@ -89,6 +90,7 @@ class DriverFixture:
         self.app_ignores_term = app_ignores_term
         self.hold_output_open = hold_output_open
         self.helper_fails = helper_fails
+        self.helper_failure_phase = helper_failure_phase
         self.snapshot_failures = set(snapshot_failures)
         self.replacement_after_termination = replacement_after_termination
         self.late_browser_after_close = late_browser_after_close
@@ -210,6 +212,7 @@ with open(os.environ["PICKVIA_E2E_STATUS_FIFO"], "w", encoding="utf-8") as strea
     for record in records:
         stream.write(json.dumps(record, separators=(",", ":"), sort_keys=True) + "\\n")
         stream.flush()
+(root / "status-written").touch()
 outcomes = [record.get("outcome") for record in records if isinstance(record, dict)]
 if "selected" in outcomes and "launch-error" not in outcomes:
     if %r:
@@ -239,12 +242,15 @@ time.sleep(60)
     def _fake_browser_source(self):
         return (
             """#!/usr/bin/env python3
+import pathlib
 import sys
 import time
 import urllib.request
 route = sys.stdin.buffer.read()
 if %r:
-    try: urllib.request.urlopen(route.decode("ascii"), timeout=1).read()
+    try:
+        urllib.request.urlopen(route.decode("ascii"), timeout=1).read()
+        (pathlib.Path(__file__).resolve().parents[3] / "receipt-delivered").touch()
     except Exception: pass
 time.sleep(60)
 """
@@ -263,11 +269,24 @@ if %r == "helper-stderr": os.write(2, route)
 if %r:
     root = pathlib.Path(sys.argv[1]).parent
     with open(root / "route-trigger.fifo", "wb", buffering=0) as stream: stream.write(route)
+    marker = {
+        "after-status": root / "status-written",
+        "after-browser": root / "browser.pid",
+        "after-receipt": root / "receipt-delivered",
+    }.get(%r)
+    if marker is not None:
+        import time
+        deadline = time.monotonic() + 1.0
+        while not marker.exists() and time.monotonic() < deadline: time.sleep(0.005)
+        if marker.name == "browser.pid": time.sleep(0.1)
+        if marker.name == "receipt-delivered": time.sleep(0.5)
+        raise SystemExit(23)
 """ % (
             self.helper_fails,
             self.leak_channel,
             self.leak_channel,
             self.helper_delivers_to_app,
+            self.helper_failure_phase,
         )
 
     def _leaking_probe_source(self):
@@ -987,6 +1006,42 @@ time.sleep(3.25)
             self.assertEqual(result.exit_code, driver.DRIVER_TIMEOUT)
             self.assertFalse(result.report["token_received"])
             self.assertFalse(result.report["exact_browser_process_identity"])
+
+    def test_selected_status_followed_by_nonzero_helper_is_helper_error(self):
+        with DriverFixture(
+            spawn_browser=False,
+            helper_failure_phase="after-status",
+        ) as fixture:
+            result = fixture.run()
+
+            self.assertEqual(result.exit_code, driver.DRIVER_HELPER_FAILURE)
+            self.assertEqual(result.report["outcome"], "helper-error")
+            self.assertTrue((fixture.fixture_root / "status-written").exists())
+
+    def test_complete_route_proof_with_nonzero_helper_never_passes(self):
+        with DriverFixture(helper_failure_phase="after-receipt") as fixture:
+            result = fixture.run()
+
+            self.assertEqual(result.exit_code, driver.DRIVER_HELPER_FAILURE)
+            self.assertEqual(result.report["outcome"], "helper-error")
+            self.assertIn("observation", fixture.snapshot_phases)
+            receiver_output = b"".join(
+                contents
+                for kind, channel, contents, _overflow in fixture.captured_child_output
+                if kind == "receiver" and channel == "stdout"
+            )
+            self.assertGreaterEqual(receiver_output.count(b"\n"), 2)
+
+    def test_selected_without_receipt_and_nonzero_helper_is_not_receipt_timeout(self):
+        with DriverFixture(
+            delivers_receipt=False,
+            helper_failure_phase="after-browser",
+        ) as fixture:
+            result = fixture.run()
+
+            self.assertEqual(result.exit_code, driver.DRIVER_HELPER_FAILURE)
+            self.assertEqual(result.report["outcome"], "helper-error")
+            self.assertIn("observation", fixture.snapshot_phases)
 
     def test_driver_keeps_url_out_of_harness_control_and_output_channels(self):
         with DriverFixture() as fixture:
