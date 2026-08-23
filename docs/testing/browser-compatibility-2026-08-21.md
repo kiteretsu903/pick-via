@@ -693,3 +693,87 @@ root was restored as the same real, empty directory. Final checks found
 DuckDuckGo, E2E PickVia, receiver, helper, and driver absent; installed PickVia
 remained the same exact pre-batch generation. This entry contains no routed
 address, token, browser arguments, raw UI, screenshot, or profile label.
+
+## Microsoft Edge private routing — 2026-08-22
+
+Status: **Edge Dev and Canary PASS in cold, already-running, and reopen;
+Edge Stable FAILS the cold receipt gate; Edge Beta is HARNESS INVALID after its
+cleanup-only retry lost exact-generation uniqueness.** No profile target was
+created or attempted.
+
+All four installed applications passed the exact app/executable binding and
+team identity gates. The recorded identities are Microsoft Edge Stable
+151.0.4129.101 (`com.microsoft.edgemac`), Edge Beta 152.0.4191.41
+(`com.microsoft.edgemac.Beta`), Edge Dev 153.0.4224.0
+(`com.microsoft.edgemac.Dev`), and Edge Canary 153.0.4233.0
+(`com.microsoft.edgemac.Canary`); each is signed by team `UBF8T346G9`. Each
+edition began from exact process absence and was isolated from every other
+channel.
+
+The canonical browser-level private targets were
+`com.microsoft.edgemac||private`, `com.microsoft.edgemac.Beta||private`,
+`com.microsoft.edgemac.Dev||private`, and
+`com.microsoft.edgemac.Canary||private`, respectively.
+
+Edge Stable's initial cold command did not return a driver report through the
+command handoff, although exact post-run process and task-root checks passed.
+The one authorized harness retry emitted `selected`, verified the exact E2E app
+and exact Stable generation, and received no fresh receipt within 30 seconds.
+That cold cell is therefore a product receipt failure. Per the cold gate, no
+visible observation or later Stable state was attempted.
+
+Edge Beta's first cold route emitted `selected`, received a fresh receipt, and
+verified both exact process identities, but the driver returned `cleanup-error`.
+Exact post-run checks found no Beta, E2E, receiver, or fresh task-root state, so
+the one cleanup-only retry was allowed. That retry stopped as
+`identity-ambiguous` before a receipt and left one exact task-time Beta
+generation. The survivor was terminated only after its exact PID, start
+generation, and executable were revalidated; bounded absence then passed.
+Because neither attempt supplied the complete causal-plus-cleanup proof, the
+cold cell is harness-invalid rather than a product pass or failure, and no UI
+or later Beta state was attempted.
+
+Edge Dev's first cold route similarly reached `selected`, a fresh receipt, and
+both exact identities before a cleanup-only error; exact post-run absence
+qualified it for the sole retry. The retry passed every automated gate. Its
+exact generation was held only for a bounded full-path read-only observation,
+then released to the driver's verified cleanup. The already-running route used
+one separately recorded exact task baseline, produced a fresh receipt against
+that same generation, and preserved it for observation. After exact
+generation revalidation the baseline was terminated; the reopen route then
+proved a new exact generation and fresh receipt. All three observations found
+the correct Dev channel, a browser window, an InPrivate indicator, and no
+onboarding.
+
+Edge Canary passed the same three-state sequence without a route retry. Its
+task-created already-running baseline remained the same exact generation for
+the fresh receipt and observation. Graceful termination exceeded the initial
+five-second poll, but an immediate exact-generation recheck found it gone; the
+reopen route began only after channel absence was reconfirmed. All three
+full-path observations found the correct Canary channel, a browser window, an
+InPrivate indicator, and no onboarding.
+
+| Browser | Mode/state | Selection | Receipt | Exact process identity | Sanitized visible evidence | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Microsoft Edge Stable | Private, cold | `selected` on the classified retry | No receipt within 30 seconds | E2E app and exact Stable generation verified | **NOT RUN — stopped at causal gate** | **FAIL — cold receipt failure** |
+| Microsoft Edge Stable | Private, already running | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold gate** |
+| Microsoft Edge Stable | Private, reopen | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold gate** |
+| Microsoft Edge Beta | Private, cold | `selected` on the first attempt; retry ended `identity-ambiguous` | Fresh receipt on the cleanup-invalid first attempt; none on retry | Exact identities on the first attempt; exact-generation uniqueness failed on retry | **NOT RUN — harness-invalid causal/cleanup proof** | **HARNESS INVALID** |
+| Microsoft Edge Beta | Private, already running | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold harness gate** |
+| Microsoft Edge Beta | Private, reopen | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold harness gate** |
+| Microsoft Edge Dev | Private, cold | `selected` | Fresh receipt | E2E app and exact Dev generation verified | Correct Dev channel; window present; InPrivate indicator present; onboarding absent | **PASS** |
+| Microsoft Edge Dev | Private, already running | `selected` | Fresh receipt | E2E app and same exact task-created Dev baseline verified | Correct Dev channel; window present; InPrivate indicator present; onboarding absent | **PASS** |
+| Microsoft Edge Dev | Private, reopen | `selected` | Fresh receipt | E2E app and new exact Dev generation verified | Correct Dev channel; window present; InPrivate indicator present; onboarding absent | **PASS** |
+| Microsoft Edge Canary | Private, cold | `selected` | Fresh receipt | E2E app and exact Canary generation verified | Correct Canary channel; window present; InPrivate indicator present; onboarding absent | **PASS** |
+| Microsoft Edge Canary | Private, already running | `selected` | Fresh receipt | E2E app and same exact task-created Canary baseline verified | Correct Canary channel; window present; InPrivate indicator present; onboarding absent | **PASS** |
+| Microsoft Edge Canary | Private, reopen | `selected` | Fresh receipt | E2E app and new exact Canary generation verified | Correct Canary channel; window present; InPrivate indicator present; onboarding absent | **PASS** |
+
+The visual checks retained only the booleans represented above; no underlying
+UI state or screenshot was emitted or recorded. No sign-in, default-browser,
+onboarding, account, or profile action was taken. Fresh post-matrix gates passed
+57/57 driver tests, 15/15 receiver tests, the added-line privacy scan, and the
+diff check. The final exact process and temporary-state gate found all four
+Edge editions, E2E PickVia, receivers, helpers, fresh task roots, and hold
+markers absent. This entry contains no routed address, token, browser
+arguments, raw UI, screenshot, or profile label. Installed PickVia and
+preexisting temporary roots were left untouched.
