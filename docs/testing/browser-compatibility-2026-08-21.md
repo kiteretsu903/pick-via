@@ -784,6 +784,58 @@ absent. Installed PickVia remained the same exact pre-batch generation. This
 entry contains no routed address, token, browser arguments, raw UI, screenshot,
 or profile label.
 
+## Firefox private routing — 2026-08-22
+
+Status: **FAIL at the receipt gate for Firefox Stable, Developer Edition, and
+Nightly.** All three installed editions passed strict deep signature
+verification and use PickVia's browser-level Firefox private-window strategy.
+No profile target was created or attempted.
+
+The read-only identity gate recorded Firefox Stable 153.0.3
+(`org.mozilla.firefox`), Firefox Developer Edition 155.0
+(`org.mozilla.firefoxdeveloperedition`), and Firefox Nightly 156.0a1
+(`org.mozilla.nightly`), all with team `43AQ936H96`. Stable began with one exact
+preexisting generation, so a cold state was not claimable. Its already-running
+private production route emitted `selected`, verified the exact E2E app and the
+same exact Stable generation, and received no fresh receipt within 30 seconds.
+The exact Stable PID and start generation remained unchanged and was never
+signaled.
+
+Developer Edition and Nightly each began from exact absence. Each cold private
+production route emitted `selected`, verified the exact E2E app and an exact
+edition generation, and received no fresh receipt within 30 seconds. Each
+driver then restored exact edition absence. Neither edition advanced to
+already-running or reopen.
+
+| Browser | Mode/state | Selection | Receipt | Exact process identity | Sanitized visible evidence | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Firefox Stable | Private, cold | Not attempted | Not attempted | Exact preexisting Stable generation recorded | **NOT RUN** | **NOT RUN — preexisting browser state** |
+| Firefox Stable | Private, already running | `selected` | No receipt within 30 seconds | E2E app and same exact Stable generation verified | **NOT RUN — causal failure and known observer incompatibility** | **FAIL — receipt failure** |
+| Firefox Stable | Private, reopen | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at running gate** |
+| Firefox Developer Edition | Private, cold | `selected` | No receipt within 30 seconds | E2E app and exact Developer Edition generation verified | **NOT RUN — causal failure and known observer incompatibility** | **FAIL — receipt failure** |
+| Firefox Developer Edition | Private, already running | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold gate** |
+| Firefox Developer Edition | Private, reopen | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold gate** |
+| Firefox Nightly | Private, cold | `selected` | No receipt within 30 seconds | E2E app and exact Nightly generation verified | **NOT RUN — causal failure and known observer incompatibility** | **FAIL — receipt failure** |
+| Firefox Nightly | Private, already running | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold gate** |
+| Firefox Nightly | Private, reopen | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold gate** |
+
+Independent exact-executable private-window controls for all three editions
+used fresh bounded receivers and verified exact edition activity; none received
+a receipt. The controls therefore do not isolate the missing private receipts
+to PickVia's selection boundary. Stable's transient control generation exited
+without signaling the exact preexisting generation. Developer Edition and
+Nightly control generations were terminated only after exact task ownership
+was established; guarded SIGTERM cleanup plus bounded absence and quiescence
+passed. No SIGKILL was used.
+
+No Computer Use call was made because every causal gate failed and the Firefox
+observer is known to exceed its bound. Missing visible evidence is not itself
+classified as a product failure. Final checks found Developer Edition, Nightly,
+E2E PickVia, receiver, helper, and driver absent. The exact preexisting Firefox
+Stable and installed PickVia generations remained unchanged. This entry
+contains no routed address, token, browser arguments, raw UI, screenshot, or
+profile label.
+
 ## Microsoft Edge private routing — 2026-08-22
 
 Status: **Edge Dev and Canary PASS in cold, already-running, and reopen;
