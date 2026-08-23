@@ -658,6 +658,14 @@ server.server_close()
 
 @unittest.skipIf(driver is None, "PickVia E2E route driver is not implemented")
 class PickViaE2EDriverTests(unittest.TestCase):
+    def _make_task_root(self):
+        owner = driver._TaskRootOwner()
+        try:
+            return driver._make_task_root(owner)
+        except BaseException:
+            owner.cleanup()
+            raise
+
     def _metadata_on_device(self, metadata, device):
         return types.SimpleNamespace(
             st_mode=metadata.st_mode,
@@ -714,7 +722,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
                 "os.open", side_effect=swap_before_open
             ):
                 with self.assertRaises(OSError):
-                    driver._make_task_root()
+                    self._make_task_root()
             self.assertEqual(created["marker"].read_bytes(), b"replacement")
             self.assertTrue(created["original"].exists())
         finally:
@@ -746,7 +754,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
                 "os.open", side_effect=record_open
             ), mock.patch("os.fchmod", side_effect=interrupt):
                 with self.assertRaises(driver._DriverInterrupted):
-                    driver._make_task_root()
+                    self._make_task_root()
             self.assertFalse(created["path"].exists())
             self.assertEqual(len(created["descriptors"]), 2)
             for descriptor in created["descriptors"]:
@@ -789,7 +797,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
                 "os.open", side_effect=record_open
             ), mock.patch("os.fstat", side_effect=interrupt_second_fstat):
                 with self.assertRaises(driver._DriverInterrupted):
-                    driver._make_task_root()
+                    self._make_task_root()
             self.assertFalse(created["path"].exists())
             self.assertEqual(len(created["descriptors"]), 2)
             for descriptor in created["descriptors"]:
@@ -834,7 +842,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
                 "os.open", side_effect=interrupt_root_open
             ):
                 with self.assertRaises(driver._DriverInterrupted):
-                    driver._make_task_root()
+                    self._make_task_root()
             self.assertEqual(created["marker"].read_bytes(), b"replacement")
             self.assertTrue(created["original"].exists())
             self.assertEqual(len(created["descriptors"]), 1)
@@ -851,8 +859,69 @@ class PickViaE2EDriverTests(unittest.TestCase):
                 except OSError:
                     pass
 
+    def test_signal_after_mkdtemp_return_is_deferred_until_root_is_owned(self):
+        created = {}
+        real_mkdtemp = tempfile.mkdtemp
+
+        def interrupt_after_create(*args, **kwargs):
+            path = pathlib.Path(real_mkdtemp(*args, **kwargs))
+            created["path"] = path
+            os.kill(os.getpid(), signal.SIGINT)
+            return os.fspath(path)
+
+        with DriverFixture() as fixture, mock.patch(
+            "tempfile.mkdtemp", side_effect=interrupt_after_create
+        ):
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_PROCESS_ERROR)
+            self.assertEqual(result.report["outcome"], "driver-error")
+            self.assertFalse(created["path"].exists())
+
+    def test_signal_after_root_open_return_is_deferred_until_fd_is_owned(self):
+        created = {}
+        real_open = os.open
+
+        def interrupt_after_open(path, flags, *args, **kwargs):
+            descriptor = real_open(path, flags, *args, **kwargs)
+            candidate = pathlib.Path(path)
+            if candidate.name.startswith("pickvia-e2e-"):
+                created.update(path=candidate, descriptor=descriptor)
+                os.kill(os.getpid(), signal.SIGTERM)
+            return descriptor
+
+        with DriverFixture() as fixture, mock.patch(
+            "os.open", side_effect=interrupt_after_open
+        ):
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_PROCESS_ERROR)
+            self.assertEqual(result.report["outcome"], "driver-error")
+            self.assertFalse(created["path"].exists())
+            with self.assertRaises(OSError):
+                os.fstat(created["descriptor"])
+
+    def test_signal_after_owner_registration_cleans_before_caller_store(self):
+        observed = {}
+
+        def interrupt_after_register(owner, root):
+            owner._register_without_signal_test_hook(root)
+            observed["path"] = root.path
+            os.kill(os.getpid(), signal.SIGHUP)
+
+        with DriverFixture() as fixture, mock.patch.object(
+            driver._TaskRootOwner,
+            "register",
+            autospec=True,
+            side_effect=interrupt_after_register,
+        ):
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_PROCESS_ERROR)
+            self.assertEqual(result.report["outcome"], "driver-error")
+            self.assertFalse(observed["path"].exists())
+            current_mask = signal.pthread_sigmask(signal.SIG_BLOCK, set())
+            self.assertFalse(current_mask & driver._DEFERRED_SIGNALS)
+
     def test_audit_rejects_recursive_device_boundary(self):
-        pinned = driver._make_task_root()
+        pinned = self._make_task_root()
         boundary = pinned.path / "boundary"
         boundary.mkdir()
         real_stat = os.stat
@@ -880,7 +949,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
             shutil.rmtree(pinned.path)
 
     def test_cleanup_rejects_recursive_device_boundary_without_touching_it(self):
-        pinned = driver._make_task_root()
+        pinned = self._make_task_root()
         boundary = pinned.path / "boundary"
         boundary.mkdir()
         marker = boundary / "must-survive"
@@ -912,9 +981,9 @@ class PickViaE2EDriverTests(unittest.TestCase):
                 shutil.rmtree(pinned.path)
 
     def test_audit_detects_file_added_after_initial_directory_listing(self):
-        pinned = driver._make_task_root()
+        pinned = self._make_task_root()
         (pinned.path / "initial").write_bytes(b"safe")
-        real_listdir = os.listdir
+        real_scandir = os.scandir
         calls = 0
 
         def add_before_rescan(descriptor):
@@ -923,59 +992,81 @@ class PickViaE2EDriverTests(unittest.TestCase):
                 calls += 1
                 if calls == 2:
                     (pinned.path / "late").write_bytes(b"late")
-            return real_listdir(descriptor)
+            return real_scandir(descriptor)
 
         try:
-            with mock.patch("os.listdir", side_effect=add_before_rescan):
+            with mock.patch("os.scandir", side_effect=add_before_rescan):
                 self.assertFalse(pinned.audit_regular_files(b"forbidden"))
         finally:
             pinned.close()
             shutil.rmtree(pinned.path)
 
     def test_audit_detects_file_added_after_final_listing_before_return(self):
-        pinned = driver._make_task_root()
+        pinned = self._make_task_root()
         (pinned.path / "initial").write_bytes(b"safe")
-        real_listdir = os.listdir
-        root_listings = 0
+        real_scandir = os.scandir
+        root_scans = 0
+
+        class AddAfterIteration:
+            def __init__(self, iterator, add_file):
+                self.iterator = iterator
+                self.add_file = add_file
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                self.iterator.close()
+                return False
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                try:
+                    return next(self.iterator)
+                except StopIteration:
+                    if self.add_file:
+                        self.add_file = False
+                        (pinned.path / "late").write_bytes(b"late")
+                    raise
 
         def add_after_final_listing(descriptor):
-            nonlocal root_listings
-            result = real_listdir(descriptor)
+            nonlocal root_scans
+            iterator = real_scandir(descriptor)
             if descriptor == pinned.descriptor:
-                root_listings += 1
-                if root_listings == 2:
-                    (pinned.path / "late").write_bytes(b"late")
-            return result
+                root_scans += 1
+            return AddAfterIteration(iterator, root_scans == 2)
 
         try:
-            with mock.patch("os.listdir", side_effect=add_after_final_listing):
+            with mock.patch("os.scandir", side_effect=add_after_final_listing):
                 self.assertFalse(pinned.audit_regular_files(b"forbidden"))
         finally:
             pinned.close()
             shutil.rmtree(pinned.path)
 
     def test_audit_requires_two_matching_bracketed_tree_passes(self):
-        pinned = driver._make_task_root()
+        pinned = self._make_task_root()
         (pinned.path / "stable").write_bytes(b"safe")
-        real_listdir = os.listdir
-        root_listings = 0
+        real_scandir = os.scandir
+        root_scans = 0
 
-        def count_root_listings(descriptor):
-            nonlocal root_listings
+        def count_root_scans(descriptor):
+            nonlocal root_scans
             if descriptor == pinned.descriptor:
-                root_listings += 1
-            return real_listdir(descriptor)
+                root_scans += 1
+            return real_scandir(descriptor)
 
         try:
-            with mock.patch("os.listdir", side_effect=count_root_listings):
+            with mock.patch("os.scandir", side_effect=count_root_scans):
                 self.assertTrue(pinned.audit_regular_files(b"forbidden"))
-            self.assertGreaterEqual(root_listings, 4)
+            self.assertGreaterEqual(root_scans, 4)
         finally:
             pinned.close()
             shutil.rmtree(pinned.path)
 
     def test_audit_enforces_entry_and_repeated_work_budgets(self):
-        pinned = driver._make_task_root()
+        pinned = self._make_task_root()
         (pinned.path / "one").write_bytes(b"123")
         (pinned.path / "two").write_bytes(b"456")
         try:
@@ -988,7 +1079,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
             shutil.rmtree(pinned.path)
 
     def test_audit_enforces_deadline_during_bracketed_passes(self):
-        pinned = driver._make_task_root()
+        pinned = self._make_task_root()
         (pinned.path / "stable").write_bytes(b"safe")
         clock_calls = 0
 
@@ -1004,8 +1095,96 @@ class PickViaE2EDriverTests(unittest.TestCase):
             pinned.close()
             shutil.rmtree(pinned.path)
 
+    def test_audit_enumeration_charges_entry_cap_incrementally(self):
+        pinned = self._make_task_root()
+        metadata = (pinned.path / ".").stat()
+
+        class ManyEntries:
+            def __init__(self):
+                self.yielded = 0
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                self.yielded += 1
+                return types.SimpleNamespace(name=f"entry-{self.yielded}")
+
+        entries = ManyEntries()
+        budget = driver._AuditBudget(time.monotonic() + 1.0)
+        audit_pass = driver._AuditPass()
+        try:
+            with mock.patch("os.scandir", return_value=entries), mock.patch(
+                "os.stat", return_value=metadata
+            ), mock.patch.object(driver, "MAXIMUM_AUDIT_ENTRIES", 3):
+                with self.assertRaises(OSError):
+                    driver._snapshot_directory_at(
+                        pinned.descriptor,
+                        pinned.identity.device,
+                        budget,
+                        audit_pass,
+                        count_toward_tree=True,
+                    )
+            self.assertEqual(entries.yielded, 4)
+        finally:
+            pinned.close()
+            shutil.rmtree(pinned.path)
+
+    def test_audit_enumeration_checks_deadline_per_entry(self):
+        pinned = self._make_task_root()
+        metadata = (pinned.path / ".").stat()
+        clock_calls = 0
+
+        class SlowEntries:
+            def __init__(self):
+                self.yielded = 0
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                self.yielded += 1
+                return types.SimpleNamespace(name=f"entry-{self.yielded}")
+
+        def clock():
+            nonlocal clock_calls
+            clock_calls += 1
+            return 0.0 if clock_calls <= 4 else 3.0
+
+        entries = SlowEntries()
+        budget = driver._AuditBudget(2.0)
+        audit_pass = driver._AuditPass()
+        try:
+            with mock.patch("os.scandir", return_value=entries), mock.patch(
+                "os.stat", return_value=metadata
+            ), mock.patch("time.monotonic", side_effect=clock):
+                with self.assertRaises(OSError):
+                    driver._snapshot_directory_at(
+                        pinned.descriptor,
+                        pinned.identity.device,
+                        budget,
+                        audit_pass,
+                        count_toward_tree=True,
+                    )
+            self.assertLessEqual(entries.yielded, 4)
+        finally:
+            pinned.close()
+            shutil.rmtree(pinned.path)
+
     def test_audit_detects_file_growth_during_content_scan(self):
-        pinned = driver._make_task_root()
+        pinned = self._make_task_root()
         target = pinned.path / "growing"
         target.write_bytes(b"safe")
         real_fstat = os.fstat
@@ -1030,7 +1209,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
             shutil.rmtree(pinned.path)
 
     def test_audit_enforces_cumulative_regular_file_byte_cap(self):
-        pinned = driver._make_task_root()
+        pinned = self._make_task_root()
         (pinned.path / "one").write_bytes(b"123")
         (pinned.path / "two").write_bytes(b"456")
         try:
@@ -1041,7 +1220,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
             shutil.rmtree(pinned.path)
 
     def test_child_cleanup_operation_time_swap_preserves_replacement(self):
-        pinned = driver._make_task_root()
+        pinned = self._make_task_root()
         (pinned.path / "owned").write_bytes(b"owned")
         real_rename = os.rename
         swapped = {}
@@ -1082,7 +1261,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
                 shutil.rmtree(pinned.path)
 
     def test_root_cleanup_operation_time_swap_preserves_replacement(self):
-        pinned = driver._make_task_root()
+        pinned = self._make_task_root()
         real_rename = os.rename
         swapped = {}
 
@@ -1128,7 +1307,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
                     shutil.rmtree(held)
 
     def test_pinned_task_root_rejects_replacement_before_fifo_setup(self):
-        pinned = driver._make_task_root()
+        pinned = self._make_task_root()
         path, original, marker = self._swap_pinned_root(pinned)
         try:
             with self.assertRaises(OSError):
@@ -1139,7 +1318,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
             self._clean_swapped_roots(pinned, path, original)
 
     def test_pinned_task_root_rejects_replacement_before_environment_handoff(self):
-        pinned = driver._make_task_root()
+        pinned = self._make_task_root()
         path, original, marker = self._swap_pinned_root(pinned)
         try:
             with self.assertRaises(OSError):
@@ -1149,7 +1328,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
             self._clean_swapped_roots(pinned, path, original)
 
     def test_pinned_task_root_rejects_replacement_before_privacy_audit(self):
-        pinned = driver._make_task_root()
+        pinned = self._make_task_root()
         (pinned.path / "owned").write_bytes(b"owned")
         path, original, marker = self._swap_pinned_root(pinned)
         try:
@@ -1160,7 +1339,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
             self._clean_swapped_roots(pinned, path, original)
 
     def test_pinned_task_root_cleanup_never_deletes_replacement_contents(self):
-        pinned = driver._make_task_root()
+        pinned = self._make_task_root()
         (pinned.path / "owned").write_bytes(b"owned")
         path, original, marker = self._swap_pinned_root(pinned)
         try:

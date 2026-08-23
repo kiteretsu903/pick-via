@@ -67,6 +67,9 @@ _CLOSED_OUTCOMES = frozenset(
         "launch-error",
     }
 )
+_DEFERRED_SIGNALS = frozenset(
+    {signal.SIGINT, signal.SIGTERM, signal.SIGHUP}
+)
 _SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 
 
@@ -474,6 +477,27 @@ class _PinnedTaskRoot:
             os.close(self.parent_descriptor)
         except OSError:
             pass
+
+
+class _TaskRootOwner:
+    def __init__(self):
+        self.root = None
+
+    def _register_without_signal_test_hook(self, root):
+        if self.root is not None:
+            raise RuntimeError("task root already registered")
+        self.root = root
+
+    def register(self, root):
+        self._register_without_signal_test_hook(root)
+
+    def cleanup(self):
+        if self.root is None:
+            return True
+        try:
+            return self.root.remove()
+        finally:
+            self.root.close()
 
 
 def _restore_quarantine(descriptor, quarantine, original):
@@ -1040,7 +1064,7 @@ def _physical_executable(path):
     )
 
 
-def _make_task_root():
+def _make_task_root_while_signals_blocked(owner):
     parent = pathlib.Path("/private/tmp")
     parent_descriptor = None
     root = None
@@ -1093,6 +1117,7 @@ def _make_task_root():
         os.fchmod(descriptor, 0o700)
         pinned.identity = _DirectoryIdentity.from_stat(os.fstat(descriptor))
         pinned.require_current()
+        owner.register(pinned)
         return pinned
     except BaseException:
         if pinned is not None:
@@ -1153,6 +1178,24 @@ def _make_task_root():
                     pass
             os.close(parent_descriptor)
         raise
+
+
+def _make_task_root(owner):
+    if not isinstance(owner, _TaskRootOwner):
+        raise TypeError("task root owner is required")
+    previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, _DEFERRED_SIGNALS)
+    pending_interrupt = False
+    try:
+        root = _make_task_root_while_signals_blocked(owner)
+        pending_interrupt = bool(signal.sigpending() & _DEFERRED_SIGNALS)
+    finally:
+        try:
+            signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
+        except BaseException:
+            raise
+    if pending_interrupt:
+        raise _DriverInterrupted
+    return root
 
 
 def _remaining(deadline, monotonic):
@@ -1675,17 +1718,21 @@ def _snapshot_directory_at(
     count_toward_tree,
 ):
     budget.check_deadline()
-    names = os.listdir(descriptor)
-    budget.spend_entries(
-        len(names), audit_pass, count_toward_tree=count_toward_tree
-    )
     entries = {}
-    for name in names:
-        budget.check_deadline()
-        metadata = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
-        if stat.S_ISDIR(metadata.st_mode) and metadata.st_dev != root_device:
-            raise OSError("task root crosses a device boundary")
-        entries[name] = _EntryIdentity.from_stat(metadata)
+    with os.scandir(descriptor) as iterator:
+        for entry in iterator:
+            budget.spend_entries(
+                1,
+                audit_pass,
+                count_toward_tree=count_toward_tree,
+            )
+            name = entry.name
+            metadata = os.stat(
+                name, dir_fd=descriptor, follow_symlinks=False
+            )
+            if stat.S_ISDIR(metadata.st_mode) and metadata.st_dev != root_device:
+                raise OSError("task root crosses a device boundary")
+            entries[name] = _EntryIdentity.from_stat(metadata)
     return entries
 
 
@@ -1812,6 +1859,7 @@ def run_driver(config, dependencies=None):
     deadline = started + timeout
     processes = _OwnedProcesses(dependencies)
     task_root = None
+    task_root_owner = _TaskRootOwner()
     fifo_descriptor = None
     route_bytes = None
     status_line = b""
@@ -1835,7 +1883,7 @@ def run_driver(config, dependencies=None):
             dependencies, browser_executable, "baseline"
         )
         baseline_authoritative = True
-        task_root = _make_task_root()
+        task_root = _make_task_root(task_root_owner)
         task_root.create_fifo("status.fifo")
         fifo = task_root.child_path("status.fifo")
         fifo_descriptor = task_root.open_fifo("status.fifo")
@@ -2003,6 +2051,8 @@ def run_driver(config, dependencies=None):
         exit_code = DRIVER_PROCESS_ERROR
     finally:
         signal_guard.begin_cleanup()
+        if task_root is None:
+            task_root = task_root_owner.root
         browser_cleanup_deadline = (
             time.monotonic() + BROWSER_CLEANUP_GRACE_SECONDS
         )
