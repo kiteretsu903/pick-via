@@ -741,6 +741,49 @@ receiver, helper, and driver absent. The exact preexisting Brave Stable and
 installed PickVia generations remained unchanged. This entry contains no
 routed address, token, browser arguments, raw UI, screenshot, or profile label.
 
+## Vivaldi private routing — 2026-08-22
+
+Status: **Vivaldi Stable and Snapshot FAIL at the cold causal gate; their
+already-running and reopen states are NOT RUN.** Both editions use PickVia's
+browser-level private Chromium launch strategy. No profile target was created
+or attempted.
+
+Vivaldi Stable 8.1.4087.70 (`com.vivaldi.Vivaldi`, team `4XF3XNRN6Y`) and
+Vivaldi Snapshot 8.2.4133.24 (`com.vivaldi.Vivaldi.snapshot`, team
+`4XF3XNRN6Y`) passed strict deep signature verification and each began from
+exact process absence. Each canonical private production route verified the
+exact E2E app but stopped with an exact-browser identity ambiguity before any
+fresh receiver receipt. Exact browser proof was therefore false for both
+classified routes, and neither edition advanced beyond cold.
+
+| Browser | Mode/state | Selection | Receipt | Exact process identity | Sanitized visible evidence | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Vivaldi Stable | Private, cold | Not authoritatively retained before the identity gate | No receipt | Exact E2E app verified; exact browser proof false after generation ambiguity | **NOT RUN — known Vivaldi observer incompatibility and failed causal gate** | **FAIL — identity-ambiguous before receipt** |
+| Vivaldi Stable | Private, already running | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold gate** |
+| Vivaldi Stable | Private, reopen | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold gate** |
+| Vivaldi Snapshot | Private, cold | Not authoritatively retained before the identity gate | No receipt | Exact E2E app verified; exact browser proof false after generation ambiguity | **NOT RUN — known Vivaldi observer incompatibility and failed causal gate** | **FAIL — identity-ambiguous before receipt** |
+| Vivaldi Snapshot | Private, already running | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold gate** |
+| Vivaldi Snapshot | Private, reopen | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold gate** |
+
+Independent exact-executable private controls then ran from confirmed absence
+with fresh bounded receivers. Stable verified one exact generation and received
+its fresh receipt, demonstrating that its installed private transport works
+outside PickVia while leaving the production driver's generation-attribution
+failure unresolved. Snapshot also verified one exact generation but received
+no receipt within the bound, so its missing receipt is not isolated to PickVia.
+No Computer Use call was made and no visible evidence was collected; that
+missing visible evidence is not itself classified as a product failure.
+
+After each production failure, its sole residual edition generation received
+SIGTERM only after the originally empty prestate and exact task generation were
+revalidated. Each control likewise used one guarded bounded SIGTERM attempt;
+subsequent bounded absence and quiescence checks passed, including Snapshot's
+delayed exit after its first cleanup check. No SIGKILL was used. Final checks
+found Vivaldi Stable, Vivaldi Snapshot, E2E PickVia, receiver, helper, and driver
+absent. Installed PickVia remained the same exact pre-batch generation. This
+entry contains no routed address, token, browser arguments, raw UI, screenshot,
+or profile label.
+
 ## Microsoft Edge private routing — 2026-08-22
 
 Status: **Edge Dev and Canary PASS in cold, already-running, and reopen;
