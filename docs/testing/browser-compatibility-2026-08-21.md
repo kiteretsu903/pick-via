@@ -777,3 +777,59 @@ Edge editions, E2E PickVia, receivers, helpers, fresh task roots, and hold
 markers absent. This entry contains no routed address, token, browser
 arguments, raw UI, screenshot, or profile label. Installed PickVia and
 preexisting temporary roots were left untouched.
+
+## Google Chrome private routing — 2026-08-22
+
+Status: **all states NOT RUN. Chrome Stable and Beta are installation-identity
+blocked; Chrome Dev and Canary are harness-blocked before selection in cold.**
+No profile target was created or attempted, and neither preselection outcome is
+classified as a PickVia or browser product failure.
+
+Fresh installed-identity checks recorded Google Chrome Stable 151.0.7922.172
+(`com.google.Chrome`), Chrome Beta 153.0.8010.5
+(`com.google.Chrome.beta`), Chrome Dev 154.0.8013.2
+(`com.google.Chrome.dev`), and Chrome Canary 154.0.8018.0
+(`com.google.Chrome.canary`); each reports team `EQHXZ8M8AV`. Stable and Beta
+failed strict deep code-signature verification, so their designated
+requirements and all private launch states were not run. Dev and Canary passed
+strict deep verification and their own designated requirements.
+
+The canonical browser-level targets were `com.google.Chrome||private`,
+`com.google.Chrome.beta||private`, `com.google.Chrome.dev||private`, and
+`com.google.Chrome.canary||private`, respectively. Before the classified Dev
+and Canary routes, the rebuilt E2E executable's canonical path, inode, and
+SHA-256 were pinned. All three values matched immediately before and after each
+route, and no build or isolation process ran during the matrix.
+
+The one classified Dev cold route verified the exact E2E application identity
+but ended `process-error` before `selected`, a receipt, or exact browser-process
+proof. Exact Dev absence passed afterward. The one classified Canary cold route
+reached the same bounded preselection result with exact E2E identity verified,
+no receipt, and no browser generation observed; exact Canary absence also
+passed afterward. Per the cold gate, already-running and reopen were not run.
+Because neither route crossed the causal gate, no Computer Use observer was
+attached and no edition, window, Incognito, or onboarding boolean was borrowed
+from the normal matrix.
+
+| Browser | Mode/state | Selection | Receipt | Exact process identity | Sanitized visible evidence | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Google Chrome Stable | Private, cold | Not attempted | Not attempted | Installed signature invalid | **NOT RUN** | **NOT RUN — installation identity blocker** |
+| Google Chrome Stable | Private, already running | Not attempted | Not attempted | Installed signature invalid | **NOT RUN** | **NOT RUN — installation identity blocker** |
+| Google Chrome Stable | Private, reopen | Not attempted | Not attempted | Installed signature invalid | **NOT RUN** | **NOT RUN — installation identity blocker** |
+| Google Chrome Beta | Private, cold | Not attempted | Not attempted | Installed signature invalid | **NOT RUN** | **NOT RUN — installation identity blocker** |
+| Google Chrome Beta | Private, already running | Not attempted | Not attempted | Installed signature invalid | **NOT RUN** | **NOT RUN — installation identity blocker** |
+| Google Chrome Beta | Private, reopen | Not attempted | Not attempted | Installed signature invalid | **NOT RUN** | **NOT RUN — installation identity blocker** |
+| Google Chrome Dev | Private, cold | Not reached; driver ended `process-error` | Not reached | Exact E2E app verified; no browser generation observed | **NOT RUN — harness blocked before observation** | **NOT RUN / HARNESS BLOCKED** |
+| Google Chrome Dev | Private, already running | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold harness gate** |
+| Google Chrome Dev | Private, reopen | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold harness gate** |
+| Google Chrome Canary | Private, cold | Not reached; driver ended `process-error` | Not reached | Exact E2E app verified; no browser generation observed | **NOT RUN — harness blocked before observation** | **NOT RUN / HARNESS BLOCKED** |
+| Google Chrome Canary | Private, already running | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold harness gate** |
+| Google Chrome Canary | Private, reopen | Not attempted | Not attempted | Not attempted | **NOT RUN** | **NOT RUN — stopped at cold harness gate** |
+
+No sign-in, account, profile, default-browser, or onboarding action was taken.
+Stable was never targeted and one exact Stable generation remained present;
+Beta remained absent. Final exact checks found Dev, Canary, E2E PickVia,
+receiver, helper, driver, fresh task roots, and hold markers absent. This entry
+contains no routed address, token, browser arguments, raw UI, screenshot, or
+profile label. Installed PickVia and preexisting temporary roots were left
+untouched.
