@@ -122,6 +122,15 @@ def open_destination(directory_fd, name, mode):
             mode,
             dir_fd=directory_fd,
         )
+    try:
+        validate_writable_destination(directory_fd, name, descriptor)
+    except Exception:
+        os.close(descriptor)
+        raise
+    return descriptor
+
+
+def validate_writable_destination(directory_fd, name, descriptor):
     pinned = os.fstat(descriptor)
     named = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
     if (
@@ -129,14 +138,13 @@ def open_destination(directory_fd, name, mode):
         or pinned.st_nlink != 1
         or not same_identity(pinned, named)
     ):
-        os.close(descriptor)
         raise BundleBuildError("bundle destination link identity is unsafe")
-    return descriptor
 
 
 def write_bytes(directory_fd, name, contents, mode):
     descriptor = open_destination(directory_fd, name, mode)
     try:
+        validate_writable_destination(directory_fd, name, descriptor)
         os.ftruncate(descriptor, 0)
         os.lseek(descriptor, 0, os.SEEK_SET)
         view = memoryview(contents)
@@ -144,9 +152,9 @@ def write_bytes(directory_fd, name, contents, mode):
             view = view[os.write(descriptor, view) :]
         os.fchmod(descriptor, mode)
         os.fsync(descriptor)
+        validate_writable_destination(directory_fd, name, descriptor)
         after = os.fstat(descriptor)
-        named = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
-        if after.st_size != len(contents) or not same_identity(after, named):
+        if after.st_size != len(contents):
             raise BundleBuildError("bundle destination changed after write")
     finally:
         os.close(descriptor)
@@ -157,6 +165,7 @@ def copy_descriptor(source_fd, directory_fd, name, mode, expected_source):
     descriptor = open_destination(directory_fd, name, mode)
     try:
         os.lseek(source_fd, 0, os.SEEK_SET)
+        validate_writable_destination(directory_fd, name, descriptor)
         os.ftruncate(descriptor, 0)
         os.lseek(descriptor, 0, os.SEEK_SET)
         copied_hash = hashlib.sha256()
@@ -172,13 +181,11 @@ def copy_descriptor(source_fd, directory_fd, name, mode, expected_source):
         os.fsync(descriptor)
         after_source = os.fstat(source_fd)
         after_destination = os.fstat(descriptor)
-        named = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+        validate_writable_destination(directory_fd, name, descriptor)
         if tuple(getattr(after_source, field) for field in STABLE_FIELDS) != before:
             raise BundleBuildError("bundle source changed during copy")
         if copied_hash.digest() != source_hash or after_destination.st_size != after_source.st_size:
             raise BundleBuildError("bundle copy digest mismatch")
-        if not same_identity(after_destination, named):
-            raise BundleBuildError("bundle destination changed during copy")
     finally:
         os.close(descriptor)
 

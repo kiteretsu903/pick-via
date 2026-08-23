@@ -468,6 +468,43 @@ assert_hard_linked_destination_is_preserved() {
 
 assert_hard_linked_destination_is_preserved
 
+assert_bundle_helper_ignores_parent_python_environment() {
+  local fixture="$contract_root/helper-environment/repo"
+  local hook="$contract_root/helper-environment/hook"
+  local python_path="$contract_root/helper-environment/python-path"
+  local sentinel="$contract_root/helper-environment/sitecustomize-ran"
+
+  mkdir -p "$fixture/scripts" "$fixture/Support/Icons" "$fixture/.build-e2e" \
+    "$fixture/build-e2e" "$python_path"
+  install_build_contract "$fixture"
+  cp "$repo_root/Support/Info.plist" "$fixture/Support/Info.plist"
+  cp "$repo_root/Support/Icons/PickVia.icns" "$fixture/Support/Icons/PickVia.icns"
+  cp "$repo_root/Support/Icons/PickViaMenuBarTemplate.png" \
+    "$fixture/Support/Icons/PickViaMenuBarTemplate.png"
+  {
+    print -r -- 'import os, pathlib, sys'
+    print -r -- "if sys.argv[0].endswith('build_e2e_bundle.py') and os.environ.get('PICKVIA_PARENT_SENTINEL_SECRET') == 'must-not-enter-helper':"
+    print -r -- "    pathlib.Path('$sentinel').write_text('leaked', encoding='ascii')"
+  } > "$python_path/sitecustomize.py"
+  {
+    print -r -- '#!/bin/zsh'
+    print -r -- 'fixture="$PICKVIA_BUILD_CONTRACT_FIXTURE"'
+    print -r -- '[[ "$1" == build ]] || exit 0'
+    print -r -- '/bin/mkdir -p "$fixture/.build-e2e/release"'
+    print -r -- '/bin/cp /usr/bin/true "$fixture/.build-e2e/release/PickVia"'
+  } > "$hook"
+  chmod +x "$hook"
+
+  PICKVIA_BUILD_CONTRACT_FIXTURE="$fixture" \
+    PICKVIA_BUILD_E2E_CONTRACT_HOOK="$hook" \
+    PICKVIA_PARENT_SENTINEL_SECRET=must-not-enter-helper \
+    PYTHONPATH="$python_path" \
+    zsh "$fixture/scripts/build-e2e-app.sh" >/dev/null
+  test ! -e "$sentinel"
+}
+
+assert_bundle_helper_ignores_parent_python_environment
+
 assert_smoke_contract_is_status_driven_and_browser_free() {
   local smoke="$repo_root/scripts/smoke-test-e2e.sh"
   local policy="$repo_root/scripts/browser-e2e/smoke_e2e_runtime.py"
@@ -493,6 +530,14 @@ assert_smoke_contract_is_status_driven_and_browser_free
   LC_CTYPE=UTF-8 \
   PYTHONDONTWRITEBYTECODE=1 \
   /usr/bin/python3 "$repo_root/scripts/browser-e2e/test_smoke_e2e_runtime.py" >/dev/null
+
+/usr/bin/env -i \
+  PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+  LANG=en_US.UTF-8 \
+  LC_CTYPE=UTF-8 \
+  PYTHONDONTWRITEBYTECODE=1 \
+  /usr/bin/python3 -I \
+    "$repo_root/scripts/browser-e2e/test_build_e2e_bundle.py" >/dev/null
 
 zsh "$repo_root/scripts/build-app.sh" >/dev/null
 zsh "$repo_root/scripts/build-e2e-app.sh" >/dev/null

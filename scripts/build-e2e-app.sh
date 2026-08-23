@@ -233,7 +233,19 @@ else
   /bin/mkdir -- MacOS Resources _CodeSignature
 fi
 
-/usr/bin/python3 "$bundle_helper" \
+/usr/bin/env -i \
+  PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+  LANG=C \
+  LC_CTYPE=C \
+  PYTHONDONTWRITEBYTECODE=1 \
+  PICKVIA_BUILD_E2E_CONTRACT_HOOK="${PICKVIA_BUILD_E2E_CONTRACT_HOOK:-}" \
+  PICKVIA_BUILD_CONTRACT_FIXTURE="${PICKVIA_BUILD_CONTRACT_FIXTURE:-}" \
+  PICKVIA_BUILD_CONTRACT_SENTINEL="${PICKVIA_BUILD_CONTRACT_SENTINEL:-}" \
+  PICKVIA_BUILD_CONTRACT_SWAP_MARKER="${PICKVIA_BUILD_CONTRACT_SWAP_MARKER:-}" \
+  PICKVIA_BUILD_CONTRACT_EXTERNAL="${PICKVIA_BUILD_CONTRACT_EXTERNAL:-}" \
+  PICKVIA_BUILD_CONTRACT_CHILD="${PICKVIA_BUILD_CONTRACT_CHILD:-}" \
+  PICKVIA_BUILD_CONTRACT_PHASE="${PICKVIA_BUILD_CONTRACT_PHASE:-}" \
+  /usr/bin/python3 -I "$bundle_helper" \
   "$repo_root" "$output_root/$app" "$app_fd" "$contents_fd" \
   "$scratch/release/PickVia" "$scratch_fd" "$repo_root/Support/Info.plist" \
   "$app_icon" "$menu_icon" "$app_existed" || fail "Pinned bundle construction failed"
