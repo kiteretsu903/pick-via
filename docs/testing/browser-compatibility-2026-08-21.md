@@ -592,3 +592,62 @@ revalidation, and no SIGKILL was used. Final checks found Developer Edition,
 Nightly, E2E PickVia, receiver, helper, and driver absent. The preexisting
 Firefox Stable and installed PickVia generations remained unchanged, and
 preexisting temporary roots were left untouched.
+
+## Opera, Arc, and Orion normal routing — 2026-08-22
+
+Status: **Opera and Arc NOT RUN because their installed bundles failed strict
+deep signature verification; Orion's automated causal normal matrix passed but
+its visible matrix remains incomplete.** All three use PickVia's normal
+workspace launch strategy. The enhanced-capability probe evidence above remains
+separate and is not reclassified by this normal matrix.
+
+The read-only installed-identity gate recorded Opera 135.0
+(`com.operasoftware.Opera`, team `A2P9LX4JPN`) and Arc 1.161.1
+(`company.thebrowser.Browser`, team `S6N382Y83G`). Both strict deep signature
+checks failed, and both exact process prestates were empty. Neither application
+was launched, UI-observed, or mutated, and all three normal states remain NOT
+RUN for those editions.
+
+Orion 1.1.2 (`com.kagi.kagimacOS`, team `TFVG979488`) passed strict deep
+signature verification and began from exact absence. An initial cold production
+route emitted `selected`, received its fresh receipt, verified the exact E2E app
+and exact Orion generation, exited successfully, and reached exact absence. A
+second independent cold route repeated the complete causal proof and held the
+exact generation for a bounded 240-second full-path observation. No observer
+result arrived before the hold expired, and the driver ultimately reported
+`cleanup-error`.
+The exact generation exited naturally before the guarded external cleanup check;
+bounded absence and quiescence then passed without signaling it.
+
+The root observer returned only after the 240-second hold and route cleanup, so
+its booleans were excluded. Its delayed full-path invocation left a separate
+exact Orion generation that began after route cleanup. Because the original
+Orion prestate was empty, that sole generation received SIGTERM only after its
+exact PID, start generation, executable, bundle, team, and task-time start were
+revalidated. No SIGKILL was used, and bounded absence plus quiescence passed.
+
+From confirmed absence after that cleanup, the already-running state used one
+exact task-created Orion baseline. Its production route emitted `selected`,
+received a fresh receipt, verified the exact E2E app and the same baseline
+generation, and exited successfully. The baseline was terminated only after its
+exact PID and start generation were revalidated, and bounded quiescence
+confirmed absence. The fresh reopen route then independently emitted
+`selected`, received its fresh receipt, verified the exact E2E app and new exact
+Orion generation, exited successfully, and reached exact absence.
+
+| Browser | Mode/state | Selection | Receipt | Exact process identity | Sanitized visible evidence | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Opera | Normal, cold/already running/reopen | Not attempted | Not attempted | Installed identity recorded; strict deep signature failed | **NOT RUN** | **NOT RUN — installation identity blocker** |
+| Arc | Normal, cold/already running/reopen | Not attempted | Not attempted | Installed identity recorded; strict deep signature failed | **NOT RUN** | **NOT RUN — installation identity blocker** |
+| Orion | Normal, cold | `selected` | Fresh receipt | E2E app and exact Orion generation verified | **NOT RUN — observer result unavailable within bound** | **AUTOMATED ROUTE PASS / VISIBLE NOT RUN** |
+| Orion | Normal, already running | `selected` | Fresh receipt | E2E app and same exact task-created Orion baseline verified | **NOT RUN — causal-only continuation; observer not attempted** | **AUTOMATED ROUTE PASS / VISIBLE NOT RUN** |
+| Orion | Normal, reopen | `selected` | Fresh receipt | E2E app and new exact Orion generation verified | **NOT RUN — causal-only continuation; observer not attempted** | **AUTOMATED ROUTE PASS / VISIBLE NOT RUN** |
+
+No exact-application control was needed because every classified Orion
+production route received its receipt. No onboarding action, account, sign-in,
+profile, private target, or default-browser change was created or attempted.
+This entry contains no
+routed address, token, browser arguments, raw UI, screenshot, or profile label.
+Final checks found Opera, Arc, Orion, E2E PickVia, receiver, and driver absent;
+installed PickVia remained the same exact pre-batch generation, and preexisting
+temporary roots were left untouched.
