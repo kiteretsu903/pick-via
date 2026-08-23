@@ -920,6 +920,42 @@ class PickViaE2EDriverTests(unittest.TestCase):
             current_mask = signal.pthread_sigmask(signal.SIG_BLOCK, set())
             self.assertFalse(current_mask & driver._DEFERRED_SIGNALS)
 
+    def test_signal_mask_block_return_exception_restores_known_previous_mask(self):
+        owner = driver._TaskRootOwner()
+        real_pthread_sigmask = signal.pthread_sigmask
+        previous_mask = real_pthread_sigmask(signal.SIG_BLOCK, set())
+        injected = False
+
+        def interrupt_after_native_mask_change(operation, mask):
+            nonlocal injected
+            result = real_pthread_sigmask(operation, mask)
+            if (
+                not injected
+                and operation == signal.SIG_BLOCK
+                and set(mask) == set(driver._DEFERRED_SIGNALS)
+            ):
+                injected = True
+                raise driver._DriverInterrupted
+            return result
+
+        try:
+            with mock.patch(
+                "signal.pthread_sigmask",
+                side_effect=interrupt_after_native_mask_change,
+            ), mock.patch("os.open") as opened, mock.patch(
+                "tempfile.mkdtemp"
+            ) as made_root:
+                with self.assertRaises(driver._DriverInterrupted):
+                    driver._make_task_root(owner)
+            current_mask = real_pthread_sigmask(signal.SIG_BLOCK, set())
+            for signum in driver._DEFERRED_SIGNALS:
+                self.assertEqual(signum in current_mask, signum in previous_mask)
+            self.assertIsNone(owner.root)
+            opened.assert_not_called()
+            made_root.assert_not_called()
+        finally:
+            real_pthread_sigmask(signal.SIG_SETMASK, previous_mask)
+
     def test_audit_rejects_recursive_device_boundary(self):
         pinned = self._make_task_root()
         boundary = pinned.path / "boundary"

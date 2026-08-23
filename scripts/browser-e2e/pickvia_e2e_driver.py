@@ -1183,16 +1183,14 @@ def _make_task_root_while_signals_blocked(owner):
 def _make_task_root(owner):
     if not isinstance(owner, _TaskRootOwner):
         raise TypeError("task root owner is required")
-    previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, _DEFERRED_SIGNALS)
+    previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, set())
     pending_interrupt = False
     try:
+        signal.pthread_sigmask(signal.SIG_BLOCK, _DEFERRED_SIGNALS)
         root = _make_task_root_while_signals_blocked(owner)
         pending_interrupt = bool(signal.sigpending() & _DEFERRED_SIGNALS)
     finally:
-        try:
-            signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
-        except BaseException:
-            raise
+        signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
     if pending_interrupt:
         raise _DriverInterrupted
     return root
