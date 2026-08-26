@@ -75,6 +75,7 @@ class DriverFixture:
         browser_binding_mutation=None,
         provenance_second_delay=0.0,
         provenance_second_partial=False,
+        provenance_first_partial=False,
         provenance_before_status=False,
         status_delay=0.0,
         status_trailing_payload=b"",
@@ -132,6 +133,7 @@ class DriverFixture:
         self.browser_binding_mutation = browser_binding_mutation
         self.provenance_second_delay = provenance_second_delay
         self.provenance_second_partial = provenance_second_partial
+        self.provenance_first_partial = provenance_first_partial
         self.provenance_before_status = provenance_before_status
         self.status_delay = status_delay
         self.status_trailing_payload = status_trailing_payload
@@ -301,7 +303,7 @@ def write_provenance():
             if resolved.get("processIdentifier") == "$browser_pid":
                 resolved["processIdentifier"] = browsers[0].pid
             payload = (json.dumps(resolved, separators=(",", ":"), sort_keys=True) + "\\n").encode("utf-8")
-            if index > 0 and %r:
+            if (index == 0 and %r) or (index > 0 and %r):
                 payload = payload[:max(1, len(payload) // 2)]
             os.write(descriptor, payload)
     finally:
@@ -356,6 +358,7 @@ time.sleep(60)
             self.provenance_records,
             self.provenance_before_status,
             self.provenance_second_delay,
+            self.provenance_first_partial,
             self.provenance_second_partial,
             self.status_delay,
             bool(self.status_trailing_payload),
@@ -3671,6 +3674,124 @@ time.sleep(3.25)
             result = fixture.run()
             self.assertEqual(result.exit_code, driver.DRIVER_SELECTION_REJECTED)
             self.assertEqual(result.report["outcome"], "target-missing")
+
+    def test_closed_rejection_with_launch_provenance_is_a_harness_inconsistency(self):
+        provenance = {
+            "session": "session_0123456789",
+            "request": "$request",
+            "target": "com.microsoft.edgemac||normal",
+            "bundleIdentifier": "com.microsoft.edgemac",
+            "mode": "normal",
+            "mechanism": "process",
+            "processIdentifier": 123,
+            "outcome": "launch-observed",
+        }
+        termination_attempts = []
+        with DriverFixture(
+            status_records=[
+                {"session": "session_0123456789", "outcome": "target-missing"}
+            ],
+            provenance_records=[provenance],
+            provenance_before_status=True,
+            status_delay=0.1,
+            spawn_browser=False,
+        ) as fixture:
+            identity = driver.ProcessIdentity(
+                123, fixture.e2e_pid or 1, 2, 123, fixture.browser_executable
+            )
+            result = fixture.run(
+                dependency_overrides={
+                    "browser_process_identity": lambda _pid: identity,
+                    "browser_process_terminator": (
+                        lambda observed, _executable, _deadline: termination_attempts.append(
+                            observed
+                        )
+                        or True
+                    ),
+                }
+            )
+            self.assertEqual(result.exit_code, driver.DRIVER_PROVENANCE_FAILURE)
+            self.assertEqual(result.report["outcome"], "provenance-error")
+            self.assertEqual(fixture.terminated_browser_pids, [])
+            self.assertEqual(termination_attempts, [])
+
+    def test_closed_rejection_rejects_coalesced_or_delayed_partial_status(self):
+        for delay in (0.0, 0.05):
+            with self.subTest(delay=delay), DriverFixture(
+                status_records=[
+                    {"session": "session_0123456789", "outcome": "target-missing"}
+                ],
+                status_trailing_payload=b'{"session":',
+                status_trailing_delay=delay,
+            ) as fixture:
+                result = fixture.run()
+                self.assertEqual(result.exit_code, driver.DRIVER_INVALID_STATUS)
+                self.assertEqual(result.report["outcome"], "invalid-status")
+                self.assertEqual(fixture.terminated_browser_pids, [])
+
+    def test_closed_rejection_rejects_partial_provenance_bytes(self):
+        provenance = {
+            "session": "session_0123456789",
+            "request": "$request",
+            "target": "com.microsoft.edgemac||normal",
+            "bundleIdentifier": "com.microsoft.edgemac",
+            "mode": "normal",
+            "mechanism": "process",
+            "processIdentifier": 999_999,
+            "outcome": "launch-observed",
+        }
+        with DriverFixture(
+            status_records=[
+                {"session": "session_0123456789", "outcome": "target-missing"}
+            ],
+            provenance_records=[provenance],
+            provenance_first_partial=True,
+            spawn_browser=False,
+        ) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_PROVENANCE_FAILURE)
+            self.assertEqual(result.report["outcome"], "provenance-error")
+            self.assertEqual(fixture.terminated_browser_pids, [])
+
+    def test_closed_rejection_helper_failure_keeps_precedence_without_ownership(self):
+        provenance = {
+            "session": "session_0123456789",
+            "request": "$request",
+            "target": "com.microsoft.edgemac||normal",
+            "bundleIdentifier": "com.microsoft.edgemac",
+            "mode": "normal",
+            "mechanism": "process",
+            "processIdentifier": 123,
+            "outcome": "launch-observed",
+        }
+        termination_attempts = []
+        with DriverFixture(
+            status_records=[
+                {"session": "session_0123456789", "outcome": "target-missing"}
+            ],
+            provenance_records=[provenance],
+            provenance_before_status=True,
+            status_delay=0.1,
+            spawn_browser=False,
+            helper_failure_phase="after-status",
+        ) as fixture:
+            identity = driver.ProcessIdentity(
+                123, fixture.e2e_pid or 1, 2, 123, fixture.browser_executable
+            )
+            result = fixture.run(
+                dependency_overrides={
+                    "browser_process_identity": lambda _pid: identity,
+                    "browser_process_terminator": (
+                        lambda observed, _executable, _deadline: termination_attempts.append(
+                            observed
+                        )
+                        or True
+                    ),
+                }
+            )
+            self.assertEqual(result.exit_code, driver.DRIVER_HELPER_FAILURE)
+            self.assertEqual(result.report["outcome"], "helper-error")
+            self.assertEqual(termination_attempts, [])
 
     def test_driver_rejects_adversarial_receipts(self):
         for kind in ("wrong-token", "wrong-remote", "malformed"):

@@ -2636,11 +2636,14 @@ def _wait_for_proof(
         while True:
             helper_exit_code = helper.poll()
             if helper_exit_code not in (None, 0):
+                error_owned_browsers = provenance_owned
+                if status_sequence and status_sequence[0] != "selected":
+                    error_owned_browsers = frozenset()
                 raise _HelperError(
                     receipt,
                     b"".join(status_lines),
                     browser_identity,
-                    provenance_owned,
+                    error_owned_browsers,
                 )
             now = dependencies.monotonic()
             if provenance_failure:
@@ -2707,13 +2710,24 @@ def _wait_for_proof(
                 and status_sequence[0] != "selected"
                 and helper_exit_code == 0
             ):
-                return _WaitResult(
-                    status_sequence[0],
-                    receipt,
-                    b"".join(status_lines),
-                    browser_identity,
-                    provenance_owned,
-                )
+                if provenance is not None or provenance_owned:
+                    provenance_owned = frozenset()
+                    raise _ProvenanceProtocolError(
+                        receipt,
+                        b"".join(status_lines),
+                        browser_identity,
+                    )
+                if provenance_settle_deadline is None:
+                    provenance_settle_deadline = now + PROVENANCE_SETTLE_SECONDS
+                if now >= provenance_settle_deadline:
+                    _reject_trailing_proof_bytes(buffers)
+                    return _WaitResult(
+                        status_sequence[0],
+                        receipt,
+                        b"".join(status_lines),
+                        browser_identity,
+                        frozenset(),
+                    )
             if status_sequence == ["selected"]:
                 try:
                     current = _authoritative_browser_snapshot(
@@ -2829,12 +2843,20 @@ def _wait_for_proof(
                         browser_identity,
                     )
                 if status_sequence and status_sequence[0] != "selected":
+                    if provenance is not None or provenance_owned:
+                        provenance_owned = frozenset()
+                        raise _ProvenanceProtocolError(
+                            receipt,
+                            b"".join(status_lines),
+                            browser_identity,
+                        )
+                    _reject_trailing_proof_bytes(buffers)
                     return _WaitResult(
                         status_sequence[0],
                         receipt,
                         b"".join(status_lines),
                         browser_identity,
-                        provenance_owned,
+                        frozenset(),
                     )
                 if status_sequence == ["selected"] and not receipt:
                     raise _ReceiptTimeout(
@@ -2929,6 +2951,11 @@ def _wait_for_proof(
                                 expected_mode=expected_mode,
                                 expected_mechanism=expected_mechanism,
                             )
+                            if (
+                                status_sequence
+                                and status_sequence[0] != "selected"
+                            ):
+                                raise _ProvenanceProtocolError
                             if provenance.outcome == "launch-unproven":
                                 provenance_failure = True
                                 provenance_failure_deadline = (
