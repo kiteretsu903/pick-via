@@ -6,6 +6,7 @@ import dataclasses
 import errno
 import hashlib
 import json
+import math
 import os
 import pathlib
 import plistlib
@@ -63,6 +64,10 @@ EXCLUSIVE_CLEANUP_TIMEOUT_SECONDS = 2.0
 EXCLUSIVE_CLEANUP_COMPILE_TIMEOUT_SECONDS = 10.0
 MAXIMUM_CLEANUP_SOURCE_BYTES = 256 * 1_024
 MAXIMUM_CLEANUP_HELPER_BYTES = 8 * 1_024 * 1_024
+BROWSER_CODE_IDENTITY_TIMEOUT_SECONDS = 2.0
+BROWSER_CODE_IDENTITY_COMPILE_TIMEOUT_SECONDS = 10.0
+MAXIMUM_BROWSER_CODE_IDENTITY_SOURCE_BYTES = 64 * 1_024
+MAXIMUM_BROWSER_CODE_IDENTITY_OUTPUT_BYTES = 64
 MAXIMUM_CLEANUP_RECORD_BYTES = 4 * 1_024
 _SESSION_PATTERN = re.compile(r"\A[A-Za-z0-9_-]{16,64}\Z")
 _TOKEN_PATTERN = re.compile(r"\A[A-Za-z0-9_-]+\Z")
@@ -660,8 +665,7 @@ def _hash_pinned_regular_file(descriptor, maximum_bytes):
     return digest.hexdigest(), after
 
 
-def _stable_cleanup_source_digest():
-    source = _SCRIPT_DIR / "exclusive_cleanup.c"
+def _stable_source_digest(source, maximum_bytes):
     descriptor = os.open(
         source,
         os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0),
@@ -671,7 +675,7 @@ def _stable_cleanup_source_digest():
         if (
             not stat.S_ISREG(before.st_mode)
             or before.st_size < 1
-            or before.st_size > MAXIMUM_CLEANUP_SOURCE_BYTES
+            or before.st_size > maximum_bytes
         ):
             raise OSError("exclusive cleanup source is invalid")
         contents = bytearray()
@@ -691,6 +695,19 @@ def _stable_cleanup_source_digest():
         return hashlib.sha256(contents).hexdigest()
     finally:
         os.close(descriptor)
+
+
+def _stable_cleanup_source_digest():
+    return _stable_source_digest(
+        _SCRIPT_DIR / "exclusive_cleanup.c", MAXIMUM_CLEANUP_SOURCE_BYTES
+    )
+
+
+def _stable_browser_code_identity_source_digest():
+    return _stable_source_digest(
+        _SCRIPT_DIR / "browser_code_identity.swift",
+        MAXIMUM_BROWSER_CODE_IDENTITY_SOURCE_BYTES,
+    )
 
 
 def _cleanup_cache_repository():
@@ -978,8 +995,19 @@ def _discard_owned_staging(
         return False
 
 
-def _publish_cleanup_helper(cache_path, cache_descriptor, source_digest, record_name):
-    staging_name = f".exclusive-cleanup-staging-{secrets.token_hex(16)}"
+def _publish_cached_helper(
+    cache_path,
+    cache_descriptor,
+    source,
+    source_digest,
+    record_name,
+    staging_prefix,
+    compiler_options,
+    linker_options,
+    compile_timeout,
+    maximum_source_bytes,
+):
+    staging_name = f".{staging_prefix}-staging-{secrets.token_hex(16)}"
     os.mkdir(staging_name, mode=0o700, dir_fd=cache_descriptor)
     staging_descriptor = os.open(
         staging_name,
@@ -995,12 +1023,9 @@ def _publish_cleanup_helper(cache_path, cache_descriptor, source_digest, record_
         completed = subprocess.run(
             [
                 "/usr/bin/xcrun",
-                "clang",
-                "-std=c17",
-                "-Wall",
-                "-Wextra",
-                "-Werror",
-                os.fspath(_SCRIPT_DIR / "exclusive_cleanup.c"),
+                *compiler_options,
+                os.fspath(source),
+                *linker_options,
                 "-o",
                 os.fspath(cache_path / staging_name / "helper"),
             ],
@@ -1009,11 +1034,13 @@ def _publish_cleanup_helper(cache_path, cache_descriptor, source_digest, record_
             stderr=subprocess.DEVNULL,
             env=_exclusive_cleanup_environment(cache_path / staging_name),
             close_fds=True,
-            timeout=EXCLUSIVE_CLEANUP_COMPILE_TIMEOUT_SECONDS,
+            timeout=compile_timeout,
             check=False,
         )
-        if completed.returncode != 0 or _stable_cleanup_source_digest() != source_digest:
-            raise OSError("exclusive cleanup helper compilation failed")
+        if completed.returncode != 0 or _stable_source_digest(
+            source, maximum_source_bytes
+        ) != source_digest:
+            raise OSError("cached helper compilation failed")
         helper_descriptor = os.open(
             "helper",
             os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0),
@@ -1034,7 +1061,7 @@ def _publish_cleanup_helper(cache_path, cache_descriptor, source_digest, record_
                 or helper_metadata.st_uid != os.getuid()
                 or helper_identity != _DeletionIdentity.from_stat(named_helper)
             ):
-                raise OSError("compiled cleanup helper identity is invalid")
+                raise OSError("compiled cached helper identity is invalid")
             entries["helper"] = helper_identity
         finally:
             os.close(helper_descriptor)
@@ -1080,9 +1107,41 @@ def _publish_cleanup_helper(cache_path, cache_descriptor, source_digest, record_
                 staging_identity,
                 entries,
             ):
-                raise OSError("concurrent cleanup staging could not be preserved")
+                raise OSError("concurrent helper staging could not be preserved")
     finally:
         os.close(staging_descriptor)
+
+
+def _publish_cleanup_helper(cache_path, cache_descriptor, source_digest, record_name):
+    _publish_cached_helper(
+        cache_path,
+        cache_descriptor,
+        _SCRIPT_DIR / "exclusive_cleanup.c",
+        source_digest,
+        record_name,
+        "exclusive-cleanup",
+        ("clang", "-std=c17", "-Wall", "-Wextra", "-Werror"),
+        (),
+        EXCLUSIVE_CLEANUP_COMPILE_TIMEOUT_SECONDS,
+        MAXIMUM_CLEANUP_SOURCE_BYTES,
+    )
+
+
+def _publish_browser_code_identity_helper(
+    cache_path, cache_descriptor, source_digest, record_name
+):
+    _publish_cached_helper(
+        cache_path,
+        cache_descriptor,
+        _SCRIPT_DIR / "browser_code_identity.swift",
+        source_digest,
+        record_name,
+        "browser-code-identity",
+        ("swiftc", "-swift-version", "6", "-warnings-as-errors"),
+        ("-framework", "Security"),
+        BROWSER_CODE_IDENTITY_COMPILE_TIMEOUT_SECONDS,
+        MAXIMUM_BROWSER_CODE_IDENTITY_SOURCE_BYTES,
+    )
 
 
 def _pin_exclusive_cleanup_helper():
@@ -1094,6 +1153,27 @@ def _pin_exclusive_cleanup_helper():
             os.stat(record_name, dir_fd=cache_descriptor, follow_symlinks=False)
         except FileNotFoundError:
             _publish_cleanup_helper(
+                cache_path, cache_descriptor, source_digest, record_name
+            )
+        descriptor = cache_descriptor
+        cache_descriptor = -1
+        return _pin_cleanup_helper(
+            cache_path, descriptor, record_name, source_digest
+        )
+    finally:
+        if cache_descriptor >= 0:
+            os.close(cache_descriptor)
+
+
+def _pin_browser_code_identity_helper():
+    source_digest = _stable_browser_code_identity_source_digest()
+    cache_path, cache_descriptor = _open_owned_cache_directory()
+    record_name = f"browser-code-identity-record-{source_digest}"
+    try:
+        try:
+            os.stat(record_name, dir_fd=cache_descriptor, follow_symlinks=False)
+        except FileNotFoundError:
+            _publish_browser_code_identity_helper(
                 cache_path, cache_descriptor, source_digest, record_name
             )
         descriptor = cache_descriptor
@@ -1198,6 +1278,108 @@ def _finalize_empty_task_root_exclusively(task_root):
         if not _stable_empty_task_root(task_root):
             return False
         return _invoke_exclusive_cleanup_helper(task_root, helper)
+    finally:
+        helper.close()
+
+
+def _invoke_browser_code_identity_helper(
+    helper,
+    process_identifier,
+    expected_code_path,
+    expected_executable,
+    expected_bundle_identifier,
+):
+    if (
+        not isinstance(process_identifier, int)
+        or isinstance(process_identifier, bool)
+        or process_identifier <= 0
+        or not helper.validate()
+    ):
+        raise _IdentityError
+    process = None
+    selector = selectors.DefaultSelector()
+    buffers = {"stdout": bytearray(), "stderr": bytearray()}
+    try:
+        process = subprocess.Popen(
+            [
+                os.fspath(helper.path),
+                str(process_identifier),
+                os.fspath(expected_code_path),
+                os.fspath(expected_executable),
+                expected_bundle_identifier,
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=_exclusive_cleanup_environment(helper.path.parent),
+            close_fds=True,
+        )
+        for name, stream in (("stdout", process.stdout), ("stderr", process.stderr)):
+            os.set_blocking(stream.fileno(), False)
+            selector.register(stream.fileno(), selectors.EVENT_READ, name)
+        deadline = time.monotonic() + BROWSER_CODE_IDENTITY_TIMEOUT_SECONDS
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise _IdentityError
+            for key, _ in selector.select(min(remaining, 0.05)):
+                try:
+                    chunk = os.read(
+                        key.fd, MAXIMUM_BROWSER_CODE_IDENTITY_OUTPUT_BYTES + 1
+                    )
+                except BlockingIOError:
+                    continue
+                if not chunk:
+                    selector.unregister(key.fd)
+                    continue
+                buffers[key.data].extend(chunk)
+                if (
+                    len(buffers[key.data])
+                    > MAXIMUM_BROWSER_CODE_IDENTITY_OUTPUT_BYTES
+                ):
+                    raise _IdentityError
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise _IdentityError
+        process.wait(timeout=remaining)
+        if (
+            process.returncode != 0
+            or bytes(buffers["stdout"]) != b"OK\n"
+            or buffers["stderr"]
+            or not helper.validate()
+        ):
+            raise _IdentityError
+    except (OSError, subprocess.SubprocessError) as error:
+        raise _IdentityError from error
+    finally:
+        selector.close()
+        if process is not None:
+            if process.poll() is None:
+                process.kill()
+            try:
+                process.wait(timeout=1.0)
+            except subprocess.TimeoutExpired:
+                pass
+            for stream in (process.stdout, process.stderr):
+                if stream is not None:
+                    stream.close()
+
+
+def _validate_running_browser_code(
+    process_identifier,
+    expected_code_path,
+    expected_executable,
+    expected_bundle_identifier,
+):
+    helper = _pin_browser_code_identity_helper()
+    try:
+        _invoke_browser_code_identity_helper(
+            helper,
+            process_identifier,
+            expected_code_path,
+            expected_executable,
+            expected_bundle_identifier,
+        )
     finally:
         helper.close()
 
@@ -1354,6 +1536,13 @@ class DriverDependencies:
             application, executable, bundle_identifier
         )
     )
+    browser_running_code_checker: Callable[
+        [int, pathlib.Path, pathlib.Path, str], None
+    ] = (
+        lambda pid, application, executable, bundle_identifier: _validate_running_browser_code(
+            pid, application, executable, bundle_identifier
+        )
+    )
     browser_process_terminator: Callable[
         [ProcessIdentity, pathlib.Path, float], bool
     ] = _terminate_exact_browser_process
@@ -1429,11 +1618,33 @@ class _IdentityAmbiguous(Exception):
 
 
 class _StatusProtocolError(_ProtocolError):
-    pass
+    def __init__(
+        self,
+        token_received=False,
+        status_line=b"",
+        browser_identity=False,
+        owned_browsers=(),
+    ):
+        super().__init__()
+        self.token_received = token_received
+        self.status_line = status_line
+        self.browser_identity = browser_identity
+        self.owned_browsers = frozenset(owned_browsers)
 
 
 class _ReceiptProtocolError(_ProtocolError):
-    pass
+    def __init__(
+        self,
+        token_received=False,
+        status_line=b"",
+        browser_identity=False,
+        owned_browsers=(),
+    ):
+        super().__init__()
+        self.token_received = token_received
+        self.status_line = status_line
+        self.browser_identity = browser_identity
+        self.owned_browsers = frozenset(owned_browsers)
 
 
 class _ProvenanceProtocolError(_ProtocolError):
@@ -1741,21 +1952,42 @@ def _validated_config(config, browser_binding_checker):
 
 
 def _validate_browser_binding(browser_app, browser_executable, bundle_identifier):
-    if not _physical_app(browser_app) or not _physical_executable(browser_executable):
+    if not _physical_app(browser_app):
         raise _IdentityError
     info_plist = browser_app / "Contents" / "Info.plist"
+    plist_descriptor = -1
+    executable_descriptor = -1
     try:
-        metadata = info_plist.lstat()
-        if (
-            not stat.S_ISREG(metadata.st_mode)
-            or stat.S_ISLNK(metadata.st_mode)
-            or metadata.st_size > 1_048_576
-        ):
+        plist_descriptor, plist_identity = _open_stable_regular_file(
+            info_plist, maximum_bytes=1_048_576
+        )
+        plist_metadata = os.fstat(plist_descriptor)
+        contents = bytearray()
+        while len(contents) < plist_metadata.st_size:
+            chunk = os.read(
+                plist_descriptor,
+                min(65_536, plist_metadata.st_size - len(contents)),
+            )
+            if not chunk:
+                break
+            contents.extend(chunk)
+        if len(contents) != plist_metadata.st_size:
             raise _IdentityError
-        with info_plist.open("rb") as stream:
-            document = plistlib.load(stream)
+        _require_stable_open_file(info_plist, plist_descriptor, plist_identity)
+        document = plistlib.loads(bytes(contents))
+
+        executable_descriptor, executable_identity = _open_stable_regular_file(
+            browser_executable, require_executable=True
+        )
+        _require_stable_open_file(
+            browser_executable, executable_descriptor, executable_identity
+        )
     except (OSError, plistlib.InvalidFileException) as error:
         raise _IdentityError from error
+    finally:
+        for descriptor in (plist_descriptor, executable_descriptor):
+            if descriptor >= 0:
+                os.close(descriptor)
     if not isinstance(document, dict):
         raise _IdentityError
     observed_bundle = document.get("CFBundleIdentifier")
@@ -1772,6 +2004,50 @@ def _validate_browser_binding(browser_app, browser_executable, bundle_identifier
         raise _IdentityError
     canonical_executable = browser_app / "Contents" / "MacOS" / executable_name
     if canonical_executable != browser_executable:
+        raise _IdentityError
+
+
+def _open_stable_regular_file(
+    path, *, maximum_bytes=None, require_executable=False
+):
+    if (
+        not path.is_absolute()
+        or pathlib.Path(os.path.realpath(path)) != path
+        or (require_executable and not os.access(path, os.X_OK))
+    ):
+        raise _IdentityError
+    named = os.stat(path, follow_symlinks=False)
+    descriptor = os.open(
+        path,
+        os.O_RDONLY
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0),
+    )
+    try:
+        opened = os.fstat(descriptor)
+        identity = _EntryIdentity.from_stat(opened)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or stat.S_ISLNK(named.st_mode)
+            or _EntryIdentity.from_stat(named) != identity
+            or (maximum_bytes is not None and opened.st_size > maximum_bytes)
+            or (require_executable and opened.st_mode & 0o111 == 0)
+        ):
+            raise _IdentityError
+        return descriptor, identity
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def _require_stable_open_file(path, descriptor, expected_identity):
+    opened = os.fstat(descriptor)
+    named = os.stat(path, follow_symlinks=False)
+    if (
+        _EntryIdentity.from_stat(opened) != expected_identity
+        or _EntryIdentity.from_stat(named) != expected_identity
+        or stat.S_ISLNK(named.st_mode)
+    ):
         raise _IdentityError
 
 
@@ -2016,10 +2292,9 @@ def _parse_ready(line):
 
 
 def _parse_status(line, expected_session):
-    try:
-        record = json.loads(line)
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise _StatusProtocolError from error
+    record = _strict_json_document(
+        line, _StatusProtocolError, MAXIMUM_PROTOCOL_LINE_BYTES
+    )
     if not isinstance(record, dict) or set(record) != {"session", "outcome"}:
         raise _StatusProtocolError
     session = record["session"]
@@ -2041,12 +2316,9 @@ def _parse_provenance(
     expected_mode,
     expected_mechanism,
 ):
-    if not line.endswith(b"\n") or len(line) > MAXIMUM_PROVENANCE_LINE_BYTES:
-        raise _ProvenanceProtocolError
-    try:
-        record = json.loads(line, object_pairs_hook=_strict_provenance_object)
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise _ProvenanceProtocolError from error
+    record = _strict_json_document(
+        line, _ProvenanceProtocolError, MAXIMUM_PROVENANCE_LINE_BYTES
+    )
     if not isinstance(record, dict):
         raise _ProvenanceProtocolError
     outcome = record.get("outcome")
@@ -2091,20 +2363,41 @@ def _parse_provenance(
     )
 
 
-def _strict_provenance_object(pairs):
-    record = {}
-    for key, value in pairs:
-        if key in record:
-            raise _ProvenanceProtocolError
-        record[key] = value
-    return record
+def _strict_json_document(line, protocol_error, maximum_bytes):
+    if (
+        not isinstance(line, bytes)
+        or not line.endswith(b"\n")
+        or len(line) > maximum_bytes
+    ):
+        raise protocol_error
+
+    def strict_object(pairs):
+        record = {}
+        for key, value in pairs:
+            if key in record:
+                raise protocol_error
+            record[key] = value
+        return record
+
+    def reject_constant(_value):
+        raise protocol_error
+
+    try:
+        return json.loads(
+            line,
+            object_pairs_hook=strict_object,
+            parse_constant=reject_constant,
+        )
+    except protocol_error:
+        raise
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise protocol_error from error
 
 
 def _parse_receipt(line, expected_token):
-    try:
-        record = json.loads(line)
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise _ReceiptProtocolError from error
+    record = _strict_json_document(
+        line, _ReceiptProtocolError, MAXIMUM_PROTOCOL_LINE_BYTES
+    )
     if not isinstance(record, dict) or set(record) != {
         "token",
         "receipt_time",
@@ -2114,8 +2407,11 @@ def _parse_receipt(line, expected_token):
     if (
         record["token"] != expected_token
         or record["remote_address"] != "127.0.0.1"
-        or not isinstance(record["receipt_time"], (int, float))
-        or isinstance(record["receipt_time"], bool)
+        or type(record["receipt_time"]) not in {int, float}
+        or (
+            isinstance(record["receipt_time"], float)
+            and not math.isfinite(record["receipt_time"])
+        )
     ):
         raise _ReceiptProtocolError
     return True
@@ -2205,6 +2501,15 @@ def _consume_status_lines(buffer, sequence, expected_session):
         else:
             raise _StatusProtocolError
         consumed.append(line)
+
+
+def _reject_trailing_proof_bytes(buffers):
+    if buffers["status"]:
+        raise _StatusProtocolError
+    if buffers["receipt"]:
+        raise _ReceiptProtocolError
+    if buffers["provenance"]:
+        raise _ProvenanceProtocolError
 
 
 def _generation_map(identities):
@@ -2325,6 +2630,7 @@ def _wait_for_proof(
     provenance_owned = frozenset()
     provenance_failure = False
     provenance_failure_deadline = None
+    product_launch_error_deadline = None
     provenance_settle_deadline = None
     try:
         while True:
@@ -2363,11 +2669,17 @@ def _wait_for_proof(
             elif (
                 status_sequence == ["selected", "launch-error"]
                 and helper_exit_code == 0
-                and provenance is not None
             ):
+                if provenance is not None and provenance.outcome != "launch-error":
+                    raise _ProvenanceProtocolError(
+                        receipt,
+                        b"".join(status_lines),
+                        browser_identity,
+                    )
                 if provenance_settle_deadline is None:
                     provenance_settle_deadline = now + PROVENANCE_SETTLE_SECONDS
                 if now >= provenance_settle_deadline:
+                    _reject_trailing_proof_bytes(buffers)
                     return _WaitResult(
                         "launch-error",
                         receipt,
@@ -2375,6 +2687,21 @@ def _wait_for_proof(
                         browser_identity,
                         provenance_owned,
                     )
+            elif (
+                provenance is not None
+                and provenance.outcome == "launch-error"
+                and product_launch_error_deadline is not None
+                and now >= product_launch_error_deadline
+                and helper_exit_code == 0
+            ):
+                _reject_trailing_proof_bytes(buffers)
+                return _WaitResult(
+                    "launch-error",
+                    receipt,
+                    b"".join(status_lines),
+                    browser_identity,
+                    provenance_owned,
+                )
             if (
                 status_sequence
                 and status_sequence[0] != "selected"
@@ -2414,6 +2741,7 @@ def _wait_for_proof(
                     if provenance_settle_deadline is None:
                         provenance_settle_deadline = now + PROVENANCE_SETTLE_SECONDS
                     if now >= provenance_settle_deadline:
+                        _reject_trailing_proof_bytes(buffers)
                         return _WaitResult(
                             "selected",
                             True,
@@ -2427,6 +2755,10 @@ def _wait_for_proof(
                     active_deadline = min(active_deadline, provenance_failure_deadline)
                 if provenance_settle_deadline is not None:
                     active_deadline = min(active_deadline, provenance_settle_deadline)
+                if product_launch_error_deadline is not None:
+                    active_deadline = min(
+                        active_deadline, product_launch_error_deadline
+                    )
                 wait = min(_remaining(active_deadline, dependencies.monotonic), 0.05)
             except _DeadlineExpired:
                 helper_exit_code = helper.poll()
@@ -2449,6 +2781,20 @@ def _wait_for_proof(
                         receipt,
                         b"".join(status_lines),
                         browser_identity,
+                    )
+                if (
+                    provenance is not None
+                    and provenance.outcome == "launch-error"
+                    and product_launch_error_deadline is not None
+                    and dependencies.monotonic() >= product_launch_error_deadline
+                ):
+                    _reject_trailing_proof_bytes(buffers)
+                    return _WaitResult(
+                        "launch-error",
+                        receipt,
+                        b"".join(status_lines),
+                        browser_identity,
+                        provenance_owned,
                     )
                 if (
                     provenance is not None
@@ -2516,6 +2862,7 @@ def _wait_for_proof(
                         browser_identity,
                     )
                 if status_sequence == ["selected"] and receipt and browser_identity:
+                    _reject_trailing_proof_bytes(buffers)
                     return _WaitResult(
                         "selected",
                         True,
@@ -2582,13 +2929,18 @@ def _wait_for_proof(
                                 expected_mode=expected_mode,
                                 expected_mechanism=expected_mechanism,
                             )
-                            if provenance.outcome != "launch-observed":
+                            if provenance.outcome == "launch-unproven":
                                 provenance_failure = True
                                 provenance_failure_deadline = (
                                     dependencies.monotonic()
                                     + PROVENANCE_STATUS_GRACE_SECONDS
                                 )
-                            else:
+                            elif provenance.outcome == "launch-error":
+                                product_launch_error_deadline = (
+                                    dependencies.monotonic()
+                                    + PROVENANCE_STATUS_GRACE_SECONDS
+                                )
+                            elif provenance.outcome == "launch-observed":
                                 try:
                                     pinned_provenance_identity = (
                                         dependencies.browser_process_identity(
@@ -2603,6 +2955,12 @@ def _wait_for_proof(
                                     ):
                                         raise _ProvenanceProtocolError
                                     dependencies.browser_binding_checker(
+                                        pathlib.Path(expected_browser_app),
+                                        pathlib.Path(expected_browser_executable),
+                                        expected_bundle_identifier,
+                                    )
+                                    dependencies.browser_running_code_checker(
+                                        provenance.process_identifier,
                                         pathlib.Path(expected_browser_app),
                                         pathlib.Path(expected_browser_executable),
                                         expected_bundle_identifier,
@@ -2686,6 +3044,12 @@ def _wait_for_proof(
                 and not buffers["receipt"]
             ):
                 raise ChildProcessError
+    except (_StatusProtocolError, _ReceiptProtocolError) as error:
+        error.token_received = receipt
+        error.status_line = b"".join(status_lines)
+        error.browser_identity = browser_identity
+        error.owned_browsers = provenance_owned
+        raise
     finally:
         selector.close()
 
@@ -3057,11 +3421,19 @@ def run_driver(config, dependencies=None):
     except _DeadlineExpired:
         outcome = "timeout"
         exit_code = DRIVER_TIMEOUT
-    except _StatusProtocolError:
+    except _StatusProtocolError as error:
         outcome = "invalid-status"
+        received = error.token_received
+        status_line = error.status_line
+        exact_browser_identity = error.browser_identity
+        owned_browsers.update(error.owned_browsers)
         exit_code = DRIVER_INVALID_STATUS
-    except _ReceiptProtocolError:
+    except _ReceiptProtocolError as error:
         outcome = "invalid-receipt"
+        received = error.token_received
+        status_line = error.status_line
+        exact_browser_identity = error.browser_identity
+        owned_browsers.update(error.owned_browsers)
         exit_code = DRIVER_INVALID_RECEIPT
     except _ProvenanceProtocolError as error:
         outcome = "provenance-error"

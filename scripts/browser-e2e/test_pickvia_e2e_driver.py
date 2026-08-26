@@ -77,6 +77,8 @@ class DriverFixture:
         provenance_second_partial=False,
         provenance_before_status=False,
         status_delay=0.0,
+        status_trailing_payload=b"",
+        status_trailing_delay=0.0,
     ):
         if proof_deadline_phase not in {
             None,
@@ -132,6 +134,8 @@ class DriverFixture:
         self.provenance_second_partial = provenance_second_partial
         self.provenance_before_status = provenance_before_status
         self.status_delay = status_delay
+        self.status_trailing_payload = status_trailing_payload
+        self.status_trailing_delay = status_trailing_delay
         self.fixture_root = pathlib.Path(
             tempfile.mkdtemp(prefix="pickvia-driver-fixture-", dir="/private/tmp")
         )
@@ -309,6 +313,9 @@ with open(os.environ["PICKVIA_E2E_STATUS_FIFO"], "w", encoding="utf-8") as strea
     for record in records:
         stream.write(json.dumps(record, separators=(",", ":"), sort_keys=True) + "\\n")
         stream.flush()
+    if %r:
+        time.sleep(%r)
+        os.write(stream.fileno(), %r)
 (root / "status-written").touch()
 outcomes = [record.get("outcome") for record in records if isinstance(record, dict)]
 if "selected" in outcomes and "launch-error" not in outcomes:
@@ -351,6 +358,9 @@ time.sleep(60)
             self.provenance_second_delay,
             self.provenance_second_partial,
             self.status_delay,
+            bool(self.status_trailing_payload),
+            self.status_trailing_delay,
+            self.status_trailing_payload,
             self.receipt_without_browser,
             self.spawn_browser,
             2 if self.multiple_new_browsers else 1,
@@ -447,9 +457,32 @@ server.server_close()
             "wrong-remote": '{"remote_address":"127.0.0.2","receipt_time":1,"token":"TOKEN"}',
             "malformed": "not-json",
         }.get(self.probe_kind, "")
+        valid = '{"remote_address":"127.0.0.1","receipt_time":1,"token":"TOKEN"}'
+        if self.probe_kind in {
+            "duplicate-receipt-coalesced",
+            "duplicate-receipt-delayed",
+            "partial-trailing-receipt",
+        }:
+            receipt = valid
+        emission = (
+            f"sys.stdout.write(({valid!r} + '\\n') * 2); sys.stdout.flush()"
+            if self.probe_kind == "duplicate-receipt-coalesced"
+            else f"print({receipt!r}, flush=True)"
+        )
+        trailing = {
+            "duplicate-receipt-delayed": (
+                f"time.sleep(0.05); print({valid!r}, flush=True)"
+            ),
+            "partial-trailing-receipt": (
+                'time.sleep(0.24); sys.stdout.write("{\\\"token\\\":"); '
+                "sys.stdout.flush()"
+            ),
+        }.get(self.probe_kind, "")
         return (
             """#!/usr/bin/env python3
 import json
+import sys
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self): self.send_response(204); self.end_headers()
@@ -457,10 +490,11 @@ class Handler(BaseHTTPRequestHandler):
 server = HTTPServer(("127.0.0.1", 0), Handler)
 print(json.dumps({"port": server.server_address[1], "tokens": ["TOKEN"]}, separators=(",", ":")), flush=True)
 server.handle_request()
-print(%r, flush=True)
+%s
+%s
 server.server_close()
 """
-            % receipt
+            % (emission, trailing)
         )
 
     def _write_executable(self, path, contents):
@@ -737,6 +771,7 @@ server.server_close()
             browser_process_snapshot=self._snapshot_browser_processes,
             browser_process_identity=self._resolve_browser_pid,
             browser_binding_checker=self._check_browser_binding,
+            browser_running_code_checker=lambda _pid, _application, _executable, _bundle: None,
             browser_process_terminator=self._terminate_browser,
             quiescence_monotonic=self._quiescence_monotonic,
             quiescence_sleep=self._quiescence_sleep,
@@ -2542,6 +2577,7 @@ time.sleep(3.25)
             },
             browser_process_identity=lambda _pid: browser_identity,
             browser_binding_checker=lambda _application, _executable, _bundle: None,
+            browser_running_code_checker=lambda _pid, _application, _executable, _bundle: None,
         )
         try:
             with mock.patch.object(
@@ -2981,6 +3017,184 @@ time.sleep(3.25)
             self.assertEqual(len(checks), 2)
             self.assertEqual(fixture.terminated_browser_pids, [])
 
+    def test_running_code_attestation_failures_grant_no_cleanup_authority(self):
+        failures = (
+            "current-path-static-mismatch",
+            "guest-path-mismatch",
+            "cdhash-mismatch",
+            "bundle-mismatch",
+            "attestation-timeout",
+            "attestation-output-overflow",
+        )
+        for failure in failures:
+            with self.subTest(failure=failure), DriverFixture() as fixture:
+
+                def reject(_pid, _application, _executable, _bundle):
+                    raise driver._IdentityError(failure)
+
+                result = fixture.run(
+                    dependency_overrides={
+                        "browser_running_code_checker": reject,
+                    }
+                )
+                self.assertEqual(result.exit_code, driver.DRIVER_PROVENANCE_FAILURE)
+                self.assertEqual(result.report["outcome"], "provenance-error")
+                self.assertTrue(result.report["token_received"])
+                self.assertTrue(result.report["exact_browser_process_identity"])
+                self.assertEqual(fixture.terminated_browser_pids, [])
+
+    def test_browser_binding_rejects_plist_or_executable_swap_at_nofollow_open(self):
+        for relative_path in (
+            pathlib.Path("Contents/Info.plist"),
+            pathlib.Path("Contents/MacOS/Browser"),
+        ):
+            with self.subTest(relative_path=relative_path), DriverFixture() as fixture:
+                target = fixture.browser_app / relative_path
+                held = target.with_name(f"{target.name}.held")
+                real_open = os.open
+                swapped = False
+
+                def swap_at_open(path, flags, *args, **kwargs):
+                    nonlocal swapped
+                    if not swapped and pathlib.Path(path) == target:
+                        swapped = True
+                        target.rename(held)
+                        target.symlink_to(held)
+                    return real_open(path, flags, *args, **kwargs)
+
+                with mock.patch.object(driver.os, "open", side_effect=swap_at_open):
+                    with self.assertRaises(driver._IdentityError):
+                        driver._validate_browser_binding(
+                            fixture.browser_app,
+                            fixture.browser_executable,
+                            "com.microsoft.edgemac",
+                        )
+                self.assertTrue(swapped)
+
+    def test_cached_security_helper_attests_a_safe_signed_process(self):
+        helper = driver._pin_browser_code_identity_helper()
+        helper_path = helper.path
+        helper_digest = helper.executable_digest
+        process = subprocess.Popen(
+            ["/bin/sleep", "5"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        try:
+            self.assertTrue(helper.validate())
+            driver._invoke_browser_code_identity_helper(
+                helper,
+                process.pid,
+                pathlib.Path("/bin/sleep"),
+                pathlib.Path("/bin/sleep"),
+                "com.apple.sleep",
+            )
+            with self.assertRaises(driver._IdentityError):
+                driver._invoke_browser_code_identity_helper(
+                    helper,
+                    process.pid,
+                    pathlib.Path("/usr/bin/true"),
+                    pathlib.Path("/usr/bin/true"),
+                    "com.apple.true",
+                )
+        finally:
+            helper.close()
+            process.terminate()
+            process.wait(timeout=2)
+        repinned = driver._pin_browser_code_identity_helper()
+        try:
+            self.assertEqual(repinned.path, helper_path)
+            self.assertEqual(repinned.executable_digest, helper_digest)
+            self.assertTrue(repinned.validate())
+        finally:
+            repinned.close()
+
+    def test_security_helper_uses_only_the_fixed_minimal_environment(self):
+        class FakeHelper:
+            def __init__(self, path):
+                self.path = path
+
+            def validate(self):
+                return True
+
+        with tempfile.TemporaryDirectory(
+            prefix="pickvia-attestation-environment-", dir="/private/tmp"
+        ) as root:
+            executable = pathlib.Path(root) / "environment-check"
+            executable.write_text(
+                "#!/bin/sh\nprintf 'OK\\n'\n",
+                encoding="ascii",
+            )
+            executable.chmod(0o700)
+            observed = {}
+            real_popen = subprocess.Popen
+
+            def record_environment(*args, **kwargs):
+                observed.update(kwargs["env"])
+                return real_popen(*args, **kwargs)
+
+            with mock.patch.object(
+                driver.subprocess, "Popen", side_effect=record_environment
+            ):
+                driver._invoke_browser_code_identity_helper(
+                    FakeHelper(executable),
+                    os.getpid(),
+                    pathlib.Path("/Applications/Browser.app"),
+                    pathlib.Path(
+                        "/Applications/Browser.app/Contents/MacOS/Browser"
+                    ),
+                    "com.example.Browser",
+                )
+            self.assertEqual(
+                set(observed),
+                {
+                    "PATH",
+                    "LANG",
+                    "LC_CTYPE",
+                    "TMPDIR",
+                    "CFFIXED_USER_HOME",
+                    "PYTHONDONTWRITEBYTECODE",
+                },
+            )
+
+    def test_security_helper_timeout_and_output_overflow_fail_closed(self):
+        class FakeHelper:
+            def __init__(self, path):
+                self.path = path
+
+            def validate(self):
+                return True
+
+        with tempfile.TemporaryDirectory(
+            prefix="pickvia-attestation-runner-", dir="/private/tmp"
+        ) as root:
+            root = pathlib.Path(root)
+            cases = {
+                "timeout": "#!/bin/sh\nexec /bin/sleep 5\n",
+                "overflow": "#!/bin/sh\ni=0; while [ $i -lt 200 ]; do printf x; i=$((i + 1)); done\n",
+            }
+            for name, source in cases.items():
+                with self.subTest(name=name):
+                    executable = root / name
+                    executable.write_text(source, encoding="ascii")
+                    executable.chmod(0o700)
+                    with mock.patch.object(
+                        driver,
+                        "BROWSER_CODE_IDENTITY_TIMEOUT_SECONDS",
+                        0.05,
+                    ):
+                        with self.assertRaises(driver._IdentityError):
+                            driver._invoke_browser_code_identity_helper(
+                                FakeHelper(executable),
+                                os.getpid(),
+                                pathlib.Path("/Applications/Browser.app"),
+                                pathlib.Path(
+                                    "/Applications/Browser.app/Contents/MacOS/Browser"
+                                ),
+                                "com.example.Browser",
+                            )
+
     def test_provenance_generation_change_during_binding_check_grants_no_authority(self):
         with DriverFixture() as fixture:
             state = {"binding_checks": 0, "generation_changed": False}
@@ -3051,32 +3265,78 @@ time.sleep(3.25)
                 [resolutions[0].generation_key],
             )
 
-    def test_provenance_launch_unproven_and_error_are_harness_failures(self):
-        for outcome in ("launch-unproven", "launch-error"):
-            record = {
-                "session": "session_0123456789",
-                "request": "$request",
-                "target": "com.microsoft.edgemac||normal",
-                "bundleIdentifier": "com.microsoft.edgemac",
-                "mode": "normal",
-                "mechanism": "process",
-                "outcome": outcome,
-            }
-            with self.subTest(outcome=outcome), DriverFixture(
-                provenance_records=[record],
-                spawn_browser=False,
-                status_records=(
-                    [
-                        {"session": "session_0123456789", "outcome": "selected"},
-                        {"session": "session_0123456789", "outcome": "launch-error"},
-                    ]
-                    if outcome == "launch-error"
-                    else None
-                ),
-            ) as fixture:
-                result = fixture.run()
-                self.assertEqual(result.exit_code, driver.DRIVER_PROVENANCE_FAILURE)
-                self.assertEqual(result.report["outcome"], "provenance-error")
+    def test_provenance_launch_unproven_is_a_harness_failure(self):
+        record = {
+            "session": "session_0123456789",
+            "request": "$request",
+            "target": "com.microsoft.edgemac||normal",
+            "bundleIdentifier": "com.microsoft.edgemac",
+            "mode": "normal",
+            "mechanism": "process",
+            "outcome": "launch-unproven",
+        }
+        with DriverFixture(
+            provenance_records=[record],
+            spawn_browser=False,
+        ) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_PROVENANCE_FAILURE)
+            self.assertEqual(result.report["outcome"], "provenance-error")
+            self.assertEqual(fixture.terminated_browser_pids, [])
+
+    def test_valid_provenance_launch_error_is_a_product_failure(self):
+        record = {
+            "session": "session_0123456789",
+            "request": "$request",
+            "target": "com.microsoft.edgemac||normal",
+            "bundleIdentifier": "com.microsoft.edgemac",
+            "mode": "normal",
+            "mechanism": "process",
+            "outcome": "launch-error",
+        }
+        with DriverFixture(
+            provenance_records=[record],
+            spawn_browser=False,
+            status_records=[
+                {"session": "session_0123456789", "outcome": "selected"},
+                {"session": "session_0123456789", "outcome": "launch-error"},
+            ],
+        ) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_SELECTION_REJECTED)
+            self.assertEqual(result.report["outcome"], "launch-error")
+            self.assertFalse(result.report["token_received"])
+            self.assertIn(b'"outcome":"selected"', result.status_line)
+            self.assertIn(b'"outcome":"launch-error"', result.status_line)
+            self.assertEqual(fixture.terminated_browser_pids, [])
+
+    def test_valid_launch_error_remains_primary_when_status_is_missing(self):
+        record = {
+            "session": "session_0123456789",
+            "request": "$request",
+            "target": "com.microsoft.edgemac||normal",
+            "bundleIdentifier": "com.microsoft.edgemac",
+            "mode": "normal",
+            "mechanism": "process",
+            "outcome": "launch-error",
+        }
+        with DriverFixture(
+            provenance_records=[record],
+            provenance_before_status=True,
+            status_records=[],
+            spawn_browser=False,
+            timeout=2.0,
+        ) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_SELECTION_REJECTED)
+            self.assertEqual(result.report["outcome"], "launch-error")
+            self.assertEqual(result.status_line, b"")
+            self.assertGreaterEqual(
+                result.report["total_elapsed_seconds"],
+                driver.PROVENANCE_STATUS_GRACE_SECONDS,
+            )
+            self.assertLess(result.report["total_elapsed_seconds"], 2.0)
+            self.assertEqual(fixture.terminated_browser_pids, [])
 
     def test_provenance_failure_collects_late_status_in_both_orders_and_coalesced(self):
         record = {
@@ -3105,8 +3365,8 @@ time.sleep(3.25)
                 **options,
             ) as fixture:
                 result = fixture.run()
-                self.assertEqual(result.exit_code, driver.DRIVER_PROVENANCE_FAILURE)
-                self.assertEqual(result.report["outcome"], "provenance-error")
+                self.assertEqual(result.exit_code, driver.DRIVER_SELECTION_REJECTED)
+                self.assertEqual(result.report["outcome"], "launch-error")
                 self.assertIn(b'"outcome":"selected"', result.status_line)
                 self.assertIn(b'"outcome":"launch-error"', result.status_line)
 
@@ -3316,16 +3576,94 @@ time.sleep(3.25)
             ) as fixture:
                 self.assertEqual(fixture.run().exit_code, driver.DRIVER_INVALID_STATUS)
 
-    def test_selected_then_launch_error_without_provenance_is_harness_failure(self):
+    def test_status_and_receipt_json_are_strict_bounded_and_finite(self):
+        valid_status = b'{"session":"session_0123456789","outcome":"selected"}\n'
+        valid_receipt = (
+            b'{"token":"TOKEN","receipt_time":1.25,'
+            b'"remote_address":"127.0.0.1"}\n'
+        )
+        self.assertEqual(
+            driver._parse_status(valid_status, "session_0123456789"), "selected"
+        )
+        self.assertTrue(driver._parse_receipt(valid_receipt, "TOKEN"))
+
+        invalid_statuses = (
+            b'{"session":"session_0123456789","outcome":"selected",'
+            b'"outcome":"selected"}\n',
+            b'{"session":"session_0123456789","outcome":NaN}\n',
+            valid_status.rstrip(b"\n"),
+            valid_status[:-1] + b" " * driver.MAXIMUM_PROTOCOL_LINE_BYTES + b"\n",
+        )
+        for payload in invalid_statuses:
+            with self.subTest(protocol="status", payload=payload[:80]):
+                with self.assertRaises(driver._StatusProtocolError):
+                    driver._parse_status(payload, "session_0123456789")
+
+        invalid_receipts = (
+            b'{"token":"TOKEN","token":"TOKEN","receipt_time":1,'
+            b'"remote_address":"127.0.0.1"}\n',
+            b'{"token":"TOKEN","receipt_time":NaN,'
+            b'"remote_address":"127.0.0.1"}\n',
+            b'{"token":"TOKEN","receipt_time":Infinity,'
+            b'"remote_address":"127.0.0.1"}\n',
+            b'{"token":"TOKEN","receipt_time":true,'
+            b'"remote_address":"127.0.0.1"}\n',
+            valid_receipt.rstrip(b"\n"),
+            valid_receipt[:-1]
+            + b" " * driver.MAXIMUM_PROTOCOL_LINE_BYTES
+            + b"\n",
+        )
+        for payload in invalid_receipts:
+            with self.subTest(protocol="receipt", payload=payload[:80]):
+                with self.assertRaises(driver._ReceiptProtocolError):
+                    driver._parse_receipt(payload, "TOKEN")
+
+    def test_preplan_selected_then_launch_error_without_provenance_is_product_failure(self):
         records = [
             {"session": "session_0123456789", "outcome": "selected"},
             {"session": "session_0123456789", "outcome": "launch-error"},
         ]
         with DriverFixture(status_records=records) as fixture:
             result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_SELECTION_REJECTED)
+            self.assertEqual(result.report["outcome"], "launch-error")
+            self.assertFalse(result.report["token_received"])
+            self.assertEqual(fixture.terminated_browser_pids, [])
+
+    def test_selected_only_without_provenance_remains_a_harness_failure(self):
+        with DriverFixture(provenance_records=[]) as fixture:
+            result = fixture.run()
             self.assertEqual(result.exit_code, driver.DRIVER_PROVENANCE_FAILURE)
             self.assertEqual(result.report["outcome"], "provenance-error")
-            self.assertFalse(result.report["token_received"])
+            self.assertTrue(result.report["token_received"])
+            self.assertTrue(result.report["exact_browser_process_identity"])
+            self.assertEqual(fixture.terminated_browser_pids, [])
+
+    def test_valid_launch_error_provenance_does_not_override_helper_failure(self):
+        record = {
+            "session": "session_0123456789",
+            "request": "$request",
+            "target": "com.microsoft.edgemac||normal",
+            "bundleIdentifier": "com.microsoft.edgemac",
+            "mode": "normal",
+            "mechanism": "process",
+            "outcome": "launch-error",
+        }
+        with DriverFixture(
+            provenance_records=[record],
+            provenance_before_status=True,
+            status_records=[
+                {"session": "session_0123456789", "outcome": "selected"},
+                {"session": "session_0123456789", "outcome": "launch-error"},
+            ],
+            spawn_browser=False,
+            helper_failure_phase="after-status",
+        ) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_HELPER_FAILURE)
+            self.assertEqual(result.report["outcome"], "helper-error")
+            self.assertIn(b'"outcome":"launch-error"', result.status_line)
+            self.assertEqual(fixture.terminated_browser_pids, [])
 
     def test_closed_rejection_is_sanitized_selection_failure(self):
         records = [{"session": "session_0123456789", "outcome": "target-missing"}]
@@ -3338,6 +3676,26 @@ time.sleep(3.25)
         for kind in ("wrong-token", "wrong-remote", "malformed"):
             with self.subTest(kind=kind), DriverFixture(probe_kind=kind) as fixture:
                 self.assertEqual(fixture.run().exit_code, driver.DRIVER_INVALID_RECEIPT)
+
+    def test_complete_proof_rejects_second_or_partial_trailing_receipt(self):
+        for kind in (
+            "duplicate-receipt-coalesced",
+            "duplicate-receipt-delayed",
+            "partial-trailing-receipt",
+        ):
+            with self.subTest(kind=kind), DriverFixture(probe_kind=kind) as fixture:
+                result = fixture.run()
+                self.assertEqual(result.exit_code, driver.DRIVER_INVALID_RECEIPT)
+                self.assertEqual(result.report["outcome"], "invalid-receipt")
+
+    def test_complete_proof_rejects_partial_trailing_status_bytes(self):
+        with DriverFixture(
+            status_trailing_payload=b'{"session":',
+            status_trailing_delay=0.24,
+        ) as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_INVALID_STATUS)
+            self.assertEqual(result.report["outcome"], "invalid-status")
 
     def test_hanging_route_delivery_is_helper_timeout_and_closes_children(self):
         with DriverFixture(
