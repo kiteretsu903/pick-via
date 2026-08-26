@@ -107,23 +107,35 @@
       )
     }
 
-    func testExactChromiumAndFirefoxProfileTargetsAreSelected() throws {
+    func testExactFirefoxProfileTargetIsSelected() throws {
       let firefoxPath = try makeRealFirefoxProfileDirectory(label: "valid")
       let firefoxFixture = Fixtures.firefoxProfileFixture(profilePath: firefoxPath)
-      for fixture in [Fixtures.edgeProfileFixture, firefoxFixture] {
-        XCTAssertEqual(
-          E2ETargetDecision.evaluate(
-            control: fixture.control,
-            requestKind: .web,
-            applications: [fixture.application],
-            targets: [fixture.target]
-          ),
-          .select(fixture.target.id)
-        )
-      }
+
+      XCTAssertEqual(
+        E2ETargetDecision.evaluate(
+          control: firefoxFixture.control,
+          requestKind: .web,
+          applications: [firefoxFixture.application],
+          targets: [firefoxFixture.target]
+        ),
+        .select(firefoxFixture.target.id)
+      )
     }
 
-    func testProfilePrivateSelectionUsesTheExactDescriptorCapability() {
+    func testChromiumProfileTargetWithoutLaunchPathIsRejected() {
+      let fixture = Fixtures.edgeProfileFixture
+
+      assertShapeMismatch(
+        E2ETargetDecision.evaluate(
+          control: fixture.control,
+          requestKind: .web,
+          applications: [fixture.application],
+          targets: [fixture.target]
+        )
+      )
+    }
+
+    func testChromiumProfilePrivateSelectionStillRequiresValidatedGrant() {
       let identity = "Profile 1"
       let edgeTargetID = BrowserCatalog.targetID(
         bundleIdentifier: Fixtures.edgeBundleIdentifier,
@@ -195,7 +207,7 @@
           targets: [target],
           descriptors: [descriptor]
         ),
-        .select(targetID)
+        .reject(.targetShapeMismatch)
       )
     }
 

@@ -223,8 +223,8 @@
         return false
       case .chromium:
         guard identifier == identity else { return false }
-        guard let launchPath = options.profileLaunchPath else { return true }
         guard
+          let launchPath = options.profileLaunchPath,
           nonempty(launchPath, limit: 1_024) == launchPath,
           let lexicalLaunchPath = lexicallyStandardizedAbsolutePath(launchPath),
           lexicalLaunchPath == launchPath
