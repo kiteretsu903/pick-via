@@ -441,6 +441,65 @@ class MatrixRunnerTests(unittest.TestCase):
             all(record["detail"] == "blocked-after-ambiguity" for record in tail)
         )
 
+    def test_postroute_signature_blocker_preserves_only_authenticated_finalization(
+        self,
+    ):
+        class FinalizationDependencies(FakeDependencies):
+            def __init__(self, finalized):
+                super().__init__(verification_failure_phase="post")
+                self.finalized = finalized
+
+            def run_sequence(self, *args, **kwargs):
+                report, return_code = super().run_sequence(*args, **kwargs)
+                return report, return_code, self.finalized
+
+        chrome = self.edge_application(
+            bundleIdentifier="com.google.Chrome",
+            applicationPath="/Applications/Google Chrome.app",
+            executableRelativePath="Contents/MacOS/Google Chrome",
+        )
+        for finalized in (True, False):
+            with self.subTest(finalized=finalized):
+                result = matrix.execute_matrix(
+                    matrix.load_manifest(
+                        self.write_manifest([chrome, self.edge_application()])
+                    ),
+                    self.root / f"post-signature-{finalized}",
+                    dependencies=FinalizationDependencies(finalized),
+                )
+                pilot = result.records[:3]
+                tail = result.records[3:]
+                self.assertTrue(
+                    all(record["detail"] == "signature-blocker" for record in pilot)
+                )
+                self.assertTrue(
+                    all(record["taskRootFinalized"] is finalized for record in pilot)
+                )
+                self.assertTrue(
+                    all(
+                        record.get("taskFinalizationSource")
+                        == (
+                            matrix._AUTHENTICATED_FINALIZATION_SOURCE
+                            if finalized
+                            else None
+                        )
+                        for record in pilot
+                    )
+                )
+                self.assertTrue(
+                    all(record["taskRootFinalized"] is False for record in tail)
+                )
+                if finalized:
+                    resume_dependencies = FakeDependencies()
+                    resumed = matrix.execute_matrix(
+                        matrix.load_manifest(self.manifest_path),
+                        self.root / f"post-signature-{finalized}",
+                        dependencies=resume_dependencies,
+                        resume=True,
+                    )
+                    self.assertEqual(resumed.exit_code, matrix.MATRIX_BLOCKED)
+                    self.assertEqual(resume_dependencies.driver_calls, [])
+
     def test_browser_static_identity_change_after_sequence_discards_stale_evidence(
         self,
     ):
@@ -455,6 +514,98 @@ class MatrixRunnerTests(unittest.TestCase):
         self.assertTrue(all(record["result"] == "NOT RUN" for record in result.records))
         self.assertEqual(result.records[0]["detail"], "browser-identity-changed")
         self.assertEqual(result.records[0]["installedVersion"], "unavailable")
+
+    def test_postroute_static_change_preserves_only_authenticated_finalization(self):
+        class FinalizationDependencies(FakeDependencies):
+            def __init__(self, finalized):
+                super().__init__(static_change_phase="post")
+                self.finalized = finalized
+
+            def run_sequence(self, *args, **kwargs):
+                report, return_code = super().run_sequence(*args, **kwargs)
+                return report, return_code, self.finalized
+
+        chrome = self.edge_application(
+            bundleIdentifier="com.google.Chrome",
+            applicationPath="/Applications/Google Chrome.app",
+            executableRelativePath="Contents/MacOS/Google Chrome",
+        )
+        for finalized in (True, False):
+            with self.subTest(finalized=finalized):
+                result = matrix.execute_matrix(
+                    matrix.load_manifest(
+                        self.write_manifest([chrome, self.edge_application()])
+                    ),
+                    self.root / f"post-static-{finalized}",
+                    dependencies=FinalizationDependencies(finalized),
+                )
+                pilot = result.records[:3]
+                tail = result.records[3:]
+                self.assertTrue(
+                    all(
+                        record["detail"] == "browser-identity-changed"
+                        for record in pilot
+                    )
+                )
+                self.assertTrue(
+                    all(record["taskRootFinalized"] is finalized for record in pilot)
+                )
+                self.assertTrue(
+                    all(
+                        record.get("taskFinalizationSource")
+                        == (
+                            matrix._AUTHENTICATED_FINALIZATION_SOURCE
+                            if finalized
+                            else None
+                        )
+                        for record in pilot
+                    )
+                )
+                self.assertTrue(
+                    all(record["taskRootFinalized"] is False for record in tail)
+                )
+
+    def test_preroute_blocker_and_rehashed_resume_forgery_cannot_claim_finalization(
+        self,
+    ):
+        output = self.root / "preroute-finalization-forgery"
+        result = matrix.execute_matrix(
+            matrix.load_manifest(self.write_manifest()),
+            output,
+            dependencies=FakeDependencies(verification_failure_phase="pre"),
+        )
+        self.assertTrue(
+            all(record["taskRootFinalized"] is False for record in result.records)
+        )
+        evidence_path = output / "evidence.jsonl"
+        records = [
+            json.loads(line)
+            for line in evidence_path.read_text(encoding="utf-8").splitlines()
+        ]
+        records[1]["taskRootFinalized"] = True
+        records[1]["taskFinalizationSource"] = matrix._AUTHENTICATED_FINALIZATION_SOURCE
+        previous = "0" * 64
+        for record in records:
+            record["previousHash"] = previous
+            unhashed = dict(record)
+            unhashed.pop("recordHash", None)
+            record["recordHash"] = matrix._digest_json(unhashed)
+            previous = record["recordHash"]
+        evidence_path.write_text(
+            "\n".join(
+                json.dumps(record, separators=(",", ":"), sort_keys=True)
+                for record in records
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        with self.assertRaises(matrix.MatrixResumeError):
+            matrix.execute_matrix(
+                matrix.load_manifest(self.manifest_path),
+                output,
+                dependencies=FakeDependencies(),
+                resume=True,
+            )
 
     def test_static_identity_digest_detects_same_size_executable_replacement(self):
         application_path = self.root / "Browser.app"

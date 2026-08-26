@@ -352,6 +352,7 @@ _CELL_REQUIRED_KEYS = frozenset(
         "recordHash",
     }
 )
+_CELL_OPTIONAL_KEYS = frozenset({"taskFinalizationSource"})
 
 _NONINVOKED_DETAILS = frozenset(
     {
@@ -370,10 +371,13 @@ _NONINVOKED_DETAILS = frozenset(
 _FINALIZED_NONINVOKED_DETAILS = frozenset(
     {
         "harness-ambiguity",
+        "signature-blocker",
         "blocked-after-sequence-failure",
         "blocked-after-sequence-refusal",
+        "browser-identity-changed",
     }
 )
+_AUTHENTICATED_FINALIZATION_SOURCE = "authenticated-handoff"
 _CELL_TIMING_KEYS = frozenset(
     {
         "totalElapsedSeconds",
@@ -1268,6 +1272,8 @@ def _valid_cell_evidence_semantics(record):
             and record.get("browserIdentity") is False
         )
     if result == "NOT RUN" and detail in _NONINVOKED_DETAILS:
+        task_root_finalized = record.get("taskRootFinalized")
+        finalization_source = record.get("taskFinalizationSource")
         return (
             record.get("driverOutcome") == "not-invoked"
             and record.get("provenance") == "none"
@@ -1276,14 +1282,59 @@ def _valid_cell_evidence_semantics(record):
             and record.get("browserIdentity") is False
             and record.get("sessionHash") == "not-invoked"
             and record.get("cleanupSuccess") is False
-            and type(record.get("taskRootFinalized")) is bool
+            and type(task_root_finalized) is bool
             and (
-                record["taskRootFinalized"] is False
-                or detail in _FINALIZED_NONINVOKED_DETAILS
+                task_root_finalized is False
+                and finalization_source is None
+                or task_root_finalized is True
+                and detail in _FINALIZED_NONINVOKED_DETAILS
+                and finalization_source == _AUTHENTICATED_FINALIZATION_SOURCE
             )
             and not timing_keys
         )
     return False
+
+
+def _valid_resume_finalization_sources(completed):
+    for offset in range(0, len(completed), len(_STATES)):
+        group = completed[offset : offset + len(_STATES)]
+        sourced = [
+            index
+            for index, record in enumerate(group)
+            if record.get("taskFinalizationSource")
+            == _AUTHENTICATED_FINALIZATION_SOURCE
+        ]
+        if not sourced:
+            continue
+        if all(record["result"] == "NOT RUN" for record in group):
+            if (
+                len(group) != len(_STATES)
+                or sourced != list(range(len(_STATES)))
+                or len({record["detail"] for record in group}) != 1
+                or group[0]["detail"]
+                not in {
+                    "harness-ambiguity",
+                    "signature-blocker",
+                    "browser-identity-changed",
+                }
+            ):
+                return False
+            continue
+        first = sourced[0]
+        if (
+            sourced != list(range(first, len(group)))
+            or any(record["result"] == "NOT RUN" for record in group[:first])
+            or any(
+                record["detail"]
+                not in {
+                    "blocked-after-sequence-failure",
+                    "blocked-after-sequence-refusal",
+                }
+                for record in group[first:]
+            )
+        ):
+            return False
+    return True
 
 
 class _PinnedOutputDirectory:
@@ -1966,7 +2017,8 @@ def _read_resume(output, manifest, cells):
             raise MatrixResumeError("extra completed cell")
         cell = cells[cell_index]
         keys = set(record)
-        timing_keys = keys - _CELL_REQUIRED_KEYS
+        optional_keys = keys & _CELL_OPTIONAL_KEYS
+        timing_keys = keys - _CELL_REQUIRED_KEYS - optional_keys
         timings_are_valid = timing_keys.issubset(_CELL_TIMING_KEYS) and all(
             type(record[key]) in {int, float}
             and math.isfinite(record[key])
@@ -2003,6 +2055,8 @@ def _read_resume(output, manifest, cells):
                 raise MatrixResumeError("reused session hash")
             seen_session_hashes.add(session_hash)
         completed.append(record)
+    if not _valid_resume_finalization_sources(completed):
+        raise MatrixResumeError("completed finalization source mismatch")
     output.pin_evidence(before, data, records)
     return records, completed
 
@@ -2070,7 +2124,7 @@ def _sanitized_record(cell, version, browser_app_identity, report, result, detai
         if isinstance(session_hash, str) and _SAFE_HASH.fullmatch(session_hash)
         else "not-invoked"
     )
-    return {
+    record = {
         "recordType": "cell",
         "schemaVersion": 1,
         "sequence": cell.sequence,
@@ -2097,6 +2151,9 @@ def _sanitized_record(cell, version, browser_app_identity, report, result, detai
         "taskRootFinalized": report.get("task_root_finalized") is True,
         **timings,
     }
+    if report.get("task_finalization_source") == _AUTHENTICATED_FINALIZATION_SOURCE:
+        record["taskFinalizationSource"] = _AUTHENTICATED_FINALIZATION_SOURCE
+    return record
 
 
 def _not_run_record(
@@ -2105,7 +2162,7 @@ def _not_run_record(
     detail,
     browser_app_identity="0" * 64,
     *,
-    task_root_finalized=False,
+    authenticated_task_root_finalized=False,
 ):
     return _sanitized_record(
         cell,
@@ -2113,7 +2170,12 @@ def _not_run_record(
         browser_app_identity,
         {
             "outcome": "not-invoked",
-            "task_root_finalized": task_root_finalized,
+            "task_root_finalized": authenticated_task_root_finalized,
+            "task_finalization_source": (
+                _AUTHENTICATED_FINALIZATION_SOURCE
+                if authenticated_task_root_finalized
+                else "none"
+            ),
         },
         "NOT RUN",
         detail,
@@ -2510,6 +2572,9 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
                         blocked_cell,
                         "unavailable",
                         "signature-blocker",
+                        authenticated_task_root_finalized=(
+                            independently_finalized_task_root
+                        ),
                     )
                     chained_records.append(
                         _chain_record(record, chained_records[-1]["recordHash"])
@@ -2531,12 +2596,23 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
                 break
             if post_verification != application_verifications[cell.bundle_identifier]:
                 versions[cell.bundle_identifier] = "unavailable"
-                for pending in remaining[offset:]:
+                for invoked_cell in group:
+                    record = _not_run_record(
+                        invoked_cell,
+                        "unavailable",
+                        "browser-identity-changed",
+                        authenticated_task_root_finalized=(
+                            independently_finalized_task_root
+                        ),
+                    )
+                    chained_records.append(
+                        _chain_record(record, chained_records[-1]["recordHash"])
+                    )
+                    completed.append(chained_records[-1])
+                for pending in remaining[offset + 3 :]:
                     record = _not_run_record(
                         pending,
-                        "unavailable"
-                        if pending.bundle_identifier == cell.bundle_identifier
-                        else versions.get(pending.bundle_identifier, "unverified"),
+                        versions.get(pending.bundle_identifier, "unverified"),
                         "browser-identity-changed",
                     )
                     chained_records.append(
@@ -2583,7 +2659,9 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
                         state_cell,
                         versions[state_cell.bundle_identifier],
                         detail,
-                        task_root_finalized=independently_finalized_task_root,
+                        authenticated_task_root_finalized=(
+                            independently_finalized_task_root
+                        ),
                     )
                     chained_records.append(
                         _chain_record(record, chained_records[-1]["recordHash"])
