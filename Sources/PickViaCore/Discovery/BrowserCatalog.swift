@@ -148,6 +148,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   private let fileSystem: any FileSystem
   private let profileRootAccess: any ProfileRootAccessProviding
   private let duckDuckGoCompatibilityChecker: any DuckDuckGoBuildCompatibilityChecking
+  private let preservesGrantedChromiumProfileRootPath: Bool
   private let homeDirectory: URL
 
   public init(
@@ -157,6 +158,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     profileRootAccess: any ProfileRootAccessProviding = MissingProfileAccessManager(),
     duckDuckGoCompatibilityChecker: any DuckDuckGoBuildCompatibilityChecking =
       DuckDuckGoBuildCompatibilityChecker(),
+    preservesGrantedChromiumProfileRootPath: Bool = false,
     homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
   ) {
     self.descriptors = descriptors
@@ -164,6 +166,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     self.fileSystem = fileSystem
     self.profileRootAccess = profileRootAccess
     self.duckDuckGoCompatibilityChecker = duckDuckGoCompatibilityChecker
+    self.preservesGrantedChromiumProfileRootPath = preservesGrantedChromiumProfileRootPath
     self.homeDirectory = homeDirectory
   }
 
@@ -597,7 +600,25 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       case .none, .safariShortcut:
         return ([], .notApplicable)
       case .chromium:
-        return (try ChromiumProfileParser.parse(data: data, baseDirectory: root), .loaded)
+        let profiles = try ChromiumProfileParser.parse(data: data, baseDirectory: root)
+        guard usesSavedGrant, preservesGrantedChromiumProfileRootPath else {
+          return (profiles, .loaded)
+        }
+        return (
+          profiles.map { profile in
+            DiscoveredProfile(
+              identifier: profile.identifier,
+              displayName: profile.displayName,
+              directoryURL: root.appending(
+                path: profile.identifier,
+                directoryHint: .isDirectory
+              ),
+              launchIdentifier: profile.launchIdentifier,
+              isDefault: profile.isDefault
+            )
+          },
+          .loaded
+        )
       case .firefox:
         guard let text = String(data: data, encoding: .utf8) else {
           return ([], .metadataDamaged)
@@ -716,7 +737,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       profileIdentifier: profile?.launchIdentifier,
       profileDisplayName: profile?.displayName,
       profileIdentity: profile?.identifier,
-      profileLaunchPath: profile?.directoryURL?.standardizedFileURL.path,
+      profileLaunchPath: profile?.directoryURL?.path,
       mode: mode,
       isEnabled: profile == nil || mode == .normal,
       sortOrder: 0,
@@ -879,7 +900,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
         : target.profileDisplayName,
       profileIdentity: migratedIdentity,
       profileLaunchPath: availability == .available
-        ? (resolvedProfile?.directoryURL?.standardizedFileURL.path ?? target.profileLaunchPath)
+        ? (resolvedProfile?.directoryURL?.path ?? target.profileLaunchPath)
         : target.profileLaunchPath,
       mode: target.mode,
       isEnabled: capabilities?.supportsRoute(

@@ -193,8 +193,9 @@ extension AppModel {
     let profileAccessStore = JSONProfileAccessStore(directory: applicationSupportDirectory)
     let profileAccessCoordinator = ProfileAccessCoordinator(store: profileAccessStore)
     #if PICKVIA_E2E_AUTOMATION
+      let e2eProfileGrant: E2EValidatedProfileGrant?
       do {
-        try E2EProfileGrantInstaller.installIfPresent(
+        e2eProfileGrant = try E2EProfileGrantInstaller.installIfPresent(
           control: e2eControl,
           descriptors: BrowserDescriptor.supported,
           coordinator: profileAccessCoordinator
@@ -244,6 +245,7 @@ extension AppModel {
       let chooser: any ChooserPresenting = AppComposition.makeChooser(
         ordinary: ordinaryChooser,
         e2eControl: e2eControl,
+        profileGrant: e2eProfileGrant,
         statusWriter: E2EStatusWriter()
       )
     #else
@@ -324,11 +326,13 @@ enum AppComposition {
     static func makeChooser(
       ordinary: any ChooserPresenting,
       e2eControl: E2EControl,
+      profileGrant: E2EValidatedProfileGrant? = nil,
       statusWriter: any E2EStatusWriting
     ) -> any ChooserPresenting {
       E2EChooserPresenter(
         base: ordinary,
         control: e2eControl,
+        profileGrant: profileGrant,
         statusWriter: statusWriter
       )
     }
@@ -447,6 +451,7 @@ enum AppComposition {
         fileSystem: fileSystem,
         profileRootAccess: profileRootAccess,
         duckDuckGoCompatibilityChecker: duckDuckGoCompatibilityChecker,
+        preservesGrantedChromiumProfileRootPath: true,
         homeDirectory: control.applicationSupportDirectory
       )
     }

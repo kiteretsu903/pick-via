@@ -6,6 +6,7 @@
   final class E2EChooserPresenter: ChooserPresenting {
     private let base: any ChooserPresenting
     private let control: E2EControl?
+    private let profileGrant: E2EValidatedProfileGrant?
     private let statusWriter: any E2EStatusWriting
     private var handledRequestIDs: Set<UUID> = []
     private var reportedLaunchErrorRequestIDs: Set<UUID> = []
@@ -13,10 +14,12 @@
     init(
       base: any ChooserPresenting,
       control: E2EControl?,
+      profileGrant: E2EValidatedProfileGrant? = nil,
       statusWriter: any E2EStatusWriting
     ) {
       self.base = base
       self.control = control
+      self.profileGrant = profileGrant
       self.statusWriter = statusWriter
     }
 
@@ -59,7 +62,8 @@
         control: control,
         requestKind: request.kind,
         applications: applications,
-        targets: targets
+        targets: targets,
+        profileGrant: profileGrant
       ) {
       case .select(let targetID):
         guard

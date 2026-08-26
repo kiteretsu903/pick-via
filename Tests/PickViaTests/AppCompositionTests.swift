@@ -493,6 +493,9 @@ final class AppCompositionTests: XCTestCase {
       2
     )
     XCTAssertTrue(sources.contains("let browserCatalog: any BrowserDiscovering"))
+    XCTAssertTrue(sources.contains("e2eProfileGrant = try"))
+    XCTAssertTrue(sources.contains("profileGrant: e2eProfileGrant"))
+    XCTAssertTrue(sources.contains("preservesGrantedChromiumProfileRootPath: true"))
     XCTAssertTrue(sources.contains("profileAccess: profileAccessCoordinator"))
     XCTAssertTrue(sources.contains("isChooserActive:"))
     XCTAssertTrue(sources.contains("chooser?.hasActivePresentation"))

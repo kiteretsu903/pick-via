@@ -132,7 +132,8 @@
       requestKind: RouteKind,
       applications: [RoutedApplication],
       targets: [RouteTarget],
-      descriptors: [BrowserDescriptor] = BrowserDescriptor.supported
+      descriptors: [BrowserDescriptor] = BrowserDescriptor.supported,
+      profileGrant: E2EValidatedProfileGrant? = nil
     ) -> E2ETargetDecision {
       guard requestKind == .web else { return .reject(.nonWebRequest) }
       let matches = targets.filter { $0.id == control.targetID }
@@ -163,16 +164,24 @@
       guard
         target.applicationID == application.id,
         target.origin == .detected,
-        isCanonical(target: target, options: options, descriptor: descriptor)
+        isCanonical(
+          control: control,
+          target: target,
+          options: options,
+          descriptor: descriptor,
+          profileGrant: profileGrant
+        )
       else { return .reject(.targetShapeMismatch) }
 
       return .select(target.id)
     }
 
     private static func isCanonical(
+      control: E2EControl,
       target: RouteTarget,
       options: BrowserTargetOptions,
-      descriptor: BrowserDescriptor
+      descriptor: BrowserDescriptor,
+      profileGrant: E2EValidatedProfileGrant?
     ) -> Bool {
       let hasProfileEvidence =
         options.profileIdentifier != nil
@@ -213,7 +222,24 @@
       case .none:
         return false
       case .chromium:
-        return identifier == identity && options.profileLaunchPath == nil
+        guard identifier == identity else { return false }
+        guard let launchPath = options.profileLaunchPath else { return true }
+        guard
+          nonempty(launchPath, limit: 1_024) == launchPath,
+          let lexicalLaunchPath = lexicallyStandardizedAbsolutePath(launchPath),
+          lexicalLaunchPath == launchPath
+        else { return false }
+        let profileDirectory = URL(
+          fileURLWithPath: launchPath,
+          isDirectory: true
+        )
+        guard profileDirectory.path == launchPath else { return false }
+        return profileGrant?.matchesChromiumTarget(
+          control: control,
+          descriptor: descriptor,
+          profileIdentifier: identifier,
+          profileDirectory: profileDirectory
+        ) == true
       case .firefox:
         guard
           FirefoxProfileIdentity.isOpaqueIdentifier(identity),

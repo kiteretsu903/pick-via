@@ -275,7 +275,7 @@
       )
     }
 
-    func testChromiumProfileRejectsAnyLaunchPath() {
+    func testChromiumProfileLaunchPathRejectsWhenValidatedGrantIsMissing() {
       let fixture = Fixtures.edgeProfileFixture
       let target = Fixtures.target(
         id: fixture.target.id,

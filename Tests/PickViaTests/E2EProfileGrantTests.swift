@@ -40,12 +40,24 @@
           accessRoot: fixture.root
         )
 
-        try E2EProfileGrantInstaller.installIfPresent(
+        let validatedGrant = try E2EProfileGrantInstaller.installIfPresent(
           control: fixture.control,
           descriptors: [fixture.descriptor],
           coordinator: coordinator
         )
 
+        XCTAssertEqual(validatedGrant?.descriptor, fixture.descriptor)
+        XCTAssertEqual(validatedGrant?.root, fixture.root)
+        let expectedProfileIdentifier =
+          switch fixture.descriptor.profileStrategy {
+          case .chromium: "Default"
+          case .firefox: "synthetic0.default"
+          case .none, .safariShortcut: "unsupported"
+          }
+        XCTAssertEqual(
+          validatedGrant?.profileIdentifier,
+          expectedProfileIdentifier
+        )
         XCTAssertEqual(
           coordinator.installations, [fixture.descriptor.bundleIdentifier: fixture.root])
         XCTAssertEqual(
@@ -61,7 +73,7 @@
         accessRoot: fixture.root
       )
 
-      try E2EProfileGrantInstaller.installIfPresent(
+      _ = try E2EProfileGrantInstaller.installIfPresent(
         control: fixture.control,
         descriptors: [fixture.descriptor],
         coordinator: coordinator
@@ -74,12 +86,13 @@
     func testMissingManifestIsAnExplicitNoOp() throws {
       let coordinator = ProfileGrantCoordinatorSpy()
 
-      try E2EProfileGrantInstaller.installIfPresent(
+      let validatedGrant = try E2EProfileGrantInstaller.installIfPresent(
         control: control(bundleIdentifier: "com.microsoft.edgemac"),
         descriptors: [try descriptor(bundleIdentifier: "com.microsoft.edgemac")],
         coordinator: coordinator
       )
 
+      XCTAssertNil(validatedGrant)
       XCTAssertTrue(coordinator.installations.isEmpty)
       XCTAssertTrue(coordinator.beginAccessBundleIdentifiers.isEmpty)
     }
@@ -404,11 +417,178 @@
       )
     }
 
+    func testValidatedTaskOwnedChromiumGrantSelectsActualCatalogTarget() throws {
+      let fixture = try makeGrantedChromiumSelectionFixture()
+
+      XCTAssertEqual(fixture.target.profileIdentifier, "Profile 1")
+      XCTAssertEqual(fixture.target.profileIdentity, "Profile 1")
+      XCTAssertEqual(fixture.target.profileLaunchPath, fixture.profile.path)
+      XCTAssertEqual(
+        E2ETargetDecision.evaluate(
+          control: fixture.control,
+          requestKind: .web,
+          applications: [fixture.application],
+          targets: [fixture.target],
+          descriptors: [fixture.descriptor],
+          profileGrant: fixture.grant
+        ),
+        .select(fixture.target.id)
+      )
+
+      let launchPlan = try BrowserLauncher(
+        trustedApplicationResolver: ProfileGrantApplicationLocator(
+          bundleIdentifier: fixture.descriptor.bundleIdentifier,
+          applicationURL: fixture.application.applicationURL
+        ),
+        executableValidator: ProfileGrantExecutableValidator()
+      ).makePlan(
+        url: URL(string: "https://example.invalid/e2e-grant")!,
+        application: fixture.application,
+        target: fixture.target
+      )
+      guard case .profileExecutable(_, let arguments, _) = launchPlan else {
+        return XCTFail("Expected the granted profile to produce a pinned executable plan")
+      }
+      XCTAssertEqual(
+        arguments.prefix(2),
+        ["--user-data-dir=\(fixture.root.path)", "--profile-directory=Profile 1"]
+      )
+    }
+
+    func testValidatedGrantSurvivesOrdinaryTaskSupportStateWrites() throws {
+      let fixture = try makeGrantedChromiumSelectionFixture(rootName: "support-state")
+      try writeRestricted(
+        Data("task-local-state".utf8),
+        to: supportRoot.appending(path: "config.json")
+      )
+
+      XCTAssertEqual(
+        E2ETargetDecision.evaluate(
+          control: fixture.control,
+          requestKind: .web,
+          applications: [fixture.application],
+          targets: [fixture.target],
+          descriptors: [fixture.descriptor],
+          profileGrant: fixture.grant
+        ),
+        .select(fixture.target.id)
+      )
+    }
+
+    func testChromiumLaunchPathRejectsMissingGrantAndEveryUnboundPathShape() throws {
+      let fixture = try makeGrantedChromiumSelectionFixture()
+      assertShapeMismatch(fixture, target: fixture.target, includeProfileGrant: false)
+
+      let outsideRoot = supportRoot.appending(
+        path: "outside/Profile 1",
+        directoryHint: .isDirectory
+      )
+      try makeRestrictedDirectory(outsideRoot)
+      assertShapeMismatch(
+        fixture,
+        target: copy(fixture.target, profileLaunchPath: outsideRoot.path)
+      )
+      assertShapeMismatch(
+        fixture,
+        target: copy(fixture.target, profileLaunchPath: "profiles/chromium/Profile 1")
+      )
+
+      let mismatchedIdentifier = "Profile 9"
+      let mismatchedID = BrowserCatalog.targetID(
+        bundleIdentifier: fixture.descriptor.bundleIdentifier,
+        profileIdentifier: mismatchedIdentifier,
+        mode: .normal
+      )
+      assertShapeMismatch(
+        fixture,
+        control: copy(fixture.control, targetID: mismatchedID),
+        target: copy(
+          fixture.target,
+          id: mismatchedID,
+          profileIdentifier: mismatchedIdentifier,
+          profileIdentity: mismatchedIdentifier,
+          profileLaunchPath: fixture.target.profileLaunchPath!
+        )
+      )
+
+      let forgedDescriptor = BrowserDescriptor(
+        bundleIdentifier: fixture.descriptor.bundleIdentifier,
+        family: fixture.descriptor.family,
+        displayName: fixture.descriptor.displayName,
+        profileStrategy: .chromium(root: "Forged E2E Root"),
+        launchStrategy: fixture.descriptor.launchStrategy,
+        privateStrategy: fixture.descriptor.privateStrategy,
+        routeCapabilityPolicy: fixture.descriptor.routeCapabilityPolicy
+      )
+      assertShapeMismatch(
+        fixture,
+        target: fixture.target,
+        descriptors: [forgedDescriptor]
+      )
+    }
+
+    func testChromiumGrantRejectsSymlinkedAncestorRootAndProfile() throws {
+      do {
+        let fixture = try makeGrantedChromiumSelectionFixture(rootName: "ancestor/chromium")
+        let ancestor = fixture.root.deletingLastPathComponent()
+        let physical = supportRoot.appending(
+          path: "physical-ancestor",
+          directoryHint: .isDirectory
+        )
+        try FileManager.default.moveItem(at: ancestor, to: physical)
+        try FileManager.default.createSymbolicLink(at: ancestor, withDestinationURL: physical)
+        assertShapeMismatch(fixture, target: fixture.target)
+      }
+
+      do {
+        let fixture = try makeGrantedChromiumSelectionFixture(rootName: "root-link")
+        let physical = supportRoot.appending(
+          path: "physical-root",
+          directoryHint: .isDirectory
+        )
+        try FileManager.default.moveItem(at: fixture.root, to: physical)
+        try FileManager.default.createSymbolicLink(at: fixture.root, withDestinationURL: physical)
+        assertShapeMismatch(fixture, target: fixture.target)
+      }
+
+      do {
+        let fixture = try makeGrantedChromiumSelectionFixture(rootName: "profile-link")
+        let physical = fixture.root.appending(
+          path: "Default-physical",
+          directoryHint: .isDirectory
+        )
+        try FileManager.default.moveItem(at: fixture.profile, to: physical)
+        try FileManager.default.createSymbolicLink(
+          at: fixture.profile,
+          withDestinationURL: physical
+        )
+        assertShapeMismatch(fixture, target: fixture.target)
+      }
+    }
+
+    func testChromiumGrantRejectsReplacedGenerationAndChangedMode() throws {
+      do {
+        let fixture = try makeGrantedChromiumSelectionFixture(rootName: "replaced")
+        try FileManager.default.removeItem(at: fixture.profile)
+        try makeRestrictedDirectory(fixture.profile)
+        assertShapeMismatch(fixture, target: fixture.target)
+      }
+
+      do {
+        let fixture = try makeGrantedChromiumSelectionFixture(rootName: "mode")
+        try FileManager.default.setAttributes(
+          [.posixPermissions: 0o755],
+          ofItemAtPath: fixture.profile.path
+        )
+        assertShapeMismatch(fixture, target: fixture.target)
+      }
+    }
+
     private func install(
       _ fixture: ProfileGrantFixture,
       coordinator: ProfileGrantCoordinatorSpy
     ) throws {
-      try E2EProfileGrantInstaller.installIfPresent(
+      _ = try E2EProfileGrantInstaller.installIfPresent(
         control: fixture.control,
         descriptors: [fixture.descriptor],
         coordinator: coordinator
@@ -418,17 +598,21 @@
     private func makeChromiumFixture(
       profileCount: Int = 1,
       displayName: String = "PickVia E2E",
+      profileIdentifier: String = "Default",
+      rootName: String = "chromium",
       manifest suppliedManifest: E2EProfileGrantManifest? = nil
     ) throws -> ProfileGrantFixture {
       let descriptor = try descriptor(bundleIdentifier: "com.microsoft.edgemac")
       let control = control(bundleIdentifier: descriptor.bundleIdentifier)
-      let relativeRoot = "profiles/chromium"
+      let relativeRoot = "profiles/\(rootName)"
       let root = supportRoot.appending(path: relativeRoot, directoryHint: .isDirectory)
       if FileManager.default.fileExists(atPath: root.path) {
         try FileManager.default.removeItem(at: root)
       }
       try makeRestrictedDirectory(root)
-      let identifiers = (0..<profileCount).map { $0 == 0 ? "Default" : "Profile \($0)" }
+      let identifiers = (0..<profileCount).map {
+        $0 == 0 ? profileIdentifier : "Profile \($0 + 1)"
+      }
       for identifier in identifiers {
         try makeRestrictedDirectory(root.appending(path: identifier, directoryHint: .isDirectory))
       }
@@ -450,6 +634,122 @@
         descriptor: descriptor,
         root: root,
         manifest: manifest
+      )
+    }
+
+    private func makeGrantedChromiumSelectionFixture(
+      rootName: String = "chromium-selection"
+    ) throws -> GrantedChromiumSelectionFixture {
+      let fixture = try makeChromiumFixture(
+        profileIdentifier: "Profile 1",
+        rootName: rootName
+      )
+      let coordinator = ProfileGrantCoordinatorSpy(
+        persistence: .currentSessionOnly,
+        accessRoot: fixture.root
+      )
+      let grant = try XCTUnwrap(
+        E2EProfileGrantInstaller.installIfPresent(
+          control: fixture.control,
+          descriptors: [fixture.descriptor],
+          coordinator: coordinator
+        )
+      )
+      let applicationURL = URL(
+        fileURLWithPath: "/Applications/Synthetic Edge.app",
+        isDirectory: true
+      )
+      let catalog = BrowserCatalog(
+        descriptors: [fixture.descriptor],
+        applicationLocator: ProfileGrantApplicationLocator(
+          bundleIdentifier: fixture.descriptor.bundleIdentifier,
+          applicationURL: applicationURL
+        ),
+        profileRootAccess: coordinator,
+        preservesGrantedChromiumProfileRootPath: true,
+        homeDirectory: supportRoot
+      )
+      let scan = catalog.scanResult()
+      let browser = try XCTUnwrap(scan.browsers.first)
+      let config = catalog.reconcile(discovered: scan.browsers, with: .initial)
+      let target = try XCTUnwrap(
+        config.targets.first {
+          $0.profileIdentifier == "Profile 1"
+            && $0.profileLaunchPath == fixture.root.appending(path: "Profile 1").path
+            && $0.mode == .normal
+        },
+        "status=\(browser.metadataStatus) profiles=\(browser.profiles) targets=\(config.targets)"
+      )
+      return GrantedChromiumSelectionFixture(
+        control: copy(fixture.control, targetID: target.id),
+        descriptor: fixture.descriptor,
+        application: browser.application,
+        target: target,
+        grant: grant,
+        root: fixture.root,
+        profile: fixture.root.appending(path: "Profile 1", directoryHint: .isDirectory)
+      )
+    }
+
+    private func assertShapeMismatch(
+      _ fixture: GrantedChromiumSelectionFixture,
+      control: E2EControl? = nil,
+      target: RouteTarget,
+      descriptors: [BrowserDescriptor]? = nil,
+      includeProfileGrant: Bool = true,
+      file: StaticString = #filePath,
+      line: UInt = #line
+    ) {
+      XCTAssertEqual(
+        E2ETargetDecision.evaluate(
+          control: control ?? fixture.control,
+          requestKind: .web,
+          applications: [fixture.application],
+          targets: [target],
+          descriptors: descriptors ?? [fixture.descriptor],
+          profileGrant: includeProfileGrant ? fixture.grant : nil
+        ),
+        .reject(.targetShapeMismatch),
+        file: file,
+        line: line
+      )
+    }
+
+    private func copy(_ control: E2EControl, targetID: RouteTarget.ID) -> E2EControl {
+      E2EControl(
+        targetID: targetID,
+        expectedBundleIdentifier: control.expectedBundleIdentifier,
+        expectedMode: control.expectedMode,
+        sessionNonce: control.sessionNonce,
+        requestNonce: control.requestNonce,
+        applicationSupportDirectory: control.applicationSupportDirectory,
+        statusFIFO: control.statusFIFO,
+        provenanceFIFO: control.provenanceFIFO
+      )
+    }
+
+    private func copy(
+      _ target: RouteTarget,
+      id: RouteTarget.ID? = nil,
+      profileIdentifier: String? = nil,
+      profileIdentity: String? = nil,
+      profileLaunchPath: String
+    ) -> RouteTarget {
+      RouteTarget(
+        id: id ?? target.id,
+        browserID: target.browserID,
+        label: target.label,
+        profileIdentifier: profileIdentifier ?? target.profileIdentifier,
+        profileDisplayName: target.profileDisplayName,
+        profileIdentity: profileIdentity ?? target.profileIdentity,
+        profileLaunchPath: profileLaunchPath,
+        mode: target.mode,
+        isEnabled: target.isEnabled,
+        sortOrder: target.sortOrder,
+        origin: target.origin,
+        availability: target.availability,
+        pendingDefaultMigration: target.pendingDefaultMigration,
+        validationError: target.validationError
       )
     }
 
@@ -581,6 +881,31 @@
     let descriptor: BrowserDescriptor
     let root: URL
     let manifest: E2EProfileGrantManifest
+  }
+
+  private struct GrantedChromiumSelectionFixture {
+    let control: E2EControl
+    let descriptor: BrowserDescriptor
+    let application: RoutedApplication
+    let target: RouteTarget
+    let grant: E2EValidatedProfileGrant
+    let root: URL
+    let profile: URL
+  }
+
+  private struct ProfileGrantApplicationLocator: ApplicationLocating,
+    TrustedApplicationResolving
+  {
+    let bundleIdentifier: String
+    let applicationURL: URL
+
+    func applicationURL(forBundleIdentifier bundleIdentifier: String) -> URL? {
+      bundleIdentifier == self.bundleIdentifier ? applicationURL : nil
+    }
+  }
+
+  private struct ProfileGrantExecutableValidator: ExecutableValidating {
+    func isExecutableFile(at url: URL) -> Bool { true }
   }
 
   private final class ProfileGrantCoordinatorSpy: ProfileAccessManaging, @unchecked Sendable {

@@ -18,6 +18,91 @@
     case grantUnavailable
   }
 
+  struct E2EValidatedProfileGrant: Equatable {
+    let descriptor: BrowserDescriptor
+    let supportRoot: URL
+    let root: URL
+    let profileIdentifier: String
+    let profileDirectory: URL
+    fileprivate let relativeRootComponents: [String]
+    fileprivate let supportIdentity: E2EFileIdentity
+    fileprivate let rootIdentity: E2EFileIdentity
+    fileprivate let profileIdentity: E2EFileIdentity
+    fileprivate let ownerUID: uid_t
+
+    func matchesChromiumTarget(
+      control: E2EControl,
+      descriptor candidateDescriptor: BrowserDescriptor,
+      profileIdentifier candidateIdentifier: String,
+      profileDirectory candidateDirectory: URL
+    ) -> Bool {
+      guard
+        candidateDescriptor == descriptor,
+        control.expectedBundleIdentifier == descriptor.bundleIdentifier,
+        control.applicationSupportDirectory.path == supportRoot.path,
+        candidateIdentifier == profileIdentifier,
+        candidateDirectory.path == profileDirectory.path,
+        candidateDirectory.lastPathComponent == candidateIdentifier,
+        candidateDirectory.deletingLastPathComponent().path == root.path,
+        root.appending(path: candidateIdentifier, directoryHint: .isDirectory).path
+          == candidateDirectory.path,
+        case .chromium = descriptor.profileStrategy
+      else { return false }
+
+      do {
+        let supportDescriptor = try E2EProfileGrantInstaller.openDirectory(supportRoot)
+        defer { close(supportDescriptor) }
+        let currentSupportIdentity = try E2EProfileGrantInstaller.validatedDirectoryIdentity(
+          descriptor: supportDescriptor,
+          publicURL: supportRoot,
+          ownerUID: ownerUID,
+          requiredDevice: supportIdentity.device,
+          requiresRestrictedMode: true
+        )
+        guard currentSupportIdentity.hasSameNodeOwnerAndMode(as: supportIdentity) else {
+          return false
+        }
+
+        let rootDescriptor = try E2EProfileGrantInstaller.openDirectory(
+          components: relativeRootComponents,
+          beneath: supportDescriptor
+        )
+        defer { close(rootDescriptor) }
+        _ = try E2EProfileGrantInstaller.validatedDirectoryIdentity(
+          descriptor: rootDescriptor,
+          publicURL: root,
+          ownerUID: ownerUID,
+          requiredDevice: supportIdentity.device,
+          requiresRestrictedMode: true,
+          expectedIdentity: rootIdentity
+        )
+
+        let profileDescriptor = try E2EProfileGrantInstaller.openDirectory(
+          components: [candidateIdentifier],
+          beneath: rootDescriptor
+        )
+        defer { close(profileDescriptor) }
+        _ = try E2EProfileGrantInstaller.validatedDirectoryIdentity(
+          descriptor: profileDescriptor,
+          publicURL: candidateDirectory,
+          ownerUID: ownerUID,
+          requiredDevice: rootIdentity.device,
+          requiresRestrictedMode: true,
+          expectedIdentity: profileIdentity
+        )
+        return true
+      } catch {
+        return false
+      }
+    }
+  }
+
+  private struct E2EValidatedSyntheticProfile {
+    let identifier: String
+    let directory: URL
+    let identity: E2EFileIdentity
+  }
+
   enum E2EProfileGrantInstaller {
     private static let schemaVersion = 1
     private static let syntheticProfileName = "PickVia E2E"
@@ -29,7 +114,7 @@
       descriptors: [BrowserDescriptor],
       coordinator: any ProfileAccessManaging,
       currentUID: uid_t = getuid()
-    ) throws {
+    ) throws -> E2EValidatedProfileGrant? {
       let supportDescriptor = try openDirectory(control.applicationSupportDirectory)
       defer { close(supportDescriptor) }
       let supportIdentity = try validatedDirectoryIdentity(
@@ -41,7 +126,7 @@
       )
 
       guard manifestEntryExists(control.profileGrantManifest, supportDescriptor: supportDescriptor)
-      else { return }
+      else { return nil }
       let manifestData = try readRestrictedRegularFile(
         named: control.profileGrantManifest.lastPathComponent,
         beneath: supportDescriptor,
@@ -83,7 +168,7 @@
         requiresRestrictedMode: true
       )
 
-      try validateSyntheticProfile(
+      let profile = try validateSyntheticProfile(
         descriptor: descriptor,
         rootURL: rootURL,
         rootDescriptor: rootDescriptor,
@@ -118,6 +203,18 @@
         requiredDevice: rootIdentity.device,
         requiresRestrictedMode: true,
         expectedIdentity: rootIdentity
+      )
+      return E2EValidatedProfileGrant(
+        descriptor: descriptor,
+        supportRoot: control.applicationSupportDirectory,
+        root: rootURL,
+        profileIdentifier: profile.identifier,
+        profileDirectory: profile.directory,
+        relativeRootComponents: components,
+        supportIdentity: supportIdentity,
+        rootIdentity: rootIdentity,
+        profileIdentity: profile.identity,
+        ownerUID: currentUID
       )
     }
 
@@ -170,7 +267,7 @@
       rootDescriptor: Int32,
       rootIdentity: E2EFileIdentity,
       ownerUID: uid_t
-    ) throws {
+    ) throws -> E2EValidatedSyntheticProfile {
       guard let marker = descriptor.requiredProfileMarker else {
         throw E2EProfileGrantError.descriptorMismatch
       }
@@ -245,12 +342,17 @@
       defer { close(childDescriptor) }
       let childURL = rootURL.appending(path: childName, directoryHint: .isDirectory)
       do {
-        _ = try validatedDirectoryIdentity(
+        let identity = try validatedDirectoryIdentity(
           descriptor: childDescriptor,
           publicURL: childURL,
           ownerUID: ownerUID,
           requiredDevice: rootIdentity.device,
           requiresRestrictedMode: true
+        )
+        return E2EValidatedSyntheticProfile(
+          identifier: childName,
+          directory: childURL,
+          identity: identity
         )
       } catch {
         throw E2EProfileGrantError.invalidProfiles
@@ -292,7 +394,7 @@
       return path
     }
 
-    private static func openDirectory(_ url: URL) throws -> Int32 {
+    fileprivate static func openDirectory(_ url: URL) throws -> Int32 {
       let descriptor = url.withUnsafeFileSystemRepresentation { path in
         guard let path else { return Int32(-1) }
         return open(path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
@@ -301,7 +403,7 @@
       return descriptor
     }
 
-    private static func openDirectory(
+    fileprivate static func openDirectory(
       components: [String],
       beneath parentDescriptor: Int32
     ) throws -> Int32 {
@@ -323,7 +425,7 @@
       }
     }
 
-    private static func validatedDirectoryIdentity(
+    fileprivate static func validatedDirectoryIdentity(
       descriptor: Int32,
       publicURL: URL,
       ownerUID: uid_t,
@@ -615,6 +717,13 @@
       modifiedNanoseconds = metadata.st_mtimespec.tv_nsec
       changedSeconds = metadata.st_ctimespec.tv_sec
       changedNanoseconds = metadata.st_ctimespec.tv_nsec
+    }
+
+    func hasSameNodeOwnerAndMode(as other: E2EFileIdentity) -> Bool {
+      device == other.device
+        && inode == other.inode
+        && owner == other.owner
+        && mode == other.mode
     }
   }
 #endif
