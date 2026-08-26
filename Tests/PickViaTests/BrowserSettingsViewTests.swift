@@ -106,46 +106,121 @@ final class BrowserSettingsViewTests: XCTestCase {
         settingsTarget(browser: chrome, profileIdentifier: "Profile 1", mode: .private),
       ]
 
+    let operaCapabilities = browserTargetCapabilities(for: opera, targets: normalOnly)
+    XCTAssertTrue(operaCapabilities.supportsRoute(hasProfile: false, mode: .normal))
+    XCTAssertFalse(operaCapabilities.supportsRoute(hasProfile: false, mode: .private))
+    XCTAssertFalse(operaCapabilities.supportsRoute(hasProfile: true, mode: .normal))
+
+    let duckDuckGoCapabilities = browserTargetCapabilities(
+      for: duckDuckGo,
+      targets: normalAndPrivate
+    )
+    XCTAssertTrue(duckDuckGoCapabilities.supportsRoute(hasProfile: false, mode: .normal))
+    XCTAssertTrue(duckDuckGoCapabilities.supportsRoute(hasProfile: false, mode: .private))
+    XCTAssertFalse(duckDuckGoCapabilities.supportsRoute(hasProfile: true, mode: .normal))
+    let unavailableDuckDuckGoPrivate = browserTargetCapabilities(
+      for: duckDuckGo,
+      targets: [
+        settingsTarget(browser: duckDuckGo, mode: .normal),
+        settingsTarget(browser: duckDuckGo, mode: .private, availability: .unavailable),
+      ]
+    )
+    XCTAssertFalse(
+      unavailableDuckDuckGoPrivate.supportsRoute(hasProfile: false, mode: .private)
+    )
+
+    let shortcutCapabilities = browserTargetCapabilities(
+      for: shortcut,
+      descriptor: shortcutDescriptor,
+      targets: normalAndProfiles
+    )
+    XCTAssertTrue(shortcutCapabilities.supportsRoute(hasProfile: false, mode: .normal))
+    XCTAssertFalse(shortcutCapabilities.supportsRoute(hasProfile: true, mode: .normal))
+    XCTAssertFalse(shortcutCapabilities.supportsRoute(hasProfile: false, mode: .private))
+
+    let chromeCapabilities = browserTargetCapabilities(for: chrome, targets: allThree)
+    XCTAssertTrue(chromeCapabilities.supportsRoute(hasProfile: false, mode: .normal))
+    XCTAssertTrue(chromeCapabilities.supportsRoute(hasProfile: false, mode: .private))
+    XCTAssertTrue(chromeCapabilities.supportsRoute(hasProfile: true, mode: .normal))
+    XCTAssertFalse(chromeCapabilities.supportsRoute(hasProfile: true, mode: .private))
     XCTAssertEqual(
-      browserTargetCapabilities(for: opera, targets: normalOnly),
-      BrowserTargetCapabilities(supportsProfiles: false, supportsPrivateMode: false)
+      browserModes(capabilities: chromeCapabilities, hasProfile: true),
+      [.normal]
     )
     XCTAssertEqual(
-      browserTargetCapabilities(for: duckDuckGo, targets: normalAndPrivate),
-      BrowserTargetCapabilities(supportsProfiles: false, supportsPrivateMode: true)
+      browserModes(capabilities: chromeCapabilities, hasProfile: false),
+      [.normal, .private]
     )
-    XCTAssertEqual(
-      browserTargetCapabilities(
-        for: duckDuckGo,
-        targets: [
-          settingsTarget(browser: duckDuckGo, mode: .normal),
-          settingsTarget(browser: duckDuckGo, mode: .private, availability: .unavailable),
-        ]
-      ),
-      BrowserTargetCapabilities(supportsProfiles: false, supportsPrivateMode: false)
+    XCTAssertTrue(
+      shouldShowBrowserModePicker(
+        capabilities: chromeCapabilities,
+        hasProfile: true,
+        currentMode: .private
+      )
     )
-    XCTAssertEqual(
-      browserTargetCapabilities(
-        for: shortcut,
-        descriptor: shortcutDescriptor,
-        targets: normalAndProfiles
-      ),
-      BrowserTargetCapabilities(supportsProfiles: true, supportsPrivateMode: false)
-    )
-    XCTAssertEqual(
-      browserTargetCapabilities(for: chrome, targets: allThree),
-      BrowserTargetCapabilities(supportsProfiles: true, supportsPrivateMode: true)
-    )
-    XCTAssertEqual(
-      browserTargetCapabilities(
-        for: chrome,
-        targets: [settingsTarget(browser: chrome, mode: .normal), profile]
-      ),
-      BrowserTargetCapabilities(supportsProfiles: true, supportsPrivateMode: true)
+    XCTAssertTrue(
+      shouldShowBrowserProfilePicker(
+        capabilities: chromeCapabilities,
+        hasProfile: true,
+        mode: .private,
+        profileCount: 2
+      )
     )
     XCTAssertEqual(
       availableBrowsersForManualTargets([opera, duckDuckGo, chrome]).map(\.id),
       [opera.id, duckDuckGo.id, chrome.id]
+    )
+  }
+
+  func testProfilePrivateOnlyPolicyOffersOnlyProfilePrivateControls() {
+    let descriptor = BrowserDescriptor(
+      bundleIdentifier: "com.example.settings-profile-private-only",
+      family: .chromium,
+      displayName: "Profile Private Only",
+      profileStrategy: .chromium(root: "Synthetic Settings"),
+      launchStrategy: .chromium(
+        executableRelativePath: "Contents/MacOS/synthetic",
+        profileArgument: "--profile="
+      ),
+      privateStrategy: .argument("--private"),
+      routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+        normal: .unsupported,
+        browserPrivate: false,
+        profile: false,
+        profilePrivate: true
+      )
+    )
+    let browser = BrowserApplication(
+      id: descriptor.bundleIdentifier,
+      family: descriptor.family,
+      displayName: descriptor.displayName,
+      bundleIdentifier: descriptor.bundleIdentifier,
+      applicationURL: URL(fileURLWithPath: "/Applications/Profile Private Only.app"),
+      executableURL: nil,
+      isAvailable: true
+    )
+    let targets = [
+      settingsTarget(browser: browser, profileIdentifier: "Profile 1", mode: .private)
+    ]
+
+    let capabilities = browserTargetCapabilities(
+      for: browser,
+      descriptor: descriptor,
+      targets: targets
+    )
+
+    XCTAssertFalse(capabilities.supportsRoute(hasProfile: false, mode: .normal))
+    XCTAssertFalse(capabilities.supportsRoute(hasProfile: false, mode: .private))
+    XCTAssertFalse(capabilities.supportsRoute(hasProfile: true, mode: .normal))
+    XCTAssertTrue(capabilities.supportsRoute(hasProfile: true, mode: .private))
+    XCTAssertEqual(browserModes(capabilities: capabilities, hasProfile: false), [])
+    XCTAssertEqual(browserModes(capabilities: capabilities, hasProfile: true), [.private])
+    XCTAssertFalse(
+      shouldShowBrowserModePicker(
+        capabilities: capabilities,
+        hasProfile: true,
+        currentMode: .private
+      )
     )
   }
 
@@ -163,11 +238,11 @@ final class BrowserSettingsViewTests: XCTestCase {
         settingsTarget(browser: browser, mode: .private),
       ]
 
-      XCTAssertEqual(
-        browserTargetCapabilities(for: browser, targets: targets),
-        .normalOnly,
-        "\(bundleIdentifier) must not expose helper, profile, or private controls without proof"
-      )
+      let capabilities = browserTargetCapabilities(for: browser, targets: targets)
+      XCTAssertTrue(capabilities.supportsRoute(hasProfile: false, mode: .normal))
+      XCTAssertFalse(capabilities.supportsRoute(hasProfile: true, mode: .normal))
+      XCTAssertFalse(capabilities.supportsRoute(hasProfile: false, mode: .private))
+      XCTAssertFalse(capabilities.supportsRoute(hasProfile: true, mode: .private))
     }
   }
 

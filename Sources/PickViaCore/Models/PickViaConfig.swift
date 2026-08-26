@@ -185,7 +185,7 @@ public struct PickViaConfig: Codable, Equatable, Sendable {
       }
     }
 
-    let migratedTargets = targets.map { target in
+    let schemaMigratedTargets = targets.map { target in
       guard
         schemaVersion < 2,
         target.origin == .detected,
@@ -225,6 +225,45 @@ public struct PickViaConfig: Codable, Equatable, Sendable {
       )
     }
 
+    let migratedTargets = schemaMigratedTargets.map { target in
+      guard
+        let application = applicationsByID[target.applicationID],
+        let descriptor = descriptorByBundleIdentifier[application.bundleIdentifier],
+        let options = target.browserOptions
+      else { return target }
+      let hasProfileEvidence =
+        options.profileIdentifier != nil
+        || options.profileDisplayName != nil
+        || options.profileIdentity != nil
+        || options.profileLaunchPath != nil
+      guard
+        !descriptor.supportsRoute(
+          hasProfile: hasProfileEvidence,
+          mode: options.mode
+        )
+      else { return target }
+      return RouteTarget(
+        id: target.id,
+        applicationID: target.applicationID,
+        label: target.label,
+        isEnabled: false,
+        sortOrder: target.sortOrder,
+        origin: target.origin,
+        availability: .unavailable,
+        capability: .browser(
+          BrowserTargetOptions(
+            profileIdentifier: options.profileIdentifier,
+            profileDisplayName: options.profileDisplayName,
+            profileIdentity: options.profileIdentity,
+            profileLaunchPath: options.profileLaunchPath,
+            mode: options.mode,
+            pendingDefaultMigration: options.pendingDefaultMigration,
+            validationError: options.validationError
+          )
+        )
+      )
+    }
+
     return PickViaConfig(
       schemaVersion: Self.currentSchemaVersion,
       applications: applications,
@@ -256,16 +295,19 @@ public struct PickViaConfig: Codable, Equatable, Sendable {
     let hasProfileEvidence =
       options.profileIdentifier != nil || options.profileDisplayName != nil
       || options.profileIdentity != nil || options.profileLaunchPath != nil
-    guard !hasProfileEvidence || descriptor.supportsProfiles else {
+    let acceptsPersistedProfileShape =
+      Self.hasFileBackedProfiles(descriptor)
+      || {
+        if case .safariShortcut = descriptor.profileStrategy { return true }
+        return false
+      }()
+    guard !hasProfileEvidence || acceptsPersistedProfileShape else {
       throw ConfigDocumentError.invalidTarget
     }
     if case .safariShortcut = descriptor.profileStrategy {
       guard options.profileLaunchPath == nil else {
         throw ConfigDocumentError.invalidTarget
       }
-    }
-    guard options.mode == .normal || descriptor.supportsPrivateMode else {
-      throw ConfigDocumentError.invalidTarget
     }
     if options.pendingDefaultMigration {
       let canonicalID = [application.bundleIdentifier, "", options.mode.rawValue]

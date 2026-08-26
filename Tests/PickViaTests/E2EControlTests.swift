@@ -123,6 +123,82 @@
       }
     }
 
+    func testProfilePrivateSelectionUsesTheExactDescriptorCapability() {
+      let identity = "Profile 1"
+      let edgeTargetID = BrowserCatalog.targetID(
+        bundleIdentifier: Fixtures.edgeBundleIdentifier,
+        profileIdentifier: identity,
+        mode: .private
+      )
+      let edgeTarget = Fixtures.target(
+        id: edgeTargetID,
+        mode: .private,
+        profileIdentifier: identity,
+        profileDisplayName: "Synthetic profile",
+        profileIdentity: identity
+      )
+      XCTAssertEqual(
+        E2ETargetDecision.evaluate(
+          control: Fixtures.control(targetID: edgeTargetID, mode: .private),
+          requestKind: .web,
+          applications: [Fixtures.edge],
+          targets: [edgeTarget]
+        ),
+        .reject(.targetShapeMismatch)
+      )
+
+      let descriptor = BrowserDescriptor(
+        bundleIdentifier: "com.example.e2e-profile-private-only",
+        family: .chromium,
+        displayName: "E2E Profile Private Only",
+        profileStrategy: .chromium(root: "Synthetic E2E"),
+        launchStrategy: .chromium(
+          executableRelativePath: "Contents/MacOS/synthetic",
+          profileArgument: "--profile="
+        ),
+        privateStrategy: .argument("--private"),
+        routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+          normal: .unsupported,
+          browserPrivate: false,
+          profile: false,
+          profilePrivate: true
+        )
+      )
+      let application = Fixtures.application(
+        id: descriptor.bundleIdentifier,
+        bundleIdentifier: descriptor.bundleIdentifier,
+        family: descriptor.family,
+        isAvailable: true
+      )
+      let targetID = BrowserCatalog.targetID(
+        bundleIdentifier: descriptor.bundleIdentifier,
+        profileIdentifier: identity,
+        mode: .private
+      )
+      let target = Fixtures.target(
+        id: targetID,
+        browserID: descriptor.bundleIdentifier,
+        mode: .private,
+        profileIdentifier: identity,
+        profileDisplayName: "Synthetic profile",
+        profileIdentity: identity
+      )
+      XCTAssertEqual(
+        E2ETargetDecision.evaluate(
+          control: Fixtures.control(
+            targetID: targetID,
+            bundleIdentifier: descriptor.bundleIdentifier,
+            mode: .private
+          ),
+          requestKind: .web,
+          applications: [application],
+          targets: [target],
+          descriptors: [descriptor]
+        ),
+        .select(targetID)
+      )
+    }
+
     func testFirefoxProfileRejectsEveryUnsafeLaunchPathShape() throws {
       let validPath = try makeRealFirefoxProfileDirectory(label: "expected")
       let validIdentity = FirefoxProfileIdentity.identifier(for: validPath)

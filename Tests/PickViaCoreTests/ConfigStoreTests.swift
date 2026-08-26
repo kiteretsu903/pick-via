@@ -307,7 +307,8 @@ final class ConfigStoreTests: XCTestCase {
     ).validatedAndMigrated()
 
     XCTAssertEqual(migrated.schemaVersion, PickViaConfig.currentSchemaVersion)
-    XCTAssertEqual(migrated.targets.map(\.isEnabled), [true, true, true, false, true])
+    XCTAssertEqual(migrated.targets.map(\.isEnabled), [true, true, true, false, false])
+    XCTAssertEqual(migrated.targets.last?.availability, .unavailable)
     XCTAssertEqual(
       migrated.targets.map(\.pendingDefaultMigration),
       [false, false, false, true, false]
@@ -610,15 +611,14 @@ final class ConfigStoreTests: XCTestCase {
       availability: .available
     )
 
-    let validatedShortcut = try PickViaConfig(
+    let preservedShortcut = try PickViaConfig(
       schemaVersion: 1,
       browsers: [shortcutApplication],
       targets: [enhancedShortcutTarget]
-    ).validatedAndMigrated(descriptors: [shortcut])
-
-    XCTAssertEqual(validatedShortcut.targets, [enhancedShortcutTarget])
-    XCTAssertFalse(validatedShortcut.targets[0].pendingDefaultMigration)
-    XCTAssertTrue(validatedShortcut.targets[0].isEnabled)
+    ).validatedAndMigrated(descriptors: [shortcut]).targets[0]
+    XCTAssertEqual(preservedShortcut.id, enhancedShortcutTarget.id)
+    XCTAssertFalse(preservedShortcut.isEnabled)
+    XCTAssertEqual(preservedShortcut.availability, .unavailable)
 
     let operaFamilyFileBacked = BrowserDescriptor(
       bundleIdentifier: "com.example.opera-family-file-backed",
@@ -653,6 +653,7 @@ final class ConfigStoreTests: XCTestCase {
 
     XCTAssertTrue(migratedByStrategy.targets[0].pendingDefaultMigration)
     XCTAssertFalse(migratedByStrategy.targets[0].isEnabled)
+    XCTAssertEqual(migratedByStrategy.targets[0].availability, .unavailable)
 
     let familyClaimsEnhancement = BrowserDescriptor(
       bundleIdentifier: "com.example.chromium-family-normal-only",
@@ -689,15 +690,95 @@ final class ConfigStoreTests: XCTestCase {
         availability: .available
       ),
     ]
-    for target in rejectedTargets {
-      XCTAssertThrowsError(
-        try PickViaConfig(
-          schemaVersion: PickViaConfig.currentSchemaVersion,
-          browsers: [normalOnlyApplication],
-          targets: [target]
-        ).validatedAndMigrated(descriptors: [familyClaimsEnhancement])
+    XCTAssertThrowsError(
+      try PickViaConfig(
+        schemaVersion: PickViaConfig.currentSchemaVersion,
+        browsers: [normalOnlyApplication],
+        targets: [rejectedTargets[0]]
+      ).validatedAndMigrated(descriptors: [familyClaimsEnhancement])
+    )
+    let preservedPrivate = try PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: [normalOnlyApplication],
+      targets: [rejectedTargets[1]]
+    ).validatedAndMigrated(descriptors: [familyClaimsEnhancement]).targets[0]
+    XCTAssertEqual(preservedPrivate.id, rejectedTargets[1].id)
+    XCTAssertFalse(preservedPrivate.isEnabled)
+    XCTAssertEqual(preservedPrivate.availability, .unavailable)
+  }
+
+  func testValidationPreservesOnlyTheExactProfilePrivateCapabilityAsAvailable() throws {
+    let descriptor = BrowserDescriptor(
+      bundleIdentifier: "com.example.profile-private-only",
+      family: .chromium,
+      displayName: "Profile Private Only",
+      profileStrategy: .chromium(root: "Synthetic Profile Private Only"),
+      launchStrategy: .chromium(
+        executableRelativePath: "Contents/MacOS/synthetic",
+        profileArgument: "--profile="
+      ),
+      privateStrategy: .argument("--private"),
+      routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+        normal: .unsupported,
+        browserPrivate: false,
+        profile: false,
+        profilePrivate: true
       )
-    }
+    )
+    let application = descriptorApplication(descriptor)
+    let targets = [
+      BrowserTarget(
+        id: "browser-normal", browserID: application.id, label: "Browser Normal",
+        profileIdentifier: nil, profileDisplayName: nil, mode: .normal, isEnabled: true,
+        sortOrder: 0, origin: .manual, availability: .available),
+      BrowserTarget(
+        id: "browser-private", browserID: application.id, label: "Browser Private",
+        profileIdentifier: nil, profileDisplayName: nil, mode: .private, isEnabled: true,
+        sortOrder: 1, origin: .manual, availability: .available),
+      BrowserTarget(
+        id: "profile-normal", browserID: application.id, label: "Profile Normal",
+        profileIdentifier: "Profile 1", profileDisplayName: "Work", profileIdentity: "Profile 1",
+        mode: .normal, isEnabled: true, sortOrder: 2, origin: .manual,
+        availability: .available),
+      BrowserTarget(
+        id: "profile-private", browserID: application.id, label: "Profile Private",
+        profileIdentifier: "Profile 1", profileDisplayName: "Work", profileIdentity: "Profile 1",
+        mode: .private, isEnabled: true, sortOrder: 3, origin: .manual,
+        availability: .available),
+    ]
+
+    let validated = try PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: [application],
+      targets: targets
+    ).validatedAndMigrated(descriptors: [descriptor])
+
+    XCTAssertEqual(validated.targets.map(\.id), targets.map(\.id))
+    XCTAssertEqual(validated.targets.map(\.isEnabled), [false, false, false, true])
+    XCTAssertEqual(
+      validated.targets.map(\.availability),
+      [.unavailable, .unavailable, .unavailable, .available]
+    )
+
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = JSONConfigStore(
+      directory: directory,
+      browserDescriptors: [descriptor]
+    )
+    try store.save(
+      PickViaConfig(
+        schemaVersion: PickViaConfig.currentSchemaVersion,
+        browsers: [application],
+        targets: targets
+      )
+    )
+    let reloaded = try store.load()
+    XCTAssertEqual(reloaded.targets.map(\.isEnabled), [false, false, false, true])
+    XCTAssertEqual(
+      reloaded.targets.map(\.availability),
+      [.unavailable, .unavailable, .unavailable, .available]
+    )
   }
 
   func testStoreAppliesFirefoxPersistencePolicyByProfileStrategyNotFamily() throws {

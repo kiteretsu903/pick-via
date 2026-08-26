@@ -159,7 +159,7 @@ struct BrowserDescriptorTests {
         applicationID: applicationID,
         targets: [availablePrivate]
       ))
-    for descriptor in [duckDuckGoEnabled, safariShortcut] {
+    for descriptor in [duckDuckGoEnabled] {
       #expect(
         !BrowserPrivateCapabilityResolver.isAvailable(
           descriptor: descriptor,
@@ -185,6 +185,78 @@ struct BrowserDescriptorTests {
           targets: [availablePrivate]
         ))
     }
+    #expect(
+      !BrowserPrivateCapabilityResolver.isAvailable(
+        descriptor: safariShortcut,
+        applicationID: applicationID,
+        targets: [availablePrivate]
+      ))
+  }
+
+  @Test func routeCapabilityPolicyAnswersEveryExactProfileAndModeCombination() {
+    let ordinary = BrowserRouteCapabilityPolicy(
+      normal: .workspace,
+      browserPrivate: true,
+      profile: true,
+      profilePrivate: false
+    )
+    #expect(ordinary.supportsRoute(hasProfile: false, mode: .normal))
+    #expect(ordinary.supportsRoute(hasProfile: false, mode: .private))
+    #expect(ordinary.supportsRoute(hasProfile: true, mode: .normal))
+    #expect(!ordinary.supportsRoute(hasProfile: true, mode: .private))
+
+    let profilePrivateOnly = BrowserRouteCapabilityPolicy(
+      normal: .unsupported,
+      browserPrivate: false,
+      profile: false,
+      profilePrivate: true
+    )
+    #expect(!profilePrivateOnly.supportsRoute(hasProfile: false, mode: .normal))
+    #expect(!profilePrivateOnly.supportsRoute(hasProfile: false, mode: .private))
+    #expect(!profilePrivateOnly.supportsRoute(hasProfile: true, mode: .normal))
+    #expect(profilePrivateOnly.supportsRoute(hasProfile: true, mode: .private))
+  }
+
+  @Test func workspaceSafariShortcutDefaultDoesNotClaimDormantEnhancedRoutes() {
+    let descriptor = BrowserDescriptor(
+      bundleIdentifier: "com.example.default-safari-shortcut",
+      family: .safari,
+      displayName: "Default Safari Shortcut",
+      profileStrategy: .safariShortcut,
+      launchStrategy: .workspace,
+      privateStrategy: .safariShortcut
+    )
+
+    #expect(
+      descriptor.routeCapabilityPolicy
+        == BrowserRouteCapabilityPolicy(
+          normal: .workspace,
+          browserPrivate: false,
+          profile: false,
+          profilePrivate: false
+        ))
+    #expect(descriptor.hasCompatibleStrategies)
+    #expect(descriptor.supportsRoute(hasProfile: false, mode: .normal))
+    #expect(!descriptor.supportsRoute(hasProfile: false, mode: .private))
+    #expect(!descriptor.supportsRoute(hasProfile: true, mode: .normal))
+    #expect(!descriptor.supportsRoute(hasProfile: true, mode: .private))
+
+    let contradictory = BrowserDescriptor(
+      bundleIdentifier: descriptor.bundleIdentifier,
+      family: descriptor.family,
+      displayName: descriptor.displayName,
+      profileStrategy: descriptor.profileStrategy,
+      launchStrategy: descriptor.launchStrategy,
+      privateStrategy: descriptor.privateStrategy,
+      routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+        normal: .workspace,
+        browserPrivate: true,
+        profile: true,
+        profilePrivate: true
+      )
+    )
+    #expect(!contradictory.hasCompatibleStrategies)
+    #expect(!contradictory.supportsRoute(hasProfile: false, mode: .normal))
   }
 }
 

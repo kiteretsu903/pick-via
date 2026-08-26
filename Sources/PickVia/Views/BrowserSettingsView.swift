@@ -196,13 +196,14 @@ private struct TargetSettingsRow: View {
           )
         )
         .labelsHidden()
+        .disabled(!capabilities.supportsRoute(hasProfile: hasProfile, mode: target.mode))
         TextField(
           "Label",
           text: Binding(
             get: { target.label },
             set: { try? model.renameTarget(id: target.id, label: $0) }
           ))
-        if target.origin == .detected || !capabilities.supportsProfiles {
+        if target.origin == .detected || !canEditProfile {
           Text(target.profileDisplayName ?? "Default")
             .foregroundStyle(.secondary)
             .frame(width: 150, alignment: .leading)
@@ -219,14 +220,24 @@ private struct TargetSettingsRow: View {
               }
             )
           ) {
-            Text("Browser Default").tag("")
-            ForEach(profileChoices) { profile in
-              Text(profile.displayName).tag(profile.identifier)
+            if capabilities.supportsRoute(hasProfile: false, mode: target.mode) {
+              Text("Browser Default").tag("")
+            }
+            if capabilities.supportsRoute(hasProfile: true, mode: target.mode) {
+              ForEach(profileChoices) { profile in
+                Text(profile.displayName).tag(profile.identifier)
+              }
             }
           }
           .frame(width: 150)
         }
-        if target.origin == .detected || !capabilities.supportsPrivateMode {
+        if target.origin == .detected
+          || !shouldShowBrowserModePicker(
+            capabilities: capabilities,
+            hasProfile: hasProfile,
+            currentMode: target.mode
+          )
+        {
           Text(target.mode == .private ? "Private" : "Normal")
             .foregroundStyle(.secondary)
             .frame(width: 130, alignment: .leading)
@@ -238,9 +249,8 @@ private struct TargetSettingsRow: View {
               set: { try? model.setTargetMode(id: target.id, mode: $0) }
             )
           ) {
-            Text("Normal").tag(BrowserMode.normal)
-            if capabilities.supportsPrivateMode {
-              Text("Private").tag(BrowserMode.private)
+            ForEach(availableModes, id: \.rawValue) { mode in
+              Text(mode == .private ? "Private" : "Normal").tag(mode)
             }
           }
           .frame(width: 130)
@@ -273,6 +283,26 @@ private struct TargetSettingsRow: View {
   private var capabilities: BrowserTargetCapabilities {
     browserTargetCapabilities(for: browser, targets: model.targets)
   }
+
+  private var hasProfile: Bool {
+    target.profileIdentifier != nil
+      || target.profileDisplayName != nil
+      || target.profileIdentity != nil
+      || target.profileLaunchPath != nil
+  }
+
+  private var availableModes: [BrowserMode] {
+    browserModes(capabilities: capabilities, hasProfile: hasProfile)
+  }
+
+  private var canEditProfile: Bool {
+    shouldShowBrowserProfilePicker(
+      capabilities: capabilities,
+      hasProfile: hasProfile,
+      mode: target.mode,
+      profileCount: profileChoices.count
+    )
+  }
 }
 
 private struct AddTargetView: View {
@@ -292,19 +322,24 @@ private struct AddTargetView: View {
         Picker("Browser", selection: $browserID) {
           ForEach(browsers) { Text($0.displayName).tag($0.id) }
         }
-        if selectedCapabilities.supportsProfiles {
+        if selectedCapabilities.supportsRoute(hasProfile: false, mode: mode)
+          || selectedCapabilities.supportsRoute(hasProfile: true, mode: mode)
+        {
           Picker("Profile", selection: $profileIdentifier) {
-            Text("Browser Default").tag("")
-            ForEach(profiles, id: \.identifier) { profile in
-              Text(profile.displayName).tag(profile.identifier)
+            if selectedCapabilities.supportsRoute(hasProfile: false, mode: mode) {
+              Text("Browser Default").tag("")
+            }
+            if selectedCapabilities.supportsRoute(hasProfile: true, mode: mode) {
+              ForEach(profiles, id: \.identifier) { profile in
+                Text(profile.displayName).tag(profile.identifier)
+              }
             }
           }
         }
         TextField("Label", text: $label)
         Picker("Mode", selection: $mode) {
-          Text("Normal").tag(BrowserMode.normal)
-          if selectedCapabilities.supportsPrivateMode {
-            Text("Private").tag(BrowserMode.private)
+          ForEach(selectedModes, id: \.rawValue) { mode in
+            Text(mode == .private ? "Private" : "Normal").tag(mode)
           }
         }
       }
@@ -316,6 +351,7 @@ private struct AddTargetView: View {
           .buttonStyle(.borderedProminent)
           .disabled(
             label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedBrowser == nil
+              || selectedModes.isEmpty
           )
       }
     }
@@ -332,8 +368,15 @@ private struct AddTargetView: View {
   }
 
   private var selectedCapabilities: BrowserTargetCapabilities {
-    guard let selectedBrowser else { return .normalOnly }
+    guard let selectedBrowser else { return .unavailable }
     return browserTargetCapabilities(for: selectedBrowser, targets: model.targets)
+  }
+
+  private var selectedModes: [BrowserMode] {
+    browserModes(
+      capabilities: selectedCapabilities,
+      hasProfile: !profileIdentifier.isEmpty
+    )
   }
 
   private func selectInitialValues() {
@@ -342,10 +385,25 @@ private struct AddTargetView: View {
   }
 
   private func selectInitialProfile() {
-    profileIdentifier =
-      selectedCapabilities.supportsProfiles
-      ? (profiles.first?.identifier ?? "") : ""
-    if !selectedCapabilities.supportsPrivateMode { mode = .normal }
+    let firstProfile = profiles.first?.identifier
+    let candidates: [(String?, BrowserMode)] = [
+      (firstProfile, .normal),
+      (nil, .normal),
+      (firstProfile, .private),
+      (nil, .private),
+    ]
+    if let selection = candidates.first(where: { profile, mode in
+      selectedCapabilities.supportsRoute(
+        hasProfile: profile != nil,
+        mode: mode
+      )
+    }) {
+      profileIdentifier = selection.0 ?? ""
+      mode = selection.1
+    } else {
+      profileIdentifier = ""
+      mode = .normal
+    }
     if label.isEmpty { label = selectedBrowser?.displayName ?? "" }
   }
 
@@ -353,9 +411,7 @@ private struct AddTargetView: View {
     do {
       try model.addManualTarget(
         browserID: browserID,
-        profileIdentifier: !selectedCapabilities.supportsProfiles || profileIdentifier.isEmpty
-          ? nil
-          : profileIdentifier,
+        profileIdentifier: profileIdentifier.isEmpty ? nil : profileIdentifier,
         label: label,
         mode: mode
       )
@@ -374,13 +430,61 @@ struct BrowserProfileChoice: Equatable, Identifiable {
 }
 
 struct BrowserTargetCapabilities: Equatable {
-  let supportsProfiles: Bool
-  let supportsPrivateMode: Bool
+  let descriptor: BrowserDescriptor?
+  let hasDetectedProfiles: Bool
+  let browserPrivateModeIsAvailable: Bool
 
-  static let normalOnly = BrowserTargetCapabilities(
-    supportsProfiles: false,
-    supportsPrivateMode: false
+  static let unavailable = BrowserTargetCapabilities(
+    descriptor: nil,
+    hasDetectedProfiles: false,
+    browserPrivateModeIsAvailable: false
   )
+
+  func supportsRoute(hasProfile: Bool, mode: BrowserMode) -> Bool {
+    guard
+      let descriptor,
+      descriptor.supportsRoute(hasProfile: hasProfile, mode: mode)
+    else { return false }
+    if hasProfile, !hasDetectedProfiles { return false }
+    if !hasProfile, mode == .private { return browserPrivateModeIsAvailable }
+    return true
+  }
+}
+
+func browserModes(
+  capabilities: BrowserTargetCapabilities,
+  hasProfile: Bool
+) -> [BrowserMode] {
+  [BrowserMode.normal, .private].filter {
+    capabilities.supportsRoute(hasProfile: hasProfile, mode: $0)
+  }
+}
+
+func shouldShowBrowserModePicker(
+  capabilities: BrowserTargetCapabilities,
+  hasProfile: Bool,
+  currentMode: BrowserMode
+) -> Bool {
+  let modes = browserModes(capabilities: capabilities, hasProfile: hasProfile)
+  return modes.count > 1 || (!modes.isEmpty && !modes.contains(currentMode))
+}
+
+func shouldShowBrowserProfilePicker(
+  capabilities: BrowserTargetCapabilities,
+  hasProfile: Bool,
+  mode: BrowserMode,
+  profileCount: Int
+) -> Bool {
+  let supportsDefault = capabilities.supportsRoute(hasProfile: false, mode: mode)
+  let supportedProfileCount =
+    capabilities.supportsRoute(hasProfile: true, mode: mode)
+    ? profileCount : 0
+  let optionCount = (supportsDefault ? 1 : 0) + supportedProfileCount
+  let currentRouteIsSupported = capabilities.supportsRoute(
+    hasProfile: hasProfile,
+    mode: mode
+  )
+  return optionCount > 1 || (optionCount > 0 && !currentRouteIsSupported)
 }
 
 func availableBrowsersForManualTargets(
@@ -400,7 +504,7 @@ func browserTargetCapabilities(
     let descriptor = BrowserDescriptor.descriptor(
       forBundleIdentifier: browser.bundleIdentifier
     )
-  else { return .normalOnly }
+  else { return .unavailable }
   return browserTargetCapabilities(
     for: browser,
     descriptor: descriptor,
@@ -420,11 +524,11 @@ func browserTargetCapabilities(
       && $0.availability == .available
   }
   return BrowserTargetCapabilities(
-    supportsProfiles: descriptor.supportsProfiles
-      && detectedAvailableTargets.contains {
-        $0.profileIdentity != nil || $0.profileIdentifier != nil
-      },
-    supportsPrivateMode: BrowserPrivateCapabilityResolver.isAvailable(
+    descriptor: descriptor,
+    hasDetectedProfiles: detectedAvailableTargets.contains {
+      $0.profileIdentity != nil || $0.profileIdentifier != nil
+    },
+    browserPrivateModeIsAvailable: BrowserPrivateCapabilityResolver.isAvailable(
       descriptor: descriptor,
       applicationID: browser.id,
       targets: targets

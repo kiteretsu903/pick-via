@@ -53,6 +53,22 @@ public struct BrowserRouteCapabilityPolicy: Equatable, Sendable {
     self.profile = profile
     self.profilePrivate = profilePrivate
   }
+
+  public func supportsRoute(
+    hasProfile: Bool,
+    mode: BrowserMode
+  ) -> Bool {
+    switch (hasProfile, mode) {
+    case (false, .normal):
+      normal != .unsupported
+    case (false, .private):
+      browserPrivate
+    case (true, .normal):
+      profile
+    case (true, .private):
+      profilePrivate
+    }
+  }
 }
 
 public struct BrowserRoutingCapabilities: Equatable, Sendable {
@@ -71,12 +87,17 @@ public struct BrowserRoutingCapabilities: Equatable, Sendable {
   }
 
   public var supportsProfiles: Bool {
-    hasCompatibleStrategies
-      && (routeCapabilityPolicy.profile || routeCapabilityPolicy.profilePrivate)
+    supportsRoute(hasProfile: true, mode: .normal)
+      || supportsRoute(hasProfile: true, mode: .private)
   }
 
   public var supportsPrivateMode: Bool {
-    hasCompatibleStrategies && routeCapabilityPolicy.browserPrivate
+    supportsRoute(hasProfile: false, mode: .private)
+  }
+
+  public func supportsRoute(hasProfile: Bool, mode: BrowserMode) -> Bool {
+    hasCompatibleStrategies
+      && routeCapabilityPolicy.supportsRoute(hasProfile: hasProfile, mode: mode)
   }
 
   public var hasFileBackedProfiles: Bool {
@@ -98,8 +119,7 @@ public enum BrowserPrivateCapabilityResolver {
   ) -> Bool {
     guard
       descriptor.bundleIdentifier == applicationID,
-      descriptor.hasCompatibleStrategies,
-      descriptor.routeCapabilityPolicy.browserPrivate
+      descriptor.supportsRoute(hasProfile: false, mode: .private)
     else { return false }
     switch descriptor.privateStrategy {
     case .unsupported:
@@ -184,11 +204,17 @@ public struct BrowserDescriptor: Equatable, Sendable {
   }
 
   public var supportsProfiles: Bool {
-    routeCapabilityPolicy.profile || routeCapabilityPolicy.profilePrivate
+    supportsRoute(hasProfile: true, mode: .normal)
+      || supportsRoute(hasProfile: true, mode: .private)
   }
 
   public var supportsPrivateMode: Bool {
-    routeCapabilityPolicy.browserPrivate
+    supportsRoute(hasProfile: false, mode: .private)
+  }
+
+  public func supportsRoute(hasProfile: Bool, mode: BrowserMode) -> Bool {
+    hasCompatibleStrategies
+      && routeCapabilityPolicy.supportsRoute(hasProfile: hasProfile, mode: mode)
   }
 
   public var hasCompatibleStrategies: Bool {
@@ -228,10 +254,24 @@ public struct BrowserDescriptor: Equatable, Sendable {
       }
     let policyProfileIsCompatible =
       !(routeCapabilityPolicy.profile || routeCapabilityPolicy.profilePrivate)
-      || profileStrategy != .none
+      || {
+        switch (profileStrategy, launchStrategy) {
+        case (.chromium, .chromium), (.firefox, .firefox):
+          true
+        case (.none, _), (.safariShortcut, _), (.chromium, _), (.firefox, _):
+          false
+        }
+      }()
     let policyPrivateIsCompatible =
       !(routeCapabilityPolicy.browserPrivate || routeCapabilityPolicy.profilePrivate)
-      || privateStrategy != .unsupported
+      || {
+        switch privateStrategy {
+        case .argument, .duckDuckGoFire:
+          true
+        case .unsupported, .safariShortcut:
+          false
+        }
+      }()
     return profileIsCompatible && privateModeIsCompatible
       && policyNormalIsCompatible && policyProfileIsCompatible && policyPrivateIsCompatible
   }
@@ -241,10 +281,24 @@ public struct BrowserDescriptor: Equatable, Sendable {
     launchStrategy: BrowserLaunchStrategy,
     privateStrategy: BrowserPrivateStrategy
   ) -> BrowserRouteCapabilityPolicy {
-    BrowserRouteCapabilityPolicy(
+    let profile =
+      switch (profileStrategy, launchStrategy) {
+      case (.chromium, .chromium), (.firefox, .firefox):
+        true
+      case (.none, _), (.safariShortcut, _), (.chromium, _), (.firefox, _):
+        false
+      }
+    let browserPrivate =
+      switch privateStrategy {
+      case .argument, .duckDuckGoFire:
+        true
+      case .unsupported, .safariShortcut:
+        false
+      }
+    return BrowserRouteCapabilityPolicy(
       normal: launchStrategy == .workspace ? .workspace : .executable,
-      browserPrivate: privateStrategy != .unsupported,
-      profile: profileStrategy != .none,
+      browserPrivate: browserPrivate,
+      profile: profile,
       profilePrivate: false
     )
   }

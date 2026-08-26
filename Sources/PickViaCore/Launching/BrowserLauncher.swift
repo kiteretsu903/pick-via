@@ -477,13 +477,7 @@ public struct BrowserLauncher: Sendable {
       || options.profileIdentity != nil
       || options.profileLaunchPath != nil
     let policy = descriptor.routeCapabilityPolicy
-    let advertisesExactCapability =
-      if hasProfileEvidence {
-        options.mode == .private ? policy.profilePrivate : policy.profile
-      } else {
-        options.mode == .private ? policy.browserPrivate : policy.normal != .unsupported
-      }
-    guard advertisesExactCapability else {
+    guard descriptor.supportsRoute(hasProfile: hasProfileEvidence, mode: options.mode) else {
       throw Self.launchFailure
     }
     guard

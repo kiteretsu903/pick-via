@@ -187,7 +187,7 @@ struct BrowserCatalogTests {
     #expect(profile.profileIdentity == "pickvia-e2e-profile")
     #expect(profile.availability == .unavailable)
     #expect(privateTarget.label == "Pinned Private")
-    #expect(privateTarget.isEnabled)
+    #expect(!privateTarget.isEnabled)
     #expect(privateTarget.sortOrder == 52)
     #expect(privateTarget.mode == .private)
     #expect(privateTarget.availability == .unavailable)
@@ -1031,6 +1031,52 @@ struct BrowserCatalogTests {
 
       #expect(actual == expectation.1)
     }
+  }
+
+  @Test func canonicalCollisionDisablesStoredUnadvertisedProfilePrivateTarget() throws {
+    let profile = DiscoveredProfile(
+      identifier: "Profile 1",
+      displayName: "Work",
+      directoryURL: nil
+    )
+    let helper = chrome(profiles: [profile])
+    let discovered = DiscoveredBrowser(
+      application: helper.application,
+      profiles: [profile],
+      metadataStatus: .loaded,
+      privateModeIsAvailable: true,
+      routingCapabilities: BrowserRoutingCapabilities(descriptor: chromeDescriptor)
+    )
+    let stored = BrowserTarget(
+      id: BrowserCatalog.targetID(
+        bundleIdentifier: discovered.application.bundleIdentifier,
+        profileIdentifier: nil,
+        mode: .private
+      ),
+      browserID: discovered.application.id,
+      label: "Stored Profile Private",
+      profileIdentifier: profile.identifier,
+      profileDisplayName: profile.displayName,
+      profileIdentity: profile.identifier,
+      mode: .private,
+      isEnabled: true,
+      sortOrder: 40,
+      origin: .manual,
+      availability: .available
+    )
+    let config = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: [discovered.application],
+      targets: [stored]
+    )
+
+    let reconciled = BrowserCatalog.reconcile(discovered: [discovered], with: config)
+    let preserved = try #require(reconciled.targets.first { $0.id == stored.id })
+
+    #expect(!preserved.isEnabled)
+    #expect(preserved.availability == .unavailable)
+    #expect(preserved.profileIdentity == profile.identifier)
+    #expect(preserved.mode == .private)
   }
 
   @Test func firefoxProfileStrategyControlsMetadataIndependentOfFamily() throws {

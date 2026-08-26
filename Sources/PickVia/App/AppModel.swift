@@ -688,6 +688,19 @@ public final class AppModel {
   }
 
   public func setTargetEnabled(id: BrowserTarget.ID, isEnabled: Bool) throws {
+    guard let target = config.targets.first(where: { $0.id == id }) else {
+      throw TargetEditingError.targetNotFound
+    }
+    if isEnabled, target.routeKind == .web {
+      guard
+        browserRouteIsAvailable(
+          browserID: target.applicationID,
+          hasProfile: targetHasProfileEvidence(target),
+          mode: target.mode,
+          in: config
+        )
+      else { throw TargetEditingError.routeCapabilityUnsupported }
+    }
     try persistTargetUpdates([
       TargetUpdate(
         runtimeTargetID: id,
@@ -709,10 +722,14 @@ public final class AppModel {
     guard let browser = supportedAvailableBrowser(id: target.browserID, in: config) else {
       throw TargetEditingError.browserUnavailableOrUnsupported
     }
-    guard mode == .normal || browserPrivateModeIsAvailable(browserID: browser.id, in: config)
-    else {
-      throw TargetEditingError.privateModeUnsupported
-    }
+    guard
+      browserRouteIsAvailable(
+        browserID: browser.id,
+        hasProfile: targetHasProfileEvidence(target),
+        mode: mode,
+        in: config
+      )
+    else { throw TargetEditingError.privateModeUnsupported }
     try persistTargetUpdates([
       TargetUpdate(runtimeTargetID: id, edit: .setBrowserMode(mode))
     ])
@@ -759,6 +776,15 @@ public final class AppModel {
       else { throw TargetEditingError.invalidProfileIdentity }
       selectedRuntimeTargetID = candidate.id
     }
+
+    guard
+      browserRouteIsAvailable(
+        browserID: browser.id,
+        hasProfile: selectedRuntimeTargetID != nil,
+        mode: target.mode,
+        in: config
+      )
+    else { throw TargetEditingError.routeCapabilityUnsupported }
 
     try persistTargetUpdates([
       TargetUpdate(
@@ -861,11 +887,6 @@ public final class AppModel {
     guard let browser = supportedAvailableBrowser(id: browserID, in: config) else {
       throw TargetEditingError.browserUnavailableOrUnsupported
     }
-    guard mode == .normal || browserPrivateModeIsAvailable(browserID: browser.id, in: config)
-    else {
-      throw TargetEditingError.privateModeUnsupported
-    }
-
     let selectedProfile: BrowserTarget?
     if profileIdentifier == nil {
       selectedProfile = nil
@@ -881,6 +902,15 @@ public final class AppModel {
       else { throw TargetEditingError.invalidProfileIdentity }
       selectedProfile = profileTarget
     }
+
+    guard
+      browserRouteIsAvailable(
+        browserID: browser.id,
+        hasProfile: selectedProfile != nil,
+        mode: mode,
+        in: config
+      )
+    else { throw TargetEditingError.routeCapabilityUnsupported }
 
     let authoritativeSelectedProfile: BrowserTarget?
     if let selectedProfile {
@@ -1643,6 +1673,7 @@ public enum TargetEditingError: Error, Equatable {
   case privateModeUnsupported
   case browserUnavailableOrUnsupported
   case invalidProfileIdentity
+  case routeCapabilityUnsupported
   case detectedTargetIdentityIsImmutable
   case detectedTargetCannotBeRemoved
   case invalidMove
@@ -1760,8 +1791,10 @@ private func supportedAvailableBrowser(
     ? nil : browser
 }
 
-private func browserPrivateModeIsAvailable(
+private func browserRouteIsAvailable(
   browserID: BrowserApplication.ID,
+  hasProfile: Bool,
+  mode: BrowserMode,
   in config: PickViaConfig
 ) -> Bool {
   guard
@@ -1770,11 +1803,22 @@ private func browserPrivateModeIsAvailable(
       forBundleIdentifier: browser.bundleIdentifier
     )
   else { return false }
-  return BrowserPrivateCapabilityResolver.isAvailable(
-    descriptor: descriptor,
-    applicationID: browserID,
-    targets: config.targets
-  )
+  guard descriptor.supportsRoute(hasProfile: hasProfile, mode: mode) else { return false }
+  if !hasProfile, mode == .private {
+    return BrowserPrivateCapabilityResolver.isAvailable(
+      descriptor: descriptor,
+      applicationID: browserID,
+      targets: config.targets
+    )
+  }
+  return true
+}
+
+private func targetHasProfileEvidence(_ target: BrowserTarget) -> Bool {
+  target.profileIdentifier != nil
+    || target.profileDisplayName != nil
+    || target.profileIdentity != nil
+    || target.profileLaunchPath != nil
 }
 
 private func detectedProfileTarget(

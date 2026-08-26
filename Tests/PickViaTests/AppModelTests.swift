@@ -344,7 +344,7 @@ final class AppModelTests: XCTestCase {
     XCTAssertTrue(snapshot.availableSnapshot(for: .mail).targets.isEmpty)
   }
 
-  func testFirefoxRuntimeFallbackModeEditPreservesAuthoritativeProfileMetadata() throws {
+  func testFirefoxRuntimeFallbackRejectsUnsupportedProfilePrivateModeEdit() throws {
     let rawPath =
       "/Users/private-user/Library/Application Support/Firefox/Profiles/authoritative-mode"
     let target = BrowserTarget(
@@ -370,25 +370,12 @@ final class AppModelTests: XCTestCase {
     let scenario = try makeFirefoxRuntimeFallbackModel(config: authoritative)
     let runtimeBefore = try XCTUnwrap(scenario.fallback.targets.first)
 
-    try scenario.model.setTargetMode(id: runtimeBefore.id, mode: .private)
-
-    let saved = try XCTUnwrap(scenario.store.saved.last?.targets.first)
-    XCTAssertEqual(saved.id, target.id)
-    XCTAssertEqual(saved.mode, .private)
-    XCTAssertEqual(saved.profileIdentifier, target.profileIdentifier)
-    XCTAssertEqual(saved.profileDisplayName, target.profileDisplayName)
-    XCTAssertEqual(saved.profileIdentity, runtimeBefore.profileIdentity)
-    XCTAssertEqual(saved.profileLaunchPath, rawPath)
-    XCTAssertEqual(saved.validationError, "Authoritative validation")
-    XCTAssertEqual(saved.availability, .available)
-
-    let runtimeAfter = try XCTUnwrap(scenario.model.targets.first)
-    XCTAssertEqual(runtimeAfter.id, runtimeBefore.id)
-    XCTAssertEqual(runtimeAfter.mode, .private)
-    XCTAssertNotEqual(runtimeAfter.profileIdentity, rawPath)
-    XCTAssertNil(runtimeAfter.profileLaunchPath)
-    XCTAssertNil(runtimeAfter.validationError)
-    XCTAssertEqual(runtimeAfter.availability, .unavailable)
+    let original = scenario.model.config
+    XCTAssertThrowsError(
+      try scenario.model.setTargetMode(id: runtimeBefore.id, mode: .private)
+    )
+    XCTAssertEqual(scenario.model.config, original)
+    XCTAssertTrue(scenario.store.saved.isEmpty)
   }
 
   func testFirefoxRuntimeFallbackPendingRenamePreservesAuthoritativeMetadata() throws {
@@ -418,7 +405,8 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(saved.profileIdentity, scenario.fallback.targets.first?.profileIdentity)
     XCTAssertEqual(saved.profileLaunchPath, rawPath)
     XCTAssertEqual(saved.validationError, pending.validationError)
-    XCTAssertEqual(saved.availability, .available)
+    XCTAssertFalse(saved.isEnabled)
+    XCTAssertEqual(saved.availability, .unavailable)
   }
 
   func testFirefoxRuntimeFallbackPendingReorderPreservesAuthoritativeMetadata() throws {
@@ -461,7 +449,8 @@ final class AppModelTests: XCTestCase {
     XCTAssertEqual(saved.profileIdentity, scenario.fallback.targets.first?.profileIdentity)
     XCTAssertEqual(saved.profileLaunchPath, rawPath)
     XCTAssertEqual(saved.validationError, pending.validationError)
-    XCTAssertEqual(saved.availability, .available)
+    XCTAssertFalse(saved.isEnabled)
+    XCTAssertEqual(saved.availability, .unavailable)
   }
 
   func testFirefoxRuntimeFallbackProfileClearPreservesAuthoritativeValidationState() throws {
@@ -476,10 +465,10 @@ final class AppModelTests: XCTestCase {
       profileIdentity: rawPath,
       profileLaunchPath: rawPath,
       mode: .private,
-      isEnabled: true,
+      isEnabled: false,
       sortOrder: 0,
       origin: .manual,
-      availability: .available,
+      availability: .unavailable,
       validationError: "Authoritative validation"
     )
     let authoritative = PickViaConfig(
@@ -500,7 +489,8 @@ final class AppModelTests: XCTestCase {
     XCTAssertNil(saved.profileLaunchPath)
     XCTAssertEqual(saved.mode, .private)
     XCTAssertEqual(saved.validationError, "Authoritative validation")
-    XCTAssertEqual(saved.availability, .available)
+    XCTAssertFalse(saved.isEnabled)
+    XCTAssertEqual(saved.availability, .unavailable)
   }
 
   func testFirefoxRuntimeTargetIDCollisionMapsSemanticEditsToOriginalAuthoritativeTarget() throws {
@@ -519,11 +509,6 @@ final class AppModelTests: XCTestCase {
           "enablement",
           { model, id in try model.setTargetEnabled(id: id, isEnabled: false) },
           { XCTAssertFalse($0.isEnabled) }
-        ),
-        (
-          "mode",
-          { model, id in try model.setTargetMode(id: id, mode: .private) },
-          { XCTAssertEqual($0.mode, .private) }
         ),
         (
           "profile",
@@ -576,6 +561,16 @@ final class AppModelTests: XCTestCase {
         "\(testCase.name): the colliding authoritative target must remain unchanged"
       )
     }
+
+    let collision = Fixtures.firefoxRuntimeIDCollisionConfig()
+    let scenario = try makeFirefoxRuntimeFallbackModel(config: collision.config)
+    XCTAssertThrowsError(
+      try scenario.model.setTargetMode(
+        id: scenario.fallback.targets[0].id,
+        mode: .private
+      )
+    )
+    XCTAssertTrue(scenario.store.saved.isEmpty)
   }
 
   func testFirefoxRuntimeTargetIDCollisionMapsReorderAndRemovalByExplicitIdentity() throws {
@@ -631,11 +626,6 @@ final class AppModelTests: XCTestCase {
           { model, id in try model.setTargetEnabled(id: id, isEnabled: false) },
           { XCTAssertFalse($0.isEnabled) }
         ),
-        (
-          "mode",
-          { model, id in try model.setTargetMode(id: id, mode: .private) },
-          { XCTAssertEqual($0.mode, .private) }
-        ),
       ]
 
     for testCase in cases {
@@ -671,6 +661,20 @@ final class AppModelTests: XCTestCase {
       XCTAssertFalse(document.contains("private-user"), testCase.name)
       XCTAssertFalse(document.contains("profileLaunchPath"), testCase.name)
     }
+
+    let unsupportedMode = try makeLegacyFirefoxDiskScenario()
+    defer { try? FileManager.default.removeItem(at: unsupportedMode.directory) }
+    XCTAssertThrowsError(
+      try unsupportedMode.model.setTargetMode(
+        id: unsupportedMode.runtimeTargetID,
+        mode: .private
+      )
+    )
+    XCTAssertTrue(
+      try persistedDocument(in: unsupportedMode.directory).contains(
+        LegacyFirefoxDiskFixture.rawProfilePath
+      )
+    )
   }
 
   func testLegacyFirefoxFallbackRealStoreReorderAndRemovalPersistThroughIDCollision() throws {
@@ -1059,7 +1063,7 @@ final class AppModelTests: XCTestCase {
     XCTAssertFalse(document.contains("profileLaunchPath"))
   }
 
-  func testSchemaTwoFirefoxProfileChangePersistsSelectedSafeMetadata() throws {
+  func testSchemaTwoFirefoxProfilePrivateChangeIsRejected() throws {
     let directory = FileManager.default.temporaryDirectory.appending(
       path: "pick-via-schema-two-firefox-profile-change-\(UUID().uuidString)",
       directoryHint: .isDirectory
@@ -1103,25 +1107,14 @@ final class AppModelTests: XCTestCase {
     )
     try model.load()
 
-    try model.setTargetProfile(
-      id: "manual-profile-change",
-      profileIdentifier: "selected-launch"
+    let original = model.config
+    XCTAssertThrowsError(
+      try model.setTargetProfile(
+        id: "manual-profile-change",
+        profileIdentifier: "selected-launch"
+      )
     )
-
-    let reloaded = try store.load()
-    XCTAssertEqual(try reloaded.validatedAndMigrated(), reloaded)
-    let manual = try XCTUnwrap(reloaded.targets.first { $0.id == "manual-profile-change" })
-    XCTAssertEqual(manual.profileIdentifier, "selected-launch")
-    XCTAssertEqual(manual.profileDisplayName, "Selected Display")
-    XCTAssertEqual(manual.profileIdentity, selectedIdentity)
-    XCTAssertEqual(manual.mode, .private)
-    XCTAssertNil(manual.profileLaunchPath)
-    XCTAssertNil(manual.validationError)
-
-    let document = try persistedDocument(in: directory)
-    XCTAssertFalse(document.contains("private-user"))
-    XCTAssertFalse(document.contains(encodedLegacyPath))
-    XCTAssertFalse(document.contains("profileLaunchPath"))
+    XCTAssertEqual(model.config, original)
   }
 
   func testRealStoreProfileChangeStillUsesSelectedAuthoritativeProfileMetadata() throws {
@@ -4014,7 +4007,7 @@ final class AppModelTests: XCTestCase {
     XCTAssertTrue(store.saved.isEmpty)
   }
 
-  func testManualTargetUsesDescriptorProfileAndPrivateCapabilities() throws {
+  func testManualProfilePrivateTargetIsRejectedByExactDescriptorCapability() throws {
     let browser = BrowserApplication(
       id: "com.google.Chrome",
       family: .chromium,
@@ -4040,16 +4033,16 @@ final class AppModelTests: XCTestCase {
     let model = makeModel(store: store)
     try model.load()
 
-    let id = try model.addManualTarget(
-      browserID: browser.id,
-      profileIdentifier: "Profile 1",
-      label: "Capability driven",
-      mode: .private
+    XCTAssertThrowsError(
+      try model.addManualTarget(
+        browserID: browser.id,
+        profileIdentifier: "Profile 1",
+        label: "Capability driven",
+        mode: .private
+      )
     )
-
-    let added = try XCTUnwrap(model.targets.first { $0.id == id })
-    XCTAssertEqual(added.profileIdentity, "Profile 1")
-    XCTAssertEqual(added.mode, .private)
+    XCTAssertEqual(model.config, config)
+    XCTAssertTrue(store.saved.isEmpty)
   }
 
   func testManualTargetRejectsPrivateModeWhenDiscoveryDidNotPublishIt() throws {
@@ -4282,7 +4275,7 @@ final class AppModelTests: XCTestCase {
     XCTAssertTrue(store.saved.isEmpty)
   }
 
-  func testManualTargetProfileEditSurvivesRescan() throws {
+  func testStoredManualProfilePrivateTargetCannotBeMutatedOrEnabled() throws {
     let manual = BrowserTarget(
       id: "manual",
       browserID: Fixtures.chrome.id,
@@ -4293,7 +4286,7 @@ final class AppModelTests: XCTestCase {
       isEnabled: false,
       sortOrder: 41,
       origin: .manual,
-      availability: .available
+      availability: .unavailable
     )
     let config = PickViaConfig(
       schemaVersion: PickViaConfig.currentSchemaVersion,
@@ -4301,27 +4294,57 @@ final class AppModelTests: XCTestCase {
       targets: Fixtures.profileEditConfig.targets + [manual]
     )
     let store = ConfigStoreStub(config: config)
-    let catalog = BrowserCatalogStub(
-      discovered: [],
-      reconciler: {
-        BrowserCatalog.reconcile(discovered: [Fixtures.discoveredChromeWithProfiles], with: $0)
-      }
-    )
-    let model = makeModel(store: store, catalog: catalog)
+    let model = makeModel(store: store)
     try model.load()
 
-    try model.setTargetProfile(id: manual.id, profileIdentifier: "Profile 2")
-    try model.rescan()
+    XCTAssertThrowsError(
+      try model.setTargetProfile(id: manual.id, profileIdentifier: "Profile 2")
+    )
+    XCTAssertThrowsError(try model.setTargetEnabled(id: manual.id, isEnabled: true))
+    XCTAssertEqual(model.config, config)
+    XCTAssertTrue(store.saved.isEmpty)
+  }
 
-    let rescanned = try XCTUnwrap(model.targets.first { $0.id == manual.id })
-    XCTAssertEqual(rescanned.label, "My Window")
-    XCTAssertEqual(rescanned.profileIdentifier, "Profile 2")
-    XCTAssertEqual(rescanned.profileDisplayName, "Personal")
-    XCTAssertEqual(rescanned.mode, .private)
-    XCTAssertFalse(rescanned.isEnabled)
-    XCTAssertEqual(rescanned.sortOrder, 41)
-    XCTAssertEqual(rescanned.origin, .manual)
-    XCTAssertEqual(rescanned.availability, .available)
+  func testManualModeAndProfileEditsRejectUnsupportedExactRoute() throws {
+    let profileNormal = BrowserTarget(
+      id: "manual-profile-normal",
+      browserID: Fixtures.chrome.id,
+      label: "Profile Normal",
+      profileIdentifier: "Profile 1",
+      profileDisplayName: "Work",
+      mode: .normal,
+      isEnabled: true,
+      sortOrder: 30,
+      origin: .manual,
+      availability: .available
+    )
+    let browserPrivate = BrowserTarget(
+      id: "manual-browser-private",
+      browserID: Fixtures.chrome.id,
+      label: "Browser Private",
+      profileIdentifier: nil,
+      profileDisplayName: nil,
+      mode: .private,
+      isEnabled: true,
+      sortOrder: 31,
+      origin: .manual,
+      availability: .available
+    )
+    let config = PickViaConfig(
+      schemaVersion: PickViaConfig.currentSchemaVersion,
+      browsers: Fixtures.profileEditConfig.browsers,
+      targets: Fixtures.profileEditConfig.targets + [profileNormal, browserPrivate]
+    )
+    let store = ConfigStoreStub(config: config)
+    let model = makeModel(store: store)
+    try model.load()
+
+    XCTAssertThrowsError(try model.setTargetMode(id: profileNormal.id, mode: .private))
+    XCTAssertThrowsError(
+      try model.setTargetProfile(id: browserPrivate.id, profileIdentifier: "Profile 2")
+    )
+    XCTAssertEqual(model.config, config)
+    XCTAssertTrue(store.saved.isEmpty)
   }
 
   func testManualTargetCannotValidateAnotherManualTargetProfileIdentity() throws {
@@ -4403,7 +4426,7 @@ final class AppModelTests: XCTestCase {
       browserID: Fixtures.chrome.id,
       profileIdentifier: "Profile 1",
       label: "Second Work",
-      mode: .private
+      mode: .normal
     )
 
     XCTAssertEqual(model.targets.last?.id, id)
@@ -5097,10 +5120,10 @@ private enum Fixtures {
       profileIdentity: rawPath,
       profileLaunchPath: rawPath,
       mode: .private,
-      isEnabled: true,
+      isEnabled: false,
       sortOrder: sortOrder,
       origin: .detected,
-      availability: .available,
+      availability: .unavailable,
       pendingDefaultMigration: true,
       validationError: "Authoritative validation"
     )
@@ -5284,7 +5307,7 @@ private enum Fixtures {
       BrowserTarget(
         id: "work-private", browserID: chrome.id, label: "Work Private",
         profileIdentifier: "Profile 1", profileDisplayName: "Work", mode: .private,
-        isEnabled: false, sortOrder: 20, origin: .detected, availability: .available),
+        isEnabled: false, sortOrder: 20, origin: .detected, availability: .unavailable),
     ]
   )
 

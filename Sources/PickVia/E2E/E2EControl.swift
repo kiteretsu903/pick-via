@@ -131,7 +131,8 @@
       control: E2EControl,
       requestKind: RouteKind,
       applications: [RoutedApplication],
-      targets: [RouteTarget]
+      targets: [RouteTarget],
+      descriptors: [BrowserDescriptor] = BrowserDescriptor.supported
     ) -> E2ETargetDecision {
       guard requestKind == .web else { return .reject(.nonWebRequest) }
       let matches = targets.filter { $0.id == control.targetID }
@@ -149,9 +150,9 @@
         application.id == control.expectedBundleIdentifier,
         application.bundleIdentifier == control.expectedBundleIdentifier,
         application.isAvailable(for: .web),
-        let descriptor = BrowserDescriptor.descriptor(
-          forBundleIdentifier: application.bundleIdentifier
-        ),
+        let descriptor = descriptors.first(where: {
+          $0.bundleIdentifier == application.bundleIdentifier
+        }),
         descriptor.hasCompatibleStrategies,
         descriptor.family == application.browserFamily
       else { return .reject(.targetBrowserMismatch) }
@@ -173,15 +174,17 @@
       options: BrowserTargetOptions,
       descriptor: BrowserDescriptor
     ) -> Bool {
-      if options.mode == .private, !descriptor.supportsPrivateMode {
-        return false
-      }
-
       let hasProfileEvidence =
         options.profileIdentifier != nil
         || options.profileDisplayName != nil
         || options.profileIdentity != nil
         || options.profileLaunchPath != nil
+      guard
+        descriptor.supportsRoute(
+          hasProfile: hasProfileEvidence,
+          mode: options.mode
+        )
+      else { return false }
       guard hasProfileEvidence else {
         return target.id
           == BrowserCatalog.targetID(
@@ -192,7 +195,6 @@
       }
 
       guard
-        descriptor.supportsProfiles,
         let identifier = nonempty(options.profileIdentifier, limit: 512),
         identifier == options.profileIdentifier,
         let displayName = nonempty(options.profileDisplayName, limit: 512),
