@@ -495,6 +495,47 @@ class MatrixRunnerTests(unittest.TestCase):
             after = dependencies.verify_application(application)
         self.assertNotEqual(before.identity, after.identity)
 
+    def test_static_identity_ignores_outer_directory_timestamp_only_change(self):
+        application_path = self.root / "Browser.app"
+        executable = application_path / "Contents" / "MacOS" / "Browser"
+        executable.parent.mkdir(parents=True)
+        executable.write_bytes(b"stable-static-payload")
+        executable.chmod(0o700)
+        with (application_path / "Contents" / "Info.plist").open("wb") as handle:
+            plistlib.dump(
+                {
+                    "CFBundleIdentifier": "com.example.Browser",
+                    "CFBundleExecutable": "Browser",
+                    "CFBundleShortVersionString": "1.0",
+                },
+                handle,
+            )
+        application = matrix.MatrixApplication(
+            "com.example.Browser",
+            application_path,
+            pathlib.PurePosixPath("Contents/MacOS/Browser"),
+            "none",
+            "workspace",
+            False,
+            False,
+            False,
+            False,
+        )
+        dependencies = matrix.SystemDependencies()
+        with mock.patch.object(
+            matrix.browser_driver,
+            "_validate_signed_browser_binding",
+            return_value=None,
+        ):
+            before = dependencies.verify_application(application)
+            metadata = application_path.stat()
+            os.utime(
+                application_path,
+                ns=(metadata.st_atime_ns, metadata.st_mtime_ns + 1_000_000),
+            )
+            after = dependencies.verify_application(application)
+        self.assertEqual(before, after)
+
     def test_static_identity_rejects_named_file_replacement_during_digest(self):
         executable = self.root / "static-executable"
         replacement = self.root / "static-replacement"
