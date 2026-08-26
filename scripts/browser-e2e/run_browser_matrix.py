@@ -42,12 +42,234 @@ _APPLICATION_KEYS = frozenset(
 )
 _APPLE_SKIPPED = frozenset({"com.apple.Safari", "com.apple.SafariTechnologyPreview"})
 _PROFILE_STRATEGIES = frozenset({"none", "chromium", "firefox"})
-_NORMAL_STRATEGIES = frozenset({"unsupported", "workspace", "executable"})
+_NORMAL_STRATEGIES = frozenset({"unsupported", "workspace", "executable", "duckduckgo"})
 _STATES = ("cold", "running", "reopen")
 _RESULTS = frozenset({"PASS", "FAIL", "UNSUPPORTED", "NOT RUN"})
 _MAXIMUM_MANIFEST_BYTES = 256 * 1024
 _MAXIMUM_EVIDENCE_BYTES = 8 * 1024 * 1024
 _EVIDENCE_NAME = "evidence.jsonl"
+_REQUIRED_APPLICATIONS = {
+    "com.google.Chrome": (
+        "/Applications/Google Chrome.app",
+        "Contents/MacOS/Google Chrome",
+        "chromium",
+        "workspace",
+        True,
+        True,
+        False,
+        False,
+    ),
+    "com.google.Chrome.beta": (
+        "/Applications/Google Chrome Beta.app",
+        "Contents/MacOS/Google Chrome Beta",
+        "chromium",
+        "workspace",
+        True,
+        True,
+        False,
+        False,
+    ),
+    "com.google.Chrome.dev": (
+        "/Applications/Google Chrome Dev.app",
+        "Contents/MacOS/Google Chrome Dev",
+        "chromium",
+        "workspace",
+        True,
+        True,
+        False,
+        False,
+    ),
+    "com.google.Chrome.canary": (
+        "/Applications/Google Chrome Canary.app",
+        "Contents/MacOS/Google Chrome Canary",
+        "chromium",
+        "workspace",
+        True,
+        True,
+        False,
+        False,
+    ),
+    "com.microsoft.edgemac": (
+        "/Applications/Microsoft Edge.app",
+        "Contents/MacOS/Microsoft Edge",
+        "chromium",
+        "workspace",
+        True,
+        True,
+        False,
+        False,
+    ),
+    "com.microsoft.edgemac.Beta": (
+        "/Applications/Microsoft Edge Beta.app",
+        "Contents/MacOS/Microsoft Edge Beta",
+        "chromium",
+        "workspace",
+        True,
+        True,
+        False,
+        False,
+    ),
+    "com.microsoft.edgemac.Dev": (
+        "/Applications/Microsoft Edge Dev.app",
+        "Contents/MacOS/Microsoft Edge Dev",
+        "chromium",
+        "workspace",
+        True,
+        True,
+        False,
+        False,
+    ),
+    "com.microsoft.edgemac.Canary": (
+        "/Applications/Microsoft Edge Canary.app",
+        "Contents/MacOS/Microsoft Edge Canary",
+        "chromium",
+        "workspace",
+        True,
+        True,
+        False,
+        False,
+    ),
+    "com.brave.Browser": (
+        "/Applications/Brave Browser.app",
+        "Contents/MacOS/Brave Browser",
+        "chromium",
+        "workspace",
+        True,
+        True,
+        False,
+        False,
+    ),
+    "com.brave.Browser.beta": (
+        "/Applications/Brave Browser Beta.app",
+        "Contents/MacOS/Brave Browser Beta",
+        "chromium",
+        "workspace",
+        True,
+        True,
+        False,
+        False,
+    ),
+    "com.brave.Browser.nightly": (
+        "/Applications/Brave Browser Nightly.app",
+        "Contents/MacOS/Brave Browser Nightly",
+        "chromium",
+        "workspace",
+        True,
+        True,
+        False,
+        False,
+    ),
+    "com.vivaldi.Vivaldi": (
+        "/Applications/Vivaldi.app",
+        "Contents/MacOS/Vivaldi",
+        "chromium",
+        "workspace",
+        True,
+        True,
+        False,
+        False,
+    ),
+    "com.vivaldi.Vivaldi.snapshot": (
+        "/Applications/Vivaldi Snapshot.app",
+        "Contents/MacOS/Vivaldi Snapshot",
+        "chromium",
+        "workspace",
+        True,
+        True,
+        False,
+        False,
+    ),
+    "org.mozilla.firefox": (
+        "/Applications/Firefox.app",
+        "Contents/MacOS/firefox",
+        "firefox",
+        "executable",
+        True,
+        True,
+        False,
+        False,
+    ),
+    "org.mozilla.firefoxdeveloperedition": (
+        "/Applications/Firefox Developer Edition.app",
+        "Contents/MacOS/firefox",
+        "firefox",
+        "executable",
+        True,
+        True,
+        False,
+        False,
+    ),
+    "org.mozilla.nightly": (
+        "/Applications/Firefox Nightly.app",
+        "Contents/MacOS/firefox",
+        "firefox",
+        "executable",
+        True,
+        True,
+        False,
+        False,
+    ),
+    "com.operasoftware.Opera": (
+        "/Applications/Opera.app",
+        "Contents/MacOS/Opera",
+        "none",
+        "workspace",
+        False,
+        False,
+        False,
+        False,
+    ),
+    "company.thebrowser.Browser": (
+        "/Applications/Arc.app",
+        "Contents/MacOS/Arc",
+        "none",
+        "workspace",
+        False,
+        False,
+        False,
+        False,
+    ),
+    "com.kagi.kagimacOS": (
+        "/Applications/Orion.app",
+        "Contents/MacOS/Orion",
+        "none",
+        "workspace",
+        False,
+        False,
+        False,
+        False,
+    ),
+    "com.duckduckgo.macos.browser": (
+        "/Applications/DuckDuckGo.app",
+        "Contents/MacOS/DuckDuckGo",
+        "none",
+        "duckduckgo",
+        True,
+        False,
+        False,
+        False,
+    ),
+    "com.apple.Safari": (
+        "/Applications/Safari.app",
+        "Contents/MacOS/Safari",
+        "none",
+        "workspace",
+        False,
+        False,
+        False,
+        True,
+    ),
+    "com.apple.SafariTechnologyPreview": (
+        "/Applications/Safari Technology Preview.app",
+        "Contents/MacOS/Safari Technology Preview",
+        "none",
+        "workspace",
+        False,
+        False,
+        False,
+        True,
+    ),
+}
 _SAFE_VERSION = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._+()-]{0,127}\Z")
 _SAFE_DRIVER_OUTCOMES = frozenset(
     {
@@ -87,10 +309,12 @@ _SAFE_DETAILS = frozenset(
         "catalog-capability-refused",
         "harness-ambiguity",
         "signature-blocker",
+        "installed-absence",
         "blocked-before-run",
         "blocked-after-ambiguity",
         "edge-pilot-failed",
         "build-blocker",
+        "blocked-after-sequence-failure",
     }
 )
 _CELL_REQUIRED_KEYS = frozenset(
@@ -140,6 +364,359 @@ class MatrixResumeError(MatrixError):
     pass
 
 
+class DriverProofError(MatrixError):
+    pass
+
+
+@dataclasses.dataclass(frozen=True)
+class DriverProofExpectation:
+    session: str
+    request: str
+    bundle_identifier: str
+    target_id: str
+    capability: str
+    state: str
+    mode: str
+    mechanism: str
+    e2e_app_identity: str
+    browser_app_identity: str
+
+
+_DRIVER_REPORT_KEYS = frozenset(
+    {
+        "schemaVersion",
+        "session",
+        "request",
+        "bundleIdentifier",
+        "targetID",
+        "capability",
+        "state",
+        "mode",
+        "mechanism",
+        "e2eAppIdentity",
+        "browserAppIdentity",
+        "outcome",
+        "token_received",
+        "exact_process_identity",
+        "exact_browser_process_identity",
+        "launch_provenance",
+        "total_elapsed_seconds",
+        "route_timeout_seconds",
+        "browser_cleanup_grace_seconds",
+        "browser_quiescence_seconds",
+        "provenance_settle_seconds",
+        "provenance_status_grace_seconds",
+        "cleanup_success",
+        "task_root_finalized",
+        "stateProofs",
+    }
+)
+_STATE_PROOF_KEYS = frozenset(
+    {
+        "state",
+        "request",
+        "outcome",
+        "receipt",
+        "e2eIdentity",
+        "browserIdentity",
+        "provenance",
+        "processIdentifier",
+        "processStartSeconds",
+        "processStartMicroseconds",
+        "routeElapsedSeconds",
+    }
+)
+
+
+def _valid_process_generation_proof(proof):
+    return (
+        type(proof.get("processIdentifier")) is int
+        and proof["processIdentifier"] > 0
+        and type(proof.get("processStartSeconds")) is int
+        and proof["processStartSeconds"] > 0
+        and type(proof.get("processStartMicroseconds")) is int
+        and 0 <= proof["processStartMicroseconds"] < 1_000_000
+    )
+
+
+def validate_driver_report(report, return_code, expected):
+    if not isinstance(report, dict) or set(report) != _DRIVER_REPORT_KEYS:
+        raise DriverProofError("driver report schema mismatch")
+    exact_fields = {
+        "schemaVersion": 1,
+        "session": expected.session,
+        "request": expected.request,
+        "bundleIdentifier": expected.bundle_identifier,
+        "capability": expected.capability,
+        "state": expected.state,
+        "mode": expected.mode,
+        "mechanism": expected.mechanism,
+        "e2eAppIdentity": expected.e2e_app_identity,
+        "browserAppIdentity": expected.browser_app_identity,
+        "browser_cleanup_grace_seconds": 5.0,
+        "browser_quiescence_seconds": 2.0,
+        "provenance_settle_seconds": 0.25,
+        "provenance_status_grace_seconds": 1.0,
+        "cleanup_success": True,
+        "task_root_finalized": True,
+    }
+    if expected.target_id == "firefox-derived":
+        target_matches = (
+            re.fullmatch(
+                re.escape(expected.bundle_identifier)
+                + r"\|firefox-profile-v1:[0-9a-f]{64}\|"
+                + re.escape(expected.mode),
+                report.get("targetID", ""),
+            )
+            is not None
+        )
+    else:
+        target_matches = report.get("targetID") == expected.target_id
+    if not target_matches or any(
+        report.get(key) != value for key, value in exact_fields.items()
+    ):
+        raise DriverProofError("driver proof identity mismatch")
+    state_proofs = report["stateProofs"]
+    if not isinstance(state_proofs, list) or len(state_proofs) != 1:
+        raise DriverProofError("driver state proof count mismatch")
+    state_proof = state_proofs[0]
+    if (
+        not isinstance(state_proof, dict)
+        or set(state_proof) != _STATE_PROOF_KEYS
+        or state_proof["state"] != expected.state
+        or state_proof["request"] != expected.request
+        or state_proof["outcome"] != report["outcome"]
+        or state_proof["receipt"] != report["token_received"]
+        or state_proof["browserIdentity"] != report["exact_browser_process_identity"]
+        or state_proof["provenance"] != report["launch_provenance"]
+        or state_proof["e2eIdentity"] is not True
+        or type(state_proof["routeElapsedSeconds"]) not in {int, float}
+        or not math.isfinite(state_proof["routeElapsedSeconds"])
+        or state_proof["routeElapsedSeconds"] < 0
+    ):
+        raise DriverProofError("driver state proof mismatch")
+    for key in (
+        "token_received",
+        "exact_process_identity",
+        "exact_browser_process_identity",
+        "cleanup_success",
+        "task_root_finalized",
+    ):
+        if type(report[key]) is not bool:
+            raise DriverProofError("driver proof boolean mismatch")
+    for key in (
+        "total_elapsed_seconds",
+        "route_timeout_seconds",
+        "browser_cleanup_grace_seconds",
+        "browser_quiescence_seconds",
+        "provenance_settle_seconds",
+        "provenance_status_grace_seconds",
+    ):
+        value = report[key]
+        if type(value) not in {int, float} or not math.isfinite(value) or value < 0:
+            raise DriverProofError("driver proof timing mismatch")
+    if report["route_timeout_seconds"] <= 0 or report["total_elapsed_seconds"] < 0:
+        raise DriverProofError("driver proof timing mismatch")
+    if report["total_elapsed_seconds"] + 0.00001 < state_proof["routeElapsedSeconds"]:
+        raise DriverProofError("driver proof timing coherence mismatch")
+    if (
+        return_code == 0
+        and report["outcome"] == "selected"
+        and report["token_received"] is True
+        and report["exact_process_identity"] is True
+        and report["exact_browser_process_identity"] is True
+        and report["launch_provenance"] == "launch-observed"
+        and _valid_process_generation_proof(state_proof)
+    ):
+        return "PASS", "proven-route", False
+    if (
+        return_code == browser_driver.DRIVER_SELECTION_REJECTED
+        and report["outcome"] == "launch-error"
+        and report["token_received"] is False
+        and report["exact_process_identity"] is True
+        and report["exact_browser_process_identity"] is False
+        and report["launch_provenance"] == "launch-error"
+        and state_proof["browserIdentity"] is False
+        and all(
+            state_proof[key] is None
+            for key in (
+                "processIdentifier",
+                "processStartSeconds",
+                "processStartMicroseconds",
+            )
+        )
+    ):
+        return "FAIL", "product-route-failure", False
+    if (
+        return_code == browser_driver.DRIVER_SELECTION_REJECTED
+        and report["outcome"] in {"target-disabled", "target-mode-mismatch"}
+        and report["token_received"] is False
+        and report["exact_process_identity"] is True
+        and report["exact_browser_process_identity"] is False
+        and report["launch_provenance"] == "none"
+        and state_proof["receipt"] is False
+        and state_proof["browserIdentity"] is False
+        and all(
+            state_proof[key] is None
+            for key in (
+                "processIdentifier",
+                "processStartSeconds",
+                "processStartMicroseconds",
+            )
+        )
+    ):
+        return "UNSUPPORTED", "catalog-capability-refused", False
+    raise DriverProofError("driver proof outcome mismatch")
+
+
+def validate_driver_sequence_report(report, return_code, expectations):
+    if len(expectations) != 3:
+        raise DriverProofError("sequence expectation mismatch")
+    first = expectations[0]
+    if not isinstance(report, dict) or set(report) != _DRIVER_REPORT_KEYS:
+        raise DriverProofError("driver report schema mismatch")
+    exact = {
+        "schemaVersion": 1,
+        "session": first.session,
+        "request": first.request,
+        "bundleIdentifier": first.bundle_identifier,
+        "capability": first.capability,
+        "state": "sequence",
+        "mode": first.mode,
+        "mechanism": first.mechanism,
+        "e2eAppIdentity": first.e2e_app_identity,
+        "browserAppIdentity": first.browser_app_identity,
+        "browser_cleanup_grace_seconds": 5.0,
+        "browser_quiescence_seconds": 2.0,
+        "provenance_settle_seconds": 0.25,
+        "provenance_status_grace_seconds": 1.0,
+        "cleanup_success": True,
+        "task_root_finalized": True,
+    }
+    target = report.get("targetID", "")
+    target_ok = all(
+        expectation.target_id == target
+        or expectation.target_id == "firefox-derived"
+        and re.fullmatch(
+            re.escape(expectation.bundle_identifier)
+            + r"\|firefox-profile-v1:[0-9a-f]{64}\|"
+            + re.escape(expectation.mode),
+            target,
+        )
+        is not None
+        for expectation in expectations
+    )
+    if not target_ok or any(report.get(key) != value for key, value in exact.items()):
+        raise DriverProofError("sequence report identity mismatch")
+    for key in (
+        "token_received",
+        "exact_process_identity",
+        "exact_browser_process_identity",
+        "cleanup_success",
+        "task_root_finalized",
+    ):
+        if type(report.get(key)) is not bool:
+            raise DriverProofError("sequence report boolean mismatch")
+    for key in (
+        "total_elapsed_seconds",
+        "route_timeout_seconds",
+        "browser_cleanup_grace_seconds",
+        "browser_quiescence_seconds",
+        "provenance_settle_seconds",
+        "provenance_status_grace_seconds",
+    ):
+        value = report.get(key)
+        if type(value) not in {int, float} or not math.isfinite(value) or value < 0:
+            raise DriverProofError("sequence report timing mismatch")
+    if (
+        report["route_timeout_seconds"] <= 0
+        or report["exact_process_identity"] is not True
+    ):
+        raise DriverProofError("sequence report prerequisite mismatch")
+    proofs = report["stateProofs"]
+    if not isinstance(proofs, list) or not 1 <= len(proofs) <= 3:
+        raise DriverProofError("sequence proof count mismatch")
+    generations = []
+    results = []
+    for index, proof in enumerate(proofs):
+        expectation = expectations[index]
+        if (
+            not isinstance(proof, dict)
+            or set(proof) != _STATE_PROOF_KEYS
+            or proof.get("state") != expectation.state
+            or proof.get("request") != expectation.request
+            or proof.get("e2eIdentity") is not True
+            or type(proof.get("routeElapsedSeconds")) not in {int, float}
+            or not math.isfinite(proof["routeElapsedSeconds"])
+            or proof["routeElapsedSeconds"] < 0
+        ):
+            raise DriverProofError("sequence state proof mismatch")
+        if (
+            proof.get("outcome") == "selected"
+            and proof.get("receipt") is True
+            and proof.get("browserIdentity") is True
+            and proof.get("provenance") == "launch-observed"
+            and _valid_process_generation_proof(proof)
+        ):
+            generations.append(
+                (
+                    proof["processIdentifier"],
+                    proof["processStartSeconds"],
+                    proof["processStartMicroseconds"],
+                )
+            )
+            results.append(("PASS", "proven-route"))
+            continue
+        if (
+            proof.get("outcome") == "launch-error"
+            and proof.get("receipt") is False
+            and proof.get("browserIdentity") is False
+            and proof.get("provenance") in {"none", "launch-error"}
+            and all(
+                proof.get(key) is None
+                for key in (
+                    "processIdentifier",
+                    "processStartSeconds",
+                    "processStartMicroseconds",
+                )
+            )
+        ):
+            results.append(("FAIL", "product-route-failure"))
+            break
+        raise DriverProofError("sequence state proof incoherent")
+    if report["total_elapsed_seconds"] + 0.00001 < sum(
+        proof["routeElapsedSeconds"] for proof in proofs
+    ):
+        raise DriverProofError("sequence timing coherence mismatch")
+    if len(generations) >= 2 and generations[0] != generations[1]:
+        raise DriverProofError("running generation changed")
+    if len(generations) == 3 and generations[2] == generations[0]:
+        raise DriverProofError("reopen generation was reused")
+    if len(results) == 3 and all(result == "PASS" for result, _ in results):
+        if (
+            return_code != 0
+            or report["outcome"] != "selected"
+            or report["token_received"] is not True
+            or report["exact_browser_process_identity"] is not True
+            or report["launch_provenance"] != "launch-observed"
+        ):
+            raise DriverProofError("sequence success mismatch")
+    elif results and results[-1][0] == "FAIL":
+        if (
+            return_code != browser_driver.DRIVER_SELECTION_REJECTED
+            or report["outcome"] != "launch-error"
+            or report["token_received"] is not False
+            or report["exact_browser_process_identity"] is not False
+            or report["launch_provenance"] not in {"none", "launch-error"}
+        ):
+            raise DriverProofError("sequence product failure mismatch")
+    else:
+        raise DriverProofError("incomplete sequence proof")
+    while len(results) < 3:
+        results.append(("NOT RUN", "blocked-after-sequence-failure"))
+    return tuple(results)
+
+
 @dataclasses.dataclass(frozen=True)
 class MatrixApplication:
     bundle_identifier: str
@@ -165,12 +742,19 @@ class MatrixManifest:
 
 
 @dataclasses.dataclass(frozen=True)
+class VerifiedApplication:
+    version: str
+    identity: str
+
+
+@dataclasses.dataclass(frozen=True)
 class MatrixCell:
     sequence: int
     bundle_identifier: str
     capability: str
     state: str
     application: MatrixApplication
+    installed: bool = True
 
     @property
     def has_profile(self):
@@ -188,6 +772,8 @@ class MatrixCell:
 
     @property
     def mechanism(self):
+        if self.application.normal_strategy == "duckduckgo":
+            return "duckduckgo"
         if (
             self.capability == "normal"
             and self.application.normal_strategy == "workspace"
@@ -296,7 +882,7 @@ def _parse_executable_relative_path(value):
     return path
 
 
-def load_manifest(path):
+def load_manifest(path, *, enforce_required=False):
     document, data = _load_strict_json(
         path, _MAXIMUM_MANIFEST_BYTES, MatrixManifestError
     )
@@ -338,6 +924,8 @@ def load_manifest(path):
             and not raw["skip"]
             or bundle_identifier in _APPLE_SKIPPED
             and any(flags[:3])
+            or bundle_identifier not in _APPLE_SKIPPED
+            and raw["skip"]
         ):
             raise MatrixManifestError("inconsistent capability policy")
         applications.append(
@@ -353,6 +941,22 @@ def load_manifest(path):
                 raw["skip"],
             )
         )
+    if enforce_required:
+        observed = {
+            application.bundle_identifier: (
+                os.fspath(application.application_path),
+                application.executable_relative_path.as_posix(),
+                application.profile_strategy,
+                application.normal_strategy,
+                application.browser_private,
+                application.profile,
+                application.profile_private,
+                application.skip,
+            )
+            for application in applications
+        }
+        if observed != _REQUIRED_APPLICATIONS:
+            raise MatrixManifestError("required application identity set mismatch")
     return MatrixManifest(1, tuple(applications), hashlib.sha256(data).hexdigest())
 
 
@@ -371,31 +975,42 @@ def _application_capabilities(application):
 
 def plan_cells(manifest, is_installed):
     eligible = [
-        application
+        (application, is_installed(application))
         for application in manifest.applications
-        if not application.skip
-        and application.bundle_identifier not in _APPLE_SKIPPED
-        and is_installed(application)
+        if not application.skip and application.bundle_identifier not in _APPLE_SKIPPED
     ]
     edge = next(
         (
-            application
-            for application in eligible
+            (application, installed)
+            for application, installed in eligible
             if application.bundle_identifier == "com.microsoft.edgemac"
         ),
         None,
     )
     ordered = []
-    if edge is not None and "normal" in _application_capabilities(edge):
-        ordered.extend((edge, "normal", state) for state in _STATES)
-    for application in eligible:
+    if edge is None or "normal" not in _application_capabilities(edge[0]):
+        raise MatrixManifestError("eligible Edge Stable pilot is required")
+    edge_application, edge_installed = edge
+    ordered.extend(
+        (edge_application, edge_installed, "normal", state) for state in _STATES
+    )
+    for application, installed in eligible:
         for capability in _application_capabilities(application):
-            if application is edge and capability == "normal":
+            if application is edge_application and capability == "normal":
                 continue
-            ordered.extend((application, capability, state) for state in _STATES)
+            ordered.extend(
+                (application, installed, capability, state) for state in _STATES
+            )
     return tuple(
-        MatrixCell(index, application.bundle_identifier, capability, state, application)
-        for index, (application, capability, state) in enumerate(ordered)
+        MatrixCell(
+            index,
+            application.bundle_identifier,
+            capability,
+            state,
+            application,
+            installed,
+        )
+        for index, (application, installed, capability, state) in enumerate(ordered)
     )
 
 
@@ -605,6 +1220,16 @@ def _classification(report, return_code):
     return "NOT RUN", "harness-ambiguity", True
 
 
+def _expected_target_id(cell):
+    if not cell.has_profile:
+        return f"{cell.bundle_identifier}||{cell.mode}"
+    if cell.profile_strategy == "chromium":
+        return f"{cell.bundle_identifier}|PickVia E2E|{cell.mode}"
+    if cell.profile_strategy == "firefox":
+        return "firefox-derived"
+    raise DriverProofError("unsupported profile target")
+
+
 def _sanitized_record(cell, version, report, result, detail):
     timings = {}
     for source, target in (
@@ -690,21 +1315,32 @@ def execute_matrix(manifest, output, *, dependencies=None, resume=False):
         _write_records(evidence_path, chained_records)
 
     versions = {}
-    blocked_bundles = set()
+    application_identities = {}
+    absent_bundles = set()
+    identity_blocked_bundles = set()
     for cell in cells:
         if cell.bundle_identifier in versions:
             continue
+        if not cell.installed:
+            versions[cell.bundle_identifier] = "unavailable"
+            application_identities[cell.bundle_identifier] = "0" * 64
+            absent_bundles.add(cell.bundle_identifier)
+            continue
         try:
-            versions[cell.bundle_identifier] = dependencies.verify_application(
-                cell.application
-            )
+            verification = dependencies.verify_application(cell.application)
+            versions[cell.bundle_identifier] = verification.version
+            application_identities[cell.bundle_identifier] = verification.identity
         except MatrixIdentityError:
             versions[cell.bundle_identifier] = "unavailable"
-            blocked_bundles.add(cell.bundle_identifier)
+            application_identities[cell.bundle_identifier] = "0" * 64
+            identity_blocked_bundles.add(cell.bundle_identifier)
+    blocked_bundles = absent_bundles | identity_blocked_bundles
     if "com.microsoft.edgemac" in blocked_bundles:
         for cell in cells[len(completed) :]:
             detail = (
-                "signature-blocker"
+                "installed-absence"
+                if cell.bundle_identifier in absent_bundles
+                else "signature-blocker"
                 if cell.bundle_identifier == "com.microsoft.edgemac"
                 else "blocked-before-run"
             )
@@ -739,53 +1375,148 @@ def execute_matrix(manifest, output, *, dependencies=None, resume=False):
             completed.append(chained_records[-1])
         _write_records(evidence_path, chained_records)
         return MatrixExecutionResult(MATRIX_BLOCKED, tuple(completed))
-    exit_code = MATRIX_BLOCKED if blocked_bundles else MATRIX_SUCCESS
-    stop_detail = None
     try:
-        for offset, cell in enumerate(remaining):
-            if cell.bundle_identifier in blocked_bundles:
-                record = _not_run_record(
-                    cell,
-                    versions[cell.bundle_identifier],
-                    "signature-blocker",
-                )
-                chained_records.append(
-                    _chain_record(record, chained_records[-1]["recordHash"])
-                )
-                completed.append(chained_records[-1])
-                _write_records(evidence_path, chained_records)
-                continue
-            session = secrets.token_hex(24)
-            profile_relative_root = (
-                f"profiles/{cell.specification_hash[:24]}" if cell.has_profile else None
-            )
-            try:
-                report, driver_code = dependencies.run_driver(
-                    pinned_app, cell, session, profile_relative_root
-                )
-            except Exception:
-                report = {"outcome": "invalid-driver-report"}
-                driver_code = browser_driver.DRIVER_PROCESS_ERROR
-            result, detail, must_stop = _classification(report, driver_code)
-            record = _sanitized_record(
-                cell, versions[cell.bundle_identifier], report, result, detail
+        e2e_app_identity = dependencies.e2e_identity(pinned_app)
+    except Exception:
+        close = getattr(pinned_app, "close", None)
+        if callable(close):
+            close()
+        for cell in remaining:
+            record = _not_run_record(
+                cell,
+                versions.get(cell.bundle_identifier, "unverified"),
+                "build-blocker",
             )
             chained_records.append(
                 _chain_record(record, chained_records[-1]["recordHash"])
             )
             completed.append(chained_records[-1])
-            _write_records(evidence_path, chained_records)
-            edge_pilot = (
-                cell.sequence < 3 and cell.bundle_identifier == "com.microsoft.edgemac"
+        _write_records(evidence_path, chained_records)
+        return MatrixExecutionResult(MATRIX_BLOCKED, tuple(completed))
+    exit_code = MATRIX_BLOCKED if blocked_bundles else MATRIX_SUCCESS
+    try:
+        offset = 0
+        while offset < len(remaining):
+            group = remaining[offset : offset + 3]
+            if (
+                len(group) != 3
+                or [cell.state for cell in group] != list(_STATES)
+                or len({(cell.bundle_identifier, cell.capability) for cell in group})
+                != 1
+            ):
+                raise MatrixError("invalid state sequence plan")
+            cell = group[0]
+            if cell.bundle_identifier in blocked_bundles:
+                for blocked_cell in group:
+                    record = _not_run_record(
+                        blocked_cell,
+                        versions[blocked_cell.bundle_identifier],
+                        "installed-absence"
+                        if blocked_cell.bundle_identifier in absent_bundles
+                        else "signature-blocker",
+                    )
+                    chained_records.append(
+                        _chain_record(record, chained_records[-1]["recordHash"])
+                    )
+                    completed.append(chained_records[-1])
+                _write_records(evidence_path, chained_records)
+                offset += 3
+                continue
+            session = secrets.token_hex(24)
+            requests = tuple(secrets.token_hex(24) for _ in _STATES)
+            profile_relative_root = (
+                f"profiles/{cell.specification_hash[:24]}" if cell.has_profile else None
             )
-            if result == "FAIL":
-                exit_code = MATRIX_PRODUCT_FAILURE
-            if must_stop or edge_pilot and result != "PASS":
-                exit_code = MATRIX_BLOCKED if must_stop else MATRIX_PRODUCT_FAILURE
-                stop_detail = (
-                    "blocked-after-ambiguity" if must_stop else "edge-pilot-failed"
+            try:
+                report, driver_code = dependencies.run_sequence(
+                    pinned_app,
+                    group,
+                    session,
+                    requests,
+                    profile_relative_root,
+                    e2e_app_identity,
+                    application_identities[cell.bundle_identifier],
                 )
-                remaining_tail = remaining[offset + 1 :]
+            except Exception:
+                report = {"outcome": "invalid-driver-report"}
+                driver_code = browser_driver.DRIVER_PROCESS_ERROR
+            expectations = tuple(
+                DriverProofExpectation(
+                    session=session,
+                    request=request,
+                    bundle_identifier=state_cell.bundle_identifier,
+                    target_id=_expected_target_id(state_cell),
+                    capability=state_cell.capability,
+                    state=state_cell.state,
+                    mode=state_cell.mode,
+                    mechanism=state_cell.mechanism,
+                    e2e_app_identity=e2e_app_identity,
+                    browser_app_identity=application_identities[
+                        state_cell.bundle_identifier
+                    ],
+                )
+                for state_cell, request in zip(group, requests)
+            )
+            try:
+                sequence_results = validate_driver_sequence_report(
+                    report, driver_code, expectations
+                )
+            except DriverProofError:
+                sequence_results = tuple(
+                    ("NOT RUN", "harness-ambiguity") for _ in _STATES
+                )
+            proofs = report.get("stateProofs", []) if isinstance(report, dict) else []
+            for index, (state_cell, (result, detail)) in enumerate(
+                zip(group, sequence_results)
+            ):
+                proof = proofs[index] if index < len(proofs) else {}
+                cell_report = {
+                    "outcome": proof.get("outcome", "not-invoked"),
+                    "token_received": proof.get("receipt") is True,
+                    "exact_process_identity": proof.get("e2eIdentity") is True,
+                    "exact_browser_process_identity": proof.get("browserIdentity")
+                    is True,
+                    "launch_provenance": proof.get("provenance", "none"),
+                    "total_elapsed_seconds": proof.get("routeElapsedSeconds", 0.0),
+                    "route_timeout_seconds": report.get("route_timeout_seconds", 0.0),
+                    "browser_cleanup_grace_seconds": report.get(
+                        "browser_cleanup_grace_seconds", 0.0
+                    ),
+                    "browser_quiescence_seconds": report.get(
+                        "browser_quiescence_seconds", 0.0
+                    ),
+                }
+                record = _sanitized_record(
+                    state_cell,
+                    versions[state_cell.bundle_identifier],
+                    cell_report,
+                    result,
+                    detail,
+                )
+                chained_records.append(
+                    _chain_record(record, chained_records[-1]["recordHash"])
+                )
+                completed.append(chained_records[-1])
+                if result == "FAIL":
+                    exit_code = MATRIX_PRODUCT_FAILURE
+            _write_records(evidence_path, chained_records)
+            must_stop = any(
+                result == "NOT RUN" and detail == "harness-ambiguity"
+                for result, detail in sequence_results
+            )
+            edge_pilot = cell.sequence == 0
+            if (
+                must_stop
+                or edge_pilot
+                and any(result != "PASS" for result, _ in sequence_results)
+            ):
+                if must_stop:
+                    exit_code = MATRIX_BLOCKED
+                    stop_detail = "blocked-after-ambiguity"
+                else:
+                    exit_code = MATRIX_PRODUCT_FAILURE
+                    stop_detail = "edge-pilot-failed"
+                remaining_tail = remaining[offset + 3 :]
                 for pending in remaining_tail:
                     pending_record = _not_run_record(
                         pending,
@@ -798,6 +1529,7 @@ def execute_matrix(manifest, output, *, dependencies=None, resume=False):
                     completed.append(chained_records[-1])
                 _write_records(evidence_path, chained_records)
                 break
+            offset += 3
     finally:
         close = getattr(pinned_app, "close", None)
         if callable(close):
@@ -809,8 +1541,10 @@ def dry_run(manifest, *, dependencies=None):
     dependencies = dependencies or SystemDependencies()
     cells = plan_cells(manifest, dependencies.is_installed)
     for cell in cells:
+        if not cell.installed:
+            continue
         print(cell.identifier)
-    return MATRIX_SUCCESS if cells else MATRIX_BLOCKED
+    return MATRIX_SUCCESS if any(cell.installed for cell in cells) else MATRIX_BLOCKED
 
 
 class SystemDependencies:
@@ -842,7 +1576,19 @@ class SystemDependencies:
             )
             if not isinstance(version, str) or _SAFE_VERSION.fullmatch(version) is None:
                 raise MatrixIdentityError("invalid version")
-            return version
+            identity_fields = (
+                application.bundle_identifier,
+                os.fspath(application.application_path),
+                os.fspath(application.executable_path),
+                application.application_path.lstat().st_ino,
+                application.executable_path.lstat().st_ino,
+                application.executable_path.lstat().st_mtime_ns,
+                application.executable_path.lstat().st_size,
+            )
+            return VerifiedApplication(
+                version,
+                hashlib.sha256(repr(identity_fields).encode("utf-8")).hexdigest(),
+            )
         except (
             OSError,
             plistlib.InvalidFileException,
@@ -888,7 +1634,29 @@ class SystemDependencies:
             raise MatrixIdentityError("E2E signature failed")
         return smoke_e2e_runtime.PinnedApplication.open(application)
 
-    def run_driver(self, pinned_app, cell, session, profile_relative_root):
+    def e2e_identity(self, pinned_app):
+        if not pinned_app.validate():
+            raise MatrixIdentityError("E2E application identity changed")
+        fields = (
+            pinned_app.directory_stat.st_ino,
+            pinned_app.directory_stat.st_ctime_ns,
+            pinned_app.executable_stat.st_ino,
+            pinned_app.executable_stat.st_mtime_ns,
+            pinned_app.bundle_manifest,
+        )
+        return hashlib.sha256(repr(fields).encode("utf-8")).hexdigest()
+
+    def run_sequence(
+        self,
+        pinned_app,
+        group,
+        session,
+        requests,
+        profile_relative_root,
+        e2e_app_identity,
+        browser_app_identity,
+    ):
+        cell = group[0]
         if not pinned_app.validate():
             raise MatrixIdentityError("E2E application identity changed")
         target_id = f"{cell.bundle_identifier}||{cell.mode}"
@@ -911,7 +1679,21 @@ class SystemDependencies:
             cell.mechanism,
             "--session",
             session,
+            "--request",
+            requests[0],
+            "--capability",
+            cell.capability,
+            "--state",
+            "sequence",
+            "--e2e-app-identity",
+            e2e_app_identity,
+            "--browser-app-identity",
+            browser_app_identity,
+            "--route-count",
+            "3",
         ]
+        for request in requests:
+            arguments.extend(["--sequence-request", request])
         if profile_relative_root is not None:
             arguments.extend(
                 [
@@ -937,7 +1719,7 @@ class SystemDependencies:
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                timeout=75,
+                timeout=150,
                 check=False,
             )
         except (OSError, subprocess.TimeoutExpired) as error:
@@ -986,7 +1768,7 @@ def main(argv=None):
     if not arguments.dry_run and arguments.output is None:
         return MATRIX_USAGE
     try:
-        manifest = load_manifest(arguments.manifest)
+        manifest = load_manifest(arguments.manifest, enforce_required=True)
         if arguments.dry_run:
             return dry_run(manifest)
         return execute_matrix(

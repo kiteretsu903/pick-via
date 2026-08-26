@@ -32,6 +32,15 @@ class DriverAvailabilityTests(unittest.TestCase):
         self.assertIsNotNone(driver, "PickVia E2E route driver is not implemented")
 
 
+class SequenceClock:
+    def __init__(self):
+        self.value = 0.0
+
+    def __call__(self):
+        self.value += 1.0
+        return self.value
+
+
 @unittest.skipIf(driver is None, "PickVia E2E route driver is not implemented")
 class DriverFixture:
     def __init__(
@@ -157,6 +166,7 @@ class DriverFixture:
         self.output_holder_pid_file = self.fixture_root / "output-holder.pid"
         self.task_root = None
         self.route = None
+        self.routes = []
         self.observed_argv = []
         self.observed_environment = []
         self.launched_child_pids = []
@@ -279,6 +289,7 @@ import pathlib
 import signal
 import subprocess
 import time
+import types
 import urllib.request
 root = pathlib.Path(__file__).resolve().parents[3]
 signal.signal(signal.SIGCHLD, signal.SIG_IGN)
@@ -334,9 +345,20 @@ if "selected" in outcomes and "launch-error" not in outcomes:
     elif %r:
         executable = root / "Browser.app" / "Contents" / "MacOS" / "Browser"
         browsers = []
-        for _ in range(%r):
-            browser = subprocess.Popen([str(executable)], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            browser.stdin.write(route); browser.stdin.close(); browsers.append(browser)
+        existing = []
+        if (root / "browser.pid").exists():
+            for value in (root / "browser.pid").read_text(encoding="ascii").split(","):
+                try:
+                    os.kill(int(value), 0); existing.append(int(value))
+                except (ProcessLookupError, ValueError): pass
+        if existing:
+            urllib.request.urlopen(route.decode("ascii"), timeout=5).read()
+            (root / "receipt-delivered").touch()
+            browsers = [types.SimpleNamespace(pid=value) for value in existing]
+        else:
+            for _ in range(%r):
+                browser = subprocess.Popen([str(executable)], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                browser.stdin.write(route); browser.stdin.close(); browsers.append(browser)
         (root / "browser.pid").write_text(",".join(str(browser.pid) for browser in browsers), encoding="ascii")
     if provenance_records is None:
         provenance_records = [{
@@ -595,6 +617,7 @@ server.server_close()
 
     def _observe_route(self, route):
         self.route = route
+        self.routes.append(route)
 
     def _check_e2e_identity(self, process, executable):
         self.identity_checks.append((process.pid, pathlib.Path(executable)))
@@ -817,6 +840,233 @@ class PickViaE2EDriverTests(unittest.TestCase):
         except BaseException:
             owner.cleanup()
             raise
+
+    def test_driver_config_generates_a_fresh_default_request_secret(self):
+        values = dict(
+            e2e_app=pathlib.Path("/Applications/PickVia E2E.app"),
+            browser_app=pathlib.Path("/Applications/Browser.app"),
+            expected_browser_executable=pathlib.Path(
+                "/Applications/Browser.app/Contents/MacOS/Browser"
+            ),
+            target_id="com.example.Browser||normal",
+            bundle_identifier="com.example.Browser",
+            mode="normal",
+            expected_mechanism="workspace",
+            session_nonce="session_0123456789",
+        )
+        first = driver.DriverConfig(**values)
+        second = driver.DriverConfig(**values)
+        self.assertRegex(first.request_nonce, r"\A[0-9a-f]{32}\Z")
+        self.assertRegex(second.request_nonce, r"\A[0-9a-f]{32}\Z")
+        self.assertNotEqual(first.request_nonce, second.request_nonce)
+
+    def test_three_state_controller_orders_routes_and_reopens_distinct_generation(self):
+        executable = pathlib.Path("/Applications/Fake.app/Contents/MacOS/Fake")
+        cold = driver.ProcessIdentity(7101, 1, 10, 1, executable)
+        reopened = driver.ProcessIdentity(7102, 1, 11, 2, executable)
+        live = set()
+        routed = []
+        signaled = []
+
+        def route(state, request):
+            routed.append((state, request))
+            if state == "cold":
+                live.add(cold)
+                return cold
+            if state == "running":
+                return cold
+            live.add(reopened)
+            return reopened
+
+        proofs = driver._run_three_state_controller(
+            requests=("request_cold_0000", "request_running_0", "request_reopen_00"),
+            route=route,
+            snapshot=lambda _phase: frozenset(live),
+            attest=lambda identity: identity in live,
+            terminate=lambda identity: signaled.append(identity)
+            or not live.remove(identity),
+            monotonic=SequenceClock(),
+            sleep=lambda _seconds: None,
+        )
+        self.assertEqual([state for state, _ in routed], ["cold", "running", "reopen"])
+        self.assertEqual(proofs, (cold, cold, reopened))
+        self.assertEqual(signaled, [cold])
+
+    def test_three_state_controller_rejects_preexisting_replacement_reuse_and_forgery(
+        self,
+    ):
+        executable = pathlib.Path("/Applications/Fake.app/Contents/MacOS/Fake")
+        cold = driver.ProcessIdentity(7201, 1, 20, 1, executable)
+        replacement = driver.ProcessIdentity(7201, 1, 21, 1, executable)
+        cases = ("preexisting", "death", "replacement", "forged", "same-reopen")
+        for case in cases:
+            with self.subTest(case=case):
+                live = {cold} if case == "preexisting" else set()
+                routed = []
+                signaled = []
+
+                def route(state, _request):
+                    routed.append(state)
+                    if state == "cold":
+                        live.add(cold)
+                        return cold
+                    if state == "running":
+                        if case == "death":
+                            live.clear()
+                        elif case == "replacement":
+                            live.clear()
+                            live.add(replacement)
+                        return replacement if case == "forged" else cold
+                    live.add(cold if case == "same-reopen" else replacement)
+                    return cold if case == "same-reopen" else replacement
+
+                with self.assertRaises(driver._StateSequenceError):
+                    driver._run_three_state_controller(
+                        requests=(
+                            "request_cold_0000",
+                            "request_running_0",
+                            "request_reopen_00",
+                        ),
+                        route=route,
+                        snapshot=lambda _phase: frozenset(live),
+                        attest=lambda identity: identity in live,
+                        terminate=lambda identity: signaled.append(identity)
+                        or not live.remove(identity),
+                        monotonic=SequenceClock(),
+                        sleep=lambda _seconds: None,
+                    )
+                if case == "preexisting":
+                    self.assertEqual(routed, [])
+                self.assertNotIn(replacement, signaled)
+
+    def test_three_state_controller_rejects_missing_or_reused_request_handoff(self):
+        for requests in (
+            (),
+            ("request_same_0000",) * 3,
+            ("request_cold_0000", "request_running_0"),
+        ):
+            routed = []
+            with (
+                self.subTest(requests=requests),
+                self.assertRaises(driver._StateSequenceError),
+            ):
+                driver._run_three_state_controller(
+                    requests=requests,
+                    route=lambda state, request: routed.append((state, request)),
+                    snapshot=lambda _phase: frozenset(),
+                    attest=lambda _identity: False,
+                    terminate=lambda _identity: False,
+                    monotonic=SequenceClock(),
+                    sleep=lambda _seconds: None,
+                )
+            self.assertEqual(routed, [])
+
+    def test_three_state_controller_rejects_failed_exact_termination(self):
+        executable = pathlib.Path("/Applications/Fake.app/Contents/MacOS/Fake")
+        cold = driver.ProcessIdentity(7301, 1, 30, 1, executable)
+        reopened = driver.ProcessIdentity(7302, 1, 31, 1, executable)
+        live = set()
+
+        def route(state, _request):
+            if state == "cold":
+                live.add(cold)
+                return cold
+            if state == "reopen":
+                live.add(reopened)
+                return reopened
+            return cold
+
+        def failed_termination(identity):
+            live.remove(identity)
+            return False
+
+        with self.assertRaises(driver._StateSequenceError):
+            driver._run_three_state_controller(
+                requests=(
+                    "request_cold_0000",
+                    "request_running_0",
+                    "request_reopen_00",
+                ),
+                route=route,
+                snapshot=lambda _phase: frozenset(live),
+                attest=lambda identity: identity in live,
+                terminate=failed_termination,
+                monotonic=SequenceClock(),
+                sleep=lambda _seconds: None,
+            )
+
+    def test_driver_sequence_owns_one_root_routes_three_fresh_requests_and_finalizes(
+        self,
+    ):
+        requests = (
+            "request_cold_0000",
+            "request_running_0",
+            "request_reopen_00",
+        )
+        with DriverFixture() as fixture:
+            observed_fifos = []
+
+            def inspect_fifos(root):
+                observed_fifos.extend(
+                    sorted(
+                        path.name
+                        for path in pathlib.Path(root).iterdir()
+                        if stat.S_ISFIFO(path.lstat().st_mode)
+                    )
+                )
+                fixture._before_cleanup(root)
+
+            result = fixture.run(
+                config_overrides={
+                    "state": "sequence",
+                    "route_count": 3,
+                    "sequence_requests": requests,
+                },
+                dependency_overrides={"before_cleanup": inspect_fifos},
+            )
+            self.assertEqual(result.exit_code, driver.DRIVER_SUCCESS)
+            self.assertEqual(len(fixture.routes), 3)
+            self.assertEqual(len(set(fixture.routes)), 3)
+            self.assertEqual(len(fixture.terminated_browser_generations), 2)
+            self.assertNotEqual(
+                fixture.terminated_browser_generations[0],
+                fixture.terminated_browser_generations[1],
+            )
+            self.assertEqual(
+                observed_fifos,
+                [
+                    "provenance-cold.fifo",
+                    "provenance-reopen.fifo",
+                    "provenance-running.fifo",
+                    "status-cold.fifo",
+                    "status-reopen.fifo",
+                    "status-running.fifo",
+                ],
+            )
+            self.assertTrue(result.report["cleanup_success"])
+            self.assertTrue(result.report["task_root_finalized"])
+            self.assertFalse(fixture.task_root.exists())
+
+    def test_driver_sequence_preserves_preexisting_user_generation_and_does_not_route(
+        self,
+    ):
+        with DriverFixture(preexisting_browser_pids={7401}) as fixture:
+            result = fixture.run(
+                config_overrides={
+                    "state": "sequence",
+                    "route_count": 3,
+                    "sequence_requests": (
+                        "request_cold_0000",
+                        "request_running_0",
+                        "request_reopen_00",
+                    ),
+                }
+            )
+            self.assertEqual(result.exit_code, driver.DRIVER_BROWSER_IDENTITY_AMBIGUOUS)
+            self.assertEqual(result.report["outcome"], "state-sequence-error")
+            self.assertEqual(fixture.routes, [])
+            self.assertNotIn(7401, fixture.terminated_browser_pids)
+            self.assertTrue(result.report["task_root_finalized"])
 
     def _metadata_on_device(self, metadata, device):
         return types.SimpleNamespace(
@@ -3780,6 +4030,16 @@ time.sleep(3.25)
                 set(result.report),
                 {
                     "session",
+                    "schemaVersion",
+                    "request",
+                    "bundleIdentifier",
+                    "targetID",
+                    "capability",
+                    "state",
+                    "mode",
+                    "mechanism",
+                    "e2eAppIdentity",
+                    "browserAppIdentity",
                     "outcome",
                     "token_received",
                     "exact_process_identity",
@@ -3791,6 +4051,9 @@ time.sleep(3.25)
                     "browser_quiescence_seconds",
                     "provenance_settle_seconds",
                     "provenance_status_grace_seconds",
+                    "cleanup_success",
+                    "task_root_finalized",
+                    "stateProofs",
                 },
             )
 

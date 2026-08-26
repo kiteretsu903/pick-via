@@ -12,6 +12,10 @@ try:
 except ModuleNotFoundError:
     matrix = None
 
+CHECKED_MANIFEST = (
+    pathlib.Path(__file__).resolve().parent / "browser_matrix_manifest.json"
+)
+
 
 class MatrixAvailabilityTests(unittest.TestCase):
     def test_runner_module_exists(self):
@@ -38,6 +42,15 @@ class MatrixRunnerTests(unittest.TestCase):
         document.update(overrides)
         self.manifest_path.write_text(json.dumps(document) + "\n", encoding="utf-8")
         return self.manifest_path
+
+    def load_manifest(self, path=None):
+        return matrix.load_manifest(
+            path or self.manifest_path,
+            enforce_required=False,
+        )
+
+    def checked_document(self):
+        return json.loads(CHECKED_MANIFEST.read_text(encoding="utf-8"))
 
     def edge_application(self, **overrides):
         application = {
@@ -124,6 +137,53 @@ class MatrixRunnerTests(unittest.TestCase):
             with self.assertRaises(matrix.MatrixManifestError):
                 matrix.load_manifest(self.manifest_path)
 
+    def test_required_manifest_rejects_omitted_or_skipped_non_safari_apps(self):
+        chrome_only = {
+            "schemaVersion": 1,
+            "applications": [
+                self.edge_application(
+                    bundleIdentifier="com.google.Chrome",
+                    applicationPath="/Applications/Google Chrome.app",
+                    executableRelativePath="Contents/MacOS/Google Chrome",
+                )
+            ],
+        }
+        self.manifest_path.write_text(json.dumps(chrome_only) + "\n", encoding="utf-8")
+        with self.assertRaises(matrix.MatrixManifestError):
+            matrix.load_manifest(self.manifest_path, enforce_required=True)
+
+        for bundle_identifier in ("com.google.Chrome", "com.microsoft.edgemac"):
+            with self.subTest(bundle_identifier=bundle_identifier):
+                document = self.checked_document()
+                application = next(
+                    item
+                    for item in document["applications"]
+                    if item["bundleIdentifier"] == bundle_identifier
+                )
+                application["skip"] = True
+                self.manifest_path.write_text(
+                    json.dumps(document) + "\n", encoding="utf-8"
+                )
+                with self.assertRaises(matrix.MatrixManifestError):
+                    matrix.load_manifest(self.manifest_path, enforce_required=True)
+
+    def test_duckduckgo_normal_and_fire_cells_are_required_and_planned(self):
+        manifest = matrix.load_manifest(CHECKED_MANIFEST, enforce_required=True)
+        cells = matrix.plan_cells(manifest, lambda _application: True)
+        duck = [
+            cell
+            for cell in cells
+            if cell.bundle_identifier == "com.duckduckgo.macos.browser"
+        ]
+        self.assertEqual(
+            [(cell.capability, cell.state, cell.mechanism) for cell in duck],
+            [
+                (capability, state, "duckduckgo")
+                for capability in ("normal", "private")
+                for state in ("cold", "running", "reopen")
+            ],
+        )
+
     def test_edge_pilot_is_first_and_three_state_then_remaining_cells_are_sequential(
         self,
     ):
@@ -194,6 +254,48 @@ class MatrixRunnerTests(unittest.TestCase):
             all(record["detail"] == "signature-blocker" for record in chrome_records)
         )
 
+    def test_installed_absence_is_factual_not_run_evidence(self):
+        chrome = self.edge_application(
+            bundleIdentifier="com.google.Chrome",
+            applicationPath="/Applications/Google Chrome.app",
+            executableRelativePath="Contents/MacOS/Google Chrome",
+        )
+        dependencies = FakeDependencies()
+        dependencies.is_installed = (
+            lambda application: application.bundle_identifier != "com.google.Chrome"
+        )
+        result = matrix.execute_matrix(
+            matrix.load_manifest(
+                self.write_manifest([chrome, self.edge_application()])
+            ),
+            self.root / "output",
+            dependencies=dependencies,
+        )
+        chrome_records = [
+            record
+            for record in result.records
+            if record["bundleIdentifier"] == "com.google.Chrome"
+        ]
+        self.assertTrue(all(record["result"] == "NOT RUN" for record in chrome_records))
+        self.assertTrue(
+            all(record["detail"] == "installed-absence" for record in chrome_records)
+        )
+
+    def test_edge_pilot_installed_absence_stops_before_build(self):
+        dependencies = FakeDependencies()
+        dependencies.is_installed = (
+            lambda application: application.bundle_identifier != "com.microsoft.edgemac"
+        )
+        result = matrix.execute_matrix(
+            matrix.load_manifest(self.write_manifest()),
+            self.root / "output",
+            dependencies=dependencies,
+        )
+        self.assertEqual(result.exit_code, matrix.MATRIX_BLOCKED)
+        self.assertEqual(result.records[0]["result"], "NOT RUN")
+        self.assertEqual(result.records[0]["detail"], "installed-absence")
+        self.assertEqual(dependencies.build_count, 0)
+
     def test_driver_invocations_use_fresh_secrets_and_never_overlap(self):
         dependencies = FakeDependencies()
         result = matrix.execute_matrix(
@@ -204,9 +306,43 @@ class MatrixRunnerTests(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertEqual(dependencies.max_active_drivers, 1)
         sessions = [call["session"] for call in dependencies.driver_calls]
-        self.assertEqual(len(sessions), len(set(sessions)))
+        self.assertTrue(
+            all(
+                len(set(sessions[index : index + 3])) == 1
+                for index in range(0, len(sessions), 3)
+            )
+        )
+        requests = [call["request"] for call in dependencies.driver_calls]
+        self.assertEqual(len(requests), len(set(requests)))
         self.assertTrue(all(len(session) >= 32 for session in sessions))
         self.assertEqual(dependencies.build_count, 1)
+
+    def test_pinned_e2e_identity_failure_closes_pin_and_finalizes_evidence(self):
+        class PinnedFixture:
+            closed = False
+
+            def close(self):
+                self.closed = True
+
+        pinned = PinnedFixture()
+        dependencies = FakeDependencies()
+        dependencies.build_and_pin = lambda: pinned
+
+        def fail_identity(_pinned):
+            raise matrix.MatrixIdentityError("synthetic E2E identity blocker")
+
+        dependencies.e2e_identity = fail_identity
+        result = matrix.execute_matrix(
+            matrix.load_manifest(self.write_manifest()),
+            self.root / "output",
+            dependencies=dependencies,
+        )
+        self.assertEqual(result.exit_code, matrix.MATRIX_BLOCKED)
+        self.assertTrue(pinned.closed)
+        self.assertTrue(all(record["result"] == "NOT RUN" for record in result.records))
+        self.assertTrue(
+            all(record["detail"] == "build-blocker" for record in result.records)
+        )
 
     def test_fresh_run_rejects_nonempty_output_without_overwriting_it(self):
         output = self.root / "output"
@@ -247,6 +383,223 @@ class MatrixRunnerTests(unittest.TestCase):
         self.assertNotIn("/private/tmp", evidence)
         self.assertNotIn("token-secret", evidence)
         self.assertNotIn("version-secret", evidence)
+
+    def test_driver_report_contract_rejects_missing_wrong_or_incoherent_proof(self):
+        expectation = matrix.DriverProofExpectation(
+            session="session_0123456789abcdef",
+            request="request_0123456789abcdef",
+            bundle_identifier="com.microsoft.edgemac",
+            target_id="com.microsoft.edgemac||normal",
+            capability="normal",
+            state="cold",
+            mode="normal",
+            mechanism="workspace",
+            e2e_app_identity="e" * 64,
+            browser_app_identity="b" * 64,
+        )
+        valid = {
+            "schemaVersion": 1,
+            "session": expectation.session,
+            "request": expectation.request,
+            "bundleIdentifier": expectation.bundle_identifier,
+            "targetID": expectation.target_id,
+            "capability": expectation.capability,
+            "state": expectation.state,
+            "mode": expectation.mode,
+            "mechanism": expectation.mechanism,
+            "e2eAppIdentity": expectation.e2e_app_identity,
+            "browserAppIdentity": expectation.browser_app_identity,
+            "outcome": "selected",
+            "token_received": True,
+            "exact_process_identity": True,
+            "exact_browser_process_identity": True,
+            "launch_provenance": "launch-observed",
+            "total_elapsed_seconds": 1.0,
+            "route_timeout_seconds": 30.0,
+            "browser_cleanup_grace_seconds": 5.0,
+            "browser_quiescence_seconds": 2.0,
+            "provenance_settle_seconds": 0.25,
+            "provenance_status_grace_seconds": 1.0,
+            "cleanup_success": True,
+            "task_root_finalized": True,
+            "stateProofs": [
+                {
+                    "state": expectation.state,
+                    "request": expectation.request,
+                    "outcome": "selected",
+                    "receipt": True,
+                    "e2eIdentity": True,
+                    "browserIdentity": True,
+                    "provenance": "launch-observed",
+                    "processIdentifier": 9001,
+                    "processStartSeconds": 1,
+                    "processStartMicroseconds": 2,
+                    "routeElapsedSeconds": 1.0,
+                }
+            ],
+        }
+        self.assertEqual(
+            matrix.validate_driver_report(valid, 0, expectation)[0],
+            "PASS",
+        )
+        mutations = (
+            lambda report: report.pop("request"),
+            lambda report: report.update(session="wrong_session_012345"),
+            lambda report: report.update(request="wrong_request_012345"),
+            lambda report: report.update(bundleIdentifier="com.example.Wrong"),
+            lambda report: report.update(targetID="com.microsoft.edgemac||private"),
+            lambda report: report.update(state="running"),
+            lambda report: report.update(token_received=False),
+            lambda report: report.update(launch_provenance="launch-error"),
+            lambda report: report.update(total_elapsed_seconds=float("inf")),
+            lambda report: report.update(browser_cleanup_grace_seconds=4.0),
+            lambda report: report.update(browser_quiescence_seconds=3.0),
+            lambda report: report.update(cleanup_success=False),
+            lambda report: report.update(task_root_finalized=False),
+            lambda report: report["stateProofs"][0].update(
+                processStartMicroseconds=1_000_000
+            ),
+            lambda report: report.update(unexpected=True),
+        )
+        for mutate in mutations:
+            with self.subTest(mutate=mutate):
+                candidate = dict(valid)
+                mutate(candidate)
+                with self.assertRaises(matrix.DriverProofError):
+                    matrix.validate_driver_report(candidate, 0, expectation)
+        launch_error = dict(valid)
+        launch_error.update(
+            outcome="launch-error",
+            token_received=False,
+            exact_browser_process_identity=False,
+            launch_provenance="launch-error",
+        )
+        launch_error["stateProofs"] = [dict(valid["stateProofs"][0])]
+        launch_error["stateProofs"][0].update(
+            outcome="launch-error",
+            receipt=False,
+            browserIdentity=False,
+            provenance="launch-error",
+            processIdentifier=None,
+            processStartSeconds=None,
+            processStartMicroseconds=None,
+        )
+        self.assertEqual(
+            matrix.validate_driver_report(launch_error, 10, expectation)[0],
+            "FAIL",
+        )
+        for mutate in (
+            lambda report: report.update(exact_browser_process_identity=True),
+            lambda report: report["stateProofs"][0].update(browserIdentity=True),
+            lambda report: report.update(total_elapsed_seconds=0.5),
+        ):
+            candidate = json.loads(json.dumps(launch_error))
+            mutate(candidate)
+            with (
+                self.subTest(launch_error_mutation=mutate),
+                self.assertRaises(matrix.DriverProofError),
+            ):
+                matrix.validate_driver_report(candidate, 10, expectation)
+        with self.assertRaises(matrix.DriverProofError):
+            matrix.validate_driver_report(launch_error, 0, expectation)
+
+    def test_sequence_report_rejects_forged_generation_request_and_cleanup(self):
+        cells = matrix.plan_cells(
+            matrix.load_manifest(self.write_manifest()), lambda _application: True
+        )[:3]
+        session = "session_0123456789abcdef"
+        requests = (
+            "request_cold_0123456789",
+            "request_running_01234567",
+            "request_reopen_012345678",
+        )
+        dependencies = FakeDependencies()
+        valid = dependencies.sequence_report(
+            cells, session, requests, "e" * 64, "b" * 64
+        )
+        expectations = tuple(
+            matrix.DriverProofExpectation(
+                session=session,
+                request=request,
+                bundle_identifier=cell.bundle_identifier,
+                target_id=matrix._expected_target_id(cell),
+                capability=cell.capability,
+                state=cell.state,
+                mode=cell.mode,
+                mechanism=cell.mechanism,
+                e2e_app_identity="e" * 64,
+                browser_app_identity="b" * 64,
+            )
+            for cell, request in zip(cells, requests)
+        )
+        self.assertEqual(
+            matrix.validate_driver_sequence_report(valid, 0, expectations),
+            (("PASS", "proven-route"),) * 3,
+        )
+        mutations = (
+            lambda report: report["stateProofs"][1].update(
+                request="forged_request_0000"
+            ),
+            lambda report: report["stateProofs"][1].update(processStartSeconds=99),
+            lambda report: report["stateProofs"][1].update(
+                processStartMicroseconds=1_000_000
+            ),
+            lambda report: [
+                proof.update(processStartMicroseconds=1_000_000)
+                for proof in report["stateProofs"]
+            ],
+            lambda report: report["stateProofs"][2].update(processIdentifier=9001),
+            lambda report: report.update(cleanup_success=False),
+            lambda report: report.update(task_root_finalized=False),
+            lambda report: report["stateProofs"].pop(),
+            lambda report: report.update(total_elapsed_seconds=0.2),
+        )
+        for mutate in mutations:
+            candidate = json.loads(json.dumps(valid))
+            mutate(candidate)
+            with (
+                self.subTest(mutate=mutate),
+                self.assertRaises(matrix.DriverProofError),
+            ):
+                matrix.validate_driver_sequence_report(candidate, 0, expectations)
+
+        launch_error = json.loads(json.dumps(valid))
+        launch_error["stateProofs"] = launch_error["stateProofs"][:2]
+        launch_error["stateProofs"][-1].update(
+            outcome="launch-error",
+            receipt=False,
+            browserIdentity=False,
+            provenance="launch-error",
+            processIdentifier=None,
+            processStartSeconds=None,
+            processStartMicroseconds=None,
+        )
+        launch_error.update(
+            outcome="launch-error",
+            token_received=False,
+            exact_browser_process_identity=False,
+            launch_provenance="launch-error",
+        )
+        self.assertEqual(
+            matrix.validate_driver_sequence_report(launch_error, 10, expectations),
+            (
+                ("PASS", "proven-route"),
+                ("FAIL", "product-route-failure"),
+                ("NOT RUN", "blocked-after-sequence-failure"),
+            ),
+        )
+        for mutate in (
+            lambda report: report.update(token_received=True),
+            lambda report: report.update(exact_browser_process_identity=True),
+            lambda report: report["stateProofs"][-1].update(browserIdentity=True),
+        ):
+            candidate = json.loads(json.dumps(launch_error))
+            mutate(candidate)
+            with (
+                self.subTest(sequence_launch_error_mutation=mutate),
+                self.assertRaises(matrix.DriverProofError),
+            ):
+                matrix.validate_driver_sequence_report(candidate, 10, expectations)
 
     def test_edge_pilot_failure_stops_and_marks_later_cells_not_run(self):
         chrome = self.edge_application(
@@ -308,7 +661,7 @@ class MatrixRunnerTests(unittest.TestCase):
         self.assertTrue(all(call["create_profile"] for call in profile_calls))
         self.assertEqual(
             len({call["profile_relative_root"] for call in profile_calls}),
-            len(profile_calls),
+            len(profile_calls) // 3,
         )
         self.assertTrue(
             all(
@@ -469,66 +822,157 @@ class FakeDependencies:
             or _application.bundle_identifier in self.blocked_bundles
         ):
             raise matrix.MatrixIdentityError("blocked")
-        return self.unsafe_version or "151.0"
+        return matrix.VerifiedApplication(
+            self.unsafe_version or "151.0",
+            "b" * 64,
+        )
 
     def build_and_pin(self):
         self.build_count += 1
         return object()
 
-    def run_driver(self, _pinned_app, cell, session, profile_relative_root):
+    def e2e_identity(self, _pinned_app):
+        return "e" * 64
+
+    def run_sequence(
+        self,
+        _pinned_app,
+        group,
+        session,
+        requests,
+        profile_relative_root,
+        e2e_app_identity,
+        browser_app_identity,
+    ):
         self.active_drivers += 1
         self.max_active_drivers = max(self.max_active_drivers, self.active_drivers)
         try:
-            if (cell.bundle_identifier, cell.state) == self.raise_on:
+            if any(
+                (item.bundle_identifier, item.state) == self.raise_on for item in group
+            ):
                 raise RuntimeError("synthetic secret /private/tmp/driver")
-            self.driver_calls.append(
-                {
-                    "bundle_identifier": cell.bundle_identifier,
-                    "state": cell.state,
-                    "session": session,
-                    "profile_strategy": cell.profile_strategy
-                    if cell.has_profile
-                    else None,
-                    "profile_relative_root": profile_relative_root,
-                    "create_profile": bool(profile_relative_root),
-                }
+            for item, request in zip(group, requests):
+                self.driver_calls.append(
+                    {
+                        "bundle_identifier": item.bundle_identifier,
+                        "state": item.state,
+                        "session": session,
+                        "request": request,
+                        "profile_strategy": item.profile_strategy
+                        if item.has_profile
+                        else None,
+                        "profile_relative_root": profile_relative_root,
+                        "create_profile": bool(profile_relative_root),
+                    }
+                )
+            report = self.sequence_report(
+                group, session, requests, e2e_app_identity, browser_app_identity
             )
-            if (cell.bundle_identifier, cell.state) == self.ambiguous_on:
-                return {
-                    "outcome": "identity-ambiguous",
-                    "total_elapsed_seconds": 0.1,
-                    "route_timeout_seconds": 30.0,
-                    "browser_cleanup_grace_seconds": 5.0,
-                    "browser_quiescence_seconds": 2.0,
-                }, matrix.DRIVER_AMBIGUOUS
-            if (cell.bundle_identifier, cell.state) == self.fail_on:
-                return {
-                    "outcome": "launch-error",
-                    "total_elapsed_seconds": 0.1,
-                    "route_timeout_seconds": 30.0,
-                    "browser_cleanup_grace_seconds": 5.0,
-                    "browser_quiescence_seconds": 2.0,
-                }, 10
+            ambiguous_index = next(
+                (
+                    index
+                    for index, item in enumerate(group)
+                    if (item.bundle_identifier, item.state) == self.ambiguous_on
+                ),
+                None,
+            )
+            if ambiguous_index is not None:
+                report["stateProofs"] = report["stateProofs"][:ambiguous_index]
+                report.update(
+                    outcome="state-sequence-error",
+                    token_received=False,
+                    exact_browser_process_identity=False,
+                    launch_provenance="none",
+                )
+                return report, matrix.DRIVER_AMBIGUOUS
+            failure_index = next(
+                (
+                    index
+                    for index, item in enumerate(group)
+                    if (item.bundle_identifier, item.state) == self.fail_on
+                ),
+                None,
+            )
+            if failure_index is not None:
+                report["stateProofs"] = report["stateProofs"][: failure_index + 1]
+                report["stateProofs"][-1].update(
+                    outcome="launch-error",
+                    receipt=False,
+                    browserIdentity=False,
+                    provenance="launch-error",
+                    processIdentifier=None,
+                    processStartSeconds=None,
+                    processStartMicroseconds=None,
+                )
+                report.update(
+                    outcome="launch-error",
+                    token_received=False,
+                    exact_browser_process_identity=False,
+                    launch_provenance="launch-error",
+                )
+                return report, 10
             if self.unsafe_outcome is not None:
-                return {
-                    "outcome": self.unsafe_outcome,
-                    "total_elapsed_seconds": 0.1,
-                }, 14
-            report = {
-                "outcome": "selected",
-                "token_received": True,
-                "exact_process_identity": True,
-                "exact_browser_process_identity": True,
-                "total_elapsed_seconds": 0.1,
-                "route_timeout_seconds": 30.0,
-                "browser_cleanup_grace_seconds": 5.0,
-                "browser_quiescence_seconds": 2.0,
-            }
+                report["outcome"] = self.unsafe_outcome
+                return report, 14
             if not self.omit_provenance:
-                report["launch_provenance"] = "launch-observed"
+                return report, 0
+            report["stateProofs"][0]["provenance"] = "none"
+            report["launch_provenance"] = "none"
             return report, 0
         finally:
             self.active_drivers -= 1
+
+    def sequence_report(
+        self, group, session, requests, e2e_app_identity, browser_app_identity
+    ):
+        cell = group[0]
+        target_id = (
+            f"{cell.bundle_identifier}|PickVia E2E|{cell.mode}"
+            if cell.has_profile and cell.profile_strategy == "chromium"
+            else f"{cell.bundle_identifier}||{cell.mode}"
+        )
+        return {
+            "schemaVersion": 1,
+            "session": session,
+            "request": requests[0],
+            "bundleIdentifier": cell.bundle_identifier,
+            "targetID": target_id,
+            "capability": cell.capability,
+            "state": "sequence",
+            "mode": cell.mode,
+            "mechanism": cell.mechanism,
+            "e2eAppIdentity": e2e_app_identity,
+            "browserAppIdentity": browser_app_identity,
+            "outcome": "selected",
+            "token_received": True,
+            "exact_process_identity": True,
+            "exact_browser_process_identity": True,
+            "launch_provenance": "launch-observed",
+            "total_elapsed_seconds": 0.3,
+            "route_timeout_seconds": 30.0,
+            "browser_cleanup_grace_seconds": 5.0,
+            "browser_quiescence_seconds": 2.0,
+            "provenance_settle_seconds": 0.25,
+            "provenance_status_grace_seconds": 1.0,
+            "cleanup_success": True,
+            "task_root_finalized": True,
+            "stateProofs": [
+                {
+                    "state": item.state,
+                    "request": request,
+                    "outcome": "selected",
+                    "receipt": True,
+                    "e2eIdentity": True,
+                    "browserIdentity": True,
+                    "provenance": "launch-observed",
+                    "processIdentifier": 9001 if item.state != "reopen" else 9002,
+                    "processStartSeconds": 1,
+                    "processStartMicroseconds": 2,
+                    "routeElapsedSeconds": 0.1,
+                }
+                for item, request in zip(group, requests)
+            ],
+        }
 
 
 if __name__ == "__main__":

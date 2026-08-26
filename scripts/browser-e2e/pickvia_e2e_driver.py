@@ -110,6 +110,14 @@ class DriverConfig:
     profile_relative_root: Optional[str] = None
     create_profile: bool = False
     derive_profile_target: bool = False
+    request_nonce: str = dataclasses.field(
+        default_factory=lambda: secrets.token_hex(16)
+    )
+    capability: str = "normal"
+    state: str = "cold"
+    e2e_app_identity: str = "0" * 64
+    browser_app_identity: str = "0" * 64
+    sequence_requests: tuple = ()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1652,6 +1660,70 @@ class _IdentityAmbiguous(Exception):
         self.status_line = status_line
 
 
+class _StateSequenceError(Exception):
+    pass
+
+
+def _run_three_state_controller(
+    *, requests, route, snapshot, attest, terminate, monotonic, sleep
+):
+    def exactly_generation(values, expected):
+        values = tuple(values)
+        return len(values) == 1 and values[0].generation_key == expected.generation_key
+
+    if (
+        not isinstance(requests, tuple)
+        or len(requests) != 3
+        or len(set(requests)) != 3
+        or any(_SESSION_PATTERN.fullmatch(request) is None for request in requests)
+    ):
+        raise _StateSequenceError
+    try:
+        if snapshot("baseline"):
+            raise _StateSequenceError
+
+        cold = route("cold", requests[0])
+        cold_snapshot = frozenset(snapshot("cold"))
+        if not exactly_generation(cold_snapshot, cold) or not attest(cold):
+            raise _StateSequenceError
+
+        running = route("running", requests[1])
+        running_snapshot = frozenset(snapshot("running"))
+        if (
+            running.generation_key != cold.generation_key
+            or not exactly_generation(running_snapshot, cold)
+            or not attest(cold)
+        ):
+            raise _StateSequenceError
+
+        if not attest(cold):
+            raise _StateSequenceError
+        if terminate(cold) is not True:
+            raise _StateSequenceError
+        absence_deadline = monotonic() + BROWSER_QUIESCENCE_SECONDS
+        while True:
+            if snapshot("reopen-absence"):
+                raise _StateSequenceError
+            now = monotonic()
+            if now >= absence_deadline:
+                break
+            sleep(min(BROWSER_QUIESCENCE_POLL_SECONDS, absence_deadline - now))
+
+        reopened = route("reopen", requests[2])
+        reopened_snapshot = frozenset(snapshot("reopen"))
+        if (
+            reopened.generation_key == cold.generation_key
+            or not exactly_generation(reopened_snapshot, reopened)
+            or not attest(reopened)
+        ):
+            raise _StateSequenceError
+        return cold, running, reopened
+    except _StateSequenceError:
+        raise
+    except Exception as error:
+        raise _StateSequenceError from error
+
+
 class _StatusProtocolError(_ProtocolError):
     def __init__(
         self,
@@ -1898,6 +1970,16 @@ class _OwnedProcesses:
 def _empty_result(exit_code):
     report = {
         "session": "invalid",
+        "schemaVersion": 1,
+        "request": "invalid",
+        "bundleIdentifier": "invalid",
+        "targetID": "invalid",
+        "capability": "invalid",
+        "state": "invalid",
+        "mode": "invalid",
+        "mechanism": "invalid",
+        "e2eAppIdentity": "invalid",
+        "browserAppIdentity": "invalid",
         "outcome": "driver-error",
         "token_received": False,
         "exact_process_identity": False,
@@ -1909,6 +1991,9 @@ def _empty_result(exit_code):
         "browser_quiescence_seconds": 0.0,
         "provenance_settle_seconds": PROVENANCE_SETTLE_SECONDS,
         "provenance_status_grace_seconds": PROVENANCE_STATUS_GRACE_SECONDS,
+        "cleanup_success": False,
+        "task_root_finalized": False,
+        "stateProofs": [],
     }
     return DriverResult(
         exit_code=exit_code,
@@ -1922,7 +2007,17 @@ def _failure_result(config, exit_code, outcome):
     if not isinstance(session, str) or _SESSION_PATTERN.fullmatch(session) is None:
         session = "invalid"
     report = {
+        "schemaVersion": 1,
         "session": session,
+        "request": getattr(config, "request_nonce", "invalid"),
+        "bundleIdentifier": getattr(config, "bundle_identifier", "invalid"),
+        "targetID": getattr(config, "target_id", "invalid"),
+        "capability": getattr(config, "capability", "invalid"),
+        "state": getattr(config, "state", "invalid"),
+        "mode": getattr(config, "mode", "invalid"),
+        "mechanism": getattr(config, "expected_mechanism", "invalid"),
+        "e2eAppIdentity": getattr(config, "e2e_app_identity", "invalid"),
+        "browserAppIdentity": getattr(config, "browser_app_identity", "invalid"),
         "outcome": outcome,
         "token_received": False,
         "exact_process_identity": False,
@@ -1934,6 +2029,9 @@ def _failure_result(config, exit_code, outcome):
         "browser_quiescence_seconds": 0.0,
         "provenance_settle_seconds": PROVENANCE_SETTLE_SECONDS,
         "provenance_status_grace_seconds": PROVENANCE_STATUS_GRACE_SECONDS,
+        "cleanup_success": False,
+        "task_root_finalized": False,
+        "stateProofs": [],
     }
     return DriverResult(
         exit_code=exit_code,
@@ -1962,8 +2060,7 @@ def _valid_nonempty(value, maximum_bytes):
 
 def _validated_config(config, browser_binding_checker):
     if (
-        config.route_count != 1
-        or config.mode not in {"normal", "private"}
+        config.mode not in {"normal", "private"}
         or config.expected_mechanism not in _PROVENANCE_MECHANISMS
     ):
         return None
@@ -1972,6 +2069,31 @@ def _validated_config(config, browser_binding_checker):
     if not _valid_nonempty(config.bundle_identifier, 255):
         return None
     if _SESSION_PATTERN.fullmatch(config.session_nonce) is None:
+        return None
+    if _SESSION_PATTERN.fullmatch(config.request_nonce) is None:
+        return None
+    if config.capability not in {"normal", "private", "profile", "profile-private"}:
+        return None
+    if config.state not in {"cold", "running", "reopen", "sequence"}:
+        return None
+    if config.state == "sequence":
+        if (
+            config.route_count != 3
+            or not isinstance(config.sequence_requests, tuple)
+            or len(config.sequence_requests) != 3
+            or len(set(config.sequence_requests)) != 3
+            or any(
+                _SESSION_PATTERN.fullmatch(request) is None
+                for request in config.sequence_requests
+            )
+        ):
+            return None
+    elif config.route_count != 1 or config.sequence_requests:
+        return None
+    if not all(
+        isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value)
+        for value in (config.e2e_app_identity, config.browser_app_identity)
+    ):
         return None
     if not _valid_profile_grant_config(config):
         return None
@@ -3419,13 +3541,13 @@ def run_driver(config, dependencies=None):
         return _empty_result(DRIVER_USAGE)
     timeout, e2e_app, e2e_executable, browser_executable = validated
     started = dependencies.monotonic()
-    deadline = started + timeout
     processes = _OwnedProcesses(dependencies)
     task_root = None
     task_root_owner = _TaskRootOwner()
     fifo_descriptor = None
     provenance_descriptor = None
-    route_bytes = None
+    route_payloads = []
+    state_proofs = []
     status_line = b""
     outcome = "driver-error"
     received = False
@@ -3443,6 +3565,7 @@ def run_driver(config, dependencies=None):
     identity_inspection_failed = False
     baseline_authoritative = False
     route_delivery_attempted = False
+    task_root_finalized = False
     signal_guard = _SignalGuard().install()
     target_id = config.target_id
     try:
@@ -3476,60 +3599,7 @@ def run_driver(config, dependencies=None):
         profile_grant_manifest = _profile_grant_manifest(config)
         if profile_grant_manifest is not None:
             task_root.write_regular_file("profile-grant.json", profile_grant_manifest)
-        task_root.create_fifo("status.fifo")
-        task_root.create_fifo("provenance.fifo")
-        fifo = task_root.child_path("status.fifo")
-        provenance_fifo = task_root.child_path("provenance.fifo")
-        fifo_descriptor = task_root.open_fifo("status.fifo")
-        provenance_descriptor = task_root.open_fifo("provenance.fifo")
-        request_nonce = secrets.token_hex(16)
         base_environment = _minimal_child_environment(task_root)
-        task_root.require_current()
-        receiver = processes.start(
-            "receiver",
-            [
-                sys.executable,
-                dependencies.probe_script,
-                "--token-count",
-                "1",
-                "--wait-for-receipts",
-                "1",
-            ],
-            environment=base_environment,
-            stdin=subprocess.DEVNULL,
-            manual_stdout=True,
-        )
-        ready = _read_protocol_line(
-            processes, receiver, deadline, dependencies.monotonic
-        )
-        port, token = _parse_ready(ready)
-
-        app_environment = dict(base_environment)
-        app_environment.update(
-            {
-                "PICKVIA_E2E_TARGET_ID": target_id,
-                "PICKVIA_E2E_BUNDLE_ID": config.bundle_identifier,
-                "PICKVIA_E2E_MODE": config.mode,
-                "PICKVIA_E2E_SESSION_NONCE": config.session_nonce,
-                "PICKVIA_E2E_REQUEST_NONCE": request_nonce,
-                "PICKVIA_E2E_SUPPORT_DIR": os.fspath(task_root.require_current()),
-                "PICKVIA_E2E_STATUS_FIFO": os.fspath(fifo),
-                "PICKVIA_E2E_PROVENANCE_FIFO": os.fspath(provenance_fifo),
-            }
-        )
-        task_root.require_current()
-        app = processes.start(
-            "e2e-app",
-            [e2e_executable],
-            environment=app_environment,
-            stdin=subprocess.DEVNULL,
-        )
-        exact_e2e_identity = dependencies.process_identity_checker(app, e2e_executable)
-        if not exact_e2e_identity:
-            raise _IdentityError
-
-        route_bytes = f"http://127.0.0.1:{port}/{token}".encode("ascii")
-        dependencies.route_observer(route_bytes.decode("ascii"))
         helper_executable = dependencies.helper_executable
         if helper_executable is None:
             helper_executable = task_root.child_path("open_with_app")
@@ -3538,54 +3608,198 @@ def run_driver(config, dependencies=None):
                 processes,
                 pathlib.Path(dependencies.helper_source),
                 helper_executable,
-                deadline,
+                dependencies.monotonic() + timeout,
                 dependencies.monotonic,
                 environment=base_environment,
             )
         elif not _physical_executable(pathlib.Path(helper_executable)):
             raise _HelperError
 
-        task_root.require_current()
-        helper = processes.start(
-            "exact-app-helper",
-            [helper_executable, e2e_app, str(app.pid)],
-            environment=base_environment,
-            stdin=subprocess.PIPE,
-        )
-        route_delivery_attempted = True
-        try:
-            helper.stdin.write(route_bytes)
-            helper.stdin.flush()
-            helper.stdin.close()
-        except OSError as error:
-            raise _HelperError from error
+        def perform_route(state, request_nonce):
+            nonlocal app, cleanup_ok, exact_e2e_identity
+            nonlocal fifo_descriptor, provenance_descriptor, route_delivery_attempted
+            route_started = dependencies.monotonic()
+            route_deadline = dependencies.monotonic() + timeout
+            fifo_suffix = f"-{state}" if config.state == "sequence" else ""
+            fifo_name = f"status{fifo_suffix}.fifo"
+            provenance_name = f"provenance{fifo_suffix}.fifo"
+            task_root.create_fifo(fifo_name)
+            task_root.create_fifo(provenance_name)
+            fifo = task_root.child_path(fifo_name)
+            provenance_fifo = task_root.child_path(provenance_name)
+            fifo_descriptor = task_root.open_fifo(fifo_name)
+            provenance_descriptor = task_root.open_fifo(provenance_name)
+            task_root.require_current()
+            receiver = processes.start(
+                "receiver",
+                [
+                    sys.executable,
+                    dependencies.probe_script,
+                    "--token-count",
+                    "1",
+                    "--wait-for-receipts",
+                    "1",
+                ],
+                environment=base_environment,
+                stdin=subprocess.DEVNULL,
+                manual_stdout=True,
+            )
+            ready = _read_protocol_line(
+                processes, receiver, route_deadline, dependencies.monotonic
+            )
+            port, token = _parse_ready(ready)
+            app_environment = dict(base_environment)
+            app_environment.update(
+                {
+                    "PICKVIA_E2E_TARGET_ID": target_id,
+                    "PICKVIA_E2E_BUNDLE_ID": config.bundle_identifier,
+                    "PICKVIA_E2E_MODE": config.mode,
+                    "PICKVIA_E2E_SESSION_NONCE": config.session_nonce,
+                    "PICKVIA_E2E_REQUEST_NONCE": request_nonce,
+                    "PICKVIA_E2E_SUPPORT_DIR": os.fspath(task_root.require_current()),
+                    "PICKVIA_E2E_STATUS_FIFO": os.fspath(fifo),
+                    "PICKVIA_E2E_PROVENANCE_FIFO": os.fspath(provenance_fifo),
+                }
+            )
+            task_root.require_current()
+            app = processes.start(
+                "e2e-app",
+                [e2e_executable],
+                environment=app_environment,
+                stdin=subprocess.DEVNULL,
+            )
+            exact_e2e_identity = dependencies.process_identity_checker(
+                app, e2e_executable
+            )
+            if not exact_e2e_identity:
+                raise _IdentityError
+            current_route = f"http://127.0.0.1:{port}/{token}".encode("ascii")
+            route_payloads.append(current_route)
+            dependencies.route_observer(current_route.decode("ascii"))
+            task_root.require_current()
+            helper = processes.start(
+                "exact-app-helper",
+                [helper_executable, e2e_app, str(app.pid)],
+                environment=base_environment,
+                stdin=subprocess.PIPE,
+            )
+            route_delivery_attempted = True
+            try:
+                helper.stdin.write(current_route)
+                helper.stdin.flush()
+                helper.stdin.close()
+            except OSError as error:
+                raise _HelperError from error
+            proof = _wait_for_proof(
+                processes,
+                fifo_descriptor,
+                provenance_descriptor,
+                receiver,
+                helper,
+                app,
+                config.session_nonce,
+                request_nonce,
+                target_id,
+                config.bundle_identifier,
+                config.mode,
+                config.expected_mechanism,
+                token,
+                pathlib.Path(config.browser_app),
+                browser_executable,
+                preexisting_browsers,
+                dependencies,
+                route_deadline,
+            )
+            cleanup_ok = dependencies.fifo_closer(fifo_descriptor) and cleanup_ok
+            fifo_descriptor = None
+            cleanup_ok = dependencies.fifo_closer(provenance_descriptor) and cleanup_ok
+            provenance_descriptor = None
+            if config.state == "sequence":
+                if not processes.stop(app):
+                    raise _StateSequenceError
+                app = None
+            state_proofs.append(
+                [
+                    state,
+                    request_nonce,
+                    proof,
+                    None,
+                    max(dependencies.monotonic() - route_started, 0.0),
+                ]
+            )
+            if config.state != "sequence":
+                owned_browsers.update(proof.owned_browser_identities)
+                return (
+                    next(iter(proof.owned_browser_identities))
+                    if len(proof.owned_browser_identities) == 1
+                    else None
+                )
+            if (
+                proof.outcome != "selected"
+                or not proof.token_received
+                or not proof.exact_browser_identity
+                or proof.launch_provenance != "launch-observed"
+                or len(proof.owned_browser_identities) != 1
+            ):
+                raise _StateSequenceError
+            identity = next(iter(proof.owned_browser_identities))
+            state_proofs[-1][3] = identity
+            owned_browsers.add(identity)
+            return identity
 
-        proof = _wait_for_proof(
-            processes,
-            fifo_descriptor,
-            provenance_descriptor,
-            receiver,
-            helper,
-            app,
-            config.session_nonce,
-            request_nonce,
-            target_id,
-            config.bundle_identifier,
-            config.mode,
-            config.expected_mechanism,
-            token,
-            pathlib.Path(config.browser_app),
-            browser_executable,
-            preexisting_browsers,
-            dependencies,
-            deadline,
-        )
-        outcome = proof.outcome
-        received = proof.token_received
-        status_line = proof.status_line
-        exact_browser_identity = proof.exact_browser_identity
-        launch_provenance = proof.launch_provenance
-        owned_browsers.update(proof.owned_browser_identities)
+        if config.state == "sequence":
+            if preexisting_browsers:
+                raise _StateSequenceError
+
+            def sequence_snapshot(phase):
+                return _authoritative_browser_snapshot(
+                    dependencies, browser_executable, f"sequence-{phase}"
+                )
+
+            def sequence_attest(identity):
+                before = dependencies.browser_process_identity(identity.pid)
+                if before.generation_key != identity.generation_key:
+                    return False
+                dependencies.browser_binding_checker(
+                    pathlib.Path(config.browser_app),
+                    browser_executable,
+                    config.bundle_identifier,
+                )
+                dependencies.browser_running_code_checker(
+                    identity.pid,
+                    pathlib.Path(config.browser_app),
+                    browser_executable,
+                    config.bundle_identifier,
+                )
+                after = dependencies.browser_process_identity(identity.pid)
+                return after.generation_key == identity.generation_key
+
+            def sequence_terminate(identity):
+                browser_termination_attempts.add(identity.generation_key)
+                return dependencies.browser_process_terminator(
+                    identity,
+                    browser_executable,
+                    time.monotonic() + BROWSER_CLEANUP_GRACE_SECONDS,
+                )
+
+            _run_three_state_controller(
+                requests=config.sequence_requests,
+                route=perform_route,
+                snapshot=sequence_snapshot,
+                attest=sequence_attest,
+                terminate=sequence_terminate,
+                monotonic=dependencies.quiescence_monotonic,
+                sleep=dependencies.quiescence_sleep,
+            )
+            final_proof = state_proofs[-1][2]
+        else:
+            perform_route(config.state, config.request_nonce)
+            final_proof = state_proofs[-1][2]
+        outcome = final_proof.outcome
+        received = final_proof.token_received
+        status_line = final_proof.status_line
+        exact_browser_identity = final_proof.exact_browser_identity
+        launch_provenance = final_proof.launch_provenance
         exit_code = (
             DRIVER_SUCCESS if outcome == "selected" else DRIVER_SELECTION_REJECTED
         )
@@ -3613,6 +3827,19 @@ def run_driver(config, dependencies=None):
         owned_browsers.update(error.owned_browsers)
         launch_provenance = error.launch_provenance
         exit_code = DRIVER_HELPER_FAILURE
+    except _StateSequenceError:
+        if (
+            state_proofs
+            and state_proofs[-1][2].outcome == "launch-error"
+            and state_proofs[-1][2].launch_provenance in {"none", "launch-error"}
+        ):
+            outcome = "launch-error"
+            launch_provenance = state_proofs[-1][2].launch_provenance
+            exit_code = DRIVER_SELECTION_REJECTED
+        else:
+            outcome = "state-sequence-error"
+            exit_code = DRIVER_BROWSER_IDENTITY_AMBIGUOUS
+        exact_browser_identity = False
     except _IdentityAmbiguous as error:
         outcome = "identity-ambiguous"
         received = error.token_received
@@ -3797,7 +4024,7 @@ def run_driver(config, dependencies=None):
             except (_IdentityInspectionError, OSError, ValueError, TypeError):
                 cleanup_ok = False
                 browser_cleanup_safe = False
-        if route_bytes is not None:
+        for route_bytes in route_payloads:
             try:
                 output_violation = processes.violates_privacy(route_bytes)
             except Exception:
@@ -3820,7 +4047,8 @@ def run_driver(config, dependencies=None):
             except Exception:
                 cleanup_ok = False
             try:
-                cleanup_ok = dependencies.task_root_remover(task_root) and cleanup_ok
+                task_root_finalized = dependencies.task_root_remover(task_root)
+                cleanup_ok = task_root_finalized and cleanup_ok
             except Exception:
                 cleanup_ok = False
             finally:
@@ -3843,8 +4071,39 @@ def run_driver(config, dependencies=None):
         signal_guard.restore()
 
     total_elapsed = max(dependencies.monotonic() - started, 0.0)
+    state_proof_reports = []
+    for state, request, proof, identity, route_elapsed in state_proofs:
+        state_proof_reports.append(
+            {
+                "state": state,
+                "request": request,
+                "outcome": proof.outcome,
+                "receipt": proof.token_received,
+                "e2eIdentity": True,
+                "browserIdentity": proof.exact_browser_identity,
+                "provenance": proof.launch_provenance,
+                "processIdentifier": identity.pid if identity is not None else None,
+                "processStartSeconds": (
+                    identity.start_seconds if identity is not None else None
+                ),
+                "processStartMicroseconds": (
+                    identity.start_microseconds if identity is not None else None
+                ),
+                "routeElapsedSeconds": round(route_elapsed, 6),
+            }
+        )
     report = {
+        "schemaVersion": 1,
         "session": config.session_nonce,
+        "request": config.request_nonce,
+        "bundleIdentifier": config.bundle_identifier,
+        "targetID": target_id,
+        "capability": config.capability,
+        "state": config.state,
+        "mode": config.mode,
+        "mechanism": config.expected_mechanism,
+        "e2eAppIdentity": config.e2e_app_identity,
+        "browserAppIdentity": config.browser_app_identity,
         "outcome": outcome,
         "token_received": received,
         "exact_process_identity": exact_e2e_identity,
@@ -3856,6 +4115,12 @@ def run_driver(config, dependencies=None):
         "browser_quiescence_seconds": BROWSER_QUIESCENCE_SECONDS,
         "provenance_settle_seconds": PROVENANCE_SETTLE_SECONDS,
         "provenance_status_grace_seconds": PROVENANCE_STATUS_GRACE_SECONDS,
+        "cleanup_success": cleanup_ok
+        and task_root_finalized
+        and not identity_ambiguous
+        and not identity_inspection_failed,
+        "task_root_finalized": task_root_finalized,
+        "stateProofs": state_proof_reports,
     }
     return DriverResult(
         exit_code=exit_code,
@@ -3887,6 +4152,18 @@ def main(argv=None):
         required=True,
     )
     parser.add_argument("--session", required=True)
+    parser.add_argument("--request", default=secrets.token_hex(16))
+    parser.add_argument(
+        "--capability",
+        choices=("normal", "private", "profile", "profile-private"),
+        default="normal",
+    )
+    parser.add_argument(
+        "--state", choices=("cold", "running", "reopen", "sequence"), default="cold"
+    )
+    parser.add_argument("--e2e-app-identity", default="0" * 64)
+    parser.add_argument("--browser-app-identity", default="0" * 64)
+    parser.add_argument("--sequence-request", action="append", default=[])
     parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--route-count", type=int, default=1)
     parser.add_argument("--profile-strategy", choices=("chromium", "firefox"))
@@ -3910,6 +4187,12 @@ def main(argv=None):
             profile_relative_root=arguments.profile_relative_root,
             create_profile=arguments.create_profile,
             derive_profile_target=arguments.derive_profile_target,
+            request_nonce=arguments.request,
+            capability=arguments.capability,
+            state=arguments.state,
+            e2e_app_identity=arguments.e2e_app_identity,
+            browser_app_identity=arguments.browser_app_identity,
+            sequence_requests=tuple(arguments.sequence_request),
         )
     )
     sys.stdout.buffer.write(result.stdout)
