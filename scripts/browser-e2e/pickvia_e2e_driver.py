@@ -2593,6 +2593,12 @@ def _observe_browser_quiescence(
         )
 
 
+def _helper_cleanup_authority(status_sequence, provenance_owned):
+    if status_sequence and status_sequence[0] != "selected":
+        return frozenset()
+    return provenance_owned
+
+
 def _wait_for_proof(
     processes,
     fifo_descriptor,
@@ -2636,14 +2642,11 @@ def _wait_for_proof(
         while True:
             helper_exit_code = helper.poll()
             if helper_exit_code not in (None, 0):
-                error_owned_browsers = provenance_owned
-                if status_sequence and status_sequence[0] != "selected":
-                    error_owned_browsers = frozenset()
                 raise _HelperError(
                     receipt,
                     b"".join(status_lines),
                     browser_identity,
-                    error_owned_browsers,
+                    _helper_cleanup_authority(status_sequence, provenance_owned),
                 )
             now = dependencies.monotonic()
             if provenance_failure:
@@ -2781,14 +2784,18 @@ def _wait_for_proof(
                         receipt,
                         b"".join(status_lines),
                         browser_identity,
-                        provenance_owned,
+                        _helper_cleanup_authority(
+                            status_sequence, provenance_owned
+                        ),
                     )
                 if helper_exit_code is None:
                     raise _HelperExitTimeout(
                         receipt,
                         b"".join(status_lines),
                         browser_identity,
-                        provenance_owned,
+                        _helper_cleanup_authority(
+                            status_sequence, provenance_owned
+                        ),
                     )
                 if provenance_failure:
                     raise _ProvenanceProtocolError(

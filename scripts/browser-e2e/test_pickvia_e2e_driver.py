@@ -3793,6 +3793,144 @@ time.sleep(3.25)
             self.assertEqual(result.report["outcome"], "helper-error")
             self.assertEqual(termination_attempts, [])
 
+    def test_closed_rejection_hanging_helper_timeout_grants_no_ownership(self):
+        provenance = {
+            "session": "session_0123456789",
+            "request": "$request",
+            "target": "com.microsoft.edgemac||normal",
+            "bundleIdentifier": "com.microsoft.edgemac",
+            "mode": "normal",
+            "mechanism": "process",
+            "processIdentifier": 123,
+            "outcome": "launch-observed",
+        }
+        termination_attempts = []
+        with DriverFixture(
+            status_records=[
+                {"session": "session_0123456789", "outcome": "target-missing"}
+            ],
+            provenance_records=[provenance],
+            provenance_before_status=True,
+            status_delay=0.1,
+            spawn_browser=False,
+            helper_hangs_after_delivery=True,
+            timeout=0.5,
+        ) as fixture:
+            identity = driver.ProcessIdentity(
+                123, fixture.e2e_pid or 1, 2, 123, fixture.browser_executable
+            )
+            result = fixture.run(
+                dependency_overrides={
+                    "browser_process_identity": lambda _pid: identity,
+                    "browser_process_terminator": (
+                        lambda observed, _executable, _deadline: termination_attempts.append(
+                            observed
+                        )
+                        or True
+                    ),
+                }
+            )
+            self.assertEqual(result.exit_code, driver.DRIVER_HELPER_FAILURE)
+            self.assertEqual(result.report["outcome"], "helper-exit-timeout")
+            self.assertIn(b'"outcome":"target-missing"', result.status_line)
+            self.assertEqual(termination_attempts, [])
+
+    def test_closed_rejection_revokes_helper_exception_cleanup_authority(self):
+        identity = driver.ProcessIdentity(
+            123,
+            456,
+            2,
+            123,
+            pathlib.Path("/Applications/Browser.app/Browser"),
+        )
+        owned = frozenset({identity})
+
+        self.assertEqual(
+            driver._helper_cleanup_authority(["target-missing"], owned),
+            frozenset(),
+        )
+        self.assertEqual(
+            driver._helper_cleanup_authority(["selected"], owned),
+            owned,
+        )
+
+    def test_closed_rejection_deadline_boundary_helper_error_has_no_owned_generation(
+        self,
+    ):
+        class ManualProcesses:
+            def append_manual_stdout(self, _process, _chunk):
+                pass
+
+        class ManualProcess:
+            def __init__(self, stdout=None):
+                self.stdout = stdout
+                self.exit_code = None
+
+            def poll(self):
+                return self.exit_code
+
+        status_read, status_write = os.pipe()
+        provenance_read, provenance_write = os.pipe()
+        receipt_read, receipt_write = os.pipe()
+        receiver_stream = os.fdopen(receipt_read, "rb", buffering=0)
+        helper = ManualProcess()
+        app = ManualProcess()
+        receiver = ManualProcess(receiver_stream)
+        executable = pathlib.Path("/Applications/Browser.app/Browser")
+        os.write(
+            status_write,
+            b'{"outcome":"target-missing","session":"session_0123456789"}\n',
+        )
+        remaining_calls = 0
+
+        def reach_boundary(_deadline, _monotonic):
+            nonlocal remaining_calls
+            remaining_calls += 1
+            if remaining_calls < 2:
+                return 0.1
+            helper.exit_code = 23
+            raise driver._DeadlineExpired
+
+        dependencies = driver.DriverDependencies(
+            browser_process_snapshot=lambda _executable, _phase: set(),
+            browser_binding_checker=lambda _application, _executable, _bundle: None,
+            browser_running_code_checker=lambda _pid, _application, _executable, _bundle: None,
+        )
+        try:
+            with mock.patch.object(
+                driver, "_remaining", side_effect=reach_boundary
+            ):
+                with self.assertRaises(driver._HelperError) as raised:
+                    driver._wait_for_proof(
+                        ManualProcesses(),
+                        status_read,
+                        provenance_read,
+                        receiver,
+                        helper,
+                        app,
+                        "session_0123456789",
+                        "request_0123456789",
+                        "com.microsoft.edgemac||normal",
+                        "com.microsoft.edgemac",
+                        "normal",
+                        "process",
+                        "TOKEN",
+                        pathlib.Path("/Applications/Browser.app"),
+                        executable,
+                        set(),
+                        dependencies,
+                        time.monotonic() + 1.0,
+                    )
+            self.assertIn(b'"outcome":"target-missing"', raised.exception.status_line)
+            self.assertEqual(raised.exception.owned_browsers, frozenset())
+        finally:
+            os.close(status_read)
+            os.close(status_write)
+            os.close(provenance_read)
+            os.close(provenance_write)
+            os.close(receipt_write)
+            receiver_stream.close()
+
     def test_driver_rejects_adversarial_receipts(self):
         for kind in ("wrong-token", "wrong-remote", "malformed"):
             with self.subTest(kind=kind), DriverFixture(probe_kind=kind) as fixture:
