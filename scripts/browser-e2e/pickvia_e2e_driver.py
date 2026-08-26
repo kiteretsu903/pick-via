@@ -2589,30 +2589,67 @@ def _wait_for_proof(
                                     + PROVENANCE_STATUS_GRACE_SECONDS
                                 )
                             else:
-                                dependencies.browser_binding_checker(
-                                    pathlib.Path(expected_browser_app),
-                                    pathlib.Path(expected_browser_executable),
-                                    expected_bundle_identifier,
-                                )
-                                provenance_identity = dependencies.browser_process_identity(
-                                    provenance.process_identifier
-                                )
-                                if (
-                                    provenance_identity.pid
-                                    != provenance.process_identifier
-                                    or provenance_identity.executable
-                                    != pathlib.Path(expected_browser_executable)
+                                try:
+                                    pinned_provenance_identity = (
+                                        dependencies.browser_process_identity(
+                                            provenance.process_identifier
+                                        )
+                                    )
+                                    if (
+                                        pinned_provenance_identity.pid
+                                        != provenance.process_identifier
+                                        or pinned_provenance_identity.executable
+                                        != pathlib.Path(expected_browser_executable)
+                                    ):
+                                        raise _ProvenanceProtocolError
+                                    dependencies.browser_binding_checker(
+                                        pathlib.Path(expected_browser_app),
+                                        pathlib.Path(expected_browser_executable),
+                                        expected_bundle_identifier,
+                                    )
+                                    confirmed_provenance_identity = (
+                                        dependencies.browser_process_identity(
+                                            provenance.process_identifier
+                                        )
+                                    )
+                                    if (
+                                        confirmed_provenance_identity.pid
+                                        != provenance.process_identifier
+                                        or confirmed_provenance_identity.executable
+                                        != pathlib.Path(expected_browser_executable)
+                                        or confirmed_provenance_identity.generation_key
+                                        != pinned_provenance_identity.generation_key
+                                    ):
+                                        raise _ProvenanceProtocolError
+                                except (
+                                    _ProvenanceProtocolError,
+                                    _ProcessDisappeared,
+                                    _IdentityInspectionError,
+                                    _IdentityError,
+                                    OSError,
+                                    ValueError,
+                                    TypeError,
                                 ):
-                                    raise _ProvenanceProtocolError
-                                browser_identity = True
-                                baseline_generations = set(
-                                    _generation_map(preexisting_browsers)
-                                )
-                                if (
-                                    provenance_identity.generation_key
-                                    not in baseline_generations
-                                ):
-                                    provenance_owned = frozenset({provenance_identity})
+                                    provenance_failure = True
+                                    provenance_failure_deadline = (
+                                        dependencies.monotonic()
+                                        + PROVENANCE_STATUS_GRACE_SECONDS
+                                    )
+                                    provenance_identity = None
+                                    provenance_owned = frozenset()
+                                else:
+                                    provenance_identity = pinned_provenance_identity
+                                    browser_identity = True
+                                    baseline_generations = set(
+                                        _generation_map(preexisting_browsers)
+                                    )
+                                    if (
+                                        provenance_identity.generation_key
+                                        not in baseline_generations
+                                    ):
+                                        provenance_owned = frozenset(
+                                            {provenance_identity}
+                                        )
                         except _ProvenanceProtocolError as error:
                             error.token_received = receipt
                             error.status_line = b"".join(status_lines)

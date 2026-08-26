@@ -2981,6 +2981,76 @@ time.sleep(3.25)
             self.assertEqual(len(checks), 2)
             self.assertEqual(fixture.terminated_browser_pids, [])
 
+    def test_provenance_generation_change_during_binding_check_grants_no_authority(self):
+        with DriverFixture() as fixture:
+            state = {"binding_checks": 0, "generation_changed": False}
+
+            def check_binding(application, executable, bundle_identifier):
+                state["binding_checks"] += 1
+                driver._validate_browser_binding(
+                    application, executable, bundle_identifier
+                )
+                if state["binding_checks"] == 2:
+                    state["generation_changed"] = True
+
+            def resolve(pid):
+                return driver.ProcessIdentity(
+                    pid,
+                    fixture.e2e_pid,
+                    3 if state["generation_changed"] else 2,
+                    pid,
+                    fixture.browser_executable,
+                )
+
+            result = fixture.run(
+                dependency_overrides={
+                    "browser_binding_checker": check_binding,
+                    "browser_process_identity": resolve,
+                }
+            )
+            self.assertEqual(result.exit_code, driver.DRIVER_PROVENANCE_FAILURE)
+            self.assertEqual(result.report["outcome"], "provenance-error")
+            self.assertTrue(result.report["token_received"])
+            self.assertIn(b'"outcome":"selected"', result.status_line)
+            self.assertTrue(result.report["exact_browser_process_identity"])
+            self.assertEqual(fixture.terminated_browser_pids, [])
+
+    def test_slow_binding_check_accepts_only_the_unchanged_pinned_generation(self):
+        with DriverFixture() as fixture:
+            resolutions = []
+
+            def check_binding(application, executable, bundle_identifier):
+                driver._validate_browser_binding(
+                    application, executable, bundle_identifier
+                )
+                if resolutions:
+                    time.sleep(0.05)
+
+            def resolve(pid):
+                identity = driver.ProcessIdentity(
+                    pid,
+                    fixture.e2e_pid,
+                    2,
+                    pid,
+                    fixture.browser_executable,
+                )
+                resolutions.append(identity)
+                return identity
+
+            result = fixture.run(
+                dependency_overrides={
+                    "browser_binding_checker": check_binding,
+                    "browser_process_identity": resolve,
+                }
+            )
+            self.assertEqual(result.exit_code, driver.DRIVER_SUCCESS)
+            self.assertEqual(len(resolutions), 2)
+            self.assertEqual(resolutions[0].generation_key, resolutions[1].generation_key)
+            self.assertEqual(
+                fixture.terminated_browser_generations,
+                [resolutions[0].generation_key],
+            )
+
     def test_provenance_launch_unproven_and_error_are_harness_failures(self):
         for outcome in ("launch-unproven", "launch-error"):
             record = {
