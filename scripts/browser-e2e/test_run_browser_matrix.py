@@ -56,6 +56,31 @@ class MatrixRunnerTests(unittest.TestCase):
     def checked_document(self):
         return json.loads(CHECKED_MANIFEST.read_text(encoding="utf-8"))
 
+    def read_evidence(self, output):
+        return [
+            json.loads(line)
+            for line in output.joinpath("evidence.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+        ]
+
+    def write_rehashed_evidence(self, output, records):
+        previous = "0" * 64
+        for record in records:
+            record["previousHash"] = previous
+            unhashed = dict(record)
+            unhashed.pop("recordHash", None)
+            record["recordHash"] = matrix._digest_json(unhashed)
+            previous = record["recordHash"]
+        output.joinpath("evidence.jsonl").write_text(
+            "\n".join(
+                json.dumps(record, separators=(",", ":"), sort_keys=True)
+                for record in records
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
     def edge_application(self, **overrides):
         application = {
             "bundleIdentifier": "com.microsoft.edgemac",
@@ -489,6 +514,15 @@ class MatrixRunnerTests(unittest.TestCase):
                 self.assertTrue(
                     all(record["taskRootFinalized"] is False for record in tail)
                 )
+                self.assertTrue(
+                    all(
+                        ("taskFinalizationProof" in record) is finalized
+                        for record in pilot
+                    )
+                )
+                self.assertTrue(
+                    all("taskFinalizationProof" not in record for record in tail)
+                )
                 if finalized:
                     resume_dependencies = FakeDependencies()
                     resumed = matrix.execute_matrix(
@@ -564,6 +598,15 @@ class MatrixRunnerTests(unittest.TestCase):
                 self.assertTrue(
                     all(record["taskRootFinalized"] is False for record in tail)
                 )
+                self.assertTrue(
+                    all(
+                        ("taskFinalizationProof" in record) is finalized
+                        for record in pilot
+                    )
+                )
+                self.assertTrue(
+                    all("taskFinalizationProof" not in record for record in tail)
+                )
 
     def test_preroute_blocker_and_rehashed_resume_forgery_cannot_claim_finalization(
         self,
@@ -582,30 +625,214 @@ class MatrixRunnerTests(unittest.TestCase):
             json.loads(line)
             for line in evidence_path.read_text(encoding="utf-8").splitlines()
         ]
-        records[1]["taskRootFinalized"] = True
-        records[1]["taskFinalizationSource"] = matrix._AUTHENTICATED_FINALIZATION_SOURCE
-        previous = "0" * 64
-        for record in records:
-            record["previousHash"] = previous
-            unhashed = dict(record)
-            unhashed.pop("recordHash", None)
-            record["recordHash"] = matrix._digest_json(unhashed)
-            previous = record["recordHash"]
-        evidence_path.write_text(
-            "\n".join(
-                json.dumps(record, separators=(",", ":"), sort_keys=True)
-                for record in records
-            )
-            + "\n",
-            encoding="utf-8",
-        )
+        for record in records[1:4]:
+            record["taskRootFinalized"] = True
+            record["taskFinalizationSource"] = matrix._AUTHENTICATED_FINALIZATION_SOURCE
+        self.write_rehashed_evidence(output, records)
+        resume_dependencies = FakeDependencies()
         with self.assertRaises(matrix.MatrixResumeError):
             matrix.execute_matrix(
                 matrix.load_manifest(self.manifest_path),
                 output,
-                dependencies=FakeDependencies(),
+                dependencies=resume_dependencies,
                 resume=True,
             )
+        self.assertEqual(resume_dependencies.build_count, 0)
+        self.assertEqual(resume_dependencies.driver_calls, [])
+
+    def test_finalization_proof_binds_success_failure_and_postroute_groups(self):
+        class AuthenticatedDependencies(FakeDependencies):
+            def run_sequence(self, *args, **kwargs):
+                report, return_code = super().run_sequence(*args, **kwargs)
+                return report, return_code, True
+
+        chrome = self.edge_application(
+            bundleIdentifier="com.google.Chrome",
+            applicationPath="/Applications/Google Chrome.app",
+            executableRelativePath="Contents/MacOS/Google Chrome",
+        )
+        manifest = matrix.load_manifest(
+            self.write_manifest([chrome, self.edge_application()])
+        )
+        output = self.root / "bound-groups"
+        result = matrix.execute_matrix(
+            manifest,
+            output,
+            dependencies=AuthenticatedDependencies(
+                fail_on=("com.google.Chrome", "cold")
+            ),
+        )
+        self.assertEqual(result.exit_code, matrix.MATRIX_PRODUCT_FAILURE)
+        records = self.read_evidence(output)[1:]
+        for offset in range(0, 6, 3):
+            group = records[offset : offset + 3]
+            proofs = {record.get("taskFinalizationProof") for record in group}
+            self.assertEqual(len(proofs), 1)
+            self.assertRegex(proofs.pop(), r"\A[0-9a-f]{64}\Z")
+            self.assertTrue(all(record["taskRootFinalized"] for record in group))
+        self.assertNotEqual(
+            records[0]["taskFinalizationProof"],
+            records[3]["taskFinalizationProof"],
+        )
+
+    def test_finalization_proof_context_binds_exact_ordered_cell_identity(self):
+        output = self.root / "exact-cell-identity"
+        manifest = matrix.load_manifest(self.write_manifest())
+        matrix.execute_matrix(manifest, output, dependencies=FakeDependencies())
+        records = self.read_evidence(output)
+        group = records[1:4]
+
+        context = matrix._finalization_proof_context(records[0], group)
+
+        self.assertEqual(context["cellIDs"], [record["cellHash"] for record in group])
+        self.assertEqual(context["sequences"], [record["sequence"] for record in group])
+
+    def test_resume_rejects_rehashed_mutation_of_real_finalized_group(self):
+        output = self.root / "mutated-finalized-group"
+        manifest = matrix.load_manifest(self.write_manifest())
+        matrix.execute_matrix(manifest, output, dependencies=FakeDependencies())
+        records = self.read_evidence(output)
+        records[1].update(
+            result="FAIL",
+            detail="product-route-failure",
+            driverOutcome="launch-error",
+            provenance="launch-error",
+            receipt=False,
+            browserIdentity=False,
+        )
+        self.write_rehashed_evidence(output, records)
+        dependencies = FakeDependencies()
+        with self.assertRaises(matrix.MatrixResumeError):
+            matrix.execute_matrix(
+                manifest, output, dependencies=dependencies, resume=True
+            )
+        self.assertEqual(dependencies.build_count, 0)
+        self.assertEqual(dependencies.driver_calls, [])
+
+    def test_resume_rejects_finalization_proof_reused_across_group_or_run(self):
+        chrome = self.edge_application(
+            bundleIdentifier="com.google.Chrome",
+            applicationPath="/Applications/Google Chrome.app",
+            executableRelativePath="Contents/MacOS/Google Chrome",
+        )
+        manifest = matrix.load_manifest(
+            self.write_manifest([chrome, self.edge_application()])
+        )
+        first_output = self.root / "proof-source"
+        second_output = self.root / "proof-other-run"
+        matrix.execute_matrix(manifest, first_output, dependencies=FakeDependencies())
+        matrix.execute_matrix(manifest, second_output, dependencies=FakeDependencies())
+
+        for case, output, replacement in (
+            (
+                "group",
+                first_output,
+                self.read_evidence(first_output)[1]["taskFinalizationProof"],
+            ),
+            (
+                "run",
+                second_output,
+                self.read_evidence(first_output)[1]["taskFinalizationProof"],
+            ),
+        ):
+            records = self.read_evidence(output)
+            target = 4 if case == "group" else 1
+            for record in records[target : target + 3]:
+                record["taskFinalizationProof"] = replacement
+            self.write_rehashed_evidence(output, records)
+            dependencies = FakeDependencies()
+            with (
+                self.subTest(case=case),
+                self.assertRaises(matrix.MatrixResumeError),
+            ):
+                matrix.execute_matrix(
+                    manifest, output, dependencies=dependencies, resume=True
+                )
+            self.assertEqual(dependencies.build_count, 0)
+            self.assertEqual(dependencies.driver_calls, [])
+
+    def test_resume_requires_original_safe_finalization_key(self):
+        manifest = matrix.load_manifest(self.write_manifest())
+        for case in (
+            "missing",
+            "replaced",
+            "same-bytes-replaced",
+            "mode",
+            "hardlink",
+            "generation",
+        ):
+            output = self.root / f"key-{case}"
+            matrix.execute_matrix(manifest, output, dependencies=FakeDependencies())
+            key_path = output / ".finalization-key"
+            if case == "missing":
+                key_path.unlink()
+            elif case == "replaced":
+                key_path.unlink()
+                key_path.write_bytes(os.urandom(32))
+                key_path.chmod(0o600)
+            elif case == "same-bytes-replaced":
+                key = key_path.read_bytes()
+                key_path.unlink()
+                key_path.write_bytes(key)
+                key_path.chmod(0o600)
+            elif case == "mode":
+                key_path.chmod(0o644)
+            elif case == "hardlink":
+                os.link(key_path, self.root / "linked-finalization-key")
+            dependencies = FakeDependencies()
+            if case == "generation":
+                real_read = matrix.os.read
+                changed = False
+
+                def replace_key_after_read(descriptor, count):
+                    nonlocal changed
+                    data = real_read(descriptor, count)
+                    if not changed and count == matrix._FINALIZATION_KEY_BYTES + 1:
+                        changed = True
+                        key_path.write_bytes(os.urandom(matrix._FINALIZATION_KEY_BYTES))
+                    return data
+
+                read_context = mock.patch.object(
+                    matrix.os, "read", side_effect=replace_key_after_read
+                )
+            else:
+                read_context = contextlib.nullcontext()
+            with (
+                read_context,
+                self.subTest(case=case),
+                self.assertRaises(matrix.MatrixResumeError),
+            ):
+                matrix.execute_matrix(
+                    manifest, output, dependencies=dependencies, resume=True
+                )
+            self.assertEqual(dependencies.build_count, 0)
+            self.assertEqual(dependencies.driver_calls, [])
+
+    def test_resume_revalidates_key_after_finalization_proof_verification(self):
+        output = self.root / "key-post-proof-replacement"
+        manifest = matrix.load_manifest(self.write_manifest())
+        matrix.execute_matrix(manifest, output, dependencies=FakeDependencies())
+        key_path = output / ".finalization-key"
+        real_verify = matrix._verify_finalization_proofs
+
+        def replace_after_verify(*args):
+            real_verify(*args)
+            key_path.write_bytes(os.urandom(matrix._FINALIZATION_KEY_BYTES))
+
+        dependencies = FakeDependencies()
+        with (
+            mock.patch.object(
+                matrix,
+                "_verify_finalization_proofs",
+                side_effect=replace_after_verify,
+            ),
+            self.assertRaises(matrix.MatrixResumeError),
+        ):
+            matrix.execute_matrix(
+                manifest, output, dependencies=dependencies, resume=True
+            )
+        self.assertEqual(dependencies.build_count, 0)
+        self.assertEqual(dependencies.driver_calls, [])
 
     def test_static_identity_digest_detects_same_size_executable_replacement(self):
         application_path = self.root / "Browser.app"
@@ -1683,6 +1910,7 @@ class MatrixRunnerTests(unittest.TestCase):
                 matrix._write_records(output, [header, diagnostic])
             recovery_names = set(os.listdir(output.descriptor)) - {
                 ".run.lock",
+                ".finalization-key",
                 "evidence.jsonl",
             }
             self.assertEqual(len(recovery_names), 1)
@@ -2256,9 +2484,15 @@ class MatrixRunnerTests(unittest.TestCase):
         self.assertEqual(chrome_records[0]["result"], "UNSUPPORTED")
         self.assertEqual(chrome_records[0]["detail"], "catalog-capability-refused")
         self.assertEqual(chrome_records[0]["driverOutcome"], "target-missing")
+        self.assertRegex(
+            chrome_records[0]["taskFinalizationProof"], r"\A[0-9a-f]{64}\Z"
+        )
         self.assertEqual(
             [record["result"] for record in chrome_records[1:3]],
             ["NOT RUN", "NOT RUN"],
+        )
+        self.assertTrue(
+            all("taskFinalizationProof" not in record for record in chrome_records[1:3])
         )
         self.assertTrue(
             any(record["result"] == "PASS" for record in chrome_records[3:])
@@ -2361,6 +2595,13 @@ class MatrixRunnerTests(unittest.TestCase):
         )
         self.assertEqual(first.exit_code, 0)
         evidence = (output / "evidence.jsonl").read_text(encoding="utf-8")
+        key_path = output / ".finalization-key"
+        key = key_path.read_bytes()
+        self.assertEqual(len(key), matrix._FINALIZATION_KEY_BYTES)
+        self.assertEqual(key_path.stat().st_uid, os.getuid())
+        self.assertEqual(matrix.stat.S_IMODE(key_path.stat().st_mode), 0o600)
+        self.assertNotIn(key.hex(), evidence)
+        self.assertNotIn(key.hex(), json.dumps(first.records))
         for forbidden in (
             "/Applications/",
             "/private/tmp/",
@@ -2371,6 +2612,7 @@ class MatrixRunnerTests(unittest.TestCase):
             self.assertNotIn(forbidden, evidence.lower())
         records = [json.loads(line) for line in evidence.splitlines()]
         self.assertEqual(records[0]["recordType"], "run")
+        self.assertRegex(records[0]["finalizationKeyProof"], r"\A[0-9a-f]{64}\Z")
         self.assertTrue(all("recordHash" in record for record in records))
         session_hashes = [record["sessionHash"] for record in records[1:]]
         self.assertTrue(all(len(value) == 64 for value in session_hashes))
@@ -2557,18 +2799,15 @@ class MatrixRunnerTests(unittest.TestCase):
         evidence_path.write_text("\n".join(lines[:3]) + "\n", encoding="utf-8")
 
         resumed_dependencies = FakeDependencies()
-        resumed = matrix.execute_matrix(
-            matrix.load_manifest(self.manifest_path),
-            output,
-            dependencies=resumed_dependencies,
-            resume=True,
-        )
-        self.assertEqual(resumed.exit_code, matrix.MATRIX_BLOCKED)
+        with self.assertRaises(matrix.MatrixResumeError):
+            matrix.execute_matrix(
+                matrix.load_manifest(self.manifest_path),
+                output,
+                dependencies=resumed_dependencies,
+                resume=True,
+            )
         self.assertEqual(resumed_dependencies.build_count, 0)
         self.assertEqual(resumed_dependencies.driver_calls, [])
-        self.assertTrue(
-            all(record["result"] == "NOT RUN" for record in resumed.records[2:])
-        )
 
     def test_resume_after_edge_stop_never_executes_later_cells(self):
         chrome = self.edge_application(
@@ -2762,13 +3001,22 @@ class MatrixRunnerTests(unittest.TestCase):
             lines = evidence.read_text(encoding="utf-8").splitlines()
             evidence.write_text("\n".join(lines[:prefix]) + "\n", encoding="utf-8")
             dependencies = FakeDependencies()
-            resumed = matrix.execute_matrix(
-                manifest, output, dependencies=dependencies, resume=True
-            )
-            with self.subTest(case=case):
-                self.assertEqual(resumed.exit_code, matrix.MATRIX_BLOCKED)
-                self.assertEqual(dependencies.build_count, 0)
-                self.assertEqual(dependencies.driver_calls, [])
+            if case == "incomplete":
+                with (
+                    self.subTest(case=case),
+                    self.assertRaises(matrix.MatrixResumeError),
+                ):
+                    matrix.execute_matrix(
+                        manifest, output, dependencies=dependencies, resume=True
+                    )
+            else:
+                resumed = matrix.execute_matrix(
+                    manifest, output, dependencies=dependencies, resume=True
+                )
+                with self.subTest(case=case):
+                    self.assertEqual(resumed.exit_code, matrix.MATRIX_BLOCKED)
+            self.assertEqual(dependencies.build_count, 0)
+            self.assertEqual(dependencies.driver_calls, [])
 
     def test_resume_rejects_same_version_static_identity_replacement(self):
         chrome = self.edge_application(

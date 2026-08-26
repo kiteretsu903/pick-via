@@ -54,6 +54,10 @@ _RESULTS = frozenset({"PASS", "FAIL", "UNSUPPORTED", "NOT RUN"})
 _MAXIMUM_MANIFEST_BYTES = 256 * 1024
 _MAXIMUM_EVIDENCE_BYTES = 8 * 1024 * 1024
 _EVIDENCE_NAME = "evidence.jsonl"
+_FINALIZATION_KEY_NAME = ".finalization-key"
+_FINALIZATION_KEY_BYTES = 32
+_FINALIZATION_PROOF_DOMAIN = b"pickvia-browser-matrix-finalization-v1\0"
+_RUN_KEY_PROOF_DOMAIN = b"pickvia-browser-matrix-run-key-v1\0"
 _REQUIRED_APPLICATIONS = {
     "com.google.Chrome": (
         "/Applications/Google Chrome.app",
@@ -352,7 +356,7 @@ _CELL_REQUIRED_KEYS = frozenset(
         "recordHash",
     }
 )
-_CELL_OPTIONAL_KEYS = frozenset({"taskFinalizationSource"})
+_CELL_OPTIONAL_KEYS = frozenset({"taskFinalizationSource", "taskFinalizationProof"})
 
 _NONINVOKED_DETAILS = frozenset(
     {
@@ -1202,6 +1206,13 @@ def _digest_json(value):
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _hmac_json(key, domain, value):
+    encoded = json.dumps(
+        value, allow_nan=False, ensure_ascii=True, separators=(",", ":"), sort_keys=True
+    ).encode("ascii")
+    return hmac.new(key, domain + encoded, hashlib.sha256).hexdigest()
+
+
 def _plan_digest(cells):
     return _digest_json([cell.specification_hash for cell in cells])
 
@@ -1226,6 +1237,19 @@ def _valid_cell_evidence_semantics(record):
     timing_keys = set(record) & _CELL_TIMING_KEYS
     result = record.get("result")
     detail = record.get("detail")
+    task_root_finalized = record.get("taskRootFinalized")
+    finalization_source = record.get("taskFinalizationSource")
+    finalization_proof = record.get("taskFinalizationProof")
+    if (
+        task_root_finalized is True
+        and (
+            not isinstance(finalization_proof, str)
+            or _SAFE_HASH.fullmatch(finalization_proof) is None
+        )
+        or task_root_finalized is False
+        and (finalization_source is not None or finalization_proof is not None)
+    ):
+        return False
     common_invoked = (
         record.get("e2eIdentity") is True
         and record.get("cleanupSuccess") is True
@@ -1272,8 +1296,6 @@ def _valid_cell_evidence_semantics(record):
             and record.get("browserIdentity") is False
         )
     if result == "NOT RUN" and detail in _NONINVOKED_DETAILS:
-        task_root_finalized = record.get("taskRootFinalized")
-        finalization_source = record.get("taskFinalizationSource")
         return (
             record.get("driverOutcome") == "not-invoked"
             and record.get("provenance") == "none"
@@ -1306,35 +1328,109 @@ def _valid_resume_finalization_sources(completed):
         ]
         if not sourced:
             continue
-        if all(record["result"] == "NOT RUN" for record in group):
-            if (
-                len(group) != len(_STATES)
-                or sourced != list(range(len(_STATES)))
-                or len({record["detail"] for record in group}) != 1
-                or group[0]["detail"]
-                not in {
-                    "harness-ambiguity",
-                    "signature-blocker",
-                    "browser-identity-changed",
-                }
-            ):
-                return False
-            continue
-        first = sourced[0]
         if (
-            sourced != list(range(first, len(group)))
-            or any(record["result"] == "NOT RUN" for record in group[:first])
-            or any(
-                record["detail"]
-                not in {
-                    "blocked-after-sequence-failure",
-                    "blocked-after-sequence-refusal",
-                }
-                for record in group[first:]
-            )
+            len(group) != len(_STATES)
+            or sourced != list(range(len(_STATES)))
+            or not all(record.get("taskRootFinalized") is True for record in group)
         ):
             return False
+        if all(record["result"] == "NOT RUN" for record in group):
+            if len({record["detail"] for record in group}) != 1 or group[0][
+                "detail"
+            ] not in {
+                "harness-ambiguity",
+                "signature-blocker",
+                "browser-identity-changed",
+            }:
+                return False
     return True
+
+
+def _run_key_proof(key, key_identity, manifest_digest, plan_digest):
+    return _hmac_json(
+        key,
+        _RUN_KEY_PROOF_DOMAIN,
+        {
+            "keyGeneration": list(key_identity),
+            "manifestHash": manifest_digest,
+            "planHash": plan_digest,
+        },
+    )
+
+
+def _finalization_proof_context(header, group):
+    return {
+        "runHash": header["recordHash"],
+        "manifestHash": header["manifestDigest"],
+        "planHash": header["planDigest"],
+        "cellIDs": [record["cellHash"] for record in group],
+        "sequences": [record["sequence"] for record in group],
+        "sessionHashes": [record["sessionHash"] for record in group],
+        "browserStaticHashes": [record["browserStaticHash"] for record in group],
+        "results": [record["result"] for record in group],
+        "details": [record["detail"] for record in group],
+        "finalization": [
+            {
+                "source": record.get("taskFinalizationSource", "none"),
+                "value": record["taskRootFinalized"],
+            }
+            for record in group
+        ],
+    }
+
+
+def _authenticate_finalized_group(header, key, group):
+    if len(group) != len(_STATES):
+        raise MatrixError("invalid finalization proof group")
+    finalized = [record.get("taskRootFinalized") is True for record in group]
+    sourced = [record.get("taskFinalizationSource") is not None for record in group]
+    if not any(finalized) and not any(sourced):
+        if any(record.get("taskFinalizationProof") is not None for record in group):
+            raise MatrixError("unexpected finalization proof")
+        return tuple(group)
+    proof = _hmac_json(
+        key,
+        _FINALIZATION_PROOF_DOMAIN,
+        _finalization_proof_context(header, group),
+    )
+    return tuple(
+        dict(record, taskFinalizationProof=proof)
+        if record.get("taskRootFinalized") is True
+        or record.get("taskFinalizationSource") is not None
+        else record
+        for record in group
+    )
+
+
+def _verify_finalization_proofs(header, key, completed):
+    for offset in range(0, len(completed), len(_STATES)):
+        group = completed[offset : offset + len(_STATES)]
+        claimed = any(
+            record.get("taskRootFinalized") is True
+            or record.get("taskFinalizationSource") is not None
+            or record.get("taskFinalizationProof") is not None
+            for record in group
+        )
+        if not claimed:
+            continue
+        if len(group) != len(_STATES):
+            raise MatrixResumeError("invalid finalization proof group")
+        expected = _hmac_json(
+            key,
+            _FINALIZATION_PROOF_DOMAIN,
+            _finalization_proof_context(header, group),
+        )
+        if any(
+            (
+                not isinstance(record.get("taskFinalizationProof"), str)
+                or not hmac.compare_digest(record["taskFinalizationProof"], expected)
+            )
+            if record.get("taskRootFinalized") is True
+            or record.get("taskFinalizationSource") is not None
+            else record.get("taskFinalizationProof") is not None
+            for record in group
+        ):
+            raise MatrixResumeError("finalization proof mismatch")
 
 
 class _PinnedOutputDirectory:
@@ -1346,6 +1442,9 @@ class _PinnedOutputDirectory:
         self.identity = identity
         self.lock_descriptor = -1
         self.lock_identity = None
+        self.finalization_key_descriptor = -1
+        self.finalization_key_identity = None
+        self.finalization_key = None
         self.evidence_identity = None
         self.evidence_digest = None
         self.evidence_head = None
@@ -1424,16 +1523,23 @@ class _PinnedOutputDirectory:
                     if create and entries:
                         raise MatrixError("fresh output directory is not empty")
                     if not create and entries not in (
-                        {_EVIDENCE_NAME},
-                        {_EVIDENCE_NAME, ".run.lock"},
+                        {_EVIDENCE_NAME, _FINALIZATION_KEY_NAME},
+                        {_EVIDENCE_NAME, _FINALIZATION_KEY_NAME, ".run.lock"},
                     ):
                         raise MatrixResumeError(
                             "resume directory contains unexpected entries"
                         )
                     pinned._acquire_lock()
-                    expected_entries = {_EVIDENCE_NAME, ".run.lock"}
                     if create:
-                        expected_entries = {".run.lock"}
+                        pinned._create_finalization_key()
+                        expected_entries = {".run.lock", _FINALIZATION_KEY_NAME}
+                    else:
+                        pinned._open_finalization_key(MatrixResumeError)
+                        expected_entries = {
+                            _EVIDENCE_NAME,
+                            ".run.lock",
+                            _FINALIZATION_KEY_NAME,
+                        }
                     if set(os.listdir(pinned.descriptor)) != expected_entries:
                         raise MatrixError("output directory changed while locking")
                     pinned.require_current()
@@ -1482,6 +1588,91 @@ class _PinnedOutputDirectory:
         except BaseException:
             fcntl.flock(self.descriptor, fcntl.LOCK_UN)
             raise
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
+
+    def _create_finalization_key(self):
+        key = secrets.token_bytes(_FINALIZATION_KEY_BYTES)
+        descriptor = os.open(
+            _FINALIZATION_KEY_NAME,
+            os.O_RDWR
+            | os.O_CREAT
+            | os.O_EXCL
+            | os.O_CLOEXEC
+            | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+            dir_fd=self.descriptor,
+        )
+        try:
+            os.fchmod(descriptor, 0o600)
+            offset = 0
+            while offset < len(key):
+                written = os.write(descriptor, key[offset:])
+                if written <= 0:
+                    raise MatrixError("finalization key write failed")
+                offset += written
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+        os.fsync(self.descriptor)
+        self._open_finalization_key(MatrixError)
+        if not hmac.compare_digest(self.finalization_key, key):
+            raise MatrixError("finalization key changed during creation")
+
+    def _open_finalization_key(self, error_type):
+        descriptor = -1
+        try:
+            descriptor = os.open(
+                _FINALIZATION_KEY_NAME,
+                os.O_RDONLY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=self.descriptor,
+            )
+            before = os.fstat(descriptor)
+            named = os.stat(
+                _FINALIZATION_KEY_NAME,
+                dir_fd=self.descriptor,
+                follow_symlinks=False,
+            )
+            if (
+                not stat.S_ISREG(before.st_mode)
+                or stat.S_ISLNK(named.st_mode)
+                or before.st_uid != os.getuid()
+                or stat.S_IMODE(before.st_mode) != 0o600
+                or before.st_nlink != 1
+                or before.st_size != _FINALIZATION_KEY_BYTES
+                or _publication_identity(before) != _publication_identity(named)
+            ):
+                raise error_type("unsafe finalization key")
+            key = bytearray()
+            while len(key) <= _FINALIZATION_KEY_BYTES:
+                chunk = os.read(
+                    descriptor,
+                    _FINALIZATION_KEY_BYTES + 1 - len(key),
+                )
+                if not chunk:
+                    break
+                key.extend(chunk)
+            after = os.fstat(descriptor)
+            named_after = os.stat(
+                _FINALIZATION_KEY_NAME,
+                dir_fd=self.descriptor,
+                follow_symlinks=False,
+            )
+            if (
+                len(key) != _FINALIZATION_KEY_BYTES
+                or _publication_identity(after) != _publication_identity(before)
+                or _publication_identity(named_after) != _publication_identity(before)
+            ):
+                raise error_type("finalization key changed while reading")
+            self.finalization_key_descriptor = descriptor
+            self.finalization_key_identity = _publication_identity(before)
+            self.finalization_key = bytes(key)
+            descriptor = -1
+        except error_type:
+            raise
+        except OSError as error:
+            raise error_type("missing or unsafe finalization key") from error
         finally:
             if descriptor >= 0:
                 os.close(descriptor)
@@ -1592,6 +1783,11 @@ class _PinnedOutputDirectory:
             lock_named = os.stat(
                 ".run.lock", dir_fd=self.descriptor, follow_symlinks=False
             )
+            key_named = os.stat(
+                _FINALIZATION_KEY_NAME,
+                dir_fd=self.descriptor,
+                follow_symlinks=False,
+            )
         except OSError as error:
             raise MatrixError("output directory identity changed") from error
         if (
@@ -1608,6 +1804,10 @@ class _PinnedOutputDirectory:
             or _publication_identity(os.fstat(self.lock_descriptor))
             != self.lock_identity
             or _publication_identity(lock_named) != self.lock_identity
+            or self.finalization_key_descriptor < 0
+            or _publication_identity(os.fstat(self.finalization_key_descriptor))
+            != self.finalization_key_identity
+            or _publication_identity(key_named) != self.finalization_key_identity
         ):
             raise MatrixError("output directory identity changed")
 
@@ -1615,6 +1815,9 @@ class _PinnedOutputDirectory:
         if self.closed:
             return
         self.closed = True
+        if self.finalization_key_descriptor >= 0:
+            os.close(self.finalization_key_descriptor)
+            self.finalization_key_descriptor = -1
         if self.lock_descriptor >= 0:
             os.close(self.lock_descriptor)
             self.lock_descriptor = -1
@@ -1987,6 +2190,7 @@ def _read_resume(output, manifest, cells):
         "schemaVersion",
         "manifestDigest",
         "planDigest",
+        "finalizationKeyProof",
         "previousHash",
         "recordHash",
     }
@@ -1996,6 +2200,17 @@ def _read_resume(output, manifest, cells):
         or header["schemaVersion"] != 1
         or header["manifestDigest"] != manifest.digest
         or header["planDigest"] != _plan_digest(cells)
+        or not isinstance(header["finalizationKeyProof"], str)
+        or _SAFE_HASH.fullmatch(header["finalizationKeyProof"]) is None
+        or not hmac.compare_digest(
+            header["finalizationKeyProof"],
+            _run_key_proof(
+                output.finalization_key,
+                output.finalization_key_identity,
+                header["manifestDigest"],
+                header["planDigest"],
+            ),
+        )
     ):
         raise MatrixResumeError("run manifest mismatch")
     previous_hash = "0" * 64
@@ -2057,6 +2272,13 @@ def _read_resume(output, manifest, cells):
         completed.append(record)
     if not _valid_resume_finalization_sources(completed):
         raise MatrixResumeError("completed finalization source mismatch")
+    _verify_finalization_proofs(header, output.finalization_key, completed)
+    try:
+        output.require_current()
+    except MatrixError as error:
+        raise MatrixResumeError(
+            "finalization key changed after verification"
+        ) from error
     output.pin_evidence(before, data, records)
     return records, completed
 
@@ -2180,6 +2402,12 @@ def _not_run_record(
         "NOT RUN",
         detail,
     )
+
+
+def _append_finalized_group(header, key, chained_records, completed, records):
+    for record in _authenticate_finalized_group(header, key, records):
+        chained_records.append(_chain_record(record, chained_records[-1]["recordHash"]))
+        completed.append(chained_records[-1])
 
 
 def _aggregate_completed_exit(completed):
@@ -2306,12 +2534,19 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
         if len(completed) == len(cells):
             return MatrixExecutionResult(prior_exit_code, tuple(completed))
     else:
+        plan_digest = _plan_digest(cells)
         header = _chain_record(
             {
                 "recordType": "run",
                 "schemaVersion": 1,
                 "manifestDigest": manifest.digest,
-                "planDigest": _plan_digest(cells),
+                "planDigest": plan_digest,
+                "finalizationKeyProof": _run_key_proof(
+                    output.finalization_key,
+                    output.finalization_key_identity,
+                    manifest.digest,
+                    plan_digest,
+                ),
             },
             "0" * 64,
         )
@@ -2567,8 +2802,8 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
                 post_verification = None
             if post_verification is None:
                 versions[cell.bundle_identifier] = "unavailable"
-                for blocked_cell in group:
-                    record = _not_run_record(
+                finalized_group = [
+                    _not_run_record(
                         blocked_cell,
                         "unavailable",
                         "signature-blocker",
@@ -2576,10 +2811,15 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
                             independently_finalized_task_root
                         ),
                     )
-                    chained_records.append(
-                        _chain_record(record, chained_records[-1]["recordHash"])
-                    )
-                    completed.append(chained_records[-1])
+                    for blocked_cell in group
+                ]
+                _append_finalized_group(
+                    chained_records[0],
+                    output.finalization_key,
+                    chained_records,
+                    completed,
+                    finalized_group,
+                )
                 for pending in remaining[offset + 3 :]:
                     record = _not_run_record(
                         pending,
@@ -2596,8 +2836,8 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
                 break
             if post_verification != application_verifications[cell.bundle_identifier]:
                 versions[cell.bundle_identifier] = "unavailable"
-                for invoked_cell in group:
-                    record = _not_run_record(
+                finalized_group = [
+                    _not_run_record(
                         invoked_cell,
                         "unavailable",
                         "browser-identity-changed",
@@ -2605,10 +2845,15 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
                             independently_finalized_task_root
                         ),
                     )
-                    chained_records.append(
-                        _chain_record(record, chained_records[-1]["recordHash"])
-                    )
-                    completed.append(chained_records[-1])
+                    for invoked_cell in group
+                ]
+                _append_finalized_group(
+                    chained_records[0],
+                    output.finalization_key,
+                    chained_records,
+                    completed,
+                    finalized_group,
+                )
                 for pending in remaining[offset + 3 :]:
                     record = _not_run_record(
                         pending,
@@ -2651,6 +2896,7 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
                 )
                 proof_contract_valid = False
             proofs = report.get("stateProofs", []) if isinstance(report, dict) else []
+            finalized_group = []
             for index, (state_cell, (result, detail)) in enumerate(
                 zip(group, sequence_results)
             ):
@@ -2663,10 +2909,7 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
                             independently_finalized_task_root
                         ),
                     )
-                    chained_records.append(
-                        _chain_record(record, chained_records[-1]["recordHash"])
-                    )
-                    completed.append(chained_records[-1])
+                    finalized_group.append(record)
                     continue
                 proof = proofs[index] if index < len(proofs) else {}
                 cell_report = {
@@ -2696,6 +2939,12 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
                         if has_independent_task_finalization
                         else report.get("task_root_finalized") is True
                     ),
+                    "task_finalization_source": (
+                        _AUTHENTICATED_FINALIZATION_SOURCE
+                        if has_independent_task_finalization
+                        and independently_finalized_task_root
+                        else "none"
+                    ),
                 }
                 record = _sanitized_record(
                     state_cell,
@@ -2705,14 +2954,18 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
                     result,
                     detail,
                 )
-                chained_records.append(
-                    _chain_record(record, chained_records[-1]["recordHash"])
-                )
-                completed.append(chained_records[-1])
+                finalized_group.append(record)
                 if result == "FAIL":
                     exit_code = MATRIX_PRODUCT_FAILURE
                 elif result == "UNSUPPORTED" and exit_code == MATRIX_SUCCESS:
                     exit_code = MATRIX_BLOCKED
+            _append_finalized_group(
+                chained_records[0],
+                output.finalization_key,
+                chained_records,
+                completed,
+                finalized_group,
+            )
             _write_records(evidence_path, chained_records)
             must_stop = any(
                 result == "NOT RUN" and detail == "harness-ambiguity"
