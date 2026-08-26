@@ -140,6 +140,44 @@ class SmokeCompilerTests(unittest.TestCase):
         owner.cleanup.assert_not_called()
         task_root.close.assert_called_once_with()
 
+    def test_unpinned_app_startup_preserves_task_root_without_cleanup_authority(self):
+        pinned_app = mock.Mock()
+        pinned_app.path = pathlib.Path("/private/tmp/PickVia E2E.app")
+        pinned_app.executable = pathlib.Path("/usr/bin/true")
+        pinned_app.validate.return_value = True
+        task_root = mock.Mock()
+        task_root.require_current.return_value = pathlib.Path(
+            "/private/tmp/pickvia-e2e-unpinned"
+        )
+        task_root.open_fifo.return_value = 99
+        task_root.child_path.return_value = pathlib.Path(
+            "/private/tmp/pickvia-e2e-unpinned/open_with_app"
+        )
+        owner = mock.Mock()
+
+        with mock.patch.object(
+            runtime.PinnedApplication, "open", return_value=pinned_app
+        ), mock.patch.object(
+            runtime.driver, "_TaskRootOwner", return_value=owner
+        ), mock.patch.object(
+            runtime.driver, "_make_task_root", return_value=task_root
+        ), mock.patch.object(
+            runtime, "_compile_smoke_helper", return_value=True
+        ), mock.patch.object(
+            runtime.ExactProcess,
+            "start",
+            side_effect=runtime._UnpinnedProcessError("uninspectable child"),
+        ), mock.patch.object(runtime.os, "close"):
+            with self.assertRaises(runtime.SmokePolicyError):
+                runtime._run_missing_target_smoke(
+                    pinned_app.path,
+                    pathlib.Path("/private/tmp/open_with_app.swift"),
+                    "smoke_session_0123456789",
+                )
+
+        owner.cleanup.assert_not_called()
+        task_root.close.assert_called_once_with()
+
     def test_compile_helper_launches_resolved_swiftc_without_xcrun_transition(self):
         root = pathlib.Path(
             tempfile.mkdtemp(prefix="pickvia-swift-sdk-resolution-", dir="/private/tmp")
@@ -436,18 +474,58 @@ class PreferenceSnapshotTests(unittest.TestCase):
 
 
 class ExactProcessTests(unittest.TestCase):
-    def test_exec_transition_is_rejected_and_cleaned(self):
-        process = None
-        with self.assertRaises(runtime.SmokePolicyError):
-            try:
-                process = runtime.ExactProcess.start(
-                    ["/bin/bash", "-c", "exec /bin/sleep 60"],
+    def test_reused_unpinned_group_leader_is_never_signaled(self):
+        expected = pathlib.Path("/usr/bin/true").resolve()
+        replacement = runtime.driver.ProcessIdentity(
+            4242, 1, 30, 40, pathlib.Path("/usr/bin/false").resolve()
+        )
+        process = mock.Mock(pid=4242, args=[os.fspath(expected)])
+        process.poll.return_value = None
+        process.stdin = None
+        process.stdout = None
+        process.stderr = None
+        with mock.patch.object(
+            runtime.subprocess, "Popen", return_value=process
+        ), mock.patch.object(runtime.os, "killpg") as signal_group, mock.patch.object(
+            runtime.os, "getpgid", return_value=4242
+        ), mock.patch.object(
+            runtime, "_darwin_process_group_snapshot"
+        ) as snapshot:
+            with self.assertRaises(runtime.SmokePolicyError):
+                runtime.ExactProcess.start(
+                    [expected],
                     environment={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin"},
+                    identity_resolver=lambda _pid: replacement,
                 )
-            finally:
-                if process is not None:
-                    process.terminate_bounded(term_timeout=1, kill_timeout=1)
-                    process.close_streams()
+        signal_group.assert_not_called()
+        snapshot.assert_not_called()
+
+    def test_identity_inspection_failure_never_signals_unpinned_group(self):
+        expected = pathlib.Path("/usr/bin/true").resolve()
+        process = mock.Mock(pid=4242, args=[os.fspath(expected)])
+        process.poll.return_value = None
+        process.stdin = None
+        process.stdout = None
+        process.stderr = None
+        with mock.patch.object(
+            runtime.subprocess, "Popen", return_value=process
+        ), mock.patch.object(runtime.os, "killpg") as signal_group, mock.patch.object(
+            runtime.os, "getpgid", return_value=4242
+        ), mock.patch.object(
+            runtime, "_darwin_process_group_snapshot"
+        ) as snapshot, mock.patch.object(
+            runtime.time, "monotonic", side_effect=(0.0, 0.0, 1.0)
+        ):
+            with self.assertRaises(runtime.SmokePolicyError):
+                runtime.ExactProcess.start(
+                    [expected],
+                    environment={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin"},
+                    identity_resolver=lambda _pid: (_ for _ in ()).throw(
+                        runtime.driver._IdentityInspectionError()
+                    ),
+                )
+        signal_group.assert_not_called()
+        snapshot.assert_not_called()
 
     def test_pid_reuse_is_never_signaled(self):
         signals = []
@@ -594,32 +672,6 @@ class ExactProcessTests(unittest.TestCase):
                 pass
             process.close_streams()
             shutil.rmtree(fixture)
-
-    def test_identity_pin_failure_cleans_attributable_process_group(self):
-        fixture = pathlib.Path(
-            tempfile.mkdtemp(prefix="pickvia-smoke-pin-failure-", dir="/private/tmp")
-        )
-        child_pid_file = fixture / "child.pid"
-        with self.assertRaises(runtime.SmokePolicyError):
-            runtime.ExactProcess.start(
-                [
-                    "/bin/bash",
-                    "-c",
-                    f"/bin/sleep 60 & child=$!; echo $child > {child_pid_file}; wait",
-                ],
-                environment={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin"},
-                identity_resolver=lambda pid: None,
-                identity_timeout=0.05,
-            )
-        for _ in range(100):
-            if child_pid_file.exists():
-                break
-            runtime.time.sleep(0.01)
-        child_pid = int(child_pid_file.read_text(encoding="ascii"))
-        with self.assertRaises(ProcessLookupError):
-            os.kill(child_pid, 0)
-        shutil.rmtree(fixture)
-
 
 if __name__ == "__main__":
     unittest.main()

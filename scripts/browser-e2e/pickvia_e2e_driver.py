@@ -4,6 +4,7 @@ import argparse
 import ctypes
 import dataclasses
 import errno
+import hashlib
 import json
 import os
 import pathlib
@@ -51,6 +52,7 @@ MAXIMUM_AUDIT_WORK_BYTES = MAXIMUM_AUDIT_FILE_BYTES * MAXIMUM_AUDIT_PASSES
 MAXIMUM_AUDIT_WORK_ENTRIES = MAXIMUM_AUDIT_ENTRIES * MAXIMUM_AUDIT_PASSES * 4
 EXCLUSIVE_CLEANUP_TIMEOUT_SECONDS = 2.0
 EXCLUSIVE_CLEANUP_COMPILE_TIMEOUT_SECONDS = 10.0
+MAXIMUM_CLEANUP_SOURCE_BYTES = 256 * 1_024
 _SESSION_PATTERN = re.compile(r"\A[A-Za-z0-9_-]{16,64}\Z")
 _TOKEN_PATTERN = re.compile(r"\A[A-Za-z0-9_-]+\Z")
 _CLOSED_OUTCOMES = frozenset(
@@ -499,13 +501,65 @@ class _TaskRootOwner:
             root.close()
 
 
-def _exclusive_cleanup_environment(task_root):
+class _PinnedCleanupHelper:
+    def __init__(
+        self,
+        path,
+        directory_descriptor,
+        executable_descriptor,
+        directory_identity,
+        executable_identity,
+    ):
+        self.path = pathlib.Path(path)
+        self.directory_descriptor = directory_descriptor
+        self.executable_descriptor = executable_descriptor
+        self.directory_identity = directory_identity
+        self.executable_identity = executable_identity
+
+    def validate(self):
+        try:
+            directory_metadata = os.fstat(self.directory_descriptor)
+            executable_metadata = os.fstat(self.executable_descriptor)
+            named_metadata = os.stat(
+                self.path.name,
+                dir_fd=self.directory_descriptor,
+                follow_symlinks=False,
+            )
+            return (
+                stat.S_ISDIR(directory_metadata.st_mode)
+                and _DirectoryIdentity.from_stat(directory_metadata)
+                == self.directory_identity
+                and _DirectoryIdentity.from_stat(self.path.parent.lstat())
+                == self.directory_identity
+                and pathlib.Path(os.path.realpath(self.path.parent))
+                == self.path.parent
+                and stat.S_ISREG(executable_metadata.st_mode)
+                and executable_metadata.st_mode & 0o111 != 0
+                and executable_metadata.st_nlink == 1
+                and executable_metadata.st_uid == os.getuid()
+                and _DeletionIdentity.from_stat(executable_metadata)
+                == self.executable_identity
+                and _DeletionIdentity.from_stat(named_metadata)
+                == self.executable_identity
+            )
+        except OSError:
+            return False
+
+    def close(self):
+        for descriptor in (self.executable_descriptor, self.directory_descriptor):
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+
+
+def _exclusive_cleanup_environment(cache_path):
     return {
         "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
         "LANG": "en_US.UTF-8",
         "LC_CTYPE": "UTF-8",
-        "TMPDIR": os.fspath(task_root.require_current()),
-        "CFFIXED_USER_HOME": os.fspath(task_root.require_current()),
+        "TMPDIR": os.fspath(cache_path),
+        "CFFIXED_USER_HOME": os.fspath(cache_path),
         "PYTHONDONTWRITEBYTECODE": "1",
     }
 
@@ -519,91 +573,258 @@ def _exclusive_cleanup_identity_arguments(metadata):
     ]
 
 
-def _finalize_empty_task_root_exclusively(task_root):
-    if not isinstance(task_root, _PinnedTaskRoot) or os.listdir(task_root.descriptor):
-        return False
-    helper_name = "exclusive-cleanup"
-    helper_path = task_root.child_path(helper_name)
-    environment = _exclusive_cleanup_environment(task_root)
-    compile_result = subprocess.run(
-        [
-            "/usr/bin/xcrun",
-            "clang",
-            "-std=c17",
-            "-Wall",
-            "-Wextra",
-            "-Werror",
-            os.fspath(_SCRIPT_DIR / "exclusive_cleanup.c"),
-            "-o",
-            os.fspath(helper_path),
-        ],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        env=environment,
-        close_fds=True,
-        timeout=EXCLUSIVE_CLEANUP_COMPILE_TIMEOUT_SECONDS,
-        check=False,
+def _stable_cleanup_source_digest():
+    source = _SCRIPT_DIR / "exclusive_cleanup.c"
+    descriptor = os.open(
+        source,
+        os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0),
     )
-    if compile_result.returncode != 0:
-        return False
-    task_root.require_current()
-    helper_descriptor = -1
     try:
-        helper_descriptor = os.open(
-            helper_name,
+        before = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_size < 1
+            or before.st_size > MAXIMUM_CLEANUP_SOURCE_BYTES
+        ):
+            raise OSError("exclusive cleanup source is invalid")
+        contents = bytearray()
+        while len(contents) < before.st_size:
+            chunk = os.read(descriptor, min(65_536, before.st_size - len(contents)))
+            if not chunk:
+                break
+            contents.extend(chunk)
+        after = os.fstat(descriptor)
+        named = source.lstat()
+        if (
+            len(contents) != before.st_size
+            or _EntryIdentity.from_stat(before) != _EntryIdentity.from_stat(after)
+            or _EntryIdentity.from_stat(after) != _EntryIdentity.from_stat(named)
+        ):
+            raise OSError("exclusive cleanup source changed during read")
+        return hashlib.sha256(contents).hexdigest()
+    finally:
+        os.close(descriptor)
+
+
+def _open_owned_cache_directory():
+    repository = _SCRIPT_DIR.parents[1]
+    repository_descriptor = os.open(
+        repository,
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0),
+    )
+    build_descriptor = -1
+    cache_descriptor = -1
+    try:
+        repository_metadata = os.fstat(repository_descriptor)
+        if not stat.S_ISDIR(repository_metadata.st_mode):
+            raise OSError("repository cache parent is invalid")
+        try:
+            os.mkdir(".build-e2e", mode=0o700, dir_fd=repository_descriptor)
+        except FileExistsError:
+            pass
+        build_descriptor = os.open(
+            ".build-e2e",
             os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
             | getattr(os, "O_NOFOLLOW", 0)
             | getattr(os, "O_CLOEXEC", 0),
-            dir_fd=task_root.descriptor,
+            dir_fd=repository_descriptor,
         )
-        helper_metadata = os.fstat(helper_descriptor)
+        build_metadata = os.fstat(build_descriptor)
+        if (
+            not stat.S_ISDIR(build_metadata.st_mode)
+            or build_metadata.st_uid != os.getuid()
+            or build_metadata.st_dev != repository_metadata.st_dev
+            or stat.S_IMODE(build_metadata.st_mode) & 0o022
+        ):
+            raise OSError("build cache is not owned and private")
+        try:
+            os.mkdir("browser-e2e-tools", mode=0o700, dir_fd=build_descriptor)
+        except FileExistsError:
+            pass
+        cache_descriptor = os.open(
+            "browser-e2e-tools",
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_CLOEXEC", 0),
+            dir_fd=build_descriptor,
+        )
+        cache_metadata = os.fstat(cache_descriptor)
+        if (
+            not stat.S_ISDIR(cache_metadata.st_mode)
+            or cache_metadata.st_uid != os.getuid()
+            or cache_metadata.st_dev != repository_metadata.st_dev
+            or stat.S_IMODE(cache_metadata.st_mode) != 0o700
+        ):
+            raise OSError("exclusive cleanup cache is invalid")
+        descriptor = cache_descriptor
+        cache_descriptor = -1
+        return repository / ".build-e2e" / "browser-e2e-tools", descriptor
+    finally:
+        for descriptor in (
+            cache_descriptor,
+            build_descriptor,
+            repository_descriptor,
+        ):
+            if descriptor >= 0:
+                os.close(descriptor)
+
+
+def _pin_cleanup_helper(cache_path, cache_descriptor, helper_name):
+    executable_descriptor = os.open(
+        helper_name,
+        os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0),
+        dir_fd=cache_descriptor,
+    )
+    try:
+        cache_metadata = os.fstat(cache_descriptor)
+        executable_metadata = os.fstat(executable_descriptor)
         named_metadata = os.stat(
-            helper_name,
-            dir_fd=task_root.descriptor,
-            follow_symlinks=False,
+            helper_name, dir_fd=cache_descriptor, follow_symlinks=False
         )
         if (
-            not stat.S_ISREG(helper_metadata.st_mode)
-            or helper_metadata.st_mode & 0o111 == 0
-            or helper_metadata.st_nlink != 1
-            or helper_metadata.st_uid != os.getuid()
-            or helper_metadata.st_dev != task_root.identity.device
-            or _DeletionIdentity.from_stat(named_metadata)
-            != _DeletionIdentity.from_stat(helper_metadata)
-            or os.listdir(task_root.descriptor) != [helper_name]
+            not stat.S_ISDIR(cache_metadata.st_mode)
+            or cache_metadata.st_uid != os.getuid()
+            or stat.S_IMODE(cache_metadata.st_mode) != 0o700
+            or not stat.S_ISREG(executable_metadata.st_mode)
+            or executable_metadata.st_mode & 0o111 == 0
+            or executable_metadata.st_nlink != 1
+            or executable_metadata.st_uid != os.getuid()
+            or executable_metadata.st_dev != cache_metadata.st_dev
+            or _DeletionIdentity.from_stat(executable_metadata)
+            != _DeletionIdentity.from_stat(named_metadata)
         ):
-            return False
+            raise OSError("cached cleanup helper is invalid")
+        pinned = _PinnedCleanupHelper(
+            cache_path / helper_name,
+            cache_descriptor,
+            executable_descriptor,
+            _DirectoryIdentity.from_stat(cache_metadata),
+            _DeletionIdentity.from_stat(executable_metadata),
+        )
+        cache_descriptor = -1
+        executable_descriptor = -1
+        if not pinned.validate():
+            pinned.close()
+            raise OSError("cached cleanup helper changed while pinning")
+        return pinned
     finally:
-        if helper_descriptor >= 0:
-            os.close(helper_descriptor)
+        if executable_descriptor >= 0:
+            os.close(executable_descriptor)
+        if cache_descriptor >= 0:
+            os.close(cache_descriptor)
+
+
+def _pin_exclusive_cleanup_helper():
+    source_digest = _stable_cleanup_source_digest()
+    cache_path, cache_descriptor = _open_owned_cache_directory()
+    helper_name = f"exclusive-cleanup-{source_digest}"
+    try:
+        try:
+            os.stat(helper_name, dir_fd=cache_descriptor, follow_symlinks=False)
+        except FileNotFoundError:
+            completed = subprocess.run(
+                [
+                    "/usr/bin/xcrun",
+                    "clang",
+                    "-std=c17",
+                    "-Wall",
+                    "-Wextra",
+                    "-Werror",
+                    os.fspath(_SCRIPT_DIR / "exclusive_cleanup.c"),
+                    "-o",
+                    os.fspath(cache_path / helper_name),
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                env=_exclusive_cleanup_environment(cache_path),
+                close_fds=True,
+                timeout=EXCLUSIVE_CLEANUP_COMPILE_TIMEOUT_SECONDS,
+                check=False,
+            )
+            if completed.returncode != 0 or _stable_cleanup_source_digest() != source_digest:
+                raise OSError("exclusive cleanup helper compilation failed")
+        descriptor = cache_descriptor
+        cache_descriptor = -1
+        return _pin_cleanup_helper(cache_path, descriptor, helper_name)
+    finally:
+        if cache_descriptor >= 0:
+            os.close(cache_descriptor)
+
+
+def _empty_task_root_fingerprint(task_root, budget):
+    task_root.require_current()
+    budget.check_deadline()
+    before = _EntryIdentity.from_stat(os.fstat(task_root.descriptor))
+    entries = _snapshot_directory_at(
+        task_root.descriptor,
+        task_root.identity.device,
+        budget,
+        _AuditPass(),
+        count_toward_tree=True,
+    )
+    after = _EntryIdentity.from_stat(os.fstat(task_root.descriptor))
+    task_root.require_current()
+    budget.check_deadline()
+    if entries or before != after:
+        return None
+    return before
+
+
+def _stable_empty_task_root(task_root):
+    budget = _AuditBudget(time.monotonic() + MAXIMUM_AUDIT_SECONDS)
+    first = _empty_task_root_fingerprint(task_root, budget)
+    if first is None:
+        return False
+    second = _empty_task_root_fingerprint(task_root, budget)
+    return second is not None and second == first
+
+
+def _invoke_exclusive_cleanup_helper(task_root, helper):
+    if not helper.validate():
+        return False
 
     root_metadata = os.fstat(task_root.descriptor)
     parent_metadata = os.fstat(task_root.parent_descriptor)
     quarantine = f".pickvia-finalize-{secrets.token_hex(16)}"
     arguments = [
-        os.fspath(helper_path),
+        os.fspath(helper.path),
         str(task_root.parent_descriptor),
         str(task_root.descriptor),
         task_root.path.name,
         quarantine,
         *_exclusive_cleanup_identity_arguments(root_metadata),
         *_exclusive_cleanup_identity_arguments(parent_metadata),
-        helper_name,
-        *_exclusive_cleanup_identity_arguments(helper_metadata),
     ]
     completed = subprocess.run(
         arguments,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
-        env=environment,
+        env=_exclusive_cleanup_environment(helper.path.parent),
         close_fds=True,
         pass_fds=(task_root.parent_descriptor, task_root.descriptor),
         timeout=EXCLUSIVE_CLEANUP_TIMEOUT_SECONDS,
         check=False,
     )
     return completed.returncode == 0
+
+
+def _finalize_empty_task_root_exclusively(task_root):
+    if not isinstance(task_root, _PinnedTaskRoot):
+        return False
+    helper = _pin_exclusive_cleanup_helper()
+    try:
+        if not _stable_empty_task_root(task_root):
+            return False
+        return _invoke_exclusive_cleanup_helper(task_root, helper)
+    finally:
+        helper.close()
 
 
 def _restore_quarantine(descriptor, quarantine, original):

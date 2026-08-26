@@ -777,23 +777,37 @@ class PickViaE2EDriverTests(unittest.TestCase):
         observed = []
 
         def record_run(arguments, *args, **kwargs):
+            if pathlib.Path(arguments[0]).name.startswith("exclusive-cleanup-"):
+                observed.append(("root-empty", os.listdir(pinned.descriptor)))
             observed.append((tuple(map(os.fspath, arguments)), dict(kwargs)))
             return real_run(arguments, *args, **kwargs)
 
-        with mock.patch.object(driver.subprocess, "run", side_effect=record_run):
+        with mock.patch.object(
+            driver.subprocess, "run", side_effect=record_run
+        ), mock.patch.object(
+            driver,
+            "_empty_task_root_fingerprint",
+            wraps=driver._empty_task_root_fingerprint,
+        ) as fingerprint:
             self.assertTrue(pinned.remove())
         self.assertFalse(pinned.path.exists())
+        self.assertEqual(fingerprint.call_count, 2)
         compile_calls = [
             call
             for call in observed
             if call[0][:2] == ("/usr/bin/xcrun", "clang")
         ]
-        self.assertEqual(len(compile_calls), 1)
-        self.assertEqual(float(compile_calls[0][1]["timeout"]), 10.0)
+        self.assertLessEqual(len(compile_calls), 1)
+        if compile_calls:
+            self.assertEqual(float(compile_calls[0][1]["timeout"]), 10.0)
         helper_calls = [
-            call for call in observed if call[0][0].endswith("exclusive-cleanup")
+            call
+            for call in observed
+            if isinstance(call[0], tuple)
+            and pathlib.Path(call[0][0]).name.startswith("exclusive-cleanup-")
         ]
         self.assertEqual(len(helper_calls), 1)
+        self.assertIn(("root-empty", []), observed)
         helper_arguments, helper_options = helper_calls[0]
         self.assertEqual(float(helper_options["timeout"]), 2.0)
         self.assertEqual(
@@ -803,6 +817,10 @@ class PickViaE2EDriverTests(unittest.TestCase):
         self.assertNotIn("PICKVIA_PARENT_SENTINEL_SECRET", helper_options["env"])
         self.assertTrue(helper_arguments[3].startswith("pickvia-e2e-"))
         self.assertTrue(helper_arguments[4].startswith(".pickvia-finalize-"))
+        self.assertEqual(
+            pathlib.Path(helper_arguments[0]).parent.name,
+            "browser-e2e-tools",
+        )
 
     def test_task_root_owner_clears_successful_root_for_repeated_trap(self):
         owner = driver._TaskRootOwner()
@@ -827,6 +845,111 @@ class PickViaE2EDriverTests(unittest.TestCase):
             pinned.close()
             if pinned.path.exists():
                 shutil.rmtree(pinned.path)
+
+    def test_file_added_between_empty_passes_blocks_native_helper(self):
+        pinned = self._make_task_root()
+        helper = mock.Mock(path=pathlib.Path("/usr/bin/false"))
+        helper.validate.return_value = True
+        real_fingerprint = driver._empty_task_root_fingerprint
+        calls = 0
+
+        def add_after_first(task_root, budget):
+            nonlocal calls
+            fingerprint = real_fingerprint(task_root, budget)
+            calls += 1
+            if calls == 1:
+                (pinned.path / "late-file").write_bytes(b"preserve")
+            return fingerprint
+
+        try:
+            with mock.patch.object(
+                driver, "_pin_exclusive_cleanup_helper", return_value=helper
+            ), mock.patch.object(
+                driver, "_empty_task_root_fingerprint", side_effect=add_after_first
+            ), mock.patch.object(
+                driver, "_invoke_exclusive_cleanup_helper"
+            ) as invoke:
+                self.assertFalse(pinned.remove())
+            invoke.assert_not_called()
+            self.assertEqual((pinned.path / "late-file").read_bytes(), b"preserve")
+        finally:
+            pinned.close()
+            if pinned.path.exists():
+                shutil.rmtree(pinned.path)
+
+    def test_transient_file_growth_between_empty_passes_blocks_native_helper(self):
+        pinned = self._make_task_root()
+        helper = mock.Mock(path=pathlib.Path("/usr/bin/false"))
+        helper.validate.return_value = True
+        real_fingerprint = driver._empty_task_root_fingerprint
+        calls = 0
+
+        def grow_after_first(task_root, budget):
+            nonlocal calls
+            fingerprint = real_fingerprint(task_root, budget)
+            calls += 1
+            if calls == 1:
+                transient = pinned.path / "transient"
+                transient.write_bytes(b"x")
+                with transient.open("ab") as stream:
+                    stream.write(b"growth")
+                transient.unlink()
+            return fingerprint
+
+        try:
+            with mock.patch.object(
+                driver, "_pin_exclusive_cleanup_helper", return_value=helper
+            ), mock.patch.object(
+                driver, "_empty_task_root_fingerprint", side_effect=grow_after_first
+            ), mock.patch.object(
+                driver, "_invoke_exclusive_cleanup_helper"
+            ) as invoke:
+                self.assertFalse(pinned.remove())
+            invoke.assert_not_called()
+            self.assertTrue(pinned.path.is_dir())
+        finally:
+            pinned.close()
+            if pinned.path.exists():
+                shutil.rmtree(pinned.path)
+
+    def test_root_replacement_between_empty_passes_blocks_native_helper(self):
+        pinned = self._make_task_root()
+        helper = mock.Mock(path=pathlib.Path("/usr/bin/false"))
+        helper.validate.return_value = True
+        real_fingerprint = driver._empty_task_root_fingerprint
+        calls = 0
+        original = pinned.path.with_name(f"{pinned.path.name}-original")
+
+        def replace_after_first(task_root, budget):
+            nonlocal calls
+            fingerprint = real_fingerprint(task_root, budget)
+            calls += 1
+            if calls == 1:
+                pinned.path.rename(original)
+                pinned.path.mkdir(mode=0o700)
+                (pinned.path / "replacement-must-survive").write_bytes(b"replacement")
+            return fingerprint
+
+        try:
+            with mock.patch.object(
+                driver, "_pin_exclusive_cleanup_helper", return_value=helper
+            ), mock.patch.object(
+                driver, "_empty_task_root_fingerprint", side_effect=replace_after_first
+            ), mock.patch.object(
+                driver, "_invoke_exclusive_cleanup_helper"
+            ) as invoke:
+                self.assertFalse(pinned.remove())
+            invoke.assert_not_called()
+            self.assertEqual(
+                (pinned.path / "replacement-must-survive").read_bytes(),
+                b"replacement",
+            )
+            self.assertTrue(original.is_dir())
+        finally:
+            pinned.close()
+            for candidate in (pinned.path, original):
+                if candidate.exists():
+                    shutil.rmtree(candidate)
 
     def test_task_root_second_fstat_interrupt_closes_both_fds_and_removes_root(self):
         created = {"descriptors": [], "fstat_calls": 0}
@@ -1361,7 +1484,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
         real_run = subprocess.run
 
         def replace_after_exclusive_rename(arguments, *args, **kwargs):
-            if pathlib.Path(arguments[0]).name == "exclusive-cleanup":
+            if pathlib.Path(arguments[0]).name.startswith("exclusive-cleanup-"):
                 quarantine = pathlib.Path("/private/tmp") / arguments[4]
                 pinned.path.rename(quarantine)
                 pinned.path.mkdir(mode=0o700)

@@ -80,11 +80,6 @@ class ExclusiveCleanupTests(unittest.TestCase):
             str(parent_metadata.st_ino),
             str(parent_metadata.st_uid),
             str(parent_metadata.st_mode),
-            "-",
-            "0",
-            "0",
-            "0",
-            "0",
         ]
 
     def _run(self, *, arguments=None, pass_fds=(), environment=None):
@@ -161,6 +156,14 @@ class ExclusiveCleanupTests(unittest.TestCase):
         completed = self._run()
         self.assertEqual(completed.returncode, 71)
         self.assertEqual(marker.read_bytes(), b"owned but nonempty")
+
+    def test_in_root_helper_is_not_unlinked_or_treated_as_special(self):
+        nested_helper = self.root / "exclusive-cleanup"
+        shutil.copyfile(self.helper, nested_helper)
+        nested_helper.chmod(0o700)
+        completed = self._run()
+        self.assertEqual(completed.returncode, 71)
+        self.assertTrue(nested_helper.is_file())
 
     def test_cross_device_root_is_preserved(self):
         other_fd = os.open("/dev", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)

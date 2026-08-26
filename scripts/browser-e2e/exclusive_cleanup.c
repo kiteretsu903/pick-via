@@ -154,28 +154,21 @@ int main(int argc, char *argv[]) {
     int empty;
     struct expected_identity root_expected;
     struct expected_identity parent_expected;
-    struct expected_identity helper_expected;
     struct stat root_observed;
     struct stat parent_observed;
     struct stat named_observed;
     const char *original;
     const char *quarantine;
-    const char *helper_name;
 
-    if (argc != 18 || !parse_fd(argv[1], &parent_descriptor) ||
+    if (argc != 13 || !parse_fd(argv[1], &parent_descriptor) ||
         !parse_fd(argv[2], &root_descriptor) || !valid_name(argv[3]) ||
         !valid_name(argv[4]) || strncmp(argv[4], ".pickvia-finalize-", 18) != 0 ||
         !parse_identity(&argv[5], &root_expected) ||
-        !parse_identity(&argv[9], &parent_expected) ||
-        !parse_identity(&argv[14], &helper_expected)) {
+        !parse_identity(&argv[9], &parent_expected)) {
         return EXIT_USAGE;
     }
     original = argv[3];
     quarantine = argv[4];
-    helper_name = argv[13];
-    if (strcmp(helper_name, "-") != 0 && !valid_name(helper_name)) {
-        return EXIT_USAGE;
-    }
     if (fstat(parent_descriptor, &parent_observed) != 0 ||
         fstat(root_descriptor, &root_observed) != 0 ||
         !matches(&parent_observed, &parent_expected, 1) ||
@@ -186,15 +179,6 @@ int main(int argc, char *argv[]) {
     if (fstatat(parent_descriptor, original, &named_observed, AT_SYMLINK_NOFOLLOW) != 0 ||
         !matches(&named_observed, &root_expected, 1)) {
         return EXIT_AMBIGUOUS;
-    }
-    if (strcmp(helper_name, "-") != 0) {
-        if (fstatat(root_descriptor, helper_name, &named_observed, AT_SYMLINK_NOFOLLOW) != 0 ||
-            !matches(&named_observed, &helper_expected, 0) ||
-            !S_ISREG(named_observed.st_mode) || named_observed.st_nlink != 1 ||
-            unlinkat(root_descriptor, helper_name, 0) != 0 ||
-            name_is_absent(root_descriptor, helper_name) != 1) {
-            return EXIT_AMBIGUOUS;
-        }
     }
     empty = directory_is_empty(root_descriptor);
     if (empty == 0) {

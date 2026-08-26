@@ -22,6 +22,10 @@ class _SmokeProcessGroupAmbiguous(SmokePolicyError):
     pass
 
 
+class _UnpinnedProcessError(_SmokeProcessGroupAmbiguous):
+    pass
+
+
 _ALLOWED_POLICY_ENVIRONMENT_KEYS = frozenset(
     {
         "PATH",
@@ -535,8 +539,10 @@ class ExactProcess:
                 except SmokePolicyError:
                     current_executable = None
                 if current_executable != expected_executable:
-                    cls._cleanup_unpinned_group(process)
-                    raise SmokePolicyError("child executable transition rejected")
+                    cls._close_unpinned_parent_streams(process)
+                    raise _UnpinnedProcessError(
+                        "child executable transition rejected"
+                    )
             if current_identity is not None and current_identity == previous_identity:
                 expected_identity = current_identity
                 break
@@ -545,8 +551,8 @@ class ExactProcess:
                 break
             time.sleep(0.005)
         if expected_identity is None:
-            cls._cleanup_unpinned_group(process)
-            raise SmokePolicyError("child identity could not be pinned")
+            cls._close_unpinned_parent_streams(process)
+            raise _UnpinnedProcessError("child identity could not be pinned")
         return cls(
             process,
             expected_identity,
@@ -585,52 +591,10 @@ class ExactProcess:
         return instance
 
     @staticmethod
-    def _cleanup_unpinned_group(process):
-        process_group = process.pid
-        try:
-            current_group = os.getpgid(process.pid)
-            if current_group != process_group:
-                return False
-        except ProcessLookupError:
-            try:
-                members = _darwin_process_group_snapshot(process_group)
-            except SmokePolicyError:
-                return False
-            if not members or any(member.pid == process_group for member in members):
-                return not members
-        try:
-            os.killpg(process_group, signal.SIGTERM)
-        except ProcessLookupError:
-            return True
-        try:
-            process.wait(timeout=0.5)
-        except subprocess.TimeoutExpired:
-            pass
-        deadline = time.monotonic() + 0.5
-        while time.monotonic() < deadline:
-            try:
-                if not _darwin_process_group_snapshot(process_group):
-                    return True
-            except SmokePolicyError:
-                return False
-            time.sleep(0.01)
-        try:
-            members = _darwin_process_group_snapshot(process_group)
-        except SmokePolicyError:
-            return False
-        if not members or any(member.pid == process_group for member in members):
-            return not members
-        os.killpg(process_group, signal.SIGKILL)
-        deadline = time.monotonic() + 0.5
-        while time.monotonic() < deadline:
-            if not _darwin_process_group_snapshot(process_group):
-                try:
-                    process.wait(timeout=0)
-                except (subprocess.TimeoutExpired, ChildProcessError):
-                    pass
-                return True
-            time.sleep(0.01)
-        return False
+    def _close_unpinned_parent_streams(process):
+        for stream in (process.stdin, process.stdout, process.stderr):
+            if stream is not None and not stream.closed:
+                stream.close()
 
     def _group_state(self):
         if self._group_snapshot is None:
