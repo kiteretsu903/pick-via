@@ -5,6 +5,7 @@ import ctypes
 import hashlib
 import os
 import pathlib
+import selectors
 import signal
 import stat
 import subprocess
@@ -14,6 +15,10 @@ import pickvia_e2e_driver as driver
 
 
 class SmokePolicyError(RuntimeError):
+    pass
+
+
+class _SmokeProcessGroupAmbiguous(SmokePolicyError):
     pass
 
 
@@ -715,6 +720,204 @@ class ExactProcess:
                 stream.close()
 
 
+def _smoke_base_environment(task_root):
+    root = task_root.require_current()
+    return {
+        "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+        "LANG": "en_US.UTF-8",
+        "LC_CTYPE": "UTF-8",
+        "TMPDIR": os.fspath(root),
+        "CFFIXED_USER_HOME": os.fspath(root),
+        "PYTHONDONTWRITEBYTECODE": "1",
+    }
+
+
+def _smoke_environment(task_root, session_nonce):
+    root = task_root.require_current()
+    environment = _smoke_base_environment(task_root)
+    environment.update(
+        {
+            "PICKVIA_E2E_TARGET_ID": "dev.bozhenpeng.PickVia.E2E.Missing||normal",
+            "PICKVIA_E2E_BUNDLE_ID": "dev.bozhenpeng.PickVia.E2E.Missing",
+            "PICKVIA_E2E_MODE": "normal",
+            "PICKVIA_E2E_SESSION_NONCE": session_nonce,
+            "PICKVIA_E2E_SUPPORT_DIR": os.fspath(root),
+            "PICKVIA_E2E_STATUS_FIFO": os.fspath(root / "status.fifo"),
+        }
+    )
+    return environment
+
+
+def _compile_smoke_helper(source, output, task_root):
+    environment = _smoke_base_environment(task_root)
+    swiftc, physical_swiftc, sdk = _resolve_swift_toolchain(environment)
+    compiler = ExactProcess.start(
+        [
+            os.fspath(swiftc),
+            "-swift-version",
+            "6",
+            "-warnings-as-errors",
+            "-sdk",
+            os.fspath(sdk),
+            os.fspath(source),
+            "-o",
+            os.fspath(output),
+        ],
+        environment=environment,
+        expected_executable=physical_swiftc,
+    )
+    succeeded = False
+    try:
+        succeeded = compiler.wait_success(30)
+    finally:
+        if compiler._group_state() == "owned":
+            compiler.terminate_bounded(term_timeout=2, kill_timeout=2)
+        group_absent = compiler._group_state() == "absent"
+        compiler.close_streams()
+    if not group_absent:
+        raise _SmokeProcessGroupAmbiguous("compiler process group is ambiguous")
+    return succeeded
+
+
+def _run_smoke_helper(helper, application, process_identifier, task_root):
+    environment = _smoke_base_environment(task_root)
+    process = ExactProcess.start(
+        [os.fspath(helper), os.fspath(application), str(process_identifier)],
+        environment=environment,
+        stdin=subprocess.PIPE,
+    )
+    succeeded = False
+    try:
+        process.process.stdin.write(b"https://127.0.0.1/pickvia-e2e-smoke")
+        process.process.stdin.close()
+        succeeded = process.wait_success(10)
+    finally:
+        if process._group_state() == "owned":
+            process.terminate_bounded(term_timeout=2, kill_timeout=2)
+        group_absent = process._group_state() == "absent"
+        process.close_streams()
+    if not group_absent:
+        raise _SmokeProcessGroupAmbiguous("route helper process group is ambiguous")
+    return succeeded
+
+
+def _read_smoke_status(descriptor, timeout):
+    selector = selectors.DefaultSelector()
+    payload = bytearray()
+    deadline = time.monotonic() + timeout
+    try:
+        selector.register(descriptor, selectors.EVENT_READ)
+        while time.monotonic() < deadline:
+            events = selector.select(max(0, deadline - time.monotonic()))
+            if not events:
+                break
+            chunk = os.read(descriptor, 2_049 - len(payload))
+            if not chunk:
+                continue
+            payload.extend(chunk)
+            if len(payload) > 2_048:
+                raise SmokePolicyError("smoke status exceeded byte limit")
+            if b"\n" in payload:
+                line, trailing = bytes(payload).split(b"\n", 1)
+                if trailing:
+                    raise SmokePolicyError("smoke status contained trailing data")
+                return line
+        raise SmokePolicyError("smoke status timed out")
+    finally:
+        selector.close()
+
+
+def _run_missing_target_smoke(application, helper_source, session_nonce):
+    if not driver._SESSION_PATTERN.fullmatch(session_nonce):
+        raise SmokePolicyError("invalid smoke session")
+    pinned_app = PinnedApplication.open(application)
+    owner = driver._TaskRootOwner()
+    task_root = None
+    status_descriptor = None
+    app_process = None
+    process_groups_absent = True
+    auxiliary_group_ambiguous = False
+    finalized = False
+    completed = False
+    interrupted_during_cleanup = False
+    route_bytes = b"https://127.0.0.1/pickvia-e2e-smoke"
+    signal_guard = driver._SignalGuard().install()
+    try:
+        task_root = driver._make_task_root(owner)
+        task_root.create_fifo("status.fifo")
+        status_descriptor = task_root.open_fifo("status.fifo")
+        helper = task_root.child_path("open_with_app")
+        if not _compile_smoke_helper(helper_source, helper, task_root):
+            raise SmokePolicyError("smoke helper compilation failed")
+        if not pinned_app.validate():
+            raise SmokePolicyError("application changed before launch")
+        environment = _smoke_environment(task_root, session_nonce)
+        app_process = ExactProcess.start(
+            [os.fspath(pinned_app.executable)],
+            environment=environment,
+            expected_executable=pinned_app.executable,
+        )
+        process_groups_absent = False
+        if not pinned_app.validate():
+            raise SmokePolicyError("application changed during launch")
+        if not _run_smoke_helper(
+            helper, pinned_app.path, app_process.pid, task_root
+        ):
+            raise SmokePolicyError("smoke route helper failed")
+        expected = (
+            b'{"outcome":"target-missing","session":"'
+            + session_nonce.encode("ascii")
+            + b'"}'
+        )
+        if _read_smoke_status(status_descriptor, 10) != expected:
+            raise SmokePolicyError("unexpected smoke status")
+        if not app_process.terminate_bounded(term_timeout=4, kill_timeout=2):
+            raise SmokePolicyError("smoke application cleanup failed")
+        process_groups_absent = app_process._group_state() == "absent"
+        if not process_groups_absent:
+            raise SmokePolicyError("smoke application process group survived")
+        os.close(status_descriptor)
+        status_descriptor = None
+        if not task_root.audit_regular_files(route_bytes):
+            raise SmokePolicyError("smoke task root failed privacy audit")
+        signal_guard.begin_cleanup()
+        finalized = owner.cleanup()
+        if not finalized:
+            raise SmokePolicyError("smoke task root finalization failed")
+        completed = True
+    except _SmokeProcessGroupAmbiguous:
+        auxiliary_group_ambiguous = True
+        process_groups_absent = False
+        raise
+    finally:
+        signal_guard.begin_cleanup()
+        try:
+            if task_root is None:
+                task_root = owner.root
+            if app_process is not None:
+                if app_process._group_state() == "owned":
+                    app_process.terminate_bounded(term_timeout=2, kill_timeout=2)
+                process_groups_absent = (
+                    not auxiliary_group_ambiguous
+                    and app_process._group_state() == "absent"
+                )
+                app_process.close_streams()
+            if status_descriptor is not None:
+                os.close(status_descriptor)
+            if task_root is not None and not finalized:
+                if process_groups_absent:
+                    owner.cleanup()
+                else:
+                    task_root.close()
+            pinned_app.close()
+        finally:
+            interrupted_during_cleanup = bool(signal_guard.received_during_cleanup)
+            signal_guard.restore()
+    if interrupted_during_cleanup:
+        raise SmokePolicyError("smoke cleanup interrupted")
+    return completed
+
+
 def _main(arguments=None):
     if not set(os.environ).issubset(_ALLOWED_POLICY_ENVIRONMENT_KEYS):
         return 1
@@ -735,6 +938,10 @@ def _main(arguments=None):
     run_helper.add_argument("application")
     run_helper.add_argument("process_identifier", type=int)
     run_helper.add_argument("runtime_root")
+    launch_app = subparsers.add_parser("launch-app", add_help=False)
+    launch_app.add_argument("application")
+    launch_app.add_argument("helper_source")
+    launch_app.add_argument("session_nonce")
     process_identity = subparsers.add_parser("process-identity", add_help=False)
     process_identity.add_argument("process_identifier", type=int)
     process_identity.add_argument("expected_executable")
@@ -742,6 +949,12 @@ def _main(arguments=None):
     verify_app.add_argument("application")
     try:
         options = parser.parse_args(arguments)
+        if options.command == "launch-app":
+            return 0 if _run_missing_target_smoke(
+                pathlib.Path(options.application),
+                pathlib.Path(options.helper_source),
+                options.session_nonce,
+            ) else 1
         if options.command in ("canonical-app", "app-identity"):
             pinned = PinnedApplication.open(options.application)
             try:
@@ -868,7 +1081,7 @@ def _main(arguments=None):
         finally:
             preferences.close()
         return 0
-    except (OSError, SmokePolicyError, SystemExit):
+    except (driver._DriverInterrupted, OSError, SmokePolicyError, SystemExit):
         return 1
 
 

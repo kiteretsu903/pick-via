@@ -15,6 +15,131 @@ import smoke_e2e_runtime as runtime
 
 
 class SmokeCompilerTests(unittest.TestCase):
+    def test_cli_launch_app_delegates_to_exact_smoke_supervision(self):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+                "LANG": "en_US.UTF-8",
+                "LC_CTYPE": "UTF-8",
+            },
+            clear=True,
+        ), mock.patch.object(
+            runtime, "_run_missing_target_smoke", return_value=True
+        ) as supervise:
+            status = runtime._main(
+                [
+                    "launch-app",
+                    "/private/tmp/PickVia E2E.app",
+                    "/private/tmp/open_with_app.swift",
+                    "smoke_session_0123456789",
+                ]
+            )
+        self.assertEqual(status, 0)
+        supervise.assert_called_once_with(
+            pathlib.Path("/private/tmp/PickVia E2E.app"),
+            pathlib.Path("/private/tmp/open_with_app.swift"),
+            "smoke_session_0123456789",
+        )
+
+    def test_smoke_finalizes_root_only_after_owned_process_group_is_absent(self):
+        pinned_app = mock.Mock()
+        pinned_app.path = pathlib.Path("/private/tmp/PickVia E2E.app")
+        pinned_app.executable = pathlib.Path("/usr/bin/true")
+        pinned_app.validate.return_value = True
+        task_root = mock.Mock()
+        task_root.require_current.return_value = pathlib.Path(
+            "/private/tmp/pickvia-e2e-test"
+        )
+        task_root.open_fifo.return_value = 99
+        task_root.child_path.return_value = pathlib.Path(
+            "/private/tmp/pickvia-e2e-test/open_with_app"
+        )
+        task_root.audit_regular_files.return_value = True
+        owner = mock.Mock()
+        owner.cleanup.return_value = True
+        application = mock.Mock()
+        application.pid = 4242
+        application.terminate_bounded.return_value = True
+        application._group_state.return_value = "absent"
+        sequence = mock.Mock()
+        sequence.attach_mock(application.terminate_bounded, "terminate")
+        sequence.attach_mock(owner.cleanup, "finalize")
+        expected = b'{"outcome":"target-missing","session":"smoke_session_0123456789"}'
+
+        with mock.patch.object(
+            runtime.PinnedApplication, "open", return_value=pinned_app
+        ), mock.patch.object(
+            runtime.driver, "_TaskRootOwner", return_value=owner
+        ), mock.patch.object(
+            runtime.driver, "_make_task_root", return_value=task_root
+        ), mock.patch.object(
+            runtime, "_compile_smoke_helper", return_value=True
+        ), mock.patch.object(
+            runtime, "_run_smoke_helper", return_value=True
+        ), mock.patch.object(
+            runtime, "_read_smoke_status", return_value=expected
+        ), mock.patch.object(
+            runtime.ExactProcess, "start", return_value=application
+        ), mock.patch.object(runtime.os, "close"):
+            self.assertTrue(
+                runtime._run_missing_target_smoke(
+                    pinned_app.path,
+                    pathlib.Path("/private/tmp/open_with_app.swift"),
+                    "smoke_session_0123456789",
+                )
+            )
+
+        self.assertLess(
+            sequence.mock_calls.index(mock.call.terminate(term_timeout=4, kill_timeout=2)),
+            sequence.mock_calls.index(mock.call.finalize()),
+        )
+
+    def test_ambiguous_app_process_group_preserves_task_root(self):
+        pinned_app = mock.Mock()
+        pinned_app.path = pathlib.Path("/private/tmp/PickVia E2E.app")
+        pinned_app.executable = pathlib.Path("/usr/bin/true")
+        pinned_app.validate.return_value = True
+        task_root = mock.Mock()
+        task_root.require_current.return_value = pathlib.Path(
+            "/private/tmp/pickvia-e2e-preserved"
+        )
+        task_root.open_fifo.return_value = 99
+        task_root.child_path.return_value = pathlib.Path(
+            "/private/tmp/pickvia-e2e-preserved/open_with_app"
+        )
+        owner = mock.Mock()
+        application = mock.Mock()
+        application.pid = 4242
+        application.terminate_bounded.return_value = False
+        application._group_state.return_value = "ambiguous"
+        expected = b'{"outcome":"target-missing","session":"smoke_session_0123456789"}'
+
+        with mock.patch.object(
+            runtime.PinnedApplication, "open", return_value=pinned_app
+        ), mock.patch.object(
+            runtime.driver, "_TaskRootOwner", return_value=owner
+        ), mock.patch.object(
+            runtime.driver, "_make_task_root", return_value=task_root
+        ), mock.patch.object(
+            runtime, "_compile_smoke_helper", return_value=True
+        ), mock.patch.object(
+            runtime, "_run_smoke_helper", return_value=True
+        ), mock.patch.object(
+            runtime, "_read_smoke_status", return_value=expected
+        ), mock.patch.object(
+            runtime.ExactProcess, "start", return_value=application
+        ), mock.patch.object(runtime.os, "close"):
+            with self.assertRaises(runtime.SmokePolicyError):
+                runtime._run_missing_target_smoke(
+                    pinned_app.path,
+                    pathlib.Path("/private/tmp/open_with_app.swift"),
+                    "smoke_session_0123456789",
+                )
+
+        owner.cleanup.assert_not_called()
+        task_root.close.assert_called_once_with()
+
     def test_compile_helper_launches_resolved_swiftc_without_xcrun_transition(self):
         root = pathlib.Path(
             tempfile.mkdtemp(prefix="pickvia-swift-sdk-resolution-", dir="/private/tmp")
@@ -340,6 +465,36 @@ class ExactProcessTests(unittest.TestCase):
         )
         self.assertFalse(process.terminate_bounded(term_timeout=0, kill_timeout=0))
         self.assertEqual(signals, [])
+
+    def test_replacement_between_term_and_kill_is_never_killed(self):
+        signals = []
+        expected = runtime.driver.ProcessIdentity(
+            4242, 1, 10, 20, pathlib.Path("/bin/sleep")
+        )
+        replacement = runtime.driver.ProcessIdentity(
+            4242, 1, 30, 40, pathlib.Path("/bin/other")
+        )
+        snapshots = iter(
+            (
+                frozenset({expected}),
+                frozenset({expected}),
+                frozenset({replacement}),
+            )
+        )
+        process = runtime.ExactProcess.for_test(
+            pid=4242,
+            poll=lambda: None,
+            wait=lambda timeout: None,
+            identity=lambda pid: expected,
+            signal_group=lambda process_group, signal_number: signals.append(
+                (process_group, signal_number)
+            ),
+            process_group=lambda pid: pid,
+            expected_identity=expected,
+            group_snapshot=lambda pid: next(snapshots),
+        )
+        self.assertFalse(process.terminate_bounded(term_timeout=0, kill_timeout=0))
+        self.assertEqual(signals, [(4242, runtime.signal.SIGTERM)])
 
     def test_timeout_terminates_exact_process_group_and_descendant(self):
         fixture = pathlib.Path(

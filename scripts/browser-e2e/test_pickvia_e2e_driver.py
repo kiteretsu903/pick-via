@@ -756,7 +756,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
                 with self.assertRaises(driver._DriverInterrupted):
                     self._make_task_root()
             self.assertFalse(created["path"].exists())
-            self.assertEqual(len(created["descriptors"]), 2)
+            self.assertGreaterEqual(len(created["descriptors"]), 2)
             for descriptor in created["descriptors"]:
                 with self.assertRaises(OSError):
                     os.fstat(descriptor)
@@ -769,6 +769,64 @@ class PickViaE2EDriverTests(unittest.TestCase):
                     os.close(descriptor)
                 except OSError:
                     pass
+
+    def test_task_root_remove_uses_bounded_native_exclusive_finalizer(self):
+        pinned = self._make_task_root()
+        (pinned.path / "owned").write_bytes(b"owned")
+        real_run = subprocess.run
+        observed = []
+
+        def record_run(arguments, *args, **kwargs):
+            observed.append((tuple(map(os.fspath, arguments)), dict(kwargs)))
+            return real_run(arguments, *args, **kwargs)
+
+        with mock.patch.object(driver.subprocess, "run", side_effect=record_run):
+            self.assertTrue(pinned.remove())
+        self.assertFalse(pinned.path.exists())
+        compile_calls = [
+            call
+            for call in observed
+            if call[0][:2] == ("/usr/bin/xcrun", "clang")
+        ]
+        self.assertEqual(len(compile_calls), 1)
+        self.assertEqual(float(compile_calls[0][1]["timeout"]), 10.0)
+        helper_calls = [
+            call for call in observed if call[0][0].endswith("exclusive-cleanup")
+        ]
+        self.assertEqual(len(helper_calls), 1)
+        helper_arguments, helper_options = helper_calls[0]
+        self.assertEqual(float(helper_options["timeout"]), 2.0)
+        self.assertEqual(
+            set(helper_options["pass_fds"]),
+            {pinned.parent_descriptor, pinned.descriptor},
+        )
+        self.assertNotIn("PICKVIA_PARENT_SENTINEL_SECRET", helper_options["env"])
+        self.assertTrue(helper_arguments[3].startswith("pickvia-e2e-"))
+        self.assertTrue(helper_arguments[4].startswith(".pickvia-finalize-"))
+
+    def test_task_root_owner_clears_successful_root_for_repeated_trap(self):
+        owner = driver._TaskRootOwner()
+        pinned = driver._make_task_root(owner)
+        path = pinned.path
+        self.assertTrue(owner.cleanup())
+        self.assertIsNone(owner.root)
+        self.assertFalse(path.exists())
+        self.assertTrue(owner.cleanup())
+
+    def test_native_finalizer_timeout_preserves_root_and_fails_closed(self):
+        pinned = self._make_task_root()
+        try:
+            with mock.patch.object(
+                driver.subprocess,
+                "run",
+                side_effect=subprocess.TimeoutExpired(["/usr/bin/xcrun", "clang"], 10),
+            ):
+                self.assertFalse(pinned.remove())
+            self.assertTrue(pinned.path.is_dir())
+        finally:
+            pinned.close()
+            if pinned.path.exists():
+                shutil.rmtree(pinned.path)
 
     def test_task_root_second_fstat_interrupt_closes_both_fds_and_removes_root(self):
         created = {"descriptors": [], "fstat_calls": 0}
@@ -799,7 +857,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
                 with self.assertRaises(driver._DriverInterrupted):
                     self._make_task_root()
             self.assertFalse(created["path"].exists())
-            self.assertEqual(len(created["descriptors"]), 2)
+            self.assertGreaterEqual(len(created["descriptors"]), 2)
             for descriptor in created["descriptors"]:
                 with self.assertRaises(OSError):
                     os.fstat(descriptor)
@@ -1298,49 +1356,35 @@ class PickViaE2EDriverTests(unittest.TestCase):
 
     def test_root_cleanup_operation_time_swap_preserves_replacement(self):
         pinned = self._make_task_root()
-        real_rename = os.rename
         swapped = {}
 
-        def swap_quarantined_root(source, destination, *args, **kwargs):
-            result = real_rename(source, destination, *args, **kwargs)
-            if source == pinned.path.name and str(destination).startswith(
-                ".pickvia-cleanup-"
-            ):
-                held = f"{destination}-held-original"
-                real_rename(destination, held, *args, **kwargs)
-                parent_descriptor = kwargs["dst_dir_fd"]
-                os.mkdir(destination, mode=0o700, dir_fd=parent_descriptor)
-                marker = os.open(
-                    f"{destination}/replacement-must-survive",
-                    os.O_WRONLY | os.O_CREAT | os.O_EXCL,
-                    0o600,
-                    dir_fd=parent_descriptor,
-                )
-                try:
-                    os.write(marker, b"replacement")
-                finally:
-                    os.close(marker)
-                swapped.update(held=held, quarantine=destination)
-            return result
+        real_run = subprocess.run
+
+        def replace_after_exclusive_rename(arguments, *args, **kwargs):
+            if pathlib.Path(arguments[0]).name == "exclusive-cleanup":
+                quarantine = pathlib.Path("/private/tmp") / arguments[4]
+                pinned.path.rename(quarantine)
+                pinned.path.mkdir(mode=0o700)
+                marker = pinned.path / "replacement-must-survive"
+                marker.write_bytes(b"replacement")
+                swapped.update(held=quarantine, marker=marker)
+                return subprocess.CompletedProcess(arguments, 70)
+            return real_run(arguments, *args, **kwargs)
 
         try:
-            with mock.patch("os.rename", side_effect=swap_quarantined_root):
+            with mock.patch.object(
+                driver.subprocess, "run", side_effect=replace_after_exclusive_rename
+            ):
                 self.assertFalse(pinned.remove())
-            self.assertEqual(
-                (pinned.path / "replacement-must-survive").read_bytes(),
-                b"replacement",
-            )
-            held = pathlib.Path("/private/tmp") / swapped["held"]
-            self.assertTrue(held.exists())
+            self.assertEqual(swapped["marker"].read_bytes(), b"replacement")
+            self.assertTrue(swapped["held"].exists())
         finally:
             pinned.close()
             if pinned.path.exists():
                 shutil.rmtree(pinned.path)
-            held_name = swapped.get("held")
-            if held_name is not None:
-                held = pathlib.Path("/private/tmp") / held_name
-                if held.exists():
-                    shutil.rmtree(held)
+            held = swapped.get("held")
+            if held is not None and held.exists():
+                shutil.rmtree(held)
 
     def test_pinned_task_root_rejects_replacement_before_fifo_setup(self):
         pinned = self._make_task_root()

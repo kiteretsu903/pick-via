@@ -49,6 +49,8 @@ MAXIMUM_AUDIT_PASSES = 3
 MAXIMUM_AUDIT_SECONDS = 2.0
 MAXIMUM_AUDIT_WORK_BYTES = MAXIMUM_AUDIT_FILE_BYTES * MAXIMUM_AUDIT_PASSES
 MAXIMUM_AUDIT_WORK_ENTRIES = MAXIMUM_AUDIT_ENTRIES * MAXIMUM_AUDIT_PASSES * 4
+EXCLUSIVE_CLEANUP_TIMEOUT_SECONDS = 2.0
+EXCLUSIVE_CLEANUP_COMPILE_TIMEOUT_SECONDS = 10.0
 _SESSION_PATTERN = re.compile(r"\A[A-Za-z0-9_-]{16,64}\Z")
 _TOKEN_PATTERN = re.compile(r"\A[A-Za-z0-9_-]+\Z")
 _CLOSED_OUTCOMES = frozenset(
@@ -106,6 +108,20 @@ class ProcessIdentity:
 
 def _ignore(*args):
     return None
+
+
+def _mkfifo_at(descriptor, name, mode):
+    if os.mkfifo in os.supports_dir_fd:
+        os.mkfifo(name, mode, dir_fd=descriptor)
+        return
+    library = ctypes.CDLL(None, use_errno=True)
+    library.mkfifoat.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+    library.mkfifoat.restype = ctypes.c_int
+    encoded = os.fsencode(name)
+    ctypes.set_errno(0)
+    if library.mkfifoat(descriptor, encoded, mode) != 0:
+        error_number = ctypes.get_errno()
+        raise OSError(error_number, os.strerror(error_number), name)
 
 
 def _exact_process_identity(process, executable):
@@ -391,7 +407,7 @@ class _PinnedTaskRoot:
 
     def create_fifo(self, name):
         self.require_current()
-        os.mkfifo(name, 0o600, dir_fd=self.descriptor)
+        _mkfifo_at(self.descriptor, name, 0o600)
         os.chmod(name, 0o600, dir_fd=self.descriptor, follow_symlinks=False)
 
     def open_fifo(self, name):
@@ -438,29 +454,8 @@ class _PinnedTaskRoot:
             if not contents_removed or not path_is_current:
                 return False
             self.require_current()
-            quarantine = _quarantine_entry(
-                self.parent_descriptor,
-                self.path.name,
-                self.identity,
-            )
-            if quarantine is None:
-                return False
-            quarantined = os.stat(
-                quarantine,
-                dir_fd=self.parent_descriptor,
-                follow_symlinks=False,
-            )
-            if (
-                _DirectoryIdentity.from_stat(quarantined) != self.identity
-                or not self._descriptor_matches()
-            ):
-                _restore_quarantine(
-                    self.parent_descriptor, quarantine, self.path.name
-                )
-                return False
-            os.rmdir(quarantine, dir_fd=self.parent_descriptor)
-            return not self.path.exists()
-        except OSError:
+            return _finalize_empty_task_root_exclusively(self)
+        except (OSError, subprocess.SubprocessError):
             return False
         finally:
             self.close()
@@ -494,10 +489,121 @@ class _TaskRootOwner:
     def cleanup(self):
         if self.root is None:
             return True
+        root = self.root
         try:
-            return self.root.remove()
+            removed = root.remove()
+            if removed and self.root is root:
+                self.root = None
+            return removed
         finally:
-            self.root.close()
+            root.close()
+
+
+def _exclusive_cleanup_environment(task_root):
+    return {
+        "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+        "LANG": "en_US.UTF-8",
+        "LC_CTYPE": "UTF-8",
+        "TMPDIR": os.fspath(task_root.require_current()),
+        "CFFIXED_USER_HOME": os.fspath(task_root.require_current()),
+        "PYTHONDONTWRITEBYTECODE": "1",
+    }
+
+
+def _exclusive_cleanup_identity_arguments(metadata):
+    return [
+        str(metadata.st_dev),
+        str(metadata.st_ino),
+        str(metadata.st_uid),
+        str(metadata.st_mode),
+    ]
+
+
+def _finalize_empty_task_root_exclusively(task_root):
+    if not isinstance(task_root, _PinnedTaskRoot) or os.listdir(task_root.descriptor):
+        return False
+    helper_name = "exclusive-cleanup"
+    helper_path = task_root.child_path(helper_name)
+    environment = _exclusive_cleanup_environment(task_root)
+    compile_result = subprocess.run(
+        [
+            "/usr/bin/xcrun",
+            "clang",
+            "-std=c17",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            os.fspath(_SCRIPT_DIR / "exclusive_cleanup.c"),
+            "-o",
+            os.fspath(helper_path),
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        env=environment,
+        close_fds=True,
+        timeout=EXCLUSIVE_CLEANUP_COMPILE_TIMEOUT_SECONDS,
+        check=False,
+    )
+    if compile_result.returncode != 0:
+        return False
+    task_root.require_current()
+    helper_descriptor = -1
+    try:
+        helper_descriptor = os.open(
+            helper_name,
+            os.O_RDONLY
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_CLOEXEC", 0),
+            dir_fd=task_root.descriptor,
+        )
+        helper_metadata = os.fstat(helper_descriptor)
+        named_metadata = os.stat(
+            helper_name,
+            dir_fd=task_root.descriptor,
+            follow_symlinks=False,
+        )
+        if (
+            not stat.S_ISREG(helper_metadata.st_mode)
+            or helper_metadata.st_mode & 0o111 == 0
+            or helper_metadata.st_nlink != 1
+            or helper_metadata.st_uid != os.getuid()
+            or helper_metadata.st_dev != task_root.identity.device
+            or _DeletionIdentity.from_stat(named_metadata)
+            != _DeletionIdentity.from_stat(helper_metadata)
+            or os.listdir(task_root.descriptor) != [helper_name]
+        ):
+            return False
+    finally:
+        if helper_descriptor >= 0:
+            os.close(helper_descriptor)
+
+    root_metadata = os.fstat(task_root.descriptor)
+    parent_metadata = os.fstat(task_root.parent_descriptor)
+    quarantine = f".pickvia-finalize-{secrets.token_hex(16)}"
+    arguments = [
+        os.fspath(helper_path),
+        str(task_root.parent_descriptor),
+        str(task_root.descriptor),
+        task_root.path.name,
+        quarantine,
+        *_exclusive_cleanup_identity_arguments(root_metadata),
+        *_exclusive_cleanup_identity_arguments(parent_metadata),
+        helper_name,
+        *_exclusive_cleanup_identity_arguments(helper_metadata),
+    ]
+    completed = subprocess.run(
+        arguments,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        env=environment,
+        close_fds=True,
+        pass_fds=(task_root.parent_descriptor, task_root.descriptor),
+        timeout=EXCLUSIVE_CLEANUP_TIMEOUT_SECONDS,
+        check=False,
+    )
+    return completed.returncode == 0
 
 
 def _restore_quarantine(descriptor, quarantine, original):
