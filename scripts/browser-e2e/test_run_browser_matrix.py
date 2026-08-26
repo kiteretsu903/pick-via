@@ -1050,31 +1050,282 @@ class MatrixRunnerTests(unittest.TestCase):
             )
         self.assertEqual(sentinel.read_text(encoding="utf-8"), "owned elsewhere")
 
-    def test_evidence_publication_detects_operation_time_staging_swap(self):
-        output_path = self.root / "publication-output"
-        output = matrix._PinnedOutputDirectory.open(output_path, create=True)
-        real_rename = os.rename
-
-        def swap_before_rename(source, destination, **kwargs):
-            os.unlink(source, dir_fd=output.descriptor)
-            forged = os.open(
-                source,
-                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
-                0o600,
-                dir_fd=output.descriptor,
+    def test_output_lock_excludes_second_fresh_or_resume_writer_for_lifetime(self):
+        output_path = self.root / "locked-output"
+        first = matrix._PinnedOutputDirectory.open(output_path, create=True)
+        header = matrix._chain_record(
+            {
+                "recordType": "run",
+                "schemaVersion": 1,
+                "manifestDigest": "a" * 64,
+                "planDigest": "b" * 64,
+            },
+            "0" * 64,
+        )
+        matrix._write_records(first, [header])
+        original = (output_path / "evidence.jsonl").read_bytes()
+        try:
+            with self.assertRaises(matrix.MatrixError):
+                matrix._PinnedOutputDirectory.open(output_path, create=False)
+            with self.assertRaises(matrix.MatrixError):
+                matrix._PinnedOutputDirectory.open(output_path, create=True)
+            self.assertEqual((output_path / "evidence.jsonl").read_bytes(), original)
+            probe = (
+                "import pathlib,sys;"
+                f"sys.path.insert(0,{str(pathlib.Path(matrix.__file__).parent)!r});"
+                "import run_browser_matrix as matrix;"
+                "path=pathlib.Path(sys.argv[1]);"
+                "\ntry: matrix._PinnedOutputDirectory.open(path,create=False)\n"
+                "except matrix.MatrixError: raise SystemExit(0)\n"
+                "raise SystemExit(1)"
             )
-            try:
-                os.write(forged, b"forged-after-check\n")
-            finally:
-                os.close(forged)
-            return real_rename(source, destination, **kwargs)
+            completed = matrix.subprocess.run(
+                [matrix.sys.executable, "-c", probe, os.fspath(output_path)],
+                stdin=matrix.subprocess.DEVNULL,
+                stdout=matrix.subprocess.PIPE,
+                stderr=matrix.subprocess.PIPE,
+                timeout=5,
+                check=False,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertEqual((output_path / "evidence.jsonl").read_bytes(), original)
+        finally:
+            first.close()
+        second = matrix._PinnedOutputDirectory.open(output_path, create=False)
+        second.close()
+
+    def test_evidence_update_rejects_destination_change_between_check_and_swap(self):
+        output_path = self.root / "changed-destination"
+        output = matrix._PinnedOutputDirectory.open(output_path, create=True)
+        header = matrix._chain_record(
+            {
+                "recordType": "run",
+                "schemaVersion": 1,
+                "manifestDigest": "a" * 64,
+                "planDigest": "b" * 64,
+            },
+            "0" * 64,
+        )
+        matrix._write_records(output, [header])
+        cell = matrix._chain_record(
+            {
+                "recordType": "diagnostic",
+                "schemaVersion": 1,
+            },
+            header["recordHash"],
+        )
+        real_swap = matrix._rename_at_swap
+        attacked = False
+
+        def replace_then_swap(descriptor, source, destination):
+            nonlocal attacked
+            if not attacked:
+                attacked = True
+                os.unlink(destination, dir_fd=descriptor)
+                forged = os.open(
+                    destination,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                    0o600,
+                    dir_fd=descriptor,
+                )
+                try:
+                    os.write(forged, b"concurrent-replacement\n")
+                finally:
+                    os.close(forged)
+            return real_swap(descriptor, source, destination)
 
         try:
             with (
-                mock.patch.object(matrix.os, "rename", side_effect=swap_before_rename),
+                mock.patch.object(
+                    matrix, "_rename_at_swap", side_effect=replace_then_swap
+                ),
                 self.assertRaises(matrix.MatrixError),
             ):
-                matrix._write_records(output, [{"recordType": "run"}])
+                matrix._write_records(output, [header, cell])
+            self.assertEqual(
+                (output_path / "evidence.jsonl").read_bytes(),
+                b"concurrent-replacement\n",
+            )
+        finally:
+            output.close()
+
+    def test_evidence_update_rolls_back_operation_time_staging_replacement(self):
+        output_path = self.root / "publication-output"
+        output = matrix._PinnedOutputDirectory.open(output_path, create=True)
+        header = matrix._chain_record(
+            {
+                "recordType": "run",
+                "schemaVersion": 1,
+                "manifestDigest": "a" * 64,
+                "planDigest": "b" * 64,
+            },
+            "0" * 64,
+        )
+        matrix._write_records(output, [header])
+        original = (output_path / "evidence.jsonl").read_bytes()
+        diagnostic = matrix._chain_record(
+            {"recordType": "diagnostic", "schemaVersion": 1},
+            header["recordHash"],
+        )
+        real_swap = matrix._rename_at_swap
+        attacked = False
+
+        def replace_staging_then_swap(descriptor, source, destination):
+            nonlocal attacked
+            if not attacked:
+                attacked = True
+                os.unlink(source, dir_fd=descriptor)
+                forged = os.open(
+                    source,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                    0o600,
+                    dir_fd=descriptor,
+                )
+                try:
+                    os.write(forged, b"forged-after-check\n")
+                finally:
+                    os.close(forged)
+            return real_swap(descriptor, source, destination)
+
+        try:
+            with (
+                mock.patch.object(
+                    matrix,
+                    "_rename_at_swap",
+                    side_effect=replace_staging_then_swap,
+                ),
+                self.assertRaises(matrix.MatrixError),
+            ):
+                matrix._write_records(output, [header, diagnostic])
+            self.assertEqual((output_path / "evidence.jsonl").read_bytes(), original)
+        finally:
+            output.close()
+
+    def test_failed_evidence_rollback_retains_exact_prior_for_recovery(self):
+        output_path = self.root / "failed-rollback-output"
+        output = matrix._PinnedOutputDirectory.open(output_path, create=True)
+        header = matrix._chain_record(
+            {
+                "recordType": "run",
+                "schemaVersion": 1,
+                "manifestDigest": "a" * 64,
+                "planDigest": "b" * 64,
+            },
+            "0" * 64,
+        )
+        matrix._write_records(output, [header])
+        original = (output_path / "evidence.jsonl").read_bytes()
+        diagnostic = matrix._chain_record(
+            {"recordType": "diagnostic", "schemaVersion": 1},
+            header["recordHash"],
+        )
+        real_swap = matrix._rename_at_swap
+        swap_count = 0
+
+        def replace_staging_and_fail_rollback(descriptor, source, destination):
+            nonlocal swap_count
+            swap_count += 1
+            if swap_count == 1:
+                os.unlink(source, dir_fd=descriptor)
+                forged = os.open(
+                    source,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                    0o600,
+                    dir_fd=descriptor,
+                )
+                try:
+                    os.write(forged, b"forged-after-check\n")
+                finally:
+                    os.close(forged)
+                return real_swap(descriptor, source, destination)
+            raise OSError("synthetic rollback failure")
+
+        try:
+            with (
+                mock.patch.object(
+                    matrix,
+                    "_rename_at_swap",
+                    side_effect=replace_staging_and_fail_rollback,
+                ),
+                self.assertRaisesRegex(matrix.MatrixError, "prior retained"),
+            ):
+                matrix._write_records(output, [header, diagnostic])
+            recovery_names = set(os.listdir(output.descriptor)) - {
+                ".run.lock",
+                "evidence.jsonl",
+            }
+            self.assertEqual(len(recovery_names), 1)
+            recovery_name = recovery_names.pop()
+            recovery_descriptor = os.open(
+                recovery_name,
+                os.O_RDONLY | os.O_NOFOLLOW,
+                dir_fd=output.descriptor,
+            )
+            try:
+                self.assertEqual(
+                    os.read(recovery_descriptor, len(original) + 1), original
+                )
+            finally:
+                os.close(recovery_descriptor)
+            self.assertEqual(
+                (output_path / "evidence.jsonl").read_bytes(),
+                b"forged-after-check\n",
+            )
+        finally:
+            output.close()
+
+    def test_replacing_lock_sentinel_does_not_bypass_directory_lock(self):
+        output_path = self.root / "replaced-lock"
+        first = matrix._PinnedOutputDirectory.open(output_path, create=True)
+        header = matrix._chain_record(
+            {
+                "recordType": "run",
+                "schemaVersion": 1,
+                "manifestDigest": "a" * 64,
+                "planDigest": "b" * 64,
+            },
+            "0" * 64,
+        )
+        matrix._write_records(first, [header])
+        original = (output_path / "evidence.jsonl").read_bytes()
+        os.unlink(".run.lock", dir_fd=first.descriptor)
+        replacement = os.open(
+            ".run.lock",
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+            0o600,
+            dir_fd=first.descriptor,
+        )
+        os.close(replacement)
+        try:
+            with self.assertRaises(matrix.MatrixError):
+                first.require_current()
+            with self.assertRaises(matrix.MatrixError):
+                matrix._PinnedOutputDirectory.open(output_path, create=False)
+            self.assertEqual((output_path / "evidence.jsonl").read_bytes(), original)
+        finally:
+            first.close()
+
+    def test_removing_lock_sentinel_is_typed_and_preserves_evidence(self):
+        output_path = self.root / "removed-lock"
+        output = matrix._PinnedOutputDirectory.open(output_path, create=True)
+        header = matrix._chain_record(
+            {
+                "recordType": "run",
+                "schemaVersion": 1,
+                "manifestDigest": "a" * 64,
+                "planDigest": "b" * 64,
+            },
+            "0" * 64,
+        )
+        matrix._write_records(output, [header])
+        original = (output_path / "evidence.jsonl").read_bytes()
+        os.unlink(".run.lock", dir_fd=output.descriptor)
+        try:
+            with self.assertRaisesRegex(
+                matrix.MatrixError, "output directory identity changed"
+            ):
+                output.require_current()
+            self.assertEqual((output_path / "evidence.jsonl").read_bytes(), original)
         finally:
             output.close()
 
@@ -1581,7 +1832,7 @@ class MatrixRunnerTests(unittest.TestCase):
         self.assertTrue(
             any(record["result"] == "PASS" for record in chrome_records[3:])
         )
-        self.assertEqual(result.exit_code, matrix.MATRIX_SUCCESS)
+        self.assertEqual(result.exit_code, matrix.MATRIX_BLOCKED)
 
     def test_edge_pilot_catalog_refusal_blocks_without_product_failure(self):
         dependencies = FakeDependencies(
@@ -1865,19 +2116,13 @@ class MatrixRunnerTests(unittest.TestCase):
             all(record["result"] == "NOT RUN" for record in resumed.records[2:])
         )
 
-    def test_resume_after_prior_fail_or_not_run_never_executes_later_cells(self):
+    def test_resume_after_edge_stop_never_executes_later_cells(self):
         chrome = self.edge_application(
             bundleIdentifier="com.google.Chrome",
             applicationPath="/Applications/Google Chrome.app",
             executableRelativePath="Contents/MacOS/Google Chrome",
         )
         cases = (
-            (
-                "fail",
-                FakeDependencies(fail_on=("com.google.Chrome", "cold")),
-                7,
-                matrix.MATRIX_PRODUCT_FAILURE,
-            ),
             (
                 "not-run",
                 FakeDependencies(ambiguous_on=("com.microsoft.edgemac", "cold")),
@@ -1918,6 +2163,158 @@ class MatrixRunnerTests(unittest.TestCase):
                 self.assertEqual(resumed.exit_code, expected_exit)
                 self.assertEqual(resumed_dependencies.build_count, 0)
                 self.assertEqual(resumed_dependencies.driver_calls, [])
+
+    def test_resume_continues_after_complete_nonedge_outcomes_with_aggregate_status(
+        self,
+    ):
+        chrome = self.edge_application(
+            bundleIdentifier="com.google.Chrome",
+            applicationPath="/Applications/Google Chrome.app",
+            executableRelativePath="Contents/MacOS/Google Chrome",
+        )
+        opera = self.edge_application(
+            bundleIdentifier="com.operasoftware.Opera",
+            applicationPath="/Applications/Opera.app",
+            executableRelativePath="Contents/MacOS/Opera",
+            profileStrategy="none",
+            browserPrivate=False,
+            profile=False,
+            profilePrivate=False,
+        )
+        manifest = matrix.load_manifest(
+            self.write_manifest([chrome, opera, self.edge_application()])
+        )
+        cases = (
+            (
+                "product-fail",
+                FakeDependencies(fail_on=("com.google.Chrome", "cold")),
+                FakeDependencies(),
+                matrix.MATRIX_PRODUCT_FAILURE,
+            ),
+            (
+                "unsupported",
+                FakeDependencies(
+                    unsupported_on=("com.google.Chrome", "normal", "cold")
+                ),
+                FakeDependencies(),
+                matrix.MATRIX_BLOCKED,
+            ),
+            (
+                "signature",
+                FakeDependencies(blocked_bundles={"com.google.Chrome"}),
+                FakeDependencies(blocked_bundles={"com.google.Chrome"}),
+                matrix.MATRIX_BLOCKED,
+            ),
+            (
+                "absence",
+                FakeDependencies(absent_bundles={"com.google.Chrome"}),
+                FakeDependencies(absent_bundles={"com.google.Chrome"}),
+                matrix.MATRIX_BLOCKED,
+            ),
+        )
+        for case, initial, resumed_dependencies, expected_exit in cases:
+            output = self.root / f"continue-{case}"
+            matrix.execute_matrix(manifest, output, dependencies=initial)
+            evidence = output / "evidence.jsonl"
+            lines = evidence.read_text(encoding="utf-8").splitlines()
+            evidence.write_text("\n".join(lines[:7]) + "\n", encoding="utf-8")
+            resumed = matrix.execute_matrix(
+                manifest,
+                output,
+                dependencies=resumed_dependencies,
+                resume=True,
+            )
+            with self.subTest(case=case):
+                self.assertEqual(resumed.exit_code, expected_exit)
+                self.assertEqual(resumed_dependencies.build_count, 1)
+                self.assertTrue(
+                    any(
+                        call["bundle_identifier"] == "com.operasoftware.Opera"
+                        for call in resumed_dependencies.driver_calls
+                    )
+                )
+
+    def test_resume_mixed_nonedge_results_preserves_product_failure_precedence(self):
+        chrome = self.edge_application(
+            bundleIdentifier="com.google.Chrome",
+            applicationPath="/Applications/Google Chrome.app",
+            executableRelativePath="Contents/MacOS/Google Chrome",
+        )
+        opera = self.edge_application(
+            bundleIdentifier="com.operasoftware.Opera",
+            applicationPath="/Applications/Opera.app",
+            executableRelativePath="Contents/MacOS/Opera",
+            profileStrategy="none",
+            browserPrivate=False,
+            profile=False,
+            profilePrivate=False,
+        )
+        manifest = matrix.load_manifest(
+            self.write_manifest([chrome, opera, self.edge_application()])
+        )
+
+        class MixedDependencies(FakeDependencies):
+            def run_sequence(self, *args, **kwargs):
+                group = args[1]
+                capability = group[0].capability
+                self.fail_on = (
+                    ("com.google.Chrome", "cold") if capability == "normal" else None
+                )
+                self.unsupported_on = (
+                    ("com.google.Chrome", "private", "cold")
+                    if capability == "private"
+                    else None
+                )
+                return super().run_sequence(*args, **kwargs)
+
+        output = self.root / "mixed-resume"
+        matrix.execute_matrix(manifest, output, dependencies=MixedDependencies())
+        evidence = output / "evidence.jsonl"
+        lines = evidence.read_text(encoding="utf-8").splitlines()
+        evidence.write_text("\n".join(lines[:10]) + "\n", encoding="utf-8")
+        dependencies = FakeDependencies()
+        resumed = matrix.execute_matrix(
+            manifest, output, dependencies=dependencies, resume=True
+        )
+        self.assertEqual(resumed.exit_code, matrix.MATRIX_PRODUCT_FAILURE)
+        self.assertTrue(dependencies.driver_calls)
+        self.assertTrue(
+            any(
+                call["bundle_identifier"] == "com.operasoftware.Opera"
+                for call in dependencies.driver_calls
+            )
+        )
+
+    def test_resume_stops_incomplete_or_ambiguous_nonedge_group(self):
+        chrome = self.edge_application(
+            bundleIdentifier="com.google.Chrome",
+            applicationPath="/Applications/Google Chrome.app",
+            executableRelativePath="Contents/MacOS/Google Chrome",
+        )
+        manifest = matrix.load_manifest(
+            self.write_manifest([chrome, self.edge_application()])
+        )
+        for case, initial, prefix in (
+            ("incomplete", FakeDependencies(), 5),
+            (
+                "ambiguous",
+                FakeDependencies(ambiguous_on=("com.google.Chrome", "cold")),
+                7,
+            ),
+        ):
+            output = self.root / f"stop-{case}"
+            matrix.execute_matrix(manifest, output, dependencies=initial)
+            evidence = output / "evidence.jsonl"
+            lines = evidence.read_text(encoding="utf-8").splitlines()
+            evidence.write_text("\n".join(lines[:prefix]) + "\n", encoding="utf-8")
+            dependencies = FakeDependencies()
+            resumed = matrix.execute_matrix(
+                manifest, output, dependencies=dependencies, resume=True
+            )
+            with self.subTest(case=case):
+                self.assertEqual(resumed.exit_code, matrix.MATRIX_BLOCKED)
+                self.assertEqual(dependencies.build_count, 0)
+                self.assertEqual(dependencies.driver_calls, [])
 
     def test_resume_rejects_same_version_static_identity_replacement(self):
         chrome = self.edge_application(
@@ -1976,6 +2373,7 @@ class FakeDependencies:
         fail_on=None,
         ambiguous_on=None,
         blocked_bundles=frozenset(),
+        absent_bundles=frozenset(),
         receipt_fail_on=None,
         unsupported_on=None,
         static_change_phase=None,
@@ -1988,6 +2386,7 @@ class FakeDependencies:
         self.fail_on = fail_on
         self.ambiguous_on = ambiguous_on
         self.blocked_bundles = set(blocked_bundles)
+        self.absent_bundles = set(absent_bundles)
         self.receipt_fail_on = receipt_fail_on
         self.unsupported_on = unsupported_on
         self.static_change_phase = static_change_phase
@@ -2002,8 +2401,8 @@ class FakeDependencies:
         self.created_paths = []
         self.verification_counts = {}
 
-    def is_installed(self, _application):
-        return True
+    def is_installed(self, application):
+        return application.bundle_identifier not in self.absent_bundles
 
     def verify_application(self, _application):
         count = self.verification_counts.get(_application.bundle_identifier, 0) + 1

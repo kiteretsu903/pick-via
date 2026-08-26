@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
 import argparse
+import ctypes
 import dataclasses
+import fcntl
 import hashlib
 import hmac
 import json
@@ -1280,6 +1282,12 @@ class _PinnedOutputDirectory:
         self.descriptor = descriptor
         self.parent_identity = parent_identity
         self.identity = identity
+        self.lock_descriptor = -1
+        self.lock_identity = None
+        self.evidence_identity = None
+        self.evidence_digest = None
+        self.evidence_head = None
+        self.evidence_record_count = 0
         self.closed = False
 
     @classmethod
@@ -1349,15 +1357,28 @@ class _PinnedOutputDirectory:
                 )
                 parent_descriptor = -1
                 descriptor = -1
-                entries = os.listdir(pinned.descriptor)
-                if create and entries:
-                    raise MatrixError("fresh output directory is not empty")
-                if not create and entries != [_EVIDENCE_NAME]:
-                    raise MatrixResumeError(
-                        "resume directory contains unexpected entries"
-                    )
-                pinned.require_current()
-                return pinned
+                try:
+                    entries = set(os.listdir(pinned.descriptor))
+                    if create and entries:
+                        raise MatrixError("fresh output directory is not empty")
+                    if not create and entries not in (
+                        {_EVIDENCE_NAME},
+                        {_EVIDENCE_NAME, ".run.lock"},
+                    ):
+                        raise MatrixResumeError(
+                            "resume directory contains unexpected entries"
+                        )
+                    pinned._acquire_lock()
+                    expected_entries = {_EVIDENCE_NAME, ".run.lock"}
+                    if create:
+                        expected_entries = {".run.lock"}
+                    if set(os.listdir(pinned.descriptor)) != expected_entries:
+                        raise MatrixError("output directory changed while locking")
+                    pinned.require_current()
+                    return pinned
+                except BaseException:
+                    pinned.close()
+                    raise
             finally:
                 if descriptor >= 0:
                     os.close(descriptor)
@@ -1370,20 +1391,147 @@ class _PinnedOutputDirectory:
                 raise MatrixError("unsafe output directory") from error
             raise MatrixResumeError("missing or unsafe output directory") from error
 
+    def _acquire_lock(self):
+        try:
+            fcntl.flock(self.descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise MatrixError("output is already locked") from error
+        descriptor = os.open(
+            ".run.lock",
+            os.O_RDWR | os.O_CREAT | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+            dir_fd=self.descriptor,
+        )
+        try:
+            opened = os.fstat(descriptor)
+            named = os.stat(".run.lock", dir_fd=self.descriptor, follow_symlinks=False)
+            if (
+                not stat.S_ISREG(opened.st_mode)
+                or opened.st_uid != os.getuid()
+                or stat.S_IMODE(opened.st_mode) != 0o600
+                or opened.st_nlink != 1
+                or browser_driver._EntryIdentity.from_stat(opened)
+                != browser_driver._EntryIdentity.from_stat(named)
+            ):
+                raise MatrixError("unsafe output lock")
+            self.lock_identity = _publication_identity(opened)
+            self.lock_descriptor = descriptor
+            descriptor = -1
+        except BaseException:
+            fcntl.flock(self.descriptor, fcntl.LOCK_UN)
+            raise
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
+
+    def pin_evidence(self, metadata, data, records):
+        if not records or not isinstance(records[-1].get("recordHash"), str):
+            raise MatrixError("invalid evidence head")
+        self.evidence_identity = _publication_identity(metadata)
+        self.evidence_digest = hashlib.sha256(data).hexdigest()
+        self.evidence_head = records[-1]["recordHash"]
+        self.evidence_record_count = len(records)
+
+    def require_expected_evidence(self, records):
+        self.require_current()
+        if self.evidence_identity is None:
+            try:
+                os.stat(
+                    _EVIDENCE_NAME,
+                    dir_fd=self.descriptor,
+                    follow_symlinks=False,
+                )
+            except FileNotFoundError:
+                return
+            raise MatrixError("unexpected evidence destination")
+        if (
+            len(records) < self.evidence_record_count
+            or records[self.evidence_record_count - 1].get("recordHash")
+            != self.evidence_head
+        ):
+            raise MatrixError("evidence chain head changed")
+        descriptor = os.open(
+            _EVIDENCE_NAME,
+            os.O_RDONLY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0),
+            dir_fd=self.descriptor,
+        )
+        try:
+            opened = os.fstat(descriptor)
+            if _publication_identity(opened) != self.evidence_identity:
+                raise MatrixError("evidence destination changed")
+            digest = hashlib.sha256()
+            total = 0
+            while total <= _MAXIMUM_EVIDENCE_BYTES:
+                chunk = os.read(descriptor, 1024 * 1024)
+                if not chunk:
+                    break
+                digest.update(chunk)
+                total += len(chunk)
+            named = os.stat(
+                _EVIDENCE_NAME,
+                dir_fd=self.descriptor,
+                follow_symlinks=False,
+            )
+            if (
+                total > _MAXIMUM_EVIDENCE_BYTES
+                or digest.hexdigest() != self.evidence_digest
+                or _publication_identity(os.fstat(descriptor)) != self.evidence_identity
+                or _publication_identity(named) != self.evidence_identity
+            ):
+                raise MatrixError("evidence destination changed")
+        finally:
+            os.close(descriptor)
+
+    def require_prior_at(self, name):
+        descriptor = os.open(
+            name,
+            os.O_RDONLY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0),
+            dir_fd=self.descriptor,
+        )
+        try:
+            opened = os.fstat(descriptor)
+            if _rename_identity(opened) != _rename_identity_from_full(
+                self.evidence_identity
+            ):
+                raise MatrixError("prior evidence changed at publication")
+            digest = hashlib.sha256()
+            total = 0
+            while total <= _MAXIMUM_EVIDENCE_BYTES:
+                chunk = os.read(descriptor, 1024 * 1024)
+                if not chunk:
+                    break
+                digest.update(chunk)
+                total += len(chunk)
+            named = os.stat(name, dir_fd=self.descriptor, follow_symlinks=False)
+            if (
+                total > _MAXIMUM_EVIDENCE_BYTES
+                or digest.hexdigest() != self.evidence_digest
+                or _rename_identity(os.fstat(descriptor))
+                != _rename_identity_from_full(self.evidence_identity)
+                or _rename_identity(named)
+                != _rename_identity_from_full(self.evidence_identity)
+            ):
+                raise MatrixError("prior evidence changed at publication")
+        finally:
+            os.close(descriptor)
+
     def require_current(self):
         if self.closed:
             raise MatrixError("output directory pin is closed")
-        metadata = os.fstat(self.descriptor)
-        parent = os.fstat(self.parent_descriptor)
         try:
+            metadata = os.fstat(self.descriptor)
+            parent = os.fstat(self.parent_descriptor)
             named_parent = self.path.parent.lstat()
+            named = os.stat(
+                self.path.name,
+                dir_fd=self.parent_descriptor,
+                follow_symlinks=False,
+            )
+            lock_named = os.stat(
+                ".run.lock", dir_fd=self.descriptor, follow_symlinks=False
+            )
         except OSError as error:
-            raise MatrixError("output parent identity changed") from error
-        named = os.stat(
-            self.path.name,
-            dir_fd=self.parent_descriptor,
-            follow_symlinks=False,
-        )
+            raise MatrixError("output directory identity changed") from error
         if (
             _entry_generation(metadata) != self.identity
             or _entry_generation(named) != self.identity
@@ -1394,6 +1542,10 @@ class _PinnedOutputDirectory:
             or stat.S_ISLNK(named.st_mode)
             or metadata.st_uid != os.getuid()
             or stat.S_IMODE(metadata.st_mode) != 0o700
+            or self.lock_descriptor < 0
+            or _publication_identity(os.fstat(self.lock_descriptor))
+            != self.lock_identity
+            or _publication_identity(lock_named) != self.lock_identity
         ):
             raise MatrixError("output directory identity changed")
 
@@ -1401,6 +1553,10 @@ class _PinnedOutputDirectory:
         if self.closed:
             return
         self.closed = True
+        if self.lock_descriptor >= 0:
+            os.close(self.lock_descriptor)
+            self.lock_descriptor = -1
+        fcntl.flock(self.descriptor, fcntl.LOCK_UN)
         os.close(self.descriptor)
         os.close(self.parent_descriptor)
 
@@ -1419,11 +1575,95 @@ def _publication_identity(metadata):
         metadata.st_mode,
         metadata.st_size,
         metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+        metadata.st_nlink,
     )
 
 
+def _rename_identity(metadata):
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_uid,
+        metadata.st_mode,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_nlink,
+    )
+
+
+def _rename_identity_from_full(identity):
+    return (*identity[:6], identity[7])
+
+
+def _rename_at(descriptor, source, destination, flag):
+    library = ctypes.CDLL(None, use_errno=True)
+    library.renameatx_np.argtypes = [
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    ]
+    library.renameatx_np.restype = ctypes.c_int
+    ctypes.set_errno(0)
+    if (
+        library.renameatx_np(
+            descriptor,
+            os.fsencode(source),
+            descriptor,
+            os.fsencode(destination),
+            flag,
+        )
+        != 0
+    ):
+        error_number = ctypes.get_errno()
+        raise OSError(error_number, os.strerror(error_number), destination)
+
+
+def _rename_at_exclusive(descriptor, source, destination):
+    _rename_at(descriptor, source, destination, 0x00000004)
+
+
+def _rename_at_swap(descriptor, source, destination):
+    _rename_at(descriptor, source, destination, 0x00000002)
+
+
+def _require_publication_candidate(output, name, expected_identity, data):
+    descriptor = os.open(
+        name,
+        os.O_RDONLY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0),
+        dir_fd=output.descriptor,
+    )
+    try:
+        opened = os.fstat(descriptor)
+        if _rename_identity(opened) != expected_identity:
+            raise MatrixError("published evidence identity changed")
+        stable_identity = _publication_identity(opened)
+        contents = bytearray()
+        while len(contents) <= len(data):
+            chunk = os.read(
+                descriptor,
+                min(65_536, len(data) + 1 - len(contents)),
+            )
+            if not chunk:
+                break
+            contents.extend(chunk)
+        after = os.fstat(descriptor)
+        named = os.stat(name, dir_fd=output.descriptor, follow_symlinks=False)
+        if (
+            bytes(contents) != data
+            or _publication_identity(after) != stable_identity
+            or _publication_identity(named) != stable_identity
+        ):
+            raise MatrixError("published evidence changed")
+        return after
+    finally:
+        os.close(descriptor)
+
+
 def _write_records(output, records):
-    output.require_current()
+    output.require_expected_evidence(records)
     data = b"".join(
         (
             json.dumps(record, allow_nan=False, separators=(",", ":"), sort_keys=True)
@@ -1434,6 +1674,9 @@ def _write_records(output, records):
     if len(data) > _MAXIMUM_EVIDENCE_BYTES:
         raise MatrixError("evidence limit exceeded")
     temporary = f".{_EVIDENCE_NAME}.{secrets.token_hex(8)}"
+    staging_identity = None
+    cleanup_identity = None
+    cleanup_unswapped_staging = True
     descriptor = os.open(
         temporary,
         os.O_WRONLY
@@ -1462,6 +1705,7 @@ def _write_records(output, records):
         ):
             raise MatrixError("evidence staging identity changed")
         staging_identity = _publication_identity(opened)
+        staging_rename_identity = _rename_identity(opened)
         os.fsync(descriptor)
         os.close(descriptor)
         descriptor = -1
@@ -1469,63 +1713,124 @@ def _write_records(output, records):
         named = os.stat(temporary, dir_fd=output.descriptor, follow_symlinks=False)
         if _publication_identity(named) != staging_identity:
             raise MatrixError("evidence staging identity changed")
-        os.rename(
-            temporary,
-            _EVIDENCE_NAME,
-            src_dir_fd=output.descriptor,
-            dst_dir_fd=output.descriptor,
-        )
-        published = os.stat(
-            _EVIDENCE_NAME, dir_fd=output.descriptor, follow_symlinks=False
-        )
-        if _publication_identity(published) != staging_identity:
-            raise MatrixError("published evidence identity changed")
-        published_descriptor = os.open(
-            _EVIDENCE_NAME,
-            os.O_RDONLY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0),
-            dir_fd=output.descriptor,
-        )
-        try:
-            published_opened = os.fstat(published_descriptor)
-            if _publication_identity(published_opened) != staging_identity:
-                raise MatrixError("published evidence identity changed")
-            final_identity = browser_driver._EntryIdentity.from_stat(published_opened)
-            published_contents = bytearray()
-            while len(published_contents) <= len(data):
-                chunk = os.read(
-                    published_descriptor,
-                    min(65_536, len(data) + 1 - len(published_contents)),
-                )
-                if not chunk:
-                    break
-                published_contents.extend(chunk)
-            if bytes(published_contents) != data:
-                raise MatrixError("published evidence contents changed")
-            published_after = os.fstat(published_descriptor)
-            named_after = os.stat(
-                _EVIDENCE_NAME,
-                dir_fd=output.descriptor,
-                follow_symlinks=False,
+        output.require_expected_evidence(records)
+        if output.evidence_identity is None:
+            cleanup_unswapped_staging = False
+            _rename_at_exclusive(output.descriptor, temporary, _EVIDENCE_NAME)
+            published_metadata = _require_publication_candidate(
+                output, _EVIDENCE_NAME, staging_rename_identity, data
             )
-            if (
-                browser_driver._EntryIdentity.from_stat(published_after)
-                != final_identity
-                or browser_driver._EntryIdentity.from_stat(named_after)
-                != final_identity
-                or published_after.st_size != len(data)
-            ):
-                raise MatrixError("published evidence identity changed")
-        finally:
-            os.close(published_descriptor)
-        os.fsync(output.descriptor)
-        output.require_current()
+            os.fsync(output.descriptor)
+            output.require_current()
+            published_metadata = _require_publication_candidate(
+                output, _EVIDENCE_NAME, staging_rename_identity, data
+            )
+            output.pin_evidence(published_metadata, data, records)
+        else:
+            cleanup_unswapped_staging = False
+            swap_completed = False
+            prior_is_exact = False
+            candidate_is_exact = False
+            try:
+                _rename_at_swap(output.descriptor, temporary, _EVIDENCE_NAME)
+                swap_completed = True
+                published_metadata = _require_publication_candidate(
+                    output, _EVIDENCE_NAME, staging_rename_identity, data
+                )
+                candidate_is_exact = True
+                output.require_prior_at(temporary)
+                prior_is_exact = True
+                os.fsync(output.descriptor)
+                output.require_current()
+                output.require_prior_at(temporary)
+                published_metadata = _require_publication_candidate(
+                    output, _EVIDENCE_NAME, staging_rename_identity, data
+                )
+            except BaseException as publication_error:
+                if swap_completed:
+                    if not prior_is_exact:
+                        try:
+                            output.require_prior_at(temporary)
+                            prior_is_exact = True
+                        except BaseException:
+                            pass
+                    if not candidate_is_exact:
+                        try:
+                            _require_publication_candidate(
+                                output,
+                                _EVIDENCE_NAME,
+                                staging_rename_identity,
+                                data,
+                            )
+                            candidate_is_exact = True
+                        except BaseException:
+                            pass
+                if prior_is_exact or candidate_is_exact:
+                    try:
+                        if prior_is_exact:
+                            output.require_prior_at(temporary)
+                        if candidate_is_exact:
+                            _require_publication_candidate(
+                                output,
+                                _EVIDENCE_NAME,
+                                staging_rename_identity,
+                                data,
+                            )
+                        _rename_at_swap(output.descriptor, temporary, _EVIDENCE_NAME)
+                        if prior_is_exact:
+                            output.require_prior_at(_EVIDENCE_NAME)
+                        if candidate_is_exact:
+                            _require_publication_candidate(
+                                output,
+                                temporary,
+                                staging_rename_identity,
+                                data,
+                            )
+                        os.fsync(output.descriptor)
+                    except BaseException as rollback_error:
+                        retained = (
+                            "prior retained"
+                            if prior_is_exact
+                            else "swapped entries retained"
+                        )
+                        raise MatrixError(
+                            f"evidence rollback failed; {retained}"
+                        ) from rollback_error
+                raise publication_error
+            output.require_prior_at(temporary)
+            published_metadata = _require_publication_candidate(
+                output, _EVIDENCE_NAME, staging_rename_identity, data
+            )
+            output.pin_evidence(published_metadata, data, records)
+            try:
+                os.unlink(temporary, dir_fd=output.descriptor)
+            except OSError as error:
+                raise MatrixError(
+                    "prior evidence cleanup failed; prior retained"
+                ) from error
     except BaseException:
         if descriptor >= 0:
+            try:
+                cleanup_identity = _publication_identity(os.fstat(descriptor))
+            except OSError:
+                cleanup_identity = None
             os.close(descriptor)
-        try:
-            os.unlink(temporary, dir_fd=output.descriptor)
-        except (FileNotFoundError, OSError):
-            pass
+            descriptor = -1
+        if cleanup_unswapped_staging:
+            try:
+                named = os.stat(
+                    temporary,
+                    dir_fd=output.descriptor,
+                    follow_symlinks=False,
+                )
+                expected_cleanup_identity = staging_identity or cleanup_identity
+                if (
+                    expected_cleanup_identity is not None
+                    and _publication_identity(named) == expected_cleanup_identity
+                ):
+                    os.unlink(temporary, dir_fd=output.descriptor)
+            except (FileNotFoundError, OSError):
+                pass
         raise
     finally:
         if descriptor >= 0:
@@ -1687,6 +1992,7 @@ def _read_resume(output, manifest, cells):
                 raise MatrixResumeError("reused session hash")
             seen_session_hashes.add(session_hash)
         completed.append(record)
+    output.pin_evidence(before, data, records)
     return records, completed
 
 
@@ -1768,30 +2074,85 @@ def _not_run_record(cell, version, detail, browser_app_identity="0" * 64):
     )
 
 
+def _aggregate_completed_exit(completed):
+    if any(record["result"] == "FAIL" for record in completed):
+        return MATRIX_PRODUCT_FAILURE
+    if any(
+        record["result"] == "UNSUPPORTED"
+        or record["result"] == "NOT RUN"
+        and record["detail"] in {"installed-absence", "signature-blocker"}
+        for record in completed
+    ):
+        return MATRIX_BLOCKED
+    return MATRIX_SUCCESS
+
+
 def _resume_terminal(completed):
     if not completed:
         return None
-    prior_failure = any(record["result"] == "FAIL" for record in completed)
+    aggregate = _aggregate_completed_exit(completed)
     if len(completed) < 3:
         return (
-            MATRIX_PRODUCT_FAILURE if prior_failure else MATRIX_BLOCKED,
+            MATRIX_PRODUCT_FAILURE
+            if aggregate == MATRIX_PRODUCT_FAILURE
+            else MATRIX_BLOCKED,
             "edge-pilot-failed",
         )
     edge_pilot = completed[:3]
     if any(record["result"] != "PASS" for record in edge_pilot):
         return (
-            MATRIX_PRODUCT_FAILURE if prior_failure else MATRIX_BLOCKED,
+            MATRIX_PRODUCT_FAILURE
+            if aggregate == MATRIX_PRODUCT_FAILURE
+            else MATRIX_BLOCKED,
             "edge-pilot-failed",
         )
     if len(completed) % 3:
         return (
-            MATRIX_PRODUCT_FAILURE if prior_failure else MATRIX_BLOCKED,
+            MATRIX_PRODUCT_FAILURE
+            if aggregate == MATRIX_PRODUCT_FAILURE
+            else MATRIX_BLOCKED,
             "blocked-after-ambiguity",
         )
-    if prior_failure:
-        return MATRIX_PRODUCT_FAILURE, "blocked-after-sequence-failure"
-    if any(record["result"] == "NOT RUN" for record in completed):
-        return MATRIX_BLOCKED, "blocked-after-ambiguity"
+    for offset in range(3, len(completed), 3):
+        group = completed[offset : offset + 3]
+        results = [record["result"] for record in group]
+        if results == ["PASS", "PASS", "PASS"]:
+            continue
+        decisive = next(
+            (
+                index
+                for index, result in enumerate(results)
+                if result in {"FAIL", "UNSUPPORTED"}
+            ),
+            None,
+        )
+        if decisive is not None:
+            expected_detail = (
+                "blocked-after-sequence-failure"
+                if results[decisive] == "FAIL"
+                else "blocked-after-sequence-refusal"
+            )
+            if (
+                all(result == "PASS" for result in results[:decisive])
+                and all(result == "NOT RUN" for result in results[decisive + 1 :])
+                and all(
+                    record["detail"] == expected_detail
+                    for record in group[decisive + 1 :]
+                )
+            ):
+                continue
+        if all(
+            record["result"] == "NOT RUN"
+            and record["detail"] in {"installed-absence", "signature-blocker"}
+            for record in group
+        ):
+            continue
+        return (
+            MATRIX_PRODUCT_FAILURE
+            if aggregate == MATRIX_PRODUCT_FAILURE
+            else MATRIX_BLOCKED,
+            "blocked-after-ambiguity",
+        )
     return None
 
 
@@ -1811,8 +2172,10 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
     if not cells:
         raise MatrixError("no installed eligible cells")
     evidence_path = output
+    prior_exit_code = MATRIX_SUCCESS
     if resume:
         chained_records, completed = _read_resume(evidence_path, manifest, cells)
+        prior_exit_code = _aggregate_completed_exit(completed)
         terminal = _resume_terminal(completed)
         if terminal is not None:
             exit_code, detail = terminal
@@ -1833,7 +2196,7 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
             _write_records(evidence_path, chained_records)
             return MatrixExecutionResult(exit_code, tuple(completed))
         if len(completed) == len(cells):
-            return MatrixExecutionResult(MATRIX_SUCCESS, tuple(completed))
+            return MatrixExecutionResult(prior_exit_code, tuple(completed))
     else:
         header = _chain_record(
             {
@@ -1892,7 +2255,12 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
             )
             completed.append(chained_records[-1])
         _write_records(evidence_path, chained_records)
-        return MatrixExecutionResult(MATRIX_BLOCKED, tuple(completed))
+        return MatrixExecutionResult(
+            MATRIX_PRODUCT_FAILURE
+            if prior_exit_code == MATRIX_PRODUCT_FAILURE
+            else MATRIX_BLOCKED,
+            tuple(completed),
+        )
     blocked_bundles = absent_bundles | identity_blocked_bundles
     if "com.microsoft.edgemac" in blocked_bundles:
         for cell in cells[len(completed) :]:
@@ -1918,7 +2286,7 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
     else:
         remaining = cells
     if not remaining:
-        return MatrixExecutionResult(MATRIX_SUCCESS, tuple(completed))
+        return MatrixExecutionResult(prior_exit_code, tuple(completed))
     try:
         pinned_app = dependencies.build_and_pin()
     except Exception:
@@ -1933,7 +2301,12 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
             )
             completed.append(chained_records[-1])
         _write_records(evidence_path, chained_records)
-        return MatrixExecutionResult(MATRIX_BLOCKED, tuple(completed))
+        return MatrixExecutionResult(
+            MATRIX_PRODUCT_FAILURE
+            if prior_exit_code == MATRIX_PRODUCT_FAILURE
+            else MATRIX_BLOCKED,
+            tuple(completed),
+        )
     try:
         e2e_app_identity = dependencies.e2e_identity(pinned_app)
     except Exception:
@@ -1951,8 +2324,19 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
             )
             completed.append(chained_records[-1])
         _write_records(evidence_path, chained_records)
-        return MatrixExecutionResult(MATRIX_BLOCKED, tuple(completed))
-    exit_code = MATRIX_BLOCKED if blocked_bundles else MATRIX_SUCCESS
+        return MatrixExecutionResult(
+            MATRIX_PRODUCT_FAILURE
+            if prior_exit_code == MATRIX_PRODUCT_FAILURE
+            else MATRIX_BLOCKED,
+            tuple(completed),
+        )
+    exit_code = (
+        MATRIX_PRODUCT_FAILURE
+        if prior_exit_code == MATRIX_PRODUCT_FAILURE
+        else MATRIX_BLOCKED
+        if prior_exit_code == MATRIX_BLOCKED or blocked_bundles
+        else MATRIX_SUCCESS
+    )
     try:
         offset = 0
         while offset < len(remaining):
@@ -2003,7 +2387,8 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
                     )
                     completed.append(chained_records[-1])
                 _write_records(evidence_path, chained_records)
-                exit_code = MATRIX_BLOCKED
+                if exit_code != MATRIX_PRODUCT_FAILURE:
+                    exit_code = MATRIX_BLOCKED
                 break
             sessions = tuple(secrets.token_hex(24) for _ in _STATES)
             requests = tuple(secrets.token_hex(24) for _ in _STATES)
@@ -2042,7 +2427,8 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
                     )
                     completed.append(chained_records[-1])
                 _write_records(evidence_path, chained_records)
-                exit_code = MATRIX_BLOCKED
+                if exit_code != MATRIX_PRODUCT_FAILURE:
+                    exit_code = MATRIX_BLOCKED
                 break
             expectations = tuple(
                 DriverProofExpectation(
@@ -2125,6 +2511,8 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
                 completed.append(chained_records[-1])
                 if result == "FAIL":
                     exit_code = MATRIX_PRODUCT_FAILURE
+                elif result == "UNSUPPORTED" and exit_code == MATRIX_SUCCESS:
+                    exit_code = MATRIX_BLOCKED
             _write_records(evidence_path, chained_records)
             must_stop = any(
                 result == "NOT RUN" and detail == "harness-ambiguity"
@@ -2137,7 +2525,8 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
                 and any(result != "PASS" for result, _ in sequence_results)
             ):
                 if must_stop:
-                    exit_code = MATRIX_BLOCKED
+                    if exit_code != MATRIX_PRODUCT_FAILURE:
+                        exit_code = MATRIX_BLOCKED
                     stop_detail = "blocked-after-ambiguity"
                 else:
                     exit_code = (
