@@ -488,6 +488,10 @@
         var invalidEnvironment = environment
         invalidEnvironment[E2EEnvironmentKey.sessionNonce] = nonce
         XCTAssertNil(E2EControl.load(environment: invalidEnvironment), "nonce \(nonce)")
+
+        invalidEnvironment = environment
+        invalidEnvironment[E2EEnvironmentKey.requestNonce] = nonce
+        XCTAssertNil(E2EControl.load(environment: invalidEnvironment), "request \(nonce)")
       }
     }
 
@@ -538,6 +542,19 @@
         var invalidEnvironment = environment
         invalidEnvironment[E2EEnvironmentKey.statusFIFO] = fifoPath
         XCTAssertNil(E2EControl.load(environment: invalidEnvironment), fifoPath)
+      }
+
+      for provenancePath in [
+        "relative/provenance.fifo",
+        supportRoot.path,
+        "/private/tmp/provenance.fifo",
+        supportRoot.path + "-sibling/provenance.fifo",
+        supportRoot.path + "/../provenance.fifo",
+        supportRoot.appending(path: "status.fifo").path,
+      ] {
+        var invalidEnvironment = environment
+        invalidEnvironment[E2EEnvironmentKey.provenanceFIFO] = provenancePath
+        XCTAssertNil(E2EControl.load(environment: invalidEnvironment), provenancePath)
       }
     }
 
@@ -645,8 +662,10 @@
         expectedBundleIdentifier: Fixtures.control.expectedBundleIdentifier,
         expectedMode: Fixtures.control.expectedMode,
         sessionNonce: Fixtures.control.sessionNonce,
+        requestNonce: Fixtures.control.requestNonce,
         applicationSupportDirectory: supportRoot,
-        statusFIFO: supportRoot.appending(path: "status.fifo")
+        statusFIFO: supportRoot.appending(path: "status.fifo"),
+        provenanceFIFO: supportRoot.appending(path: "provenance.fifo")
       )
     }
 
@@ -656,8 +675,10 @@
         E2EEnvironmentKey.bundleIdentifier: Fixtures.control.expectedBundleIdentifier,
         E2EEnvironmentKey.mode: Fixtures.control.expectedMode.rawValue,
         E2EEnvironmentKey.sessionNonce: Fixtures.control.sessionNonce,
+        E2EEnvironmentKey.requestNonce: Fixtures.control.requestNonce,
         E2EEnvironmentKey.supportDirectory: supportRoot.path,
         E2EEnvironmentKey.statusFIFO: supportRoot.appending(path: "status.fifo").path,
+        E2EEnvironmentKey.provenanceFIFO: supportRoot.appending(path: "provenance.fifo").path,
       ]
     }
 
@@ -685,14 +706,17 @@
     static let unsupportedBundleIdentifier = "example.unsupported.browser"
     static let supportPath = "/private/tmp/pickvia-e2e-session_0123456789"
     static let fifoPath = supportPath + "/status.fifo"
+    static let provenanceFIFOPath = supportPath + "/provenance.fifo"
 
     static let control = E2EControl(
       targetID: "com.microsoft.edgemac||normal",
       expectedBundleIdentifier: edgeBundleIdentifier,
       expectedMode: .normal,
       sessionNonce: "session_0123456789",
+      requestNonce: "request_0123456789",
       applicationSupportDirectory: URL(fileURLWithPath: supportPath, isDirectory: true),
-      statusFIFO: URL(fileURLWithPath: fifoPath)
+      statusFIFO: URL(fileURLWithPath: fifoPath),
+      provenanceFIFO: URL(fileURLWithPath: provenanceFIFOPath)
     )
 
     static func control(
@@ -705,8 +729,10 @@
         expectedBundleIdentifier: bundleIdentifier,
         expectedMode: mode,
         sessionNonce: control.sessionNonce,
+        requestNonce: control.requestNonce,
         applicationSupportDirectory: control.applicationSupportDirectory,
-        statusFIFO: control.statusFIFO
+        statusFIFO: control.statusFIFO,
+        provenanceFIFO: control.provenanceFIFO
       )
     }
 
@@ -715,8 +741,10 @@
       E2EEnvironmentKey.bundleIdentifier,
       E2EEnvironmentKey.mode,
       E2EEnvironmentKey.sessionNonce,
+      E2EEnvironmentKey.requestNonce,
       E2EEnvironmentKey.supportDirectory,
       E2EEnvironmentKey.statusFIFO,
+      E2EEnvironmentKey.provenanceFIFO,
     ]
 
     static let edge = application(

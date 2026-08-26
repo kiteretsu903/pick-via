@@ -270,11 +270,15 @@
       expectedBundleIdentifier: bundleIdentifier,
       expectedMode: .normal,
       sessionNonce: "session_0123456789",
+      requestNonce: "request_0123456789",
       applicationSupportDirectory: URL(
         fileURLWithPath: "/private/tmp/pickvia-e2e-presenter",
         isDirectory: true
       ),
-      statusFIFO: URL(fileURLWithPath: "/private/tmp/pickvia-e2e-presenter/status.fifo")
+      statusFIFO: URL(fileURLWithPath: "/private/tmp/pickvia-e2e-presenter/status.fifo"),
+      provenanceFIFO: URL(
+        fileURLWithPath: "/private/tmp/pickvia-e2e-presenter/provenance.fifo"
+      )
     )
     static let edge = BrowserApplication(
       id: bundleIdentifier,

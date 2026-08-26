@@ -247,6 +247,16 @@ extension AppModel {
         profileRootAccess: profileAccessCoordinator
       )
     #endif
+    #if PICKVIA_E2E_AUTOMATION
+      let browserLauncher = BrowserLauncher(
+        provenanceContext: E2EApplicationEnvironment.launchProvenanceContext(
+          control: e2eControl
+        ),
+        provenanceSink: E2ELaunchProvenanceWriter(fifo: e2eControl.provenanceFIFO)
+      )
+    #else
+      let browserLauncher = BrowserLauncher()
+    #endif
     let model = AppComposition.makeModel(
       configStore: configStore,
       browserCatalog: browserCatalog,
@@ -258,7 +268,7 @@ extension AppModel {
       loginItem: MacOSLoginItemService(),
       chooser: chooser,
       launcher: RouteLauncher(
-        browserLauncher: BrowserLauncher(),
+        browserLauncher: browserLauncher,
         mailLauncher: MailLauncher(
           pickViaBundleIdentifier: Bundle.main.bundleIdentifier!
         )
@@ -396,6 +406,18 @@ enum AppComposition {
 
     static func applicationSupportDirectory(control: E2EControl) -> URL {
       control.applicationSupportDirectory
+    }
+
+    static func launchProvenanceContext(
+      control: E2EControl
+    ) -> BrowserLaunchProvenanceContext {
+      BrowserLaunchProvenanceContext(
+        sessionNonce: control.sessionNonce,
+        requestNonce: control.requestNonce,
+        targetID: control.targetID,
+        expectedBundleIdentifier: control.expectedBundleIdentifier,
+        mode: control.expectedMode
+      )
     }
 
     static func browserCatalog(

@@ -37,12 +37,14 @@ DRIVER_HELPER_FAILURE = 19
 DRIVER_IDENTITY_FAILURE = 20
 DRIVER_BROWSER_IDENTITY_AMBIGUOUS = 21
 DRIVER_CLEANUP_FAILURE = 22
+DRIVER_PROVENANCE_FAILURE = 23
 
 MAXIMUM_TIMEOUT_SECONDS = 30.0
 BROWSER_CLEANUP_GRACE_SECONDS = 5.0
 BROWSER_QUIESCENCE_SECONDS = 2.0
 BROWSER_QUIESCENCE_POLL_SECONDS = 0.1
 MAXIMUM_PROTOCOL_LINE_BYTES = 2_048
+MAXIMUM_PROVENANCE_LINE_BYTES = 512
 MAXIMUM_CAPTURE_BYTES = 65_536
 MAXIMUM_AUDIT_FILE_BYTES = 8 * 1_024 * 1_024
 MAXIMUM_AUDIT_ENTRIES = 4_096
@@ -73,6 +75,10 @@ _CLOSED_OUTCOMES = frozenset(
         "launch-error",
     }
 )
+_PROVENANCE_OUTCOMES = frozenset(
+    {"launch-observed", "launch-unproven", "launch-error"}
+)
+_PROVENANCE_MECHANISMS = frozenset({"process", "workspace", "duckduckgo"})
 _DEFERRED_SIGNALS = frozenset(
     {signal.SIGINT, signal.SIGTERM, signal.SIGHUP}
 )
@@ -108,6 +114,13 @@ class ProcessIdentity:
             self.start_microseconds,
             self.executable,
         )
+
+
+@dataclasses.dataclass(frozen=True)
+class LaunchProvenance:
+    outcome: str
+    mechanism: str
+    process_identifier: Optional[int]
 
 
 def _ignore(*args):
@@ -416,10 +429,39 @@ class _PinnedTaskRoot:
 
     def open_fifo(self, name):
         self.require_current()
-        return os.open(
+        if not isinstance(name, str) or not name or "/" in name or name in {".", ".."}:
+            raise ValueError("invalid task-root child")
+        inspected = os.stat(name, dir_fd=self.descriptor, follow_symlinks=False)
+        if not self._is_owned_fifo(inspected):
+            raise OSError("task-root FIFO is invalid")
+        descriptor = os.open(
             name,
-            os.O_RDWR | os.O_NONBLOCK | getattr(os, "O_CLOEXEC", 0),
+            os.O_RDWR
+            | os.O_NONBLOCK
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
             dir_fd=self.descriptor,
+        )
+        try:
+            opened = os.fstat(descriptor)
+            if (
+                not self._is_owned_fifo(opened)
+                or opened.st_dev != inspected.st_dev
+                or opened.st_ino != inspected.st_ino
+            ):
+                raise OSError("task-root FIFO identity changed")
+            return descriptor
+        except BaseException:
+            os.close(descriptor)
+            raise
+
+    def _is_owned_fifo(self, metadata):
+        return (
+            stat.S_ISFIFO(metadata.st_mode)
+            and metadata.st_uid == os.getuid()
+            and metadata.st_dev == self.identity.device
+            and stat.S_IMODE(metadata.st_mode) == 0o600
+            and metadata.st_nlink == 1
         )
 
     def audit_regular_files(self, forbidden):
@@ -1296,6 +1338,9 @@ class DriverDependencies:
     browser_process_snapshot: Callable[[pathlib.Path, str], frozenset] = (
         lambda executable, _phase: _snapshot_exact_browser_processes(executable)
     )
+    browser_process_identity: Callable[[int], ProcessIdentity] = (
+        lambda pid: _darwin_process_identity(pid)
+    )
     browser_process_terminator: Callable[
         [ProcessIdentity, pathlib.Path, float], bool
     ] = _terminate_exact_browser_process
@@ -1376,6 +1421,19 @@ class _StatusProtocolError(_ProtocolError):
 
 class _ReceiptProtocolError(_ProtocolError):
     pass
+
+
+class _ProvenanceProtocolError(_ProtocolError):
+    def __init__(
+        self,
+        token_received=False,
+        status_line=b"",
+        browser_identity=False,
+    ):
+        super().__init__()
+        self.token_received = token_received
+        self.status_line = status_line
+        self.browser_identity = browser_identity
 
 
 class _DeadlineExpired(Exception):
@@ -1926,6 +1984,74 @@ def _parse_status(line, expected_session):
     return outcome
 
 
+def _parse_provenance(
+    line,
+    *,
+    expected_session,
+    expected_request,
+    expected_target,
+    expected_bundle_identifier,
+    expected_mode,
+):
+    if not line.endswith(b"\n") or len(line) > MAXIMUM_PROVENANCE_LINE_BYTES:
+        raise _ProvenanceProtocolError
+    try:
+        record = json.loads(line, object_pairs_hook=_strict_provenance_object)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise _ProvenanceProtocolError from error
+    if not isinstance(record, dict):
+        raise _ProvenanceProtocolError
+    outcome = record.get("outcome")
+    expected_keys = {
+        "session",
+        "request",
+        "target",
+        "bundleIdentifier",
+        "mode",
+        "mechanism",
+        "outcome",
+    }
+    if outcome == "launch-observed":
+        expected_keys.add("processIdentifier")
+    if set(record) != expected_keys:
+        raise _ProvenanceProtocolError
+    if (
+        record.get("session") != expected_session
+        or record.get("request") != expected_request
+        or record.get("target") != expected_target
+        or record.get("bundleIdentifier") != expected_bundle_identifier
+        or record.get("mode") != expected_mode
+        or outcome not in _PROVENANCE_OUTCOMES
+        or record.get("mechanism") not in _PROVENANCE_MECHANISMS
+    ):
+        raise _ProvenanceProtocolError
+    process_identifier = record.get("processIdentifier")
+    if outcome == "launch-observed":
+        if (
+            not isinstance(process_identifier, int)
+            or isinstance(process_identifier, bool)
+            or process_identifier <= 0
+            or process_identifier > 2_147_483_647
+        ):
+            raise _ProvenanceProtocolError
+    elif process_identifier is not None:
+        raise _ProvenanceProtocolError
+    return LaunchProvenance(
+        outcome=outcome,
+        mechanism=record["mechanism"],
+        process_identifier=process_identifier,
+    )
+
+
+def _strict_provenance_object(pairs):
+    record = {}
+    for key, value in pairs:
+        if key in record:
+            raise _ProvenanceProtocolError
+        record[key] = value
+    return record
+
+
 def _parse_receipt(line, expected_token):
     try:
         record = json.loads(line)
@@ -2087,9 +2213,6 @@ def _observe_browser_quiescence(
     executable,
     preexisting,
     accumulated,
-    termination_attempts,
-    cleanup_deadline,
-    can_terminate,
 ):
     quiescence_deadline = (
         dependencies.quiescence_monotonic() + BROWSER_QUIESCENCE_SECONDS
@@ -2108,28 +2231,6 @@ def _observe_browser_quiescence(
         )
         if current_new:
             late_generation_seen = True
-            if can_terminate and len(current_new) == 1:
-                identity = next(iter(current_new))
-                if (
-                    identity.generation_key not in termination_attempts
-                    and time.monotonic() < cleanup_deadline
-                ):
-                    termination_attempts.add(identity.generation_key)
-                    dependencies.browser_process_terminator(
-                        identity,
-                        executable,
-                        cleanup_deadline,
-                    )
-                    post_termination = _authoritative_browser_snapshot(
-                        dependencies,
-                        executable,
-                        "quiescence-post-terminate",
-                    )
-                    _accumulate_browser_generations(
-                        post_termination,
-                        preexisting,
-                        accumulated,
-                    )
 
         now = dependencies.quiescence_monotonic()
         if now >= quiescence_deadline:
@@ -2142,10 +2243,15 @@ def _observe_browser_quiescence(
 def _wait_for_proof(
     processes,
     fifo_descriptor,
+    provenance_descriptor,
     receiver,
     helper,
     app,
     expected_session,
+    expected_request,
+    expected_target,
+    expected_bundle_identifier,
+    expected_mode,
     expected_token,
     expected_browser_executable,
     preexisting_browsers,
@@ -2156,13 +2262,17 @@ def _wait_for_proof(
     os.set_blocking(receiver_descriptor, False)
     selector = selectors.DefaultSelector()
     selector.register(fifo_descriptor, selectors.EVENT_READ, "status")
+    selector.register(provenance_descriptor, selectors.EVENT_READ, "provenance")
     selector.register(receiver_descriptor, selectors.EVENT_READ, "receipt")
-    buffers = {"status": bytearray(), "receipt": bytearray()}
+    buffers = {"status": bytearray(), "provenance": bytearray(), "receipt": bytearray()}
     status_sequence = []
     status_lines = []
     receipt = False
     browser_identity = False
     seen_new_browsers = {}
+    provenance = None
+    provenance_identity = None
+    provenance_owned = frozenset()
     try:
         while True:
             helper_exit_code = helper.poll()
@@ -2171,18 +2281,19 @@ def _wait_for_proof(
                     receipt,
                     b"".join(status_lines),
                     browser_identity,
-                    seen_new_browsers.values(),
+                    provenance_owned,
                 )
             if (
                 status_sequence == ["selected", "launch-error"]
                 and helper_exit_code == 0
+                and provenance is not None
             ):
                 return _WaitResult(
                     "launch-error",
                     receipt,
                     b"".join(status_lines),
                     browser_identity,
-                    frozenset(seen_new_browsers.values()),
+                    provenance_owned,
                 )
             if (
                 status_sequence
@@ -2194,7 +2305,7 @@ def _wait_for_proof(
                     receipt,
                     b"".join(status_lines),
                     browser_identity,
-                    frozenset(seen_new_browsers.values()),
+                    provenance_owned,
                 )
             if status_sequence == ["selected"]:
                 try:
@@ -2203,22 +2314,28 @@ def _wait_for_proof(
                         expected_browser_executable,
                         "observation",
                     )
-                    browser_identity, _ = _observe_browser_generations(
+                    temporal_identity, _ = _observe_browser_generations(
                         current,
                         preexisting_browsers,
                         seen_new_browsers,
                     )
+                    browser_identity = browser_identity or temporal_identity
                 except _IdentityAmbiguous as error:
                     error.token_received = receipt
                     error.status_line = b"".join(status_lines)
                     raise
-                if receipt and browser_identity and helper_exit_code == 0:
+                if (
+                    receipt
+                    and browser_identity
+                    and provenance is not None
+                    and helper_exit_code == 0
+                ):
                     return _WaitResult(
                         "selected",
                         True,
                         b"".join(status_lines),
                         True,
-                        frozenset(seen_new_browsers.values()),
+                        provenance_owned,
                     )
             try:
                 wait = min(_remaining(deadline, dependencies.monotonic), 0.05)
@@ -2229,22 +2346,20 @@ def _wait_for_proof(
                         receipt,
                         b"".join(status_lines),
                         browser_identity,
-                        seen_new_browsers.values(),
+                        provenance_owned,
                     )
                 if helper_exit_code is None:
                     raise _HelperExitTimeout(
                         receipt,
                         b"".join(status_lines),
                         browser_identity,
-                        seen_new_browsers.values(),
+                        provenance_owned,
                     )
                 if status_sequence == ["selected", "launch-error"]:
-                    return _WaitResult(
-                        "launch-error",
+                    raise _ProvenanceProtocolError(
                         receipt,
                         b"".join(status_lines),
                         browser_identity,
-                        frozenset(seen_new_browsers.values()),
                     )
                 if status_sequence and status_sequence[0] != "selected":
                     return _WaitResult(
@@ -2252,21 +2367,32 @@ def _wait_for_proof(
                         receipt,
                         b"".join(status_lines),
                         browser_identity,
-                        frozenset(seen_new_browsers.values()),
+                        provenance_owned,
                     )
                 if status_sequence == ["selected"] and not receipt:
                     raise _ReceiptTimeout(
                         receipt,
                         b"".join(status_lines),
                         browser_identity,
-                        seen_new_browsers.values(),
+                        provenance_owned,
                     )
                 if status_sequence == ["selected"] and not browser_identity:
                     raise _BrowserIdentityTimeout(
                         receipt,
                         b"".join(status_lines),
                         browser_identity,
-                        seen_new_browsers.values(),
+                        provenance_owned,
+                    )
+                if (
+                    status_sequence == ["selected"]
+                    and receipt
+                    and browser_identity
+                    and provenance is None
+                ):
+                    raise _ProvenanceProtocolError(
+                        receipt,
+                        b"".join(status_lines),
+                        browser_identity,
                     )
                 if status_sequence == ["selected"] and receipt and browser_identity:
                     return _WaitResult(
@@ -2274,7 +2400,7 @@ def _wait_for_proof(
                         True,
                         b"".join(status_lines),
                         True,
-                        frozenset(seen_new_browsers.values()),
+                        provenance_owned,
                     )
                 raise
             for key, _ in selector.select(wait):
@@ -2289,14 +2415,80 @@ def _wait_for_proof(
                     processes.append_manual_stdout(receiver, chunk)
                 buffer = buffers[key.data]
                 buffer.extend(chunk)
-                if len(buffer) > MAXIMUM_PROTOCOL_LINE_BYTES:
+                maximum = (
+                    MAXIMUM_PROVENANCE_LINE_BYTES
+                    if key.data == "provenance"
+                    else MAXIMUM_PROTOCOL_LINE_BYTES
+                )
+                if len(buffer) > maximum:
                     if key.data == "status":
                         raise _StatusProtocolError
+                    if key.data == "provenance":
+                        raise _ProvenanceProtocolError(
+                            receipt,
+                            b"".join(status_lines),
+                            browser_identity,
+                        )
                     raise _ReceiptProtocolError
                 if key.data == "status":
                     status_lines.extend(
                         _consume_status_lines(buffer, status_sequence, expected_session)
                     )
+                elif key.data == "provenance":
+                    newline = buffer.find(b"\n")
+                    if newline >= 0:
+                        line = bytes(buffer[: newline + 1])
+                        del buffer[: newline + 1]
+                        if provenance is not None or buffer:
+                            raise _ProvenanceProtocolError(
+                                receipt,
+                                b"".join(status_lines),
+                                browser_identity,
+                            )
+                        try:
+                            provenance = _parse_provenance(
+                                line,
+                                expected_session=expected_session,
+                                expected_request=expected_request,
+                                expected_target=expected_target,
+                                expected_bundle_identifier=expected_bundle_identifier,
+                                expected_mode=expected_mode,
+                            )
+                            if provenance.outcome != "launch-observed":
+                                raise _ProvenanceProtocolError
+                            provenance_identity = dependencies.browser_process_identity(
+                                provenance.process_identifier
+                            )
+                            if (
+                                provenance_identity.pid
+                                != provenance.process_identifier
+                                or provenance_identity.executable
+                                != pathlib.Path(expected_browser_executable)
+                            ):
+                                raise _ProvenanceProtocolError
+                            browser_identity = True
+                            baseline_generations = set(
+                                _generation_map(preexisting_browsers)
+                            )
+                            if provenance_identity.generation_key not in baseline_generations:
+                                provenance_owned = frozenset({provenance_identity})
+                        except _ProvenanceProtocolError as error:
+                            error.token_received = receipt
+                            error.status_line = b"".join(status_lines)
+                            error.browser_identity = browser_identity
+                            raise
+                        except (
+                            _ProcessDisappeared,
+                            _IdentityInspectionError,
+                            OSError,
+                            ValueError,
+                            TypeError,
+                        ) as error:
+                            raise _ProvenanceProtocolError(
+                                receipt,
+                                b"".join(status_lines),
+                                browser_identity,
+                            ) from error
                 else:
                     newline = buffer.find(b"\n")
                     if newline >= 0:
@@ -2511,6 +2703,7 @@ def run_driver(config, dependencies=None):
     task_root = None
     task_root_owner = _TaskRootOwner()
     fifo_descriptor = None
+    provenance_descriptor = None
     route_bytes = None
     status_line = b""
     outcome = "driver-error"
@@ -2521,6 +2714,7 @@ def run_driver(config, dependencies=None):
     app = None
     preexisting_browsers = set()
     owned_browsers = set()
+    observed_browsers = set()
     browser_termination_attempts = set()
     cleanup_ok = True
     identity_ambiguous = False
@@ -2535,8 +2729,12 @@ def run_driver(config, dependencies=None):
         baseline_authoritative = True
         task_root = _make_task_root(task_root_owner)
         task_root.create_fifo("status.fifo")
+        task_root.create_fifo("provenance.fifo")
         fifo = task_root.child_path("status.fifo")
+        provenance_fifo = task_root.child_path("provenance.fifo")
         fifo_descriptor = task_root.open_fifo("status.fifo")
+        provenance_descriptor = task_root.open_fifo("provenance.fifo")
+        request_nonce = secrets.token_hex(16)
         base_environment = _minimal_child_environment(task_root)
         task_root.require_current()
         receiver = processes.start(
@@ -2565,8 +2763,10 @@ def run_driver(config, dependencies=None):
                 "PICKVIA_E2E_BUNDLE_ID": config.bundle_identifier,
                 "PICKVIA_E2E_MODE": config.mode,
                 "PICKVIA_E2E_SESSION_NONCE": config.session_nonce,
+                "PICKVIA_E2E_REQUEST_NONCE": request_nonce,
                 "PICKVIA_E2E_SUPPORT_DIR": os.fspath(task_root.require_current()),
                 "PICKVIA_E2E_STATUS_FIFO": os.fspath(fifo),
+                "PICKVIA_E2E_PROVENANCE_FIFO": os.fspath(provenance_fifo),
             }
         )
         task_root.require_current()
@@ -2615,10 +2815,15 @@ def run_driver(config, dependencies=None):
         proof = _wait_for_proof(
             processes,
             fifo_descriptor,
+            provenance_descriptor,
             receiver,
             helper,
             app,
             config.session_nonce,
+            request_nonce,
+            config.target_id,
+            config.bundle_identifier,
+            config.mode,
             token,
             browser_executable,
             preexisting_browsers,
@@ -2677,6 +2882,13 @@ def run_driver(config, dependencies=None):
     except _ReceiptProtocolError:
         outcome = "invalid-receipt"
         exit_code = DRIVER_INVALID_RECEIPT
+    except _ProvenanceProtocolError as error:
+        outcome = "provenance-error"
+        received = error.token_received
+        status_line = error.status_line
+        exact_browser_identity = error.browser_identity
+        owned_browsers.clear()
+        exit_code = DRIVER_PROVENANCE_FAILURE
     except _ReadinessError:
         outcome = "readiness-error"
         exit_code = DRIVER_READINESS_FAILURE
@@ -2719,7 +2931,7 @@ def run_driver(config, dependencies=None):
                     _accumulate_browser_generations(
                         current,
                         preexisting_browsers,
-                        owned_browsers,
+                        observed_browsers,
                     )
                 except _IdentityAmbiguous:
                     identity_ambiguous = True
@@ -2738,7 +2950,7 @@ def run_driver(config, dependencies=None):
                 _accumulate_browser_generations(
                     current,
                     preexisting_browsers,
-                    owned_browsers,
+                    observed_browsers,
                 )
                 is_same_generation = any(
                     candidate.generation_key == identity.generation_key
@@ -2763,7 +2975,7 @@ def run_driver(config, dependencies=None):
                 _accumulate_browser_generations(
                     current,
                     preexisting_browsers,
-                    owned_browsers,
+                    observed_browsers,
                 )
                 survived = any(
                     candidate.generation_key == identity.generation_key
@@ -2780,6 +2992,13 @@ def run_driver(config, dependencies=None):
                 cleanup_ok = dependencies.fifo_closer(fifo_descriptor) and cleanup_ok
             except Exception:
                 cleanup_ok = False
+        if provenance_descriptor is not None:
+            try:
+                cleanup_ok = (
+                    dependencies.fifo_closer(provenance_descriptor) and cleanup_ok
+                )
+            except Exception:
+                cleanup_ok = False
         try:
             cleanup_ok = processes.close() and cleanup_ok
         except Exception:
@@ -2794,43 +3013,10 @@ def run_driver(config, dependencies=None):
                 final_new = _accumulate_browser_generations(
                     final_current,
                     preexisting_browsers,
-                    owned_browsers,
+                    observed_browsers,
                 )
                 if final_new:
                     cleanup_ok = False
-                    if (
-                        not identity_inspection_failed
-                        and browser_cleanup_safe
-                        and not identity_ambiguous
-                        and len(final_new) == 1
-                    ):
-                        final_identity = next(iter(final_new))
-                        if (
-                            final_identity.generation_key
-                            not in browser_termination_attempts
-                            and time.monotonic() < browser_cleanup_deadline
-                        ):
-                            browser_termination_attempts.add(
-                                final_identity.generation_key
-                            )
-                            terminated = dependencies.browser_process_terminator(
-                                final_identity,
-                                browser_executable,
-                                browser_cleanup_deadline,
-                            )
-                            final_current = _authoritative_browser_snapshot(
-                                dependencies,
-                                browser_executable,
-                                "final-post-terminate",
-                            )
-                            final_remaining = _accumulate_browser_generations(
-                                final_current,
-                                preexisting_browsers,
-                                owned_browsers,
-                            )
-                            cleanup_ok = (
-                                terminated and not final_remaining and cleanup_ok
-                            )
             except _IdentityAmbiguous:
                 identity_ambiguous = True
             except (_IdentityInspectionError, OSError, ValueError, TypeError):
@@ -2841,12 +3027,7 @@ def run_driver(config, dependencies=None):
                     dependencies,
                     browser_executable,
                     preexisting_browsers,
-                    owned_browsers,
-                    browser_termination_attempts,
-                    browser_cleanup_deadline,
-                    not identity_inspection_failed
-                    and browser_cleanup_safe
-                    and not identity_ambiguous,
+                    observed_browsers,
                 )
                 if late_generation_seen:
                     cleanup_ok = False
@@ -2890,7 +3071,12 @@ def run_driver(config, dependencies=None):
         elif signal_guard.received_during_cleanup:
             outcome = "cleanup-interrupted"
             exit_code = DRIVER_CLEANUP_FAILURE
-        elif not cleanup_ok:
+        elif not cleanup_ok and exit_code not in {
+            DRIVER_INVALID_STATUS,
+            DRIVER_INVALID_RECEIPT,
+            DRIVER_HELPER_FAILURE,
+            DRIVER_PROVENANCE_FAILURE,
+        }:
             outcome = "cleanup-error"
             exit_code = DRIVER_CLEANUP_FAILURE
         signal_guard.restore()

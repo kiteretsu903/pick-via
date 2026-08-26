@@ -31,6 +31,44 @@ public protocol TrustedApplicationResolving: Sendable {
   func applicationURL(forBundleIdentifier bundleIdentifier: String) -> URL?
 }
 
+#if PICKVIA_E2E_AUTOMATION
+  public struct BrowserLaunchProvenanceContext: Equatable, Sendable {
+    public let sessionNonce: String
+    public let requestNonce: String
+    public let targetID: String
+    public let expectedBundleIdentifier: String
+    public let mode: BrowserMode
+
+    public init(
+      sessionNonce: String,
+      requestNonce: String,
+      targetID: String,
+      expectedBundleIdentifier: String,
+      mode: BrowserMode
+    ) {
+      self.sessionNonce = sessionNonce
+      self.requestNonce = requestNonce
+      self.targetID = targetID
+      self.expectedBundleIdentifier = expectedBundleIdentifier
+      self.mode = mode
+    }
+  }
+
+  public enum BrowserLaunchProvenanceEvent: Equatable, Sendable {
+    case observed(BrowserLaunchObservation)
+    case launchUnproven(BrowserLaunchMechanism)
+    case launchError(BrowserLaunchMechanism)
+  }
+
+  public protocol BrowserLaunchProvenanceSinking: Sendable {
+    @discardableResult
+    func record(
+      _ event: BrowserLaunchProvenanceEvent,
+      context: BrowserLaunchProvenanceContext
+    ) -> Bool
+  }
+#endif
+
 public struct FoundationExecutableValidator: ExecutableValidating {
   public init() {}
 
@@ -199,6 +237,11 @@ public struct BrowserLauncher: Sendable {
   private let duckDuckGoRouter: any DuckDuckGoRouting
   private let descriptors: [BrowserDescriptor]
 
+  #if PICKVIA_E2E_AUTOMATION
+    private let provenanceContext: BrowserLaunchProvenanceContext?
+    private let provenanceSink: (any BrowserLaunchProvenanceSinking)?
+  #endif
+
   public init(
     trustedApplicationResolver: any TrustedApplicationResolving = WorkspaceApplicationLocator(),
     processRunner: any ProcessRunning = SystemProcessRunner(),
@@ -211,7 +254,27 @@ public struct BrowserLauncher: Sendable {
     self.executableValidator = executableValidator
     duckDuckGoRouter = DuckDuckGoProcessCoordinator()
     descriptors = BrowserDescriptor.supported
+    #if PICKVIA_E2E_AUTOMATION
+      provenanceContext = nil
+      provenanceSink = nil
+    #endif
   }
+
+  #if PICKVIA_E2E_AUTOMATION
+    public init(
+      provenanceContext: BrowserLaunchProvenanceContext,
+      provenanceSink: any BrowserLaunchProvenanceSinking
+    ) {
+      trustedApplicationResolver = WorkspaceApplicationLocator()
+      processRunner = SystemProcessRunner()
+      workspace = SystemWorkspace()
+      executableValidator = FoundationExecutableValidator()
+      duckDuckGoRouter = DuckDuckGoProcessCoordinator()
+      descriptors = BrowserDescriptor.supported
+      self.provenanceContext = provenanceContext
+      self.provenanceSink = provenanceSink
+    }
+  #endif
 
   init(
     trustedApplicationResolver: any TrustedApplicationResolving,
@@ -227,7 +290,33 @@ public struct BrowserLauncher: Sendable {
     self.executableValidator = executableValidator
     self.duckDuckGoRouter = duckDuckGoRouter
     self.descriptors = descriptors
+    #if PICKVIA_E2E_AUTOMATION
+      provenanceContext = nil
+      provenanceSink = nil
+    #endif
   }
+
+  #if PICKVIA_E2E_AUTOMATION
+    init(
+      provenanceContext: BrowserLaunchProvenanceContext,
+      provenanceSink: any BrowserLaunchProvenanceSinking,
+      trustedApplicationResolver: any TrustedApplicationResolving,
+      processRunner: any ProcessRunning,
+      workspace: any WorkspaceOpening,
+      executableValidator: any ExecutableValidating,
+      duckDuckGoRouter: any DuckDuckGoRouting,
+      descriptors: [BrowserDescriptor] = BrowserDescriptor.supported
+    ) {
+      self.trustedApplicationResolver = trustedApplicationResolver
+      self.processRunner = processRunner
+      self.workspace = workspace
+      self.executableValidator = executableValidator
+      self.duckDuckGoRouter = duckDuckGoRouter
+      self.descriptors = descriptors
+      self.provenanceContext = provenanceContext
+      self.provenanceSink = provenanceSink
+    }
+  #endif
 
   public func makePlan(
     url: URL,
@@ -388,6 +477,35 @@ public struct BrowserLauncher: Sendable {
     }
   }
 
+  #if PICKVIA_E2E_AUTOMATION
+    func executeWithProvenance(
+      _ plan: LaunchPlan
+    ) async throws -> BrowserLaunchObservation {
+      guard let provenanceContext, let provenanceSink else {
+        return try await execute(plan)
+      }
+      do {
+        let observation = try await execute(plan)
+        _ = provenanceSink.record(.observed(observation), context: provenanceContext)
+        return observation
+      } catch {
+        _ = provenanceSink.record(
+          .launchError(Self.mechanism(for: plan)),
+          context: provenanceContext
+        )
+        throw error
+      }
+    }
+
+    private static func mechanism(for plan: LaunchPlan) -> BrowserLaunchMechanism {
+      switch plan {
+      case .executable: .process
+      case .workspace: .workspace
+      case .duckDuckGo: .duckDuckGo
+      }
+    }
+  #endif
+
   @discardableResult
   public func launch(
     url: URL,
@@ -395,6 +513,10 @@ public struct BrowserLauncher: Sendable {
     target: BrowserTarget
   ) async throws -> BrowserLaunchObservation {
     let plan = try makePlan(url: url, application: application, target: target)
-    return try await execute(plan)
+    #if PICKVIA_E2E_AUTOMATION
+      return try await executeWithProvenance(plan)
+    #else
+      return try await execute(plan)
+    #endif
   }
 }

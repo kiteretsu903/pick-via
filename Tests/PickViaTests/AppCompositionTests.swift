@@ -533,8 +533,10 @@ final class AppCompositionTests: XCTestCase {
       expectedBundleIdentifier: "com.microsoft.edgemac",
       expectedMode: .normal,
       sessionNonce: "session_0123456789",
+      requestNonce: "request_0123456789",
       applicationSupportDirectory: supportDirectory,
-      statusFIFO: supportDirectory.appending(path: "status.fifo")
+      statusFIFO: supportDirectory.appending(path: "status.fifo"),
+      provenanceFIFO: supportDirectory.appending(path: "provenance.fifo")
     )
 
     static func control(supportDirectory: URL) -> E2EControl {
@@ -543,8 +545,10 @@ final class AppCompositionTests: XCTestCase {
         expectedBundleIdentifier: control.expectedBundleIdentifier,
         expectedMode: control.expectedMode,
         sessionNonce: control.sessionNonce,
+        requestNonce: control.requestNonce,
         applicationSupportDirectory: supportDirectory,
-        statusFIFO: supportDirectory.appending(path: "status.fifo")
+        statusFIFO: supportDirectory.appending(path: "status.fifo"),
+        provenanceFIFO: supportDirectory.appending(path: "provenance.fifo")
       )
     }
 
@@ -554,8 +558,10 @@ final class AppCompositionTests: XCTestCase {
         E2EEnvironmentKey.bundleIdentifier: control.expectedBundleIdentifier,
         E2EEnvironmentKey.mode: control.expectedMode.rawValue,
         E2EEnvironmentKey.sessionNonce: control.sessionNonce,
+        E2EEnvironmentKey.requestNonce: control.requestNonce,
         E2EEnvironmentKey.supportDirectory: supportDirectory.path,
         E2EEnvironmentKey.statusFIFO: supportDirectory.appending(path: "status.fifo").path,
+        E2EEnvironmentKey.provenanceFIFO: supportDirectory.appending(path: "provenance.fifo").path,
       ]
     }
   }

@@ -739,8 +739,10 @@ def _smoke_environment(task_root, session_nonce):
             "PICKVIA_E2E_BUNDLE_ID": "dev.bozhenpeng.PickVia.E2E.Missing",
             "PICKVIA_E2E_MODE": "normal",
             "PICKVIA_E2E_SESSION_NONCE": session_nonce,
+            "PICKVIA_E2E_REQUEST_NONCE": "smoke_request_0123456789",
             "PICKVIA_E2E_SUPPORT_DIR": os.fspath(root),
             "PICKVIA_E2E_STATUS_FIFO": os.fspath(root / "status.fifo"),
+            "PICKVIA_E2E_PROVENANCE_FIFO": os.fspath(root / "provenance.fifo"),
         }
     )
     return environment
@@ -835,6 +837,7 @@ def _run_missing_target_smoke(application, helper_source, session_nonce):
     owner = driver._TaskRootOwner()
     task_root = None
     status_descriptor = None
+    provenance_descriptor = None
     app_process = None
     process_groups_absent = True
     auxiliary_group_ambiguous = False
@@ -847,7 +850,9 @@ def _run_missing_target_smoke(application, helper_source, session_nonce):
     try:
         task_root = driver._make_task_root(owner)
         task_root.create_fifo("status.fifo")
+        task_root.create_fifo("provenance.fifo")
         status_descriptor = task_root.open_fifo("status.fifo")
+        provenance_descriptor = task_root.open_fifo("provenance.fifo")
         helper = task_root.child_path("open_with_app")
         stage = "compile-helper"
         if not _compile_smoke_helper(helper_source, helper, task_root):
@@ -885,6 +890,8 @@ def _run_missing_target_smoke(application, helper_source, session_nonce):
             raise SmokePolicyError("smoke application process group survived")
         os.close(status_descriptor)
         status_descriptor = None
+        os.close(provenance_descriptor)
+        provenance_descriptor = None
         stage = "privacy-audit"
         if not task_root.audit_regular_files(route_bytes):
             raise SmokePolicyError("smoke task root failed privacy audit")
@@ -917,6 +924,8 @@ def _run_missing_target_smoke(application, helper_source, session_nonce):
                 app_process.close_streams()
             if status_descriptor is not None:
                 os.close(status_descriptor)
+            if provenance_descriptor is not None:
+                os.close(provenance_descriptor)
             if task_root is not None and not finalized:
                 if process_groups_absent:
                     owner.cleanup()

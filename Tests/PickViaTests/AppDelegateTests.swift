@@ -7,6 +7,39 @@ import XCTest
 
 @MainActor
 final class AppDelegateTests: XCTestCase {
+  #if PICKVIA_E2E_AUTOMATION
+    func testE2ELaunchProvenanceContextUsesOnlyImmutableValidatedControlFields() {
+      let control = E2EControl(
+        targetID: "com.microsoft.edgemac||normal",
+        expectedBundleIdentifier: "com.microsoft.edgemac",
+        expectedMode: .normal,
+        sessionNonce: "session_0123456789",
+        requestNonce: "request_0123456789",
+        applicationSupportDirectory: URL(
+          fileURLWithPath: "/private/tmp/pickvia-e2e-app-delegate",
+          isDirectory: true
+        ),
+        statusFIFO: URL(
+          fileURLWithPath: "/private/tmp/pickvia-e2e-app-delegate/status.fifo"
+        ),
+        provenanceFIFO: URL(
+          fileURLWithPath: "/private/tmp/pickvia-e2e-app-delegate/provenance.fifo"
+        )
+      )
+
+      XCTAssertEqual(
+        E2EApplicationEnvironment.launchProvenanceContext(control: control),
+        BrowserLaunchProvenanceContext(
+          sessionNonce: "session_0123456789",
+          requestNonce: "request_0123456789",
+          targetID: "com.microsoft.edgemac||normal",
+          expectedBundleIdentifier: "com.microsoft.edgemac",
+          mode: .normal
+        )
+      )
+    }
+  #endif
+
   func testBecomingActiveRefreshesDefaultHandlerStatusAndRetriesProfileAccess() throws {
     let defaults = AppDelegateDefaultBrowserStub()
     let presenter = AppDelegateProfileAccessPresenterSpy()

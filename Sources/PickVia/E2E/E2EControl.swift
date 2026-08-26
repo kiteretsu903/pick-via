@@ -8,8 +8,10 @@
     static let bundleIdentifier = "PICKVIA_E2E_BUNDLE_ID"
     static let mode = "PICKVIA_E2E_MODE"
     static let sessionNonce = "PICKVIA_E2E_SESSION_NONCE"
+    static let requestNonce = "PICKVIA_E2E_REQUEST_NONCE"
     static let supportDirectory = "PICKVIA_E2E_SUPPORT_DIR"
     static let statusFIFO = "PICKVIA_E2E_STATUS_FIFO"
+    static let provenanceFIFO = "PICKVIA_E2E_PROVENANCE_FIFO"
   }
 
   struct E2EControl: Equatable {
@@ -17,8 +19,10 @@
     let expectedBundleIdentifier: String
     let expectedMode: BrowserMode
     let sessionNonce: String
+    let requestNonce: String
     let applicationSupportDirectory: URL
     let statusFIFO: URL
+    let provenanceFIFO: URL
 
     static func load(environment: [String: String]) -> E2EControl? {
       load(
@@ -42,29 +46,37 @@
         let rawMode = nonempty(environment[E2EEnvironmentKey.mode], limit: 16),
         let mode = BrowserMode(rawValue: rawMode),
         let nonce = nonempty(environment[E2EEnvironmentKey.sessionNonce], limit: 64),
-        nonce.range(
-          of: #"^[A-Za-z0-9_-]{16,64}$"#,
-          options: .regularExpression
-        ) != nil,
+        isValidNonce(nonce),
+        let requestNonce = nonempty(environment[E2EEnvironmentKey.requestNonce], limit: 64),
+        isValidNonce(requestNonce),
         let supportPath = nonempty(
           environment[E2EEnvironmentKey.supportDirectory],
           limit: 1_024
         ),
         let fifoPath = nonempty(environment[E2EEnvironmentKey.statusFIFO], limit: 1_024),
+        let provenancePath = nonempty(
+          environment[E2EEnvironmentKey.provenanceFIFO],
+          limit: 1_024
+        ),
         let lexicalSupportPath = lexicallyStandardizedAbsolutePath(supportPath),
         lexicalSupportPath == supportPath,
         let lexicalFIFOPath = lexicallyStandardizedAbsolutePath(fifoPath),
-        lexicalFIFOPath == fifoPath
+        lexicalFIFOPath == fifoPath,
+        let lexicalProvenancePath = lexicallyStandardizedAbsolutePath(provenancePath),
+        lexicalProvenancePath == provenancePath
       else { return nil }
 
       let support = URL(fileURLWithPath: lexicalSupportPath, isDirectory: true)
       let fifo = URL(fileURLWithPath: lexicalFIFOPath)
+      let provenanceFIFO = URL(fileURLWithPath: lexicalProvenancePath)
       let supportName = support.lastPathComponent
       guard
         support.deletingLastPathComponent().path == "/private/tmp",
         supportName.hasPrefix("pickvia-e2e-"),
         supportName != "pickvia-e2e-",
         fifo.deletingLastPathComponent().path == support.path,
+        provenanceFIFO.deletingLastPathComponent().path == support.path,
+        provenanceFIFO.path != fifo.path,
         let inspection = inspectSupportDirectory(support),
         inspection.isDirectory,
         !inspection.isSymbolicLink,
@@ -77,8 +89,10 @@
         expectedBundleIdentifier: bundleID,
         expectedMode: mode,
         sessionNonce: nonce,
+        requestNonce: requestNonce,
         applicationSupportDirectory: support,
-        statusFIFO: fifo
+        statusFIFO: fifo,
+        provenanceFIFO: provenanceFIFO
       )
     }
   }
@@ -223,6 +237,19 @@
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
     guard trimmed == value, !trimmed.isEmpty, trimmed.utf8.count <= limit else { return nil }
     return trimmed
+  }
+
+  private func isValidNonce(_ value: String) -> Bool {
+    guard (16...64).contains(value.utf8.count), value.unicodeScalars.count == value.utf8.count
+    else { return false }
+    return value.utf8.allSatisfy { byte in
+      switch byte {
+      case 45, 48...57, 65...90, 95, 97...122:
+        true
+      default:
+        false
+      }
+    }
   }
 
   private func lexicallyStandardizedAbsolutePath(_ path: String) -> String? {

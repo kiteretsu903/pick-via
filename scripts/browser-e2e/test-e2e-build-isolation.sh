@@ -12,13 +12,16 @@ environment_keys=(
   PICKVIA_E2E_BUNDLE_ID
   PICKVIA_E2E_MODE
   PICKVIA_E2E_SESSION_NONCE
+  PICKVIA_E2E_REQUEST_NONCE
   PICKVIA_E2E_SUPPORT_DIR
   PICKVIA_E2E_STATUS_FIFO
+  PICKVIA_E2E_PROVENANCE_FIFO
 )
 e2e_types=(
   PickVia.E2EChooserPresenter
   PickVia.E2EControl
   PickVia.E2EStatusWriter
+  PickVia.E2ELaunchProvenanceWriter
   PickVia.E2EAutomationMarker
   PickVia.E2EEphemeralPreferences
 )

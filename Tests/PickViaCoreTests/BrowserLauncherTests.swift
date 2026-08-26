@@ -1192,6 +1192,78 @@ struct BrowserLauncherTests {
     )
   }
 
+  #if PICKVIA_E2E_AUTOMATION
+    @Test(arguments: LaunchAdapterKind.allCases)
+    func provenanceSinkReceivesExactObservationForEveryMechanism(
+      kind: LaunchAdapterKind
+    ) async throws {
+      let sink = RecordingBrowserLaunchProvenanceSink()
+      let context = provenanceContext
+      let launcher = provenanceLauncher(sink: sink)
+      let plan: LaunchPlan =
+        switch kind {
+        case .process:
+          .executable(application: executableURL, arguments: [])
+        case .workspace:
+          .workspace(application: applicationURL, url: url)
+        case .duckDuckGo:
+          .duckDuckGo(application: applicationURL, url: url, mode: .private)
+        }
+
+      let observation = try await launcher.executeWithProvenance(plan)
+
+      #expect(
+        sink.records
+          == [
+            .init(event: .observed(observation), context: context)
+          ]
+      )
+    }
+
+    @Test func provenanceWriteFailureDoesNotChangeSuccessfulProductLaunch() async throws {
+      let sink = RecordingBrowserLaunchProvenanceSink(succeeds: false)
+      let launcher = provenanceLauncher(sink: sink)
+
+      let observation = try await launcher.executeWithProvenance(
+        .executable(application: executableURL, arguments: [])
+      )
+
+      #expect(observation.processIdentifier == 4_001)
+      #expect(sink.records.count == 1)
+    }
+
+    @Test func productionLaunchFailureWritesLaunchErrorBestEffortAndStillRethrows() async {
+      let sink = RecordingBrowserLaunchProvenanceSink(succeeds: false)
+      let launcher = BrowserLauncher(
+        provenanceContext: provenanceContext,
+        provenanceSink: sink,
+        trustedApplicationResolver: StubTrustedApplicationResolver(urls: [:]),
+        processRunner: RecordingProcessRunner(error: NSError(domain: "test", code: 1)),
+        workspace: RecordingWorkspace(),
+        executableValidator: StubExecutableValidator(isExecutable: true),
+        duckDuckGoRouter: RecordingDuckDuckGoRouter(),
+        descriptors: []
+      )
+
+      do {
+        _ = try await launcher.executeWithProvenance(
+          .executable(application: executableURL, arguments: [])
+        )
+        Issue.record("Expected sanitized product failure")
+      } catch let failure as LaunchFailure {
+        #expect(failure.message == "Could not open the selected browser target.")
+      } catch {
+        Issue.record("Expected LaunchFailure")
+      }
+      #expect(
+        sink.records
+          == [
+            .init(event: .launchError(.process), context: provenanceContext)
+          ]
+      )
+    }
+  #endif
+
   @Test func executeDispatchesWorkspacePlanToInjectedWorkspace() async throws {
     let workspace = RecordingWorkspace(processIdentifier: 5_001)
     let launcher = BrowserLauncher(processRunner: RecordingProcessRunner(), workspace: workspace)
@@ -1266,6 +1338,53 @@ struct BrowserLauncherTests {
     }
   }
 }
+
+#if PICKVIA_E2E_AUTOMATION
+  private let provenanceContext = BrowserLaunchProvenanceContext(
+    sessionNonce: "session_0123456789",
+    requestNonce: "request_0123456789",
+    targetID: "com.microsoft.edgemac||normal",
+    expectedBundleIdentifier: "com.microsoft.edgemac",
+    mode: .normal
+  )
+
+  private final class RecordingBrowserLaunchProvenanceSink:
+    BrowserLaunchProvenanceSinking, @unchecked Sendable
+  {
+    struct Record: Equatable {
+      let event: BrowserLaunchProvenanceEvent
+      let context: BrowserLaunchProvenanceContext
+    }
+
+    private(set) var records: [Record] = []
+    private let succeeds: Bool
+
+    init(succeeds: Bool = true) { self.succeeds = succeeds }
+
+    func record(
+      _ event: BrowserLaunchProvenanceEvent,
+      context: BrowserLaunchProvenanceContext
+    ) -> Bool {
+      records.append(.init(event: event, context: context))
+      return succeeds
+    }
+  }
+
+  private func provenanceLauncher(
+    sink: any BrowserLaunchProvenanceSinking
+  ) -> BrowserLauncher {
+    BrowserLauncher(
+      provenanceContext: provenanceContext,
+      provenanceSink: sink,
+      trustedApplicationResolver: StubTrustedApplicationResolver(urls: [:]),
+      processRunner: RecordingProcessRunner(processIdentifier: 4_001),
+      workspace: RecordingWorkspace(processIdentifier: 5_001),
+      executableValidator: StubExecutableValidator(isExecutable: true),
+      duckDuckGoRouter: RecordingDuckDuckGoRouter(processIdentifier: 6_001),
+      descriptors: []
+    )
+  }
+#endif
 
 private let applicationURL = URL(fileURLWithPath: "/Applications/Browser.app", isDirectory: true)
 private let executableURL = applicationURL.appending(path: "Contents/MacOS/Browser")
