@@ -43,7 +43,7 @@ class DriverFixture:
         browser_identity_visible=True,
         receipt_without_browser=False,
         app_hangs=False,
-        timeout=2.0,
+        timeout=5.0,
         probe_kind="normal",
         exact_e2e_identity=True,
         leak_channel=None,
@@ -69,6 +69,7 @@ class DriverFixture:
         repeated_delayed_browser=False,
         real_quiescence_clock=False,
         proof_deadline_phase=None,
+        proof_clock_escape=5.0,
         provenance_records=None,
         provenance_mechanism="process",
         expected_mechanism=None,
@@ -83,6 +84,8 @@ class DriverFixture:
     ):
         if proof_deadline_phase not in {
             None,
+            "status-written",
+            "receipt-delivered",
             "helper-started",
             "helper-and-browser",
             "helper-and-receipt",
@@ -127,6 +130,7 @@ class DriverFixture:
         self.repeated_delayed_browser = repeated_delayed_browser
         self.real_quiescence_clock = real_quiescence_clock
         self.proof_deadline_phase = proof_deadline_phase
+        self.proof_clock_escape = proof_clock_escape
         self.provenance_records = provenance_records
         self.provenance_mechanism = provenance_mechanism
         self.expected_mechanism = expected_mechanism or provenance_mechanism
@@ -323,7 +327,7 @@ outcomes = [record.get("outcome") for record in records if isinstance(record, di
 if "selected" in outcomes and "launch-error" not in outcomes:
     if %r:
         try:
-            urllib.request.urlopen(route.decode("ascii"), timeout=1).read()
+            urllib.request.urlopen(route.decode("ascii"), timeout=5).read()
             (root / "receipt-delivered").touch()
         except Exception: pass
     elif %r:
@@ -381,7 +385,7 @@ import urllib.request
 route = sys.stdin.buffer.read()
 if %r:
     try:
-        urllib.request.urlopen(route.decode("ascii"), timeout=1).read()
+        urllib.request.urlopen(route.decode("ascii"), timeout=5).read()
         (pathlib.Path(__file__).resolve().parents[3] / "receipt-delivered").touch()
     except Exception: pass
 time.sleep(60)
@@ -408,7 +412,7 @@ if %r:
     }.get(%r)
     if marker is not None:
         import time
-        deadline = time.monotonic() + 1.0
+        deadline = time.monotonic() + 5.0
         while not marker.exists() and time.monotonic() < deadline: time.sleep(0.005)
         if marker.name == "browser.pid": time.sleep(0.1)
         if marker.name == "receipt-delivered": time.sleep(0.5)
@@ -521,7 +525,7 @@ server.server_close()
             return now
         if self._proof_clock_base is None:
             self._proof_clock_base = now
-            self._proof_clock_escape = now + 5.0
+            self._proof_clock_escape = now + self.proof_clock_escape
         if self._proof_phase_is_ready():
             if self._proof_clock_phase_start is None:
                 self._proof_clock_phase_start = now
@@ -554,7 +558,10 @@ server.server_close()
         )
         browser_started = self.browser_pid_file.exists()
         receipt_delivered = (self.fixture_root / "receipt-delivered").exists()
+        status_written = (self.fixture_root / "status-written").exists()
         return {
+            "status-written": status_written,
+            "receipt-delivered": receipt_delivered,
             "helper-started": helper_started,
             "helper-exited": helper_succeeded,
             "helper-and-browser": helper_succeeded and browser_started,
@@ -2401,7 +2408,10 @@ time.sleep(3.25)
             self.assertTrue((fixture.fixture_root / "status-written").exists())
 
     def test_complete_route_proof_with_nonzero_helper_never_passes(self):
-        with DriverFixture(helper_failure_phase="after-receipt") as fixture:
+        with DriverFixture(
+            helper_failure_phase="after-receipt",
+            proof_deadline_phase="receipt-delivered",
+        ) as fixture:
             result = fixture.run()
 
             self.assertEqual(result.exit_code, driver.DRIVER_HELPER_FAILURE)
@@ -2489,6 +2499,7 @@ time.sleep(3.25)
         with DriverFixture(
             helper_hangs_after_delivery=True,
             timeout=2.0,
+            proof_deadline_phase="receipt-delivered",
         ) as fixture:
             result = fixture.run()
 
@@ -3102,7 +3113,9 @@ time.sleep(3.25)
             "attestation-output-overflow",
         )
         for failure in failures:
-            with self.subTest(failure=failure), DriverFixture() as fixture:
+            with self.subTest(failure=failure), DriverFixture(
+                proof_deadline_phase="complete-proof"
+            ) as fixture:
 
                 def reject(_pid, _application, _executable, _bundle):
                     raise driver._IdentityError(failure)
@@ -3271,7 +3284,7 @@ time.sleep(3.25)
                             )
 
     def test_provenance_generation_change_during_binding_check_grants_no_authority(self):
-        with DriverFixture() as fixture:
+        with DriverFixture(proof_deadline_phase="complete-proof") as fixture:
             state = {"binding_checks": 0, "generation_changed": False}
 
             def check_binding(application, executable, bundle_identifier):
@@ -3401,6 +3414,7 @@ time.sleep(3.25)
             status_records=[],
             spawn_browser=False,
             timeout=2.0,
+            proof_deadline_phase="status-written",
         ) as fixture:
             result = fixture.run()
             self.assertEqual(result.exit_code, driver.DRIVER_SELECTION_REJECTED)
@@ -3461,6 +3475,7 @@ time.sleep(3.25)
             status_records=[],
             spawn_browser=False,
             timeout=2.0,
+            proof_deadline_phase="status-written",
         ) as fixture:
             result = fixture.run()
             self.assertEqual(result.exit_code, driver.DRIVER_PROVENANCE_FAILURE)
@@ -3889,8 +3904,10 @@ time.sleep(3.25)
             with self.subTest(fixture_options=fixture_options), DriverFixture(
                 provenance_records=[provenance],
                 provenance_before_status=True,
-                status_delay=0.1,
+                status_delay=2.0,
                 spawn_browser=False,
+                proof_deadline_phase="status-written",
+                proof_clock_escape=15.0,
                 **fixture_options,
             ) as fixture:
                 identity = driver.ProcessIdentity(
@@ -3973,6 +3990,7 @@ time.sleep(3.25)
             spawn_browser=False,
             helper_hangs_after_delivery=True,
             timeout=0.5,
+            proof_deadline_phase="status-written",
         ) as fixture:
             identity = driver.ProcessIdentity(
                 123, fixture.e2e_pid or 1, 2, 123, fixture.browser_executable

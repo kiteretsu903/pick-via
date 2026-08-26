@@ -134,6 +134,64 @@
       }
     }
 
+    func testRejectsDuplicateManifestFieldsIncludingIdenticalAndConflictingValues() throws {
+      let fixture = try makeChromiumFixture()
+      let cases: [(String, String, String)] = [
+        ("schemaVersion", "1", "2"),
+        ("bundleIdentifier", #""com.microsoft.edgemac""#, #""com.google.Chrome""#),
+        ("strategy", #""chromium""#, #""firefox""#),
+        ("relativeRoot", #""profiles/chromium""#, #""profiles/other""#),
+      ]
+      for (field, identicalValue, conflictingValue) in cases {
+        for duplicateValue in [identicalValue, conflictingValue] {
+          let data = duplicateManifestData(
+            duplicateField: field,
+            duplicateValue: duplicateValue
+          )
+          try writeManifestData(data, control: fixture.control)
+          XCTAssertThrowsError(
+            try E2EProfileGrantInstaller.installIfPresent(
+              control: fixture.control,
+              descriptors: [fixture.descriptor],
+              coordinator: ProfileGrantCoordinatorSpy(accessRoot: fixture.root)
+            ),
+            "duplicate \(field): \(duplicateValue)"
+          )
+        }
+      }
+
+      let escapedDuplicate = Data(
+        #"{"schemaVersion":1,"\u0073chemaVersion":1,"bundleIdentifier":"com.microsoft.edgemac","strategy":"chromium","relativeRoot":"profiles/chromium"}"#
+          .utf8
+      )
+      try writeManifestData(escapedDuplicate, control: fixture.control)
+      XCTAssertThrowsError(
+        try install(fixture, coordinator: ProfileGrantCoordinatorSpy(accessRoot: fixture.root))
+      )
+    }
+
+    func testRejectsNonFinitePartialTrailingAndWrongTypedManifestValues() throws {
+      let fixture = try makeChromiumFixture()
+      let invalidDocuments = [
+        #"{"schemaVersion":NaN,"bundleIdentifier":"com.microsoft.edgemac","strategy":"chromium","relativeRoot":"profiles/chromium"}"#,
+        #"{"schemaVersion":Infinity,"bundleIdentifier":"com.microsoft.edgemac","strategy":"chromium","relativeRoot":"profiles/chromium"}"#,
+        #"{"schemaVersion":1.0,"bundleIdentifier":"com.microsoft.edgemac","strategy":"chromium","relativeRoot":"profiles/chromium"}"#,
+        #"{"schemaVersion":true,"bundleIdentifier":"com.microsoft.edgemac","strategy":"chromium","relativeRoot":"profiles/chromium"}"#,
+        #"{"schemaVersion":1,"bundleIdentifier":1,"strategy":"chromium","relativeRoot":"profiles/chromium"}"#,
+        #"{"schemaVersion":1,"bundleIdentifier":"com.microsoft.edgemac","strategy":null,"relativeRoot":"profiles/chromium"}"#,
+        #"{"schemaVersion":1,"bundleIdentifier":"com.microsoft.edgemac","strategy":"chromium","relativeRoot":[]}"#,
+        #"{"schemaVersion":1,"bundleIdentifier":"com.microsoft.edgemac","strategy":"chromium","relativeRoot":"profiles/chromium""#,
+        #"{"schemaVersion":1,"bundleIdentifier":"com.microsoft.edgemac","strategy":"chromium","relativeRoot":"profiles/chromium"}{}"#,
+      ]
+      for document in invalidDocuments {
+        try writeManifestData(Data(document.utf8), control: fixture.control)
+        XCTAssertThrowsError(
+          try install(fixture, coordinator: ProfileGrantCoordinatorSpy(accessRoot: fixture.root)),
+          document
+        )
+      }
+    }
+
     func testRejectsAbsoluteTraversalEmptyAndConventionalHomeRoots() throws {
       let fixture = try makeChromiumFixture()
       for relativeRoot in [
@@ -234,6 +292,27 @@
         let firefox = try makeFirefoxFixture(profileCount: count)
         XCTAssertThrowsError(
           try install(firefox, coordinator: ProfileGrantCoordinatorSpy(accessRoot: firefox.root))
+        )
+      }
+    }
+
+    func testRejectsExtraMalformedRawChromiumInfoCacheEntry() throws {
+      let fixture = try makeChromiumFixture()
+      let malformedEntries = [
+        #"{}"#,
+        #"{"name":""}"#,
+        #""malformed""#,
+      ]
+      for malformedEntry in malformedEntries {
+        let marker = Data(
+          """
+          {"profile":{"info_cache":{"Default":{"name":"PickVia E2E"},"Malformed":\(malformedEntry)}}}
+          """.utf8
+        )
+        try replaceRestricted(marker, at: fixture.root.appending(path: "Local State"))
+        XCTAssertThrowsError(
+          try install(fixture, coordinator: ProfileGrantCoordinatorSpy(accessRoot: fixture.root)),
+          malformedEntry
         )
       }
     }
@@ -450,6 +529,20 @@
       try writeRestricted(data, to: control.profileGrantManifest)
     }
 
+    private func duplicateManifestData(
+      duplicateField: String,
+      duplicateValue: String
+    ) -> Data {
+      let fields = [
+        #""schemaVersion":1"#,
+        #""bundleIdentifier":"com.microsoft.edgemac""#,
+        #""strategy":"chromium""#,
+        #""relativeRoot":"profiles/chromium""#,
+        "\"\(duplicateField)\":\(duplicateValue)",
+      ]
+      return Data(("{" + fields.joined(separator: ",") + "}").utf8)
+    }
+
     private func makeRestrictedDirectory(_ url: URL) throws {
       try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
       try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
@@ -458,6 +551,13 @@
     private func writeRestricted(_ data: Data, to url: URL) throws {
       XCTAssertTrue(FileManager.default.createFile(atPath: url.path, contents: data))
       try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+    }
+
+    private func replaceRestricted(_ data: Data, at url: URL) throws {
+      if FileManager.default.fileExists(atPath: url.path) {
+        try FileManager.default.removeItem(at: url)
+      }
+      try writeRestricted(data, to: url)
     }
 
     private func chromiumLocalState(

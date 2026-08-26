@@ -20,6 +20,9 @@ environment_keys=(
 e2e_types=(
   PickVia.E2EChooserPresenter
   PickVia.E2EControl
+  PickVia.E2EProfileGrantError
+  PickVia.E2EProfileGrantInstaller
+  PickVia.E2EProfileGrantManifest
   PickVia.E2ELaunchProvenanceOutcome
   PickVia.E2ELaunchProvenanceRecord
   PickVia.E2EStatusWriter
@@ -30,6 +33,9 @@ e2e_types=(
   PickViaCore.BrowserLaunchProvenanceEvent
   PickViaCore.BrowserLaunchProvenanceSinking
   PickViaCore.BrowserLaunchUnprovenObservationError
+)
+e2e_literals=(
+  profile-grant.json
 )
 
 contract_root="$(mktemp -d /private/tmp/pickvia-e2e-build-isolation.XXXXXX)"
@@ -605,4 +611,9 @@ nm -a "$e2e_executable" 2>/dev/null | xcrun swift-demangle > "$e2e_symbols"
 for type_name in "${e2e_types[@]}"; do
   ! grep -Fq "$type_name" "$normal_symbols"
   grep -Fq "$type_name" "$e2e_symbols"
+done
+
+for literal in "${e2e_literals[@]}"; do
+  ! binary_contains "$normal_executable" "$literal"
+  binary_contains "$e2e_executable" "$literal"
 done

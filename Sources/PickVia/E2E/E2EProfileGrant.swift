@@ -134,32 +134,7 @@
     }
 
     private static func decodeManifest(_ data: Data) throws -> E2EProfileGrantManifest {
-      let value: Any
-      do {
-        value = try JSONSerialization.jsonObject(with: data)
-      } catch {
-        throw E2EProfileGrantError.invalidManifest
-      }
-      guard let object = value as? [String: Any] else {
-        throw E2EProfileGrantError.invalidManifest
-      }
-      let expectedKeys = Set([
-        "schemaVersion", "bundleIdentifier", "strategy", "relativeRoot",
-      ])
-      guard Set(object.keys) == expectedKeys,
-        let schema = object["schemaVersion"] as? NSNumber,
-        CFGetTypeID(schema) != CFBooleanGetTypeID(),
-        schema.doubleValue.isFinite,
-        schema.doubleValue == Double(schema.intValue),
-        object["bundleIdentifier"] is String,
-        object["strategy"] is String,
-        object["relativeRoot"] is String
-      else { throw E2EProfileGrantError.invalidManifest }
-      do {
-        return try JSONDecoder().decode(E2EProfileGrantManifest.self, from: data)
-      } catch {
-        throw E2EProfileGrantError.invalidManifest
-      }
+      try E2EProfileGrantJSONDecoder.decode(data)
     }
 
     private static func strategyName(_ strategy: BrowserProfileStrategy) -> String? {
@@ -212,6 +187,7 @@
       do {
         switch descriptor.profileStrategy {
         case .chromium:
+          try validateRawChromiumProfileCardinality(markerData)
           profiles = try ChromiumProfileParser.parse(data: markerData)
           rawFirefoxProfilePath = nil
         case .firefox:
@@ -279,6 +255,21 @@
       } catch {
         throw E2EProfileGrantError.invalidProfiles
       }
+    }
+
+    private static func validateRawChromiumProfileCardinality(_ data: Data) throws {
+      let value: Any
+      do {
+        value = try JSONSerialization.jsonObject(with: data)
+      } catch {
+        throw E2EProfileGrantError.invalidProfiles
+      }
+      guard
+        let root = value as? [String: Any],
+        let profile = root["profile"] as? [String: Any],
+        let infoCache = profile["info_cache"] as? [String: Any],
+        infoCache.count == 1
+      else { throw E2EProfileGrantError.invalidProfiles }
     }
 
     private static func exactFirefoxProfilePath(_ text: String) throws -> String {
@@ -425,6 +416,181 @@
         defer { free(resolved) }
         return String(cString: resolved)
       }
+    }
+  }
+
+  private struct E2EProfileGrantJSONDecoder {
+    private let bytes: [UInt8]
+    private var index = 0
+
+    static func decode(_ data: Data) throws -> E2EProfileGrantManifest {
+      var decoder = E2EProfileGrantJSONDecoder(bytes: Array(data))
+      return try decoder.decodeManifest()
+    }
+
+    private mutating func decodeManifest() throws -> E2EProfileGrantManifest {
+      skipWhitespace()
+      try consume(0x7B)
+      skipWhitespace()
+
+      var seen = Set<String>()
+      var schemaVersion: Int?
+      var bundleIdentifier: String?
+      var strategy: String?
+      var relativeRoot: String?
+      guard !consumeIfPresent(0x7D) else {
+        throw E2EProfileGrantError.invalidManifest
+      }
+
+      while true {
+        let key = try decodeString()
+        guard seen.insert(key).inserted else {
+          throw E2EProfileGrantError.invalidManifest
+        }
+        skipWhitespace()
+        try consume(0x3A)
+        skipWhitespace()
+        switch key {
+        case "schemaVersion":
+          schemaVersion = try decodeInteger()
+        case "bundleIdentifier":
+          bundleIdentifier = try decodeString()
+        case "strategy":
+          strategy = try decodeString()
+        case "relativeRoot":
+          relativeRoot = try decodeString()
+        default:
+          throw E2EProfileGrantError.invalidManifest
+        }
+        skipWhitespace()
+        if consumeIfPresent(0x2C) {
+          skipWhitespace()
+          continue
+        }
+        try consume(0x7D)
+        break
+      }
+
+      skipWhitespace()
+      guard
+        index == bytes.count,
+        seen
+          == Set(["schemaVersion", "bundleIdentifier", "strategy", "relativeRoot"]),
+        let schemaVersion,
+        let bundleIdentifier,
+        let strategy,
+        let relativeRoot
+      else { throw E2EProfileGrantError.invalidManifest }
+      return E2EProfileGrantManifest(
+        schemaVersion: schemaVersion,
+        bundleIdentifier: bundleIdentifier,
+        strategy: strategy,
+        relativeRoot: relativeRoot
+      )
+    }
+
+    private mutating func decodeString() throws -> String {
+      guard index < bytes.count, bytes[index] == 0x22 else {
+        throw E2EProfileGrantError.invalidManifest
+      }
+      let start = index
+      index += 1
+      while index < bytes.count {
+        let byte = bytes[index]
+        switch byte {
+        case 0x00...0x1F:
+          throw E2EProfileGrantError.invalidManifest
+        case 0x22:
+          index += 1
+          let token = Data(bytes[start..<index])
+          do {
+            guard
+              let decoded = try JSONSerialization.jsonObject(
+                with: token,
+                options: [.fragmentsAllowed]
+              ) as? String
+            else { throw E2EProfileGrantError.invalidManifest }
+            return decoded
+          } catch let error as E2EProfileGrantError {
+            throw error
+          } catch {
+            throw E2EProfileGrantError.invalidManifest
+          }
+        case 0x5C:
+          index += 1
+          guard index < bytes.count else {
+            throw E2EProfileGrantError.invalidManifest
+          }
+          let escape = bytes[index]
+          if escape == 0x75 {
+            guard index + 4 < bytes.count else {
+              throw E2EProfileGrantError.invalidManifest
+            }
+            for hexadecimal in bytes[(index + 1)...(index + 4)] {
+              guard
+                (0x30...0x39).contains(hexadecimal)
+                  || (0x41...0x46).contains(hexadecimal)
+                  || (0x61...0x66).contains(hexadecimal)
+              else { throw E2EProfileGrantError.invalidManifest }
+            }
+            index += 5
+            continue
+          }
+          guard [0x22, 0x2F, 0x5C, 0x62, 0x66, 0x6E, 0x72, 0x74].contains(escape)
+          else { throw E2EProfileGrantError.invalidManifest }
+          index += 1
+          continue
+        default:
+          index += 1
+        }
+      }
+      throw E2EProfileGrantError.invalidManifest
+    }
+
+    private mutating func decodeInteger() throws -> Int {
+      let start = index
+      if consumeIfPresent(0x2D), index == bytes.count {
+        throw E2EProfileGrantError.invalidManifest
+      }
+      guard index < bytes.count else {
+        throw E2EProfileGrantError.invalidManifest
+      }
+      if bytes[index] == 0x30 {
+        index += 1
+        if index < bytes.count, (0x30...0x39).contains(bytes[index]) {
+          throw E2EProfileGrantError.invalidManifest
+        }
+      } else {
+        guard (0x31...0x39).contains(bytes[index]) else {
+          throw E2EProfileGrantError.invalidManifest
+        }
+        repeat {
+          index += 1
+        } while index < bytes.count
+          && (0x30...0x39).contains(bytes[index])
+      }
+      guard
+        let value = Int(String(decoding: bytes[start..<index], as: UTF8.self))
+      else { throw E2EProfileGrantError.invalidManifest }
+      return value
+    }
+
+    private mutating func skipWhitespace() {
+      while index < bytes.count, [0x09, 0x0A, 0x0D, 0x20].contains(bytes[index]) {
+        index += 1
+      }
+    }
+
+    private mutating func consume(_ expected: UInt8) throws {
+      guard consumeIfPresent(expected) else {
+        throw E2EProfileGrantError.invalidManifest
+      }
+    }
+
+    private mutating func consumeIfPresent(_ expected: UInt8) -> Bool {
+      guard index < bytes.count, bytes[index] == expected else { return false }
+      index += 1
+      return true
     }
   }
 
