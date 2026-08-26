@@ -3861,6 +3861,32 @@ time.sleep(3.25)
                             "com.microsoft.edgemac",
                         )
 
+    def test_production_browser_binding_allows_bounded_large_bundle_verification(self):
+        with DriverFixture() as fixture:
+
+            def verify_with_realistic_latency(arguments, **options):
+                if options["timeout"] < 5.0:
+                    raise subprocess.TimeoutExpired(arguments, options["timeout"])
+                return subprocess.CompletedProcess(arguments, returncode=0)
+
+            with mock.patch.object(
+                driver.subprocess,
+                "run",
+                side_effect=verify_with_realistic_latency,
+            ):
+                driver._validate_signed_browser_binding(
+                    fixture.browser_app,
+                    fixture.browser_executable,
+                    "com.microsoft.edgemac",
+                )
+
+            self.assertGreaterEqual(
+                driver.BROWSER_BINDING_VERIFICATION_TIMEOUT_SECONDS, 5.0
+            )
+            self.assertLessEqual(
+                driver.BROWSER_BINDING_VERIFICATION_TIMEOUT_SECONDS, 30.0
+            )
+
     def test_provenance_resolution_rejects_signature_mutation_after_preflight(self):
         with DriverFixture() as fixture:
             checks = []

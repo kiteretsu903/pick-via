@@ -2369,6 +2369,37 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
                 current_verification = dependencies.verify_application(cell.application)
             except MatrixIdentityError:
                 current_verification = None
+            if current_verification is None:
+                versions[cell.bundle_identifier] = "unavailable"
+                blocked_bundles.add(cell.bundle_identifier)
+                for blocked_cell in group:
+                    record = _not_run_record(
+                        blocked_cell,
+                        "unavailable",
+                        "signature-blocker",
+                    )
+                    chained_records.append(
+                        _chain_record(record, chained_records[-1]["recordHash"])
+                    )
+                    completed.append(chained_records[-1])
+                _write_records(evidence_path, chained_records)
+                if cell.sequence == 0:
+                    for pending in remaining[offset + 3 :]:
+                        record = _not_run_record(
+                            pending,
+                            versions.get(pending.bundle_identifier, "unverified"),
+                            "blocked-before-run",
+                        )
+                        chained_records.append(
+                            _chain_record(record, chained_records[-1]["recordHash"])
+                        )
+                        completed.append(chained_records[-1])
+                    _write_records(evidence_path, chained_records)
+                    if exit_code != MATRIX_PRODUCT_FAILURE:
+                        exit_code = MATRIX_BLOCKED
+                    break
+                offset += 3
+                continue
             if (
                 current_verification
                 != application_verifications[cell.bundle_identifier]
@@ -2412,6 +2443,32 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
                 post_verification = dependencies.verify_application(cell.application)
             except MatrixIdentityError:
                 post_verification = None
+            if post_verification is None:
+                versions[cell.bundle_identifier] = "unavailable"
+                for blocked_cell in group:
+                    record = _not_run_record(
+                        blocked_cell,
+                        "unavailable",
+                        "signature-blocker",
+                    )
+                    chained_records.append(
+                        _chain_record(record, chained_records[-1]["recordHash"])
+                    )
+                    completed.append(chained_records[-1])
+                for pending in remaining[offset + 3 :]:
+                    record = _not_run_record(
+                        pending,
+                        versions.get(pending.bundle_identifier, "unverified"),
+                        "blocked-after-ambiguity",
+                    )
+                    chained_records.append(
+                        _chain_record(record, chained_records[-1]["recordHash"])
+                    )
+                    completed.append(chained_records[-1])
+                _write_records(evidence_path, chained_records)
+                if exit_code != MATRIX_PRODUCT_FAILURE:
+                    exit_code = MATRIX_BLOCKED
+                break
             if post_verification != application_verifications[cell.bundle_identifier]:
                 versions[cell.bundle_identifier] = "unavailable"
                 for pending in remaining[offset:]:

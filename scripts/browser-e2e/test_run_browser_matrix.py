@@ -397,6 +397,50 @@ class MatrixRunnerTests(unittest.TestCase):
         self.assertEqual(result.records[0]["detail"], "browser-identity-changed")
         self.assertEqual(result.records[0]["installedVersion"], "unavailable")
 
+    def test_edge_pilot_reverification_failure_is_signature_blocker_not_change(self):
+        dependencies = FakeDependencies(verification_failure_phase="pre")
+        result = matrix.execute_matrix(
+            matrix.load_manifest(self.write_manifest()),
+            self.root / "output",
+            dependencies=dependencies,
+        )
+        self.assertEqual(result.exit_code, matrix.MATRIX_BLOCKED)
+        self.assertEqual(dependencies.driver_calls, [])
+        edge_pilot = result.records[:3]
+        tail = result.records[3:]
+        self.assertTrue(all(record["result"] == "NOT RUN" for record in result.records))
+        self.assertTrue(
+            all(record["detail"] == "signature-blocker" for record in edge_pilot)
+        )
+        self.assertTrue(
+            all(record["detail"] == "blocked-before-run" for record in tail)
+        )
+
+    def test_postroute_reverification_failure_discards_proof_as_signature_blocker(self):
+        chrome = self.edge_application(
+            bundleIdentifier="com.google.Chrome",
+            applicationPath="/Applications/Google Chrome.app",
+            executableRelativePath="Contents/MacOS/Google Chrome",
+        )
+        dependencies = FakeDependencies(verification_failure_phase="post")
+        result = matrix.execute_matrix(
+            matrix.load_manifest(
+                self.write_manifest([chrome, self.edge_application()])
+            ),
+            self.root / "output",
+            dependencies=dependencies,
+        )
+        self.assertEqual(result.exit_code, matrix.MATRIX_BLOCKED)
+        self.assertTrue(dependencies.driver_calls)
+        edge = result.records[:3]
+        tail = result.records[3:]
+        self.assertTrue(all(record["result"] == "NOT RUN" for record in edge))
+        self.assertTrue(all(record["detail"] == "signature-blocker" for record in edge))
+        self.assertTrue(all(record["result"] == "NOT RUN" for record in tail))
+        self.assertTrue(
+            all(record["detail"] == "blocked-after-ambiguity" for record in tail)
+        )
+
     def test_browser_static_identity_change_after_sequence_discards_stale_evidence(
         self,
     ):
@@ -2377,6 +2421,7 @@ class FakeDependencies:
         receipt_fail_on=None,
         unsupported_on=None,
         static_change_phase=None,
+        verification_failure_phase=None,
         raise_on=None,
         unsafe_outcome=None,
         unsafe_version=None,
@@ -2390,6 +2435,7 @@ class FakeDependencies:
         self.receipt_fail_on = receipt_fail_on
         self.unsupported_on = unsupported_on
         self.static_change_phase = static_change_phase
+        self.verification_failure_phase = verification_failure_phase
         self.raise_on = raise_on
         self.unsafe_outcome = unsafe_outcome
         self.unsafe_version = unsafe_version
@@ -2412,6 +2458,13 @@ class FakeDependencies:
             or _application.bundle_identifier in self.blocked_bundles
         ):
             raise matrix.MatrixIdentityError("blocked")
+        if (
+            self.verification_failure_phase == "pre"
+            and count == 2
+            or self.verification_failure_phase == "post"
+            and count == 3
+        ):
+            raise matrix.MatrixIdentityError("transient verification failure")
         changed = (
             self.static_change_phase == "pre"
             and count == 2
