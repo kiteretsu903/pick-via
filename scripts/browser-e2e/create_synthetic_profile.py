@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import hashlib
 import json
 import os
 import pathlib
@@ -11,12 +12,14 @@ import sys
 import time
 
 import smoke_e2e_runtime
+import pickvia_e2e_driver as browser_driver
 
 
 _PROFILE_NAME = "PickVia E2E"
 _BUNDLE_IDENTIFIER = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9.-]{2,254}\Z")
 _MAXIMUM_PLIST_BYTES = 64 * 1024
 _MAXIMUM_LOCAL_STATE_BYTES = 1024 * 1024
+_MAXIMUM_EXECUTABLE_BYTES = 512 * 1024 * 1024
 _CREATE_TIMEOUT_SECONDS = 5.0
 _SHUTDOWN_TIMEOUT_SECONDS = 2.0
 
@@ -77,6 +80,105 @@ class _PinnedRoot:
         )
 
 
+class _PinnedApplication:
+    def __init__(
+        self,
+        application,
+        executable,
+        bundle_identifier,
+        application_descriptor,
+        application_identity,
+        plist_descriptor,
+        plist_identity,
+        plist_digest,
+        executable_descriptor,
+        executable_identity,
+        executable_digest,
+    ):
+        self.application = application
+        self.executable = executable
+        self.bundle_identifier = bundle_identifier
+        self.application_descriptor = application_descriptor
+        self.application_identity = application_identity
+        self.plist_path = application / "Contents" / "Info.plist"
+        self.plist_descriptor = plist_descriptor
+        self.plist_identity = plist_identity
+        self.plist_digest = plist_digest
+        self.executable_descriptor = executable_descriptor
+        self.executable_identity = executable_identity
+        self.executable_digest = executable_digest
+
+    def require_current(self):
+        if (
+            min(
+                self.application_descriptor,
+                self.plist_descriptor,
+                self.executable_descriptor,
+            )
+            < 0
+        ):
+            raise SyntheticProfileError("invalid application")
+        try:
+            application_opened = os.fstat(self.application_descriptor)
+            application_named = self.application.lstat()
+            if (
+                not stat.S_ISDIR(application_opened.st_mode)
+                or _entry_identity(application_opened) != self.application_identity
+                or _entry_identity(application_named) != self.application_identity
+                or self.application.resolve(strict=True) != self.application
+            ):
+                raise SyntheticProfileError("invalid application")
+            self._require_file(
+                self.plist_path,
+                self.plist_descriptor,
+                self.plist_identity,
+                self.plist_digest,
+                _MAXIMUM_PLIST_BYTES,
+                executable=False,
+            )
+            self._require_file(
+                self.executable,
+                self.executable_descriptor,
+                self.executable_identity,
+                self.executable_digest,
+                _MAXIMUM_EXECUTABLE_BYTES,
+                executable=True,
+            )
+        except SyntheticProfileError:
+            raise
+        except OSError as error:
+            raise SyntheticProfileError("invalid application") from error
+        return self
+
+    @staticmethod
+    def _require_file(path, descriptor, identity, digest, maximum_bytes, *, executable):
+        opened = os.fstat(descriptor)
+        named = os.stat(path, follow_symlinks=False)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or _entry_identity(opened) != identity
+            or _entry_identity(named) != identity
+            or stat.S_ISLNK(named.st_mode)
+            or path.resolve(strict=True) != path
+            or (executable and opened.st_mode & 0o111 == 0)
+        ):
+            raise SyntheticProfileError("invalid application")
+        current_digest, after = _digest_pinned_file(descriptor, maximum_bytes)
+        if _entry_identity(after) != identity or current_digest != digest:
+            raise SyntheticProfileError("invalid application")
+
+    def close(self):
+        for attribute in (
+            "executable_descriptor",
+            "plist_descriptor",
+            "application_descriptor",
+        ):
+            descriptor = getattr(self, attribute)
+            if descriptor >= 0:
+                os.close(descriptor)
+                setattr(self, attribute, -1)
+
+
 def _reject_symlink_components(path):
     current = pathlib.Path(path.anchor)
     for component in path.parts[1:]:
@@ -105,7 +207,65 @@ def _physical_directory(path):
     return candidate
 
 
-def _physical_executable(application, executable, bundle_identifier):
+def _entry_identity(metadata):
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_mode,
+        metadata.st_uid,
+        metadata.st_nlink,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+    )
+
+
+def _digest_pinned_file(descriptor, maximum_bytes):
+    before = os.fstat(descriptor)
+    if (
+        not stat.S_ISREG(before.st_mode)
+        or before.st_size < 1
+        or before.st_size > maximum_bytes
+    ):
+        raise SyntheticProfileError("invalid application")
+    os.lseek(descriptor, 0, os.SEEK_SET)
+    digest = hashlib.sha256()
+    remaining = before.st_size
+    while remaining:
+        chunk = os.read(descriptor, min(65536, remaining))
+        if not chunk:
+            raise SyntheticProfileError("invalid application")
+        remaining -= len(chunk)
+        digest.update(chunk)
+    after = os.fstat(descriptor)
+    os.lseek(descriptor, 0, os.SEEK_SET)
+    if _entry_identity(before) != _entry_identity(after):
+        raise SyntheticProfileError("invalid application")
+    return digest.digest(), after
+
+
+def _open_pinned_file(path, maximum_bytes, *, executable=False):
+    descriptor = -1
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        digest, opened = _digest_pinned_file(descriptor, maximum_bytes)
+        named = os.stat(path, follow_symlinks=False)
+        identity = _entry_identity(opened)
+        if (
+            identity != _entry_identity(named)
+            or stat.S_ISLNK(named.st_mode)
+            or path.resolve(strict=True) != path
+            or (executable and opened.st_mode & 0o111 == 0)
+        ):
+            raise SyntheticProfileError("invalid application")
+        return descriptor, identity, digest
+    except Exception:
+        if descriptor >= 0:
+            os.close(descriptor)
+        raise
+
+
+def _pin_application(application, executable, bundle_identifier):
     application = _physical_directory(application)
     if application.suffix.lower() != ".app":
         raise SyntheticProfileError("invalid input")
@@ -114,40 +274,80 @@ def _physical_executable(application, executable, bundle_identifier):
         raise SyntheticProfileError("invalid input")
     executable = pathlib.Path(os.path.normpath(executable))
     _reject_symlink_components(executable)
-    try:
-        metadata = executable.lstat()
-        physical = executable.resolve(strict=True)
-    except OSError as error:
-        raise SyntheticProfileError("invalid input") from error
     application_prefix = os.fspath(application) + os.sep
-    if (
-        physical != executable
-        or not stat.S_ISREG(metadata.st_mode)
-        or metadata.st_mode & 0o111 == 0
-        or not os.fspath(executable).startswith(application_prefix)
-    ):
+    if not os.fspath(executable).startswith(application_prefix):
         raise SyntheticProfileError("invalid input")
 
     plist_path = application / "Contents" / "Info.plist"
     _reject_symlink_components(plist_path)
+    application_descriptor = -1
+    plist_descriptor = -1
+    executable_descriptor = -1
     try:
-        plist_metadata = plist_path.lstat()
+        application_descriptor = os.open(
+            application,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+        )
+        application_metadata = os.fstat(application_descriptor)
+        application_named = application.lstat()
+        application_identity = _entry_identity(application_metadata)
         if (
-            not stat.S_ISREG(plist_metadata.st_mode)
-            or plist_metadata.st_size > _MAXIMUM_PLIST_BYTES
-            or plist_metadata.st_nlink != 1
+            not stat.S_ISDIR(application_metadata.st_mode)
+            or _entry_identity(application_named) != application_identity
         ):
             raise SyntheticProfileError("invalid input")
-        with plist_path.open("rb") as handle:
+        plist_descriptor, plist_identity, plist_digest = _open_pinned_file(
+            plist_path, _MAXIMUM_PLIST_BYTES
+        )
+        executable_descriptor, executable_identity, executable_digest = (
+            _open_pinned_file(executable, _MAXIMUM_EXECUTABLE_BYTES, executable=True)
+        )
+        with os.fdopen(os.dup(plist_descriptor), "rb") as handle:
             plist = plistlib.load(handle)
+        if (
+            not isinstance(plist, dict)
+            or plist.get("CFBundleIdentifier") != bundle_identifier
+            or plist.get("CFBundleExecutable") != executable.name
+        ):
+            raise SyntheticProfileError("invalid input")
+        pinned = _PinnedApplication(
+            application,
+            executable,
+            bundle_identifier,
+            application_descriptor,
+            application_identity,
+            plist_descriptor,
+            plist_identity,
+            plist_digest,
+            executable_descriptor,
+            executable_identity,
+            executable_digest,
+        )
+        application_descriptor = -1
+        plist_descriptor = -1
+        executable_descriptor = -1
+        try:
+            pinned.require_current()
+            browser_driver._validate_signed_browser_binding(
+                application, executable, bundle_identifier
+            )
+            pinned.require_current()
+            return pinned
+        except Exception as error:
+            pinned.close()
+            if isinstance(error, SyntheticProfileError):
+                raise
+            raise SyntheticProfileError("invalid input") from error
     except (OSError, plistlib.InvalidFileException) as error:
         raise SyntheticProfileError("invalid input") from error
-    if (
-        plist.get("CFBundleIdentifier") != bundle_identifier
-        or plist.get("CFBundleExecutable") != executable.name
-    ):
-        raise SyntheticProfileError("invalid input")
-    return application, executable
+    finally:
+        for descriptor in (
+            executable_descriptor,
+            plist_descriptor,
+            application_descriptor,
+        ):
+            if descriptor >= 0:
+                os.close(descriptor)
 
 
 def _prepare_root(path):
@@ -263,13 +463,31 @@ def _minimal_environment(root):
     }
 
 
-def _start_exact(executable, arguments, environment):
-    return smoke_e2e_runtime.ExactProcess.start(
-        [executable, *arguments],
-        environment=environment,
-        expected_executable=executable,
-        identity_timeout=1.0,
-    )
+def _start_exact(application, arguments, environment):
+    application.require_current()
+    process = None
+    try:
+        process = smoke_e2e_runtime.ExactProcess.start(
+            [application.executable, *arguments],
+            environment=environment,
+            expected_executable=application.executable,
+            identity_timeout=1.0,
+        )
+        application.require_current()
+        browser_driver._validate_running_browser_code(
+            process.pid,
+            application.application,
+            application.executable,
+            application.bundle_identifier,
+        )
+        application.require_current()
+        return process
+    except Exception as error:
+        if process is not None:
+            process.close_streams()
+        if isinstance(error, SyntheticProfileError):
+            raise
+        raise SyntheticProfileError("launch validation failed") from error
 
 
 def _wait_for_chromium_profile(root, process):
@@ -343,7 +561,10 @@ def _read_restricted_regular_file(
 
 
 def _validate_restricted_regular_file(root, name, maximum_bytes):
-    _read_restricted_regular_file(root, name, maximum_bytes, require_restricted=True)
+    contents, _ = _read_restricted_regular_file(
+        root, name, maximum_bytes, require_restricted=True
+    )
+    return contents
 
 
 def _file_generation(metadata):
@@ -363,29 +584,65 @@ def _file_identity(metadata):
     )
 
 
+def _unique_json_object(pairs):
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise SyntheticProfileError("invalid output")
+        value[key] = item
+    return value
+
+
+def _reject_nonfinite_json(_value):
+    raise SyntheticProfileError("invalid output")
+
+
+def _decode_local_state(data):
+    try:
+        value = json.loads(
+            data,
+            object_pairs_hook=_unique_json_object,
+            parse_constant=_reject_nonfinite_json,
+        )
+    except (
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        TypeError,
+        ValueError,
+    ) as error:
+        raise SyntheticProfileError("invalid output") from error
+    if not isinstance(value, dict):
+        raise SyntheticProfileError("invalid output")
+    profile = value.get("profile")
+    if not isinstance(profile, dict):
+        raise SyntheticProfileError("invalid output")
+    info_cache = profile.get("info_cache")
+    if not isinstance(info_cache, dict) or set(info_cache) != {_PROFILE_NAME}:
+        raise SyntheticProfileError("invalid output")
+    metadata = info_cache[_PROFILE_NAME]
+    if not isinstance(metadata, dict):
+        raise SyntheticProfileError("invalid output")
+    return value, metadata
+
+
 def _normalize_chromium(root):
     root.require_current()
     _restrict_owned_directory(root, _PROFILE_NAME)
     data, before = _read_restricted_regular_file(
         root, "Local State", _MAXIMUM_LOCAL_STATE_BYTES
     )
+    value, metadata = _decode_local_state(data)
+    metadata["name"] = _PROFILE_NAME
     try:
-        value = json.loads(data)
-        info_cache = value["profile"]["info_cache"]
-    except (
-        OSError,
-        UnicodeDecodeError,
-        json.JSONDecodeError,
-        KeyError,
-        TypeError,
-    ) as error:
+        encoded = json.dumps(
+            value,
+            allow_nan=False,
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    except (TypeError, ValueError) as error:
         raise SyntheticProfileError("invalid output") from error
-    if set(info_cache) != {_PROFILE_NAME} or not isinstance(
-        info_cache[_PROFILE_NAME], dict
-    ):
-        raise SyntheticProfileError("invalid output")
-    info_cache[_PROFILE_NAME]["name"] = _PROFILE_NAME
-    encoded = json.dumps(value, separators=(",", ":"), sort_keys=True).encode("utf-8")
     if len(encoded) > _MAXIMUM_LOCAL_STATE_BYTES:
         raise SyntheticProfileError("invalid output")
     root.require_current()
@@ -417,10 +674,16 @@ def _normalize_chromium(root):
     finally:
         os.close(descriptor)
     root.require_current()
-    _validate_restricted_regular_file(root, "Local State", _MAXIMUM_LOCAL_STATE_BYTES)
+    if (
+        _validate_restricted_regular_file(
+            root, "Local State", _MAXIMUM_LOCAL_STATE_BYTES
+        )
+        != encoded
+    ):
+        raise SyntheticProfileError("invalid output")
 
 
-def _create_chromium(root, executable, environment):
+def _create_chromium(root, application, environment):
     root_path = root.require_current()
     arguments = [
         f"--user-data-dir={root_path}",
@@ -434,7 +697,7 @@ def _create_chromium(root, executable, environment):
         "about:blank",
     ]
     root.require_current()
-    process = _start_exact(executable, arguments, environment)
+    process = _start_exact(application, arguments, environment)
     stopped = False
     try:
         _wait_for_chromium_profile(root, process)
@@ -455,10 +718,8 @@ def _create_chromium(root, executable, environment):
     _normalize_chromium(root)
 
 
-def _write_firefox_profiles(root):
-    root.require_current()
-    _restrict_owned_directory(root, _PROFILE_NAME)
-    contents = (
+def _firefox_profiles_contents():
+    return (
         "[General]\n"
         "StartWithLastProfile=0\n"
         "Version=2\n\n"
@@ -468,6 +729,12 @@ def _write_firefox_profiles(root):
         f"Path={_PROFILE_NAME}\n"
         "Default=1\n"
     ).encode("utf-8")
+
+
+def _write_firefox_profiles(root):
+    root.require_current()
+    _restrict_owned_directory(root, _PROFILE_NAME)
+    contents = _firefox_profiles_contents()
     root.require_current()
     descriptor = os.open(
         "profiles.ini",
@@ -489,15 +756,19 @@ def _write_firefox_profiles(root):
     finally:
         os.close(descriptor)
     root.require_current()
-    _validate_restricted_regular_file(root, "profiles.ini", len(contents))
+    if (
+        _validate_restricted_regular_file(root, "profiles.ini", len(contents))
+        != contents
+    ):
+        raise SyntheticProfileError("invalid output")
 
 
-def _create_firefox(root, executable, environment):
+def _create_firefox(root, application, environment):
     root_path = root.require_current()
     profile = root_path / _PROFILE_NAME
     root.require_current()
     process = _start_exact(
-        executable,
+        application,
         ["-CreateProfile", f"PickViaE2E {profile}"],
         environment,
     )
@@ -520,21 +791,24 @@ def create_synthetic_profile(args):
         raise SyntheticProfileError("invalid input")
     if args.strategy not in {"chromium", "firefox"}:
         raise SyntheticProfileError("invalid input")
-    _, executable = _physical_executable(
+    application = _pin_application(
         args.application,
         args.executable,
         args.bundle_identifier,
     )
-    root = _prepare_root(args.root)
+    root = None
     try:
+        root = _prepare_root(args.root)
         environment = _minimal_environment(root)
         if args.strategy == "chromium":
-            _create_chromium(root, executable, environment)
+            _create_chromium(root, application, environment)
         elif args.strategy == "firefox":
-            _create_firefox(root, executable, environment)
+            _create_firefox(root, application, environment)
         root.require_current()
     finally:
-        root.close()
+        if root is not None:
+            root.close()
+        application.close()
 
 
 def _arguments(argv=None):

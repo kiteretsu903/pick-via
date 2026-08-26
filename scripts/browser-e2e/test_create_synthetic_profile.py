@@ -126,6 +126,18 @@ class SyntheticProfileFixture:
                 },
                 handle,
             )
+        subprocess.run(
+            [
+                "/usr/bin/codesign",
+                "--force",
+                "--sign",
+                "-",
+                str(self.application),
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
 
     def run(self):
         return subprocess.run(
@@ -160,11 +172,13 @@ class SyntheticProfileFixture:
 
 
 class _CreatorProcessDouble:
-    def __init__(self, wait_success=lambda _timeout: True):
+    def __init__(self, wait_success=lambda _timeout: True, pid=9_001):
         self.process = mock.Mock()
         self.process.poll.return_value = None
+        self.pid = pid
         self._wait_success = wait_success
         self.signals = []
+        self.close_count = 0
 
     def terminate_bounded(self, *, term_timeout, kill_timeout):
         del term_timeout, kill_timeout
@@ -175,10 +189,148 @@ class _CreatorProcessDouble:
         return self._wait_success(timeout)
 
     def close_streams(self):
-        return None
+        self.close_count += 1
 
 
 class SyntheticProfileCreatorTests(unittest.TestCase):
+    def test_pinned_application_rejects_same_path_executable_replacement(self):
+        with SyntheticProfileFixture() as fixture:
+            pinned = creator._pin_application(
+                fixture.application,
+                fixture.executable,
+                fixture.bundle_identifier,
+            )
+            replacement = fixture.base / "replacement-executable"
+            replacement.write_bytes(b"replacement")
+            replacement.chmod(0o700)
+            fixture.executable.unlink()
+            replacement.rename(fixture.executable)
+            try:
+                with mock.patch.object(
+                    creator.smoke_e2e_runtime.ExactProcess, "start"
+                ) as start:
+                    with self.assertRaises(creator.SyntheticProfileError):
+                        creator._start_exact(pinned, [], {})
+                start.assert_not_called()
+            finally:
+                pinned.close()
+
+    def test_pinned_application_rejects_same_path_plist_replacement(self):
+        with SyntheticProfileFixture() as fixture:
+            pinned = creator._pin_application(
+                fixture.application,
+                fixture.executable,
+                fixture.bundle_identifier,
+            )
+            plist = fixture.application / "Contents" / "Info.plist"
+            replacement = fixture.base / "replacement.plist"
+            replacement.write_bytes(plist.read_bytes())
+            plist.unlink()
+            replacement.rename(plist)
+            try:
+                with mock.patch.object(
+                    creator.smoke_e2e_runtime.ExactProcess, "start"
+                ) as start:
+                    with self.assertRaises(creator.SyntheticProfileError):
+                        creator._start_exact(pinned, [], {})
+                start.assert_not_called()
+            finally:
+                pinned.close()
+
+    def test_pinned_application_rejects_executable_ancestor_symlink_replacement(self):
+        with SyntheticProfileFixture() as fixture:
+            pinned = creator._pin_application(
+                fixture.application,
+                fixture.executable,
+                fixture.bundle_identifier,
+            )
+            macos = fixture.application / "Contents" / "MacOS"
+            moved = fixture.base / "moved-macos"
+            macos.rename(moved)
+            macos.symlink_to(moved, target_is_directory=True)
+            try:
+                with mock.patch.object(
+                    creator.smoke_e2e_runtime.ExactProcess, "start"
+                ) as start:
+                    with self.assertRaises(creator.SyntheticProfileError):
+                        creator._start_exact(pinned, [], {})
+                start.assert_not_called()
+            finally:
+                pinned.close()
+
+    def test_application_update_race_after_start_grants_no_signal_authority(self):
+        for replaced_entry in ("executable", "plist"):
+            with self.subTest(replaced_entry=replaced_entry):
+                with SyntheticProfileFixture() as fixture:
+                    pinned = creator._pin_application(
+                        fixture.application,
+                        fixture.executable,
+                        fixture.bundle_identifier,
+                    )
+                    process = _CreatorProcessDouble()
+
+                    def replace_and_return(*_args, **_kwargs):
+                        if replaced_entry == "executable":
+                            path = fixture.executable
+                            contents = b"replacement"
+                        else:
+                            path = fixture.application / "Contents" / "Info.plist"
+                            contents = path.read_bytes()
+                        replacement = fixture.base / f"replacement-{replaced_entry}"
+                        replacement.write_bytes(contents)
+                        replacement.chmod(path.stat().st_mode & 0o777)
+                        path.unlink()
+                        replacement.rename(path)
+                        return process
+
+                    try:
+                        with (
+                            mock.patch.object(
+                                creator.smoke_e2e_runtime.ExactProcess,
+                                "start",
+                                side_effect=replace_and_return,
+                            ),
+                            mock.patch.object(
+                                creator.browser_driver,
+                                "_validate_running_browser_code",
+                            ) as attest,
+                        ):
+                            with self.assertRaises(creator.SyntheticProfileError):
+                                creator._start_exact(pinned, [], {})
+                        attest.assert_not_called()
+                        self.assertEqual(process.signals, [])
+                        self.assertEqual(process.close_count, 1)
+                    finally:
+                        pinned.close()
+
+    def test_mismatched_live_code_grants_no_signal_authority(self):
+        with SyntheticProfileFixture() as fixture:
+            pinned = creator._pin_application(
+                fixture.application,
+                fixture.executable,
+                fixture.bundle_identifier,
+            )
+            process = _CreatorProcessDouble()
+            try:
+                with (
+                    mock.patch.object(
+                        creator.smoke_e2e_runtime.ExactProcess,
+                        "start",
+                        return_value=process,
+                    ),
+                    mock.patch.object(
+                        creator.browser_driver,
+                        "_validate_running_browser_code",
+                        side_effect=RuntimeError("mismatched live code"),
+                    ),
+                ):
+                    with self.assertRaises(creator.SyntheticProfileError):
+                        creator._start_exact(pinned, [], {})
+                self.assertEqual(process.signals, [])
+                self.assertEqual(process.close_count, 1)
+            finally:
+                pinned.close()
+
     def test_chromium_creator_uses_isolated_user_data_and_one_profile(self):
         with SyntheticProfileFixture(strategy="chromium") as fixture:
             result = fixture.run()
@@ -471,6 +623,81 @@ class SyntheticProfileCreatorTests(unittest.TestCase):
             finally:
                 pinned.close()
                 external.rmdir()
+
+    def test_chromium_normalization_rejects_duplicates_and_nonfinite_values(self):
+        invalid_documents = (
+            b'{"profile":{"info_cache":{"PickVia E2E":{"name":"a","name":"b"}}}}',
+            b'{"profile":{"info_cache":{"PickVia E2E":{"name":NaN}}}}',
+            b'{"profile":{"info_cache":{"PickVia E2E":{"name":Infinity}}}}',
+            b'{"profile":{"info_cache":{"PickVia E2E":{"name":-Infinity}}}}',
+        )
+        for document in invalid_documents:
+            with self.subTest(document=document):
+                with tempfile.TemporaryDirectory(
+                    prefix="pickvia-synthetic-local-state-"
+                ) as temporary:
+                    root = pathlib.Path(temporary).resolve() / "root"
+                    pinned = creator._prepare_root(root)
+                    (root / "PickVia E2E").mkdir(mode=0o700)
+                    marker = root / "Local State"
+                    marker.write_bytes(document)
+                    try:
+                        with self.assertRaises(creator.SyntheticProfileError):
+                            creator._normalize_chromium(pinned)
+                        self.assertEqual(marker.read_bytes(), document)
+                    finally:
+                        pinned.close()
+
+    def test_chromium_normalization_writes_exact_canonical_json(self):
+        with tempfile.TemporaryDirectory(
+            prefix="pickvia-synthetic-local-state-canonical-"
+        ) as temporary:
+            root = pathlib.Path(temporary).resolve() / "root"
+            pinned = creator._prepare_root(root)
+            (root / "PickVia E2E").mkdir(mode=0o700)
+            marker = root / "Local State"
+            marker.write_bytes(
+                b'{ "z": 1, "profile": {"info_cache": {'
+                b'"PickVia E2E": {"name": "Temporary", "a": 2}}}}'
+            )
+            try:
+                creator._normalize_chromium(pinned)
+                self.assertEqual(
+                    marker.read_bytes(),
+                    b'{"profile":{"info_cache":{"PickVia E2E":'
+                    b'{"a":2,"name":"PickVia E2E"}}},"z":1}',
+                )
+            finally:
+                pinned.close()
+
+    def test_firefox_profiles_final_content_must_match_canonical_bytes(self):
+        with tempfile.TemporaryDirectory(
+            prefix="pickvia-synthetic-firefox-content-"
+        ) as temporary:
+            root = pathlib.Path(temporary).resolve() / "root"
+            pinned = creator._prepare_root(root)
+            (root / "PickVia E2E").mkdir(mode=0o700)
+            real_fsync = os.fsync
+
+            def replace_with_same_length(descriptor):
+                real_fsync(descriptor)
+                expected = creator._firefox_profiles_contents()
+                os.lseek(descriptor, 0, os.SEEK_SET)
+                os.write(descriptor, b"X" * len(expected))
+                real_fsync(descriptor)
+
+            try:
+                with mock.patch.object(
+                    creator.os, "fsync", side_effect=replace_with_same_length
+                ):
+                    with self.assertRaises(creator.SyntheticProfileError):
+                        creator._write_firefox_profiles(pinned)
+                self.assertEqual(
+                    (root / "profiles.ini").read_bytes(),
+                    b"X" * len(creator._firefox_profiles_contents()),
+                )
+            finally:
+                pinned.close()
 
 
 if __name__ == "__main__":

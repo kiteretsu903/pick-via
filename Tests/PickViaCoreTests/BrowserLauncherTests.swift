@@ -177,7 +177,7 @@ struct BrowserLauncherTests {
         )
       )
 
-      guard case .executable(_, let arguments) = plan else {
+      guard case .profileExecutable(_, let arguments, _) = plan else {
         Issue.record("Expected executable launch plan")
         return
       }
@@ -193,7 +193,7 @@ struct BrowserLauncherTests {
   @Test func chromiumCustomRootRejectsMissingLocalState() throws {
     try withChromiumProfileRoot(includeLocalState: false) { _, profile in
       #expect(throws: LaunchFailure.self) {
-        try testLauncher().makePlan(
+        try physicalProfileLauncher(processRunner: RecordingProcessRunner()).makePlan(
           url: url,
           application: application(family: .chromium),
           target: target(
@@ -209,7 +209,7 @@ struct BrowserLauncherTests {
   @Test func chromiumCustomRootRejectsIdentifierLeafMismatch() throws {
     try withChromiumProfileRoot { _, profile in
       #expect(throws: LaunchFailure.self) {
-        try testLauncher().makePlan(
+        try physicalProfileLauncher(processRunner: RecordingProcessRunner()).makePlan(
           url: url,
           application: application(family: .chromium),
           target: target(
@@ -238,7 +238,7 @@ struct BrowserLauncherTests {
     try fileManager.createSymbolicLink(at: profile, withDestinationURL: realProfile)
 
     #expect(throws: LaunchFailure.self) {
-      try testLauncher().makePlan(
+      try physicalProfileLauncher(processRunner: RecordingProcessRunner()).makePlan(
         url: url,
         application: application(family: .chromium),
         target: target(
@@ -266,7 +266,7 @@ struct BrowserLauncherTests {
     try fileManager.createSymbolicLink(at: root, withDestinationURL: physicalRoot)
 
     #expect(throws: LaunchFailure.self) {
-      try testLauncher().makePlan(
+      try physicalProfileLauncher(processRunner: RecordingProcessRunner()).makePlan(
         url: url,
         application: application(family: .chromium),
         target: target(
@@ -290,7 +290,7 @@ struct BrowserLauncherTests {
       )
 
       #expect(throws: LaunchFailure.self) {
-        try testLauncher().makePlan(
+        try physicalProfileLauncher(processRunner: RecordingProcessRunner()).makePlan(
           url: url,
           application: application(family: .chromium),
           target: target(
@@ -337,6 +337,174 @@ struct BrowserLauncherTests {
     }
   }
 
+  @Test func chromiumCustomRootRejectsSymlinkedAncestor() throws {
+    let fileManager = FileManager.default
+    let container = URL(
+      fileURLWithPath: "/private/tmp/PickViaChromiumAncestorTests-\(UUID().uuidString)",
+      isDirectory: true
+    )
+    defer { try? fileManager.removeItem(at: container) }
+    let physical = container.appending(path: "physical", directoryHint: .isDirectory)
+    let linked = container.appending(path: "linked", directoryHint: .isDirectory)
+    let profile = physical.appending(path: "PickVia E2E", directoryHint: .isDirectory)
+    try fileManager.createDirectory(at: profile, withIntermediateDirectories: true)
+    try Data("{}".utf8).write(to: physical.appending(path: "Local State"))
+    try fileManager.createSymbolicLink(at: linked, withDestinationURL: physical)
+
+    #expect(throws: LaunchFailure.self) {
+      try physicalProfileLauncher(processRunner: RecordingProcessRunner()).makePlan(
+        url: url,
+        application: application(family: .chromium),
+        target: target(
+          family: .chromium,
+          profile: "PickVia E2E",
+          profileLaunchPath: linked.appending(path: "PickVia E2E").path
+        )
+      )
+    }
+  }
+
+  @Test func chromiumProfileMarkerReplacementBeforeExecuteNeverSpawns() async throws {
+    try await withChromiumProfileRootAsync { _, profile in
+      let process = RecordingProcessRunner()
+      let launcher = physicalProfileLauncher(processRunner: process)
+      let plan = try launcher.makePlan(
+        url: url,
+        application: application(family: .chromium),
+        target: target(
+          family: .chromium,
+          profile: profile.lastPathComponent,
+          profileLaunchPath: profile.path
+        )
+      )
+      let marker = profile.deletingLastPathComponent().appending(path: "Local State")
+      try FileManager.default.removeItem(at: marker)
+      try Data("replacement".utf8).write(to: marker)
+
+      await #expect(throws: LaunchFailure.self) {
+        try await launcher.execute(plan)
+      }
+      #expect(process.invocations.isEmpty)
+    }
+  }
+
+  @Test func chromiumProfileRootReplacementBeforeExecuteNeverSpawns() async throws {
+    try await withChromiumProfileRootAsync { root, profile in
+      let process = RecordingProcessRunner()
+      let launcher = physicalProfileLauncher(processRunner: process)
+      let plan = try launcher.makePlan(
+        url: url,
+        application: application(family: .chromium),
+        target: target(
+          family: .chromium,
+          profile: profile.lastPathComponent,
+          profileLaunchPath: profile.path
+        )
+      )
+      let movedRoot = root.deletingLastPathComponent().appending(
+        path: "moved-\(UUID().uuidString)", directoryHint: .isDirectory)
+      defer { try? FileManager.default.removeItem(at: movedRoot) }
+      try FileManager.default.moveItem(at: root, to: movedRoot)
+      try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
+      try Data("{}".utf8).write(to: root.appending(path: "Local State"))
+
+      await #expect(throws: LaunchFailure.self) {
+        try await launcher.execute(plan)
+      }
+      #expect(process.invocations.isEmpty)
+    }
+  }
+
+  @Test func chromiumProfileDirectoryReplacementBeforeExecuteNeverSpawns() async throws {
+    try await withChromiumProfileRootAsync { _, profile in
+      let process = RecordingProcessRunner()
+      let launcher = physicalProfileLauncher(processRunner: process)
+      let plan = try launcher.makePlan(
+        url: url,
+        application: application(family: .chromium),
+        target: target(
+          family: .chromium,
+          profile: profile.lastPathComponent,
+          profileLaunchPath: profile.path
+        )
+      )
+      let movedProfile = profile.deletingLastPathComponent().appending(
+        path: "moved-\(UUID().uuidString)", directoryHint: .isDirectory)
+      try FileManager.default.moveItem(at: profile, to: movedProfile)
+      try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: false)
+
+      await #expect(throws: LaunchFailure.self) {
+        try await launcher.execute(plan)
+      }
+      #expect(process.invocations.isEmpty)
+    }
+  }
+
+  @Test func chromiumProfileIdentityPreservedExecutesOnce() async throws {
+    try await withChromiumProfileRootAsync { root, profile in
+      let process = RecordingProcessRunner(processIdentifier: 7_001)
+      let launcher = physicalProfileLauncher(processRunner: process)
+      let plan = try launcher.makePlan(
+        url: url,
+        application: application(family: .chromium),
+        target: target(
+          family: .chromium,
+          profile: profile.lastPathComponent,
+          profileLaunchPath: profile.path
+        )
+      )
+
+      let observation = try await launcher.execute(plan)
+
+      #expect(observation.processIdentifier == 7_001)
+      #expect(process.invocations.count == 1)
+      #expect(
+        process.invocations.first?.arguments.first
+          == "--user-data-dir=\(root.path)")
+    }
+  }
+
+  @Test func emptyProfileValidationProofNeverSpawns() async {
+    let process = RecordingProcessRunner()
+    let launcher = physicalProfileLauncher(processRunner: process)
+
+    await #expect(throws: LaunchFailure.self) {
+      try await launcher.execute(
+        .profileExecutable(
+          application: executableURL,
+          arguments: [],
+          validation: BrowserProfileLaunchValidation()
+        ))
+    }
+    #expect(process.invocations.isEmpty)
+  }
+
+  @Test func firefoxProfileReplacementBeforeExecuteNeverSpawns() async throws {
+    try await withFirefoxProfile { profile in
+      let process = RecordingProcessRunner()
+      let launcher = physicalProfileLauncher(processRunner: process)
+      let plan = try launcher.makePlan(
+        url: url,
+        application: application(family: .firefox),
+        target: target(
+          family: .firefox,
+          profile: "PickVia E2E",
+          profileIdentity: FirefoxProfileIdentity.identifier(for: profile),
+          profileLaunchPath: profile.path
+        )
+      )
+      let replacement = profile.deletingLastPathComponent().appending(
+        path: "replacement", directoryHint: .isDirectory)
+      try FileManager.default.moveItem(at: profile, to: replacement)
+      try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: false)
+
+      await #expect(throws: LaunchFailure.self) {
+        try await launcher.execute(plan)
+      }
+      #expect(process.invocations.isEmpty)
+    }
+  }
+
   @Test(arguments: [ProfileEvidenceField.displayName, .identity, .launchPath])
   func chromiumRejectsProfileEvidenceWithoutIdentifier(field: ProfileEvidenceField) {
     #expect(throws: LaunchFailure.self) {
@@ -367,7 +535,8 @@ struct BrowserLauncherTests {
       ]),
       processRunner: RecordingProcessRunner(),
       workspace: RecordingWorkspace(),
-      executableValidator: validator
+      executableValidator: validator,
+      profileLaunchValidator: StubProfileLaunchValidator()
     )
 
     let plan = try launcher.makePlan(
@@ -564,7 +733,8 @@ struct BrowserLauncherTests {
       ]),
       processRunner: RecordingProcessRunner(),
       workspace: RecordingWorkspace(),
-      executableValidator: validator
+      executableValidator: validator,
+      profileLaunchValidator: StubProfileLaunchValidator()
     )
     let channelApplication = BrowserApplication(
       id: expectation.bundleIdentifier,
@@ -614,12 +784,29 @@ struct BrowserLauncherTests {
         normalPlan
           == .executable(application: executable, arguments: expectation.normalArguments))
     }
-    #expect(
-      profilePlan
-        == .executable(application: executable, arguments: expectation.profileArguments))
-    #expect(
-      privatePlan
-        == .executable(application: executable, arguments: expectation.privateArguments))
+    if expectation.profileLaunchPath == nil {
+      #expect(
+        profilePlan
+          == .executable(application: executable, arguments: expectation.profileArguments))
+      #expect(
+        privatePlan
+          == .executable(application: executable, arguments: expectation.privateArguments))
+    } else {
+      #expect(
+        profilePlan
+          == .profileExecutable(
+            application: executable,
+            arguments: expectation.profileArguments,
+            validation: BrowserProfileLaunchValidation()
+          ))
+      #expect(
+        privatePlan
+          == .profileExecutable(
+            application: executable,
+            arguments: expectation.privateArguments,
+            validation: BrowserProfileLaunchValidation()
+          ))
+    }
     let expectedValidatedExecutables =
       expectation.family == .chromium
       ? [executable, executable]
@@ -994,7 +1181,7 @@ struct BrowserLauncherTests {
       )
     )
 
-    guard case .executable(_, let arguments) = plan else {
+    guard case .profileExecutable(_, let arguments, _) = plan else {
       Issue.record("Expected executable launch plan")
       return
     }
@@ -1275,7 +1462,7 @@ struct BrowserLauncherTests {
       )
     )
 
-    guard case .executable(_, let arguments) = plan else {
+    guard case .profileExecutable(_, let arguments, _) = plan else {
       Issue.record("Expected executable launch plan")
       return
     }
@@ -1688,9 +1875,9 @@ private func withChromiumProfileRoot(
   _ body: (URL, URL) throws -> Void
 ) throws {
   let fileManager = FileManager.default
-  let root = fileManager.temporaryDirectory.resolvingSymlinksInPath().appending(
-    path: "PickViaChromiumProfileTests-\(UUID().uuidString)",
-    directoryHint: .isDirectory
+  let root = URL(
+    fileURLWithPath: "/private/tmp/PickViaChromiumProfileTests-\(UUID().uuidString)",
+    isDirectory: true
   )
   defer { try? fileManager.removeItem(at: root) }
   let profile = root.appending(path: "PickVia E2E", directoryHint: .isDirectory)
@@ -1699,6 +1886,49 @@ private func withChromiumProfileRoot(
     try Data("{}".utf8).write(to: root.appending(path: "Local State"))
   }
   try body(root, profile)
+}
+
+private func withChromiumProfileRootAsync(
+  _ body: (URL, URL) async throws -> Void
+) async throws {
+  let fileManager = FileManager.default
+  let root = URL(
+    fileURLWithPath: "/private/tmp/PickViaChromiumProfileTests-\(UUID().uuidString)",
+    isDirectory: true
+  )
+  defer { try? fileManager.removeItem(at: root) }
+  let profile = root.appending(path: "PickVia E2E", directoryHint: .isDirectory)
+  try fileManager.createDirectory(at: profile, withIntermediateDirectories: true)
+  try Data("{}".utf8).write(to: root.appending(path: "Local State"))
+  try await body(root, profile)
+}
+
+private func withFirefoxProfile(
+  _ body: (URL) async throws -> Void
+) async throws {
+  let fileManager = FileManager.default
+  let root = URL(
+    fileURLWithPath: "/private/tmp/PickViaFirefoxProfileTests-\(UUID().uuidString)",
+    isDirectory: true
+  )
+  defer { try? fileManager.removeItem(at: root) }
+  let profile = root.appending(path: "PickVia E2E", directoryHint: .isDirectory)
+  try fileManager.createDirectory(at: profile, withIntermediateDirectories: true)
+  try await body(profile)
+}
+
+private func physicalProfileLauncher(
+  processRunner: any ProcessRunning
+) -> BrowserLauncher {
+  BrowserLauncher(
+    trustedApplicationResolver: StubTrustedApplicationResolver(urls: [
+      "com.google.Chrome": applicationURL,
+      "org.mozilla.firefox": applicationURL,
+    ]),
+    processRunner: processRunner,
+    workspace: RecordingWorkspace(),
+    executableValidator: StubExecutableValidator(isExecutable: true)
+  )
 }
 
 struct ChannelLaunchExpectation: Sendable {
@@ -1930,7 +2160,8 @@ private func testLauncher() -> BrowserLauncher {
     ]),
     processRunner: RecordingProcessRunner(),
     workspace: RecordingWorkspace(),
-    executableValidator: StubExecutableValidator(isExecutable: true)
+    executableValidator: StubExecutableValidator(isExecutable: true),
+    profileLaunchValidator: StubProfileLaunchValidator()
   )
 }
 
@@ -1957,8 +2188,27 @@ private func launcher(descriptor: BrowserDescriptor) -> BrowserLauncher {
     workspace: RecordingWorkspace(),
     executableValidator: StubExecutableValidator(isExecutable: true),
     duckDuckGoRouter: RecordingDuckDuckGoRouter(),
+    profileLaunchValidator: StubProfileLaunchValidator(),
     descriptors: [descriptor]
   )
+}
+
+private struct StubProfileLaunchValidator: BrowserProfileLaunchPathValidating {
+  func chromiumValidation(
+    root: URL,
+    profile: URL,
+    marker: URL
+  ) -> BrowserProfileLaunchValidation? {
+    BrowserProfileLaunchValidation()
+  }
+
+  func firefoxValidation(profile: URL) -> BrowserProfileLaunchValidation? {
+    BrowserProfileLaunchValidation()
+  }
+
+  func isCurrent(_ validation: BrowserProfileLaunchValidation) -> Bool {
+    true
+  }
 }
 
 private actor RecordingDuckDuckGoRouter: DuckDuckGoRouting {
