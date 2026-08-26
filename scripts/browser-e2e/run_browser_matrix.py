@@ -367,6 +367,13 @@ _NONINVOKED_DETAILS = frozenset(
         "browser-identity-changed",
     }
 )
+_FINALIZED_NONINVOKED_DETAILS = frozenset(
+    {
+        "harness-ambiguity",
+        "blocked-after-sequence-failure",
+        "blocked-after-sequence-refusal",
+    }
+)
 _CELL_TIMING_KEYS = frozenset(
     {
         "totalElapsedSeconds",
@@ -1269,7 +1276,11 @@ def _valid_cell_evidence_semantics(record):
             and record.get("browserIdentity") is False
             and record.get("sessionHash") == "not-invoked"
             and record.get("cleanupSuccess") is False
-            and record.get("taskRootFinalized") is False
+            and type(record.get("taskRootFinalized")) is bool
+            and (
+                record["taskRootFinalized"] is False
+                or detail in _FINALIZED_NONINVOKED_DETAILS
+            )
             and not timing_keys
         )
     return False
@@ -2006,6 +2017,31 @@ def _expected_target_id(cell):
     raise DriverProofError("unsupported profile target")
 
 
+def _sequence_handoff_context(
+    cell,
+    target_id,
+    sessions,
+    profile_relative_root,
+    e2e_app_identity,
+    browser_app_identity,
+):
+    return browser_driver._cleanup_handoff_context(
+        bundle_identifier=cell.bundle_identifier,
+        target_id=target_id,
+        capability=cell.capability,
+        browser_app_identity=browser_app_identity,
+        e2e_app_identity=e2e_app_identity,
+        browser_executable=cell.application.executable_path,
+        browser_application=cell.application.application_path,
+        profile_strategy=(
+            cell.profile_strategy if profile_relative_root is not None else None
+        ),
+        profile_relative_root=profile_relative_root,
+        create_profile=profile_relative_root is not None,
+        sessions=sessions,
+    )
+
+
 def _sanitized_record(cell, version, browser_app_identity, report, result, detail):
     timings = {}
     for source, target in (
@@ -2063,12 +2099,22 @@ def _sanitized_record(cell, version, browser_app_identity, report, result, detai
     }
 
 
-def _not_run_record(cell, version, detail, browser_app_identity="0" * 64):
+def _not_run_record(
+    cell,
+    version,
+    detail,
+    browser_app_identity="0" * 64,
+    *,
+    task_root_finalized=False,
+):
     return _sanitized_record(
         cell,
         version,
         browser_app_identity,
-        {"outcome": "not-invoked"},
+        {
+            "outcome": "not-invoked",
+            "task_root_finalized": task_root_finalized,
+        },
         "NOT RUN",
         detail,
     )
@@ -2426,8 +2472,10 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
             profile_relative_root = (
                 f"profiles/{cell.specification_hash[:24]}" if cell.has_profile else None
             )
+            independently_finalized_task_root = False
+            has_independent_task_finalization = False
             try:
-                report, driver_code = dependencies.run_sequence(
+                driver_execution = dependencies.run_sequence(
                     pinned_app,
                     group,
                     sessions,
@@ -2436,9 +2484,21 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
                     e2e_app_identity,
                     application_identities[cell.bundle_identifier],
                 )
+                if not isinstance(driver_execution, tuple) or len(
+                    driver_execution
+                ) not in {2, 3}:
+                    raise ValueError("invalid driver execution result")
+                report, driver_code = driver_execution[:2]
+                if len(driver_execution) == 3:
+                    has_independent_task_finalization = True
+                    independently_finalized_task_root = driver_execution[2]
+                    if type(independently_finalized_task_root) is not bool:
+                        raise ValueError("invalid task finalization result")
             except Exception:
                 report = {"outcome": "invalid-driver-report"}
                 driver_code = browser_driver.DRIVER_PROCESS_ERROR
+                independently_finalized_task_root = False
+                has_independent_task_finalization = False
             try:
                 post_verification = dependencies.verify_application(cell.application)
             except MatrixIdentityError:
@@ -2523,6 +2583,7 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
                         state_cell,
                         versions[state_cell.bundle_identifier],
                         detail,
+                        task_root_finalized=independently_finalized_task_root,
                     )
                     chained_records.append(
                         _chain_record(record, chained_records[-1]["recordHash"])
@@ -2552,7 +2613,11 @@ def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
                     and index < len(report["sessionHashes"])
                     else "not-invoked",
                     "cleanup_success": report.get("cleanup_success") is True,
-                    "task_root_finalized": report.get("task_root_finalized") is True,
+                    "task_root_finalized": (
+                        independently_finalized_task_root
+                        if has_independent_task_finalization
+                        else report.get("task_root_finalized") is True
+                    ),
                 }
                 record = _sanitized_record(
                     state_cell,
@@ -2715,6 +2780,7 @@ class _CleanupHandoff:
         self.secret_writer = secret_writer
         self._retained = True
         self.driver_identity = None
+        self.task_root_finalized = False
 
     @classmethod
     def create(cls, context, *, temporary_parent="/private/tmp"):
@@ -3295,6 +3361,7 @@ def _recover_cleanup_handoff(
             return False
     if not static_matches():
         return False
+    handoff.task_root_finalized = True
     handoff.mark_recovered()
     return True
 
@@ -3374,6 +3441,7 @@ def _supervise_driver_process(
             records = handoff.records()
             if not records or records[-1][0]["transition"] != "finalized":
                 raise MatrixIdentityError("driver cleanup handoff is not terminal")
+            handoff.task_root_finalized = True
             handoff.mark_recovered()
         return subprocess.CompletedProcess(
             arguments,
@@ -3483,22 +3551,14 @@ class SystemDependencies:
         if not pinned_app.validate():
             raise MatrixIdentityError("E2E application identity changed")
         target_id = f"{cell.bundle_identifier}||{cell.mode}"
-        handoff_context = {
-            "bundleIdentifier": cell.bundle_identifier,
-            "targetID": target_id,
-            "capability": cell.capability,
-            "browserAppIdentity": browser_app_identity,
-            "e2eAppIdentity": e2e_app_identity,
-            "browserExecutable": os.fspath(cell.application.executable_path),
-            "browserApplication": os.fspath(cell.application.application_path),
-            "profileStrategy": cell.profile_strategy or "none",
-            "profileRelativeRoot": profile_relative_root or "none",
-            "createProfile": profile_relative_root is not None,
-            "sessionHashes": [
-                hashlib.sha256(session.encode("ascii")).hexdigest()
-                for session in sessions
-            ],
-        }
+        handoff_context = _sequence_handoff_context(
+            cell,
+            target_id,
+            sessions,
+            profile_relative_root,
+            e2e_app_identity,
+            browser_app_identity,
+        )
         handoff = _CleanupHandoff.create(handoff_context)
         arguments = [
             "/usr/bin/python3",
@@ -3561,6 +3621,7 @@ class SystemDependencies:
             completed = _supervise_driver_process(
                 arguments, environment, handoff=handoff
             )
+            task_root_finalized = handoff.task_root_finalized
         finally:
             handoff.close()
         try:
@@ -3583,8 +3644,12 @@ class SystemDependencies:
             MatrixManifestError,
         ):
             report = {"outcome": "invalid-driver-report"}
-            return report, browser_driver.DRIVER_PROCESS_ERROR
-        return report, completed.returncode
+            return (
+                report,
+                browser_driver.DRIVER_PROCESS_ERROR,
+                task_root_finalized,
+            )
+        return report, completed.returncode, task_root_finalized
 
 
 class _ArgumentParser(argparse.ArgumentParser):

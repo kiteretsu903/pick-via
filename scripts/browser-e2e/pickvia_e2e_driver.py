@@ -155,27 +155,66 @@ def _handoff_process_record(identity):
     }
 
 
+def _cleanup_handoff_context(
+    *,
+    bundle_identifier,
+    target_id,
+    capability,
+    browser_app_identity,
+    e2e_app_identity,
+    browser_executable,
+    browser_application,
+    profile_strategy,
+    profile_relative_root,
+    create_profile,
+    sessions,
+):
+    if profile_relative_root is None:
+        if create_profile:
+            raise ValueError("profile creation requires a relative root")
+        context_profile_strategy = "none"
+        context_profile_root = "none"
+    else:
+        if profile_strategy not in _PROFILE_STRATEGIES:
+            raise ValueError("profile root requires an exact strategy")
+        context_profile_strategy = profile_strategy
+        context_profile_root = profile_relative_root
+    return {
+        "bundleIdentifier": bundle_identifier,
+        "targetID": target_id,
+        "capability": capability,
+        "browserAppIdentity": browser_app_identity,
+        "e2eAppIdentity": e2e_app_identity,
+        "browserExecutable": os.fspath(browser_executable),
+        "browserApplication": os.fspath(browser_application),
+        "profileStrategy": context_profile_strategy,
+        "profileRelativeRoot": context_profile_root,
+        "createProfile": create_profile,
+        "sessionHashes": [
+            hashlib.sha256(session.encode("ascii")).hexdigest() for session in sessions
+        ],
+    }
+
+
 def _handoff_context(config):
     sessions = (
         config.sequence_sessions
         if config.state == "sequence"
         else (config.session_nonce,)
     )
-    return {
-        "bundleIdentifier": config.bundle_identifier,
-        "targetID": config.target_id,
-        "capability": config.capability,
-        "browserAppIdentity": config.browser_app_identity,
-        "e2eAppIdentity": config.e2e_app_identity,
-        "browserExecutable": os.fspath(config.expected_browser_executable),
-        "browserApplication": os.fspath(config.browser_app),
-        "profileStrategy": config.profile_strategy or "none",
-        "profileRelativeRoot": config.profile_relative_root or "none",
-        "createProfile": config.create_profile,
-        "sessionHashes": [
-            hashlib.sha256(session.encode("ascii")).hexdigest() for session in sessions
-        ],
-    }
+    return _cleanup_handoff_context(
+        bundle_identifier=config.bundle_identifier,
+        target_id=config.target_id,
+        capability=config.capability,
+        browser_app_identity=config.browser_app_identity,
+        e2e_app_identity=config.e2e_app_identity,
+        browser_executable=config.expected_browser_executable,
+        browser_application=config.browser_app,
+        profile_strategy=config.profile_strategy,
+        profile_relative_root=config.profile_relative_root,
+        create_profile=config.create_profile,
+        sessions=sessions,
+    )
 
 
 def _consume_cleanup_handoff_secret(descriptor):

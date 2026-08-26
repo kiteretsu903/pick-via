@@ -699,6 +699,201 @@ class MatrixRunnerTests(unittest.TestCase):
         self.assertFalse(root.path.exists())
         handoff.close()
 
+    def test_nonprofile_sequence_context_matches_driver_ledger_and_exact_recovery(self):
+        cases = (
+            ("chromium", "normal", "normal"),
+            ("firefox", "normal", "normal"),
+            ("chromium", "private", "private"),
+        )
+        for index, (profile_strategy, capability, mode) in enumerate(cases):
+            with self.subTest(profile_strategy=profile_strategy, capability=capability):
+                bundle_identifier = f"com.example.Browser{index}"
+                application = matrix.MatrixApplication(
+                    bundle_identifier,
+                    pathlib.Path(f"/Applications/Browser{index}.app"),
+                    pathlib.PurePosixPath("Contents/MacOS/Browser"),
+                    profile_strategy,
+                    "workspace" if capability == "normal" else "executable",
+                    True,
+                    True,
+                    False,
+                    False,
+                )
+                cell = matrix.MatrixCell(
+                    0, bundle_identifier, capability, "cold", application
+                )
+                sessions = tuple(
+                    f"session_{index}_{state}_0123456789" for state in range(3)
+                )
+                target_id = f"{bundle_identifier}||{mode}"
+                runner_context = matrix._sequence_handoff_context(
+                    cell,
+                    target_id,
+                    sessions,
+                    None,
+                    "e" * 64,
+                    "b" * 64,
+                )
+                driver_context = matrix.browser_driver._handoff_context(
+                    matrix.browser_driver.DriverConfig(
+                        e2e_app=pathlib.Path("/Applications/PickVia E2E.app"),
+                        browser_app=application.application_path,
+                        expected_browser_executable=application.executable_path,
+                        target_id=target_id,
+                        bundle_identifier=bundle_identifier,
+                        mode=mode,
+                        expected_mechanism=cell.mechanism,
+                        session_nonce=sessions[0],
+                        capability=capability,
+                        state="sequence",
+                        e2e_app_identity="e" * 64,
+                        browser_app_identity="b" * 64,
+                        sequence_sessions=sessions,
+                    )
+                )
+                self.assertEqual(runner_context, driver_context)
+                self.assertEqual(runner_context["profileStrategy"], "none")
+                self.assertEqual(runner_context["profileRelativeRoot"], "none")
+                self.assertFalse(runner_context["createProfile"])
+
+                handoff = matrix._CleanupHandoff.create(runner_context)
+                publisher = matrix.browser_driver._CleanupHandoffPublisher(
+                    os.dup(handoff.descriptor), handoff.token, driver_context
+                )
+                owner = matrix.browser_driver._TaskRootOwner()
+                root = matrix.browser_driver._make_task_root(owner)
+                browser = matrix.browser_driver.ProcessIdentity(
+                    8100 + index,
+                    os.getpid(),
+                    20 + index,
+                    30 + index,
+                    application.executable_path,
+                )
+                publisher.observe_root(root)
+                publisher.baseline_empty()
+                publisher.observe_browser(browser)
+                publisher.close()
+                self.assertEqual(handoff.records()[-1][0]["context"], runner_context)
+                driver_identity = matrix.browser_driver._darwin_process_identity(
+                    os.getpid()
+                )
+                live = {browser.generation_key: browser}
+                terminated = []
+                clock = [0.0]
+
+                def identity_reader(pid):
+                    if pid == driver_identity.pid:
+                        return driver_identity
+                    if pid == browser.pid and browser.generation_key in live:
+                        return browser
+                    raise matrix.browser_driver._ProcessDisappeared
+
+                def terminate(identity, executable, _deadline):
+                    self.assertEqual(identity, browser)
+                    self.assertEqual(executable, application.executable_path)
+                    terminated.append(identity.generation_key)
+                    live.pop(identity.generation_key)
+                    return True
+
+                self.assertTrue(
+                    matrix._recover_cleanup_handoff(
+                        handoff,
+                        identity_reader=identity_reader,
+                        terminator=terminate,
+                        snapshotter=lambda _executable: frozenset(live.values()),
+                        direct_child_snapshotter=lambda _group: frozenset(
+                            {driver_identity}
+                        ),
+                        static_checker=lambda context: context == runner_context,
+                        root_reopener=lambda _record: root,
+                        root_remover=lambda pinned: pinned.remove(),
+                        monotonic=lambda: clock[0],
+                        sleep=lambda seconds: clock.__setitem__(0, clock[0] + seconds),
+                    )
+                )
+                self.assertTrue(handoff.task_root_finalized)
+                self.assertEqual(terminated, [browser.generation_key])
+                self.assertFalse(root.path.exists())
+                handoff.close()
+
+    def test_handoff_context_mismatch_rejects_authenticated_cleanup(self):
+        application = matrix.MatrixApplication(
+            "com.example.Browser",
+            pathlib.Path("/Applications/Browser.app"),
+            pathlib.PurePosixPath("Contents/MacOS/Browser"),
+            "chromium",
+            "workspace",
+            True,
+            True,
+            False,
+            False,
+        )
+        cell = matrix.MatrixCell(
+            0, application.bundle_identifier, "normal", "cold", application
+        )
+        sessions = tuple(f"session_{index}_0123456789" for index in range(3))
+        context = matrix._sequence_handoff_context(
+            cell,
+            "com.example.Browser||normal",
+            sessions,
+            None,
+            "e" * 64,
+            "b" * 64,
+        )
+        mismatched = dict(context, profileStrategy="chromium")
+        handoff = matrix._CleanupHandoff.create(context)
+        publisher = matrix.browser_driver._CleanupHandoffPublisher(
+            os.dup(handoff.descriptor), handoff.token, mismatched
+        )
+        owner = matrix.browser_driver._TaskRootOwner()
+        root = matrix.browser_driver._make_task_root(owner)
+        publisher.observe_root(root)
+        publisher.baseline_empty()
+        publisher.close()
+        with self.assertRaises(matrix.MatrixIdentityError):
+            handoff.records()
+        self.assertTrue(root.path.exists())
+        root.remove()
+        handoff.mark_recovered()
+        handoff.close()
+
+    def test_profile_sequence_context_uses_exact_manifest_strategy(self):
+        for index, strategy in enumerate(("chromium", "firefox")):
+            with self.subTest(strategy=strategy):
+                application = matrix.MatrixApplication(
+                    f"com.example.ProfileBrowser{index}",
+                    pathlib.Path(f"/Applications/ProfileBrowser{index}.app"),
+                    pathlib.PurePosixPath("Contents/MacOS/Browser"),
+                    strategy,
+                    "executable",
+                    True,
+                    True,
+                    False,
+                    False,
+                )
+                cell = matrix.MatrixCell(
+                    0,
+                    application.bundle_identifier,
+                    "profile",
+                    "cold",
+                    application,
+                )
+                sessions = tuple(
+                    f"profile_session_{index}_{state}_0123456789" for state in range(3)
+                )
+                profile_root = f"profiles/profile-{index}"
+                context = matrix._sequence_handoff_context(
+                    cell,
+                    f"{application.bundle_identifier}||normal",
+                    sessions,
+                    profile_root,
+                    "e" * 64,
+                    "b" * 64,
+                )
+                self.assertEqual(context["profileStrategy"], strategy)
+                self.assertEqual(context["profileRelativeRoot"], profile_root)
+                self.assertTrue(context["createProfile"])
+
     def test_handoff_rejects_forgery_and_pid_reuse_without_signals_or_root_removal(
         self,
     ):
@@ -1942,6 +2137,29 @@ class MatrixRunnerTests(unittest.TestCase):
         self.assertEqual(result.records[0]["result"], "NOT RUN")
         self.assertEqual(result.records[0]["detail"], "harness-ambiguity")
         self.assertTrue(all(record["result"] == "NOT RUN" for record in result.records))
+
+    def test_harness_ambiguity_preserves_independent_task_finalization(self):
+        class FinalizedAmbiguousDependencies(FakeDependencies):
+            def run_sequence(self, *args, **kwargs):
+                report, return_code = super().run_sequence(*args, **kwargs)
+                return report, return_code, True
+
+        dependencies = FinalizedAmbiguousDependencies(
+            ambiguous_on=("com.microsoft.edgemac", "cold")
+        )
+        result = matrix.execute_matrix(
+            matrix.load_manifest(self.write_manifest()),
+            self.root / "output",
+            dependencies=dependencies,
+        )
+        pilot = result.records[:3]
+        tail = result.records[3:]
+        self.assertTrue(
+            all(record["detail"] == "harness-ambiguity" for record in pilot)
+        )
+        self.assertTrue(all(record["cleanupSuccess"] is False for record in pilot))
+        self.assertTrue(all(record["taskRootFinalized"] is True for record in pilot))
+        self.assertTrue(all(record["taskRootFinalized"] is False for record in tail))
 
     def test_selected_without_observed_launch_provenance_can_never_pass(self):
         dependencies = FakeDependencies(omit_provenance=True)
