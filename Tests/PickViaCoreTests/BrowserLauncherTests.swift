@@ -1262,6 +1262,128 @@ struct BrowserLauncherTests {
           ]
       )
     }
+
+    @Test(arguments: LaunchAdapterKind.allCases)
+    func nonpositivePostLaunchObservationWritesUnprovenAndRethrowsSanitizedFailure(
+      kind: LaunchAdapterKind
+    ) async {
+      let sink = RecordingBrowserLaunchProvenanceSink()
+      let launcher = BrowserLauncher(
+        provenanceContext: provenanceContext,
+        provenanceSink: sink,
+        trustedApplicationResolver: StubTrustedApplicationResolver(urls: [:]),
+        processRunner: RecordingProcessRunner(processIdentifier: 0),
+        workspace: RecordingWorkspace(processIdentifier: 0),
+        executableValidator: StubExecutableValidator(isExecutable: true),
+        duckDuckGoRouter: RecordingDuckDuckGoRouter(processIdentifier: 0),
+        descriptors: []
+      )
+      let plan: LaunchPlan =
+        switch kind {
+        case .process:
+          .executable(application: executableURL, arguments: [])
+        case .workspace:
+          .workspace(application: applicationURL, url: url)
+        case .duckDuckGo:
+          .duckDuckGo(application: applicationURL, url: url, mode: .private)
+        }
+      let mechanism: BrowserLaunchMechanism =
+        switch kind {
+        case .process: .process
+        case .workspace: .workspace
+        case .duckDuckGo: .duckDuckGo
+        }
+
+      do {
+        _ = try await launcher.executeWithProvenance(plan)
+        Issue.record("Expected sanitized unproven failure")
+      } catch let failure as LaunchFailure {
+        #expect(failure.message == "Could not open the selected browser target.")
+      } catch {
+        Issue.record("Expected LaunchFailure")
+      }
+      #expect(
+        sink.records
+          == [
+            .init(event: .launchUnproven(mechanism), context: provenanceContext)
+          ]
+      )
+    }
+
+    @Test func prePlanFailureCannotFabricateMechanismOrProvenance() async {
+      let sink = RecordingBrowserLaunchProvenanceSink()
+      let launcher = BrowserLauncher(
+        provenanceContext: provenanceContext,
+        provenanceSink: sink,
+        trustedApplicationResolver: StubTrustedApplicationResolver(urls: [:]),
+        processRunner: RecordingProcessRunner(),
+        workspace: RecordingWorkspace(),
+        executableValidator: StubExecutableValidator(isExecutable: true),
+        duckDuckGoRouter: RecordingDuckDuckGoRouter(),
+        descriptors: []
+      )
+
+      do {
+        _ = try await launcher.launch(
+          url: url,
+          application: application(family: .chromium),
+          target: target(family: .chromium, profile: nil)
+        )
+        Issue.record("Expected pre-plan failure")
+      } catch is LaunchFailure {
+      } catch {
+        Issue.record("Expected LaunchFailure")
+      }
+      #expect(sink.records.isEmpty)
+    }
+
+    @Test(arguments: [LaunchAdapterKind.workspace, .duckDuckGo])
+    func ambiguousPostLaunchObservationWritesUnprovenInsteadOfLaunchError(
+      kind: LaunchAdapterKind
+    ) async {
+      let sink = RecordingBrowserLaunchProvenanceSink()
+      let launcher = BrowserLauncher(
+        provenanceContext: provenanceContext,
+        provenanceSink: sink,
+        trustedApplicationResolver: StubTrustedApplicationResolver(urls: [:]),
+        processRunner: RecordingProcessRunner(),
+        workspace: RecordingWorkspace(
+          error: kind == .workspace
+            ? BrowserLaunchObservationError.workspaceCompletionDidNotReturnExactApplication
+            : nil
+        ),
+        executableValidator: StubExecutableValidator(isExecutable: true),
+        duckDuckGoRouter: RecordingDuckDuckGoRouter(
+          routingError: kind == .duckDuckGo ? .processIdentityMismatch : nil
+        ),
+        descriptors: []
+      )
+      let plan: LaunchPlan =
+        switch kind {
+        case .workspace:
+          .workspace(application: applicationURL, url: url)
+        case .duckDuckGo:
+          .duckDuckGo(application: applicationURL, url: url, mode: .private)
+        case .process:
+          fatalError("Unsupported test case")
+        }
+      let mechanism: BrowserLaunchMechanism =
+        kind == .workspace ? .workspace : .duckDuckGo
+
+      do {
+        _ = try await launcher.executeWithProvenance(plan)
+        Issue.record("Expected sanitized unproven failure")
+      } catch is LaunchFailure {
+      } catch {
+        Issue.record("Expected LaunchFailure")
+      }
+      #expect(
+        sink.records
+          == [
+            .init(event: .launchUnproven(mechanism), context: provenanceContext)
+          ]
+      )
+    }
   #endif
 
   @Test func executeDispatchesWorkspacePlanToInjectedWorkspace() async throws {
@@ -1659,10 +1781,16 @@ private actor RecordingDuckDuckGoRouter: DuckDuckGoRouting {
   private(set) var invocations: [Invocation] = []
   let processIdentifier: Int32
   let errorCode: Int?
+  let routingError: DuckDuckGoRoutingError?
 
-  init(processIdentifier: Int32 = 6_001, errorCode: Int? = nil) {
+  init(
+    processIdentifier: Int32 = 6_001,
+    errorCode: Int? = nil,
+    routingError: DuckDuckGoRoutingError? = nil
+  ) {
     self.processIdentifier = processIdentifier
     self.errorCode = errorCode
+    self.routingError = routingError
   }
 
   func open(
@@ -1676,6 +1804,7 @@ private actor RecordingDuckDuckGoRouter: DuckDuckGoRouting {
     if let errorCode {
       throw NSError(domain: NSCocoaErrorDomain, code: errorCode)
     }
+    if let routingError { throw routingError }
     return processIdentifier
   }
 }

@@ -149,6 +149,12 @@ enum BrowserLaunchObservationError: Error, Equatable, Sendable {
   case workspaceCompletionDidNotReturnExactApplication
 }
 
+#if PICKVIA_E2E_AUTOMATION
+  enum BrowserLaunchUnprovenObservationError: Error, Equatable, Sendable {
+    case adapterObservationUnavailable
+  }
+#endif
+
 public struct SystemWorkspace: WorkspaceOpening {
   private let opener: any WorkspaceApplicationOpening
 
@@ -443,8 +449,53 @@ public struct BrowserLauncher: Sendable {
   @discardableResult
   public func execute(_ plan: LaunchPlan) async throws -> BrowserLaunchObservation {
     do {
-      let processIdentifier: Int32
-      let mechanism: BrowserLaunchMechanism
+      return try await executeObservedPlan(plan)
+    } catch {
+      throw Self.launchFailure
+    }
+  }
+
+  #if PICKVIA_E2E_AUTOMATION
+    func executeWithProvenance(
+      _ plan: LaunchPlan
+    ) async throws -> BrowserLaunchObservation {
+      guard let provenanceContext, let provenanceSink else {
+        return try await execute(plan)
+      }
+      do {
+        let observation = try await executeObservedPlan(plan)
+        _ = provenanceSink.record(.observed(observation), context: provenanceContext)
+        return observation
+      } catch is BrowserLaunchUnprovenObservationError {
+        _ = provenanceSink.record(
+          .launchUnproven(Self.mechanism(for: plan)),
+          context: provenanceContext
+        )
+        throw Self.launchFailure
+      } catch {
+        _ = provenanceSink.record(
+          .launchError(Self.mechanism(for: plan)),
+          context: provenanceContext
+        )
+        throw Self.launchFailure
+      }
+    }
+
+    private static func mechanism(for plan: LaunchPlan) -> BrowserLaunchMechanism {
+      switch plan {
+      case .executable: .process
+      case .workspace: .workspace
+      case .duckDuckGo: .duckDuckGo
+      }
+    }
+  #endif
+
+  private func executeObservedPlan(
+    _ plan: LaunchPlan
+  ) async throws -> BrowserLaunchObservation {
+    let processIdentifier: Int32
+    let mechanism: BrowserLaunchMechanism
+    do {
       switch plan {
       case .executable(let application, let arguments):
         processIdentifier = try processRunner.run(
@@ -463,48 +514,30 @@ public struct BrowserLauncher: Sendable {
         )
         mechanism = .duckDuckGo
       }
-      guard
-        let observation = BrowserLaunchObservation(
-          processIdentifier: processIdentifier,
-          mechanism: mechanism
-        )
-      else {
+    } catch BrowserLaunchObservationError.invalidProcessIdentifier,
+      BrowserLaunchObservationError.workspaceCompletionDidNotReturnExactApplication,
+      DuckDuckGoRoutingError.processIdentityMismatch
+    {
+      #if PICKVIA_E2E_AUTOMATION
+        throw BrowserLaunchUnprovenObservationError.adapterObservationUnavailable
+      #else
         throw BrowserLaunchObservationError.invalidProcessIdentifier
-      }
-      return observation
-    } catch {
-      throw Self.launchFailure
+      #endif
     }
+    guard
+      let observation = BrowserLaunchObservation(
+        processIdentifier: processIdentifier,
+        mechanism: mechanism
+      )
+    else {
+      #if PICKVIA_E2E_AUTOMATION
+        throw BrowserLaunchUnprovenObservationError.adapterObservationUnavailable
+      #else
+        throw BrowserLaunchObservationError.invalidProcessIdentifier
+      #endif
+    }
+    return observation
   }
-
-  #if PICKVIA_E2E_AUTOMATION
-    func executeWithProvenance(
-      _ plan: LaunchPlan
-    ) async throws -> BrowserLaunchObservation {
-      guard let provenanceContext, let provenanceSink else {
-        return try await execute(plan)
-      }
-      do {
-        let observation = try await execute(plan)
-        _ = provenanceSink.record(.observed(observation), context: provenanceContext)
-        return observation
-      } catch {
-        _ = provenanceSink.record(
-          .launchError(Self.mechanism(for: plan)),
-          context: provenanceContext
-        )
-        throw error
-      }
-    }
-
-    private static func mechanism(for plan: LaunchPlan) -> BrowserLaunchMechanism {
-      switch plan {
-      case .executable: .process
-      case .workspace: .workspace
-      case .duckDuckGo: .duckDuckGo
-      }
-    }
-  #endif
 
   @discardableResult
   public func launch(
@@ -512,6 +545,8 @@ public struct BrowserLauncher: Sendable {
     application: BrowserApplication,
     target: BrowserTarget
   ) async throws -> BrowserLaunchObservation {
+    // Before makePlan succeeds there is no trustworthy mechanism to report. The E2E driver
+    // therefore treats this bounded missing-provenance case as a harness failure.
     let plan = try makePlan(url: url, application: application, target: target)
     #if PICKVIA_E2E_AUTOMATION
       return try await executeWithProvenance(plan)

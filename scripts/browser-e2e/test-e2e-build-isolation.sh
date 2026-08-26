@@ -20,10 +20,16 @@ environment_keys=(
 e2e_types=(
   PickVia.E2EChooserPresenter
   PickVia.E2EControl
+  PickVia.E2ELaunchProvenanceOutcome
+  PickVia.E2ELaunchProvenanceRecord
   PickVia.E2EStatusWriter
   PickVia.E2ELaunchProvenanceWriter
   PickVia.E2EAutomationMarker
   PickVia.E2EEphemeralPreferences
+  PickViaCore.BrowserLaunchProvenanceContext
+  PickViaCore.BrowserLaunchProvenanceEvent
+  PickViaCore.BrowserLaunchProvenanceSinking
+  PickViaCore.BrowserLaunchUnprovenObservationError
 )
 
 contract_root="$(mktemp -d /private/tmp/pickvia-e2e-build-isolation.XXXXXX)"

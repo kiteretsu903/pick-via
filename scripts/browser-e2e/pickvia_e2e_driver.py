@@ -43,6 +43,13 @@ MAXIMUM_TIMEOUT_SECONDS = 30.0
 BROWSER_CLEANUP_GRACE_SECONDS = 5.0
 BROWSER_QUIESCENCE_SECONDS = 2.0
 BROWSER_QUIESCENCE_POLL_SECONDS = 0.1
+# One complete provenance proof remains open for this bounded interval so delayed
+# duplicate or partial records cannot be mistaken for an exactly-once launch.
+PROVENANCE_SETTLE_SECONDS = 0.25
+# A launch-error/unproven record may precede AppDelegate's status write. Keep the
+# route bounded while collecting that factual status and helper exit.
+PROVENANCE_STATUS_GRACE_SECONDS = 1.0
+BROWSER_BINDING_VERIFICATION_TIMEOUT_SECONDS = 2.0
 MAXIMUM_PROTOCOL_LINE_BYTES = 2_048
 MAXIMUM_PROVENANCE_LINE_BYTES = 512
 MAXIMUM_CAPTURE_BYTES = 65_536
@@ -93,6 +100,7 @@ class DriverConfig:
     target_id: str
     bundle_identifier: str
     mode: str
+    expected_mechanism: str
     session_nonce: str
     timeout: float = 30.0
     route_count: int = 1
@@ -1341,6 +1349,11 @@ class DriverDependencies:
     browser_process_identity: Callable[[int], ProcessIdentity] = (
         lambda pid: _darwin_process_identity(pid)
     )
+    browser_binding_checker: Callable[[pathlib.Path, pathlib.Path, str], None] = (
+        lambda application, executable, bundle_identifier: _validate_signed_browser_binding(
+            application, executable, bundle_identifier
+        )
+    )
     browser_process_terminator: Callable[
         [ProcessIdentity, pathlib.Path, float], bool
     ] = _terminate_exact_browser_process
@@ -1639,6 +1652,8 @@ def _empty_result(exit_code):
         "route_timeout_seconds": 0.0,
         "browser_cleanup_grace_seconds": 0.0,
         "browser_quiescence_seconds": 0.0,
+        "provenance_settle_seconds": PROVENANCE_SETTLE_SECONDS,
+        "provenance_status_grace_seconds": PROVENANCE_STATUS_GRACE_SECONDS,
     }
     return DriverResult(
         exit_code=exit_code,
@@ -1661,6 +1676,8 @@ def _failure_result(config, exit_code, outcome):
         "route_timeout_seconds": 0.0,
         "browser_cleanup_grace_seconds": 0.0,
         "browser_quiescence_seconds": 0.0,
+        "provenance_settle_seconds": PROVENANCE_SETTLE_SECONDS,
+        "provenance_status_grace_seconds": PROVENANCE_STATUS_GRACE_SECONDS,
     }
     return DriverResult(
         exit_code=exit_code,
@@ -1687,8 +1704,12 @@ def _valid_nonempty(value, maximum_bytes):
     )
 
 
-def _validated_config(config):
-    if config.route_count != 1 or config.mode not in {"normal", "private"}:
+def _validated_config(config, browser_binding_checker):
+    if (
+        config.route_count != 1
+        or config.mode not in {"normal", "private"}
+        or config.expected_mechanism not in _PROVENANCE_MECHANISMS
+    ):
         return None
     if not _valid_nonempty(config.target_id, 512):
         return None
@@ -1711,7 +1732,7 @@ def _validated_config(config):
     e2e_executable = e2e_app / "Contents" / "MacOS" / "PickVia"
     if not _physical_executable(e2e_executable):
         return None
-    _validate_browser_binding(
+    browser_binding_checker(
         browser_app,
         browser_executable,
         config.bundle_identifier,
@@ -1751,6 +1772,32 @@ def _validate_browser_binding(browser_app, browser_executable, bundle_identifier
         raise _IdentityError
     canonical_executable = browser_app / "Contents" / "MacOS" / executable_name
     if canonical_executable != browser_executable:
+        raise _IdentityError
+
+
+def _validate_signed_browser_binding(
+    browser_app, browser_executable, bundle_identifier
+):
+    _validate_browser_binding(browser_app, browser_executable, bundle_identifier)
+    try:
+        completed = subprocess.run(
+            [
+                "/usr/bin/codesign",
+                "--verify",
+                "--deep",
+                "--strict",
+                os.fspath(browser_app),
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=_minimal_child_environment(pathlib.Path("/private/tmp")),
+            timeout=BROWSER_BINDING_VERIFICATION_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise _IdentityError from error
+    if completed.returncode != 0:
         raise _IdentityError
 
 
@@ -1992,6 +2039,7 @@ def _parse_provenance(
     expected_target,
     expected_bundle_identifier,
     expected_mode,
+    expected_mechanism,
 ):
     if not line.endswith(b"\n") or len(line) > MAXIMUM_PROVENANCE_LINE_BYTES:
         raise _ProvenanceProtocolError
@@ -2022,7 +2070,7 @@ def _parse_provenance(
         or record.get("bundleIdentifier") != expected_bundle_identifier
         or record.get("mode") != expected_mode
         or outcome not in _PROVENANCE_OUTCOMES
-        or record.get("mechanism") not in _PROVENANCE_MECHANISMS
+        or record.get("mechanism") != expected_mechanism
     ):
         raise _ProvenanceProtocolError
     process_identifier = record.get("processIdentifier")
@@ -2252,7 +2300,9 @@ def _wait_for_proof(
     expected_target,
     expected_bundle_identifier,
     expected_mode,
+    expected_mechanism,
     expected_token,
+    expected_browser_app,
     expected_browser_executable,
     preexisting_browsers,
     dependencies,
@@ -2273,6 +2323,9 @@ def _wait_for_proof(
     provenance = None
     provenance_identity = None
     provenance_owned = frozenset()
+    provenance_failure = False
+    provenance_failure_deadline = None
+    provenance_settle_deadline = None
     try:
         while True:
             helper_exit_code = helper.poll()
@@ -2283,18 +2336,45 @@ def _wait_for_proof(
                     browser_identity,
                     provenance_owned,
                 )
-            if (
+            now = dependencies.monotonic()
+            if provenance_failure:
+                if (
+                    status_sequence == ["selected", "launch-error"]
+                    and helper_exit_code == 0
+                ):
+                    if provenance_settle_deadline is None:
+                        provenance_settle_deadline = now + PROVENANCE_SETTLE_SECONDS
+                        provenance_failure_deadline = None
+                    if now >= provenance_settle_deadline:
+                        raise _ProvenanceProtocolError(
+                            receipt,
+                            b"".join(status_lines),
+                            browser_identity,
+                        )
+                elif (
+                    provenance_failure_deadline is not None
+                    and now >= provenance_failure_deadline
+                ):
+                    raise _ProvenanceProtocolError(
+                        receipt,
+                        b"".join(status_lines),
+                        browser_identity,
+                    )
+            elif (
                 status_sequence == ["selected", "launch-error"]
                 and helper_exit_code == 0
                 and provenance is not None
             ):
-                return _WaitResult(
-                    "launch-error",
-                    receipt,
-                    b"".join(status_lines),
-                    browser_identity,
-                    provenance_owned,
-                )
+                if provenance_settle_deadline is None:
+                    provenance_settle_deadline = now + PROVENANCE_SETTLE_SECONDS
+                if now >= provenance_settle_deadline:
+                    return _WaitResult(
+                        "launch-error",
+                        receipt,
+                        b"".join(status_lines),
+                        browser_identity,
+                        provenance_owned,
+                    )
             if (
                 status_sequence
                 and status_sequence[0] != "selected"
@@ -2329,16 +2409,25 @@ def _wait_for_proof(
                     and browser_identity
                     and provenance is not None
                     and helper_exit_code == 0
+                    and not provenance_failure
                 ):
-                    return _WaitResult(
-                        "selected",
-                        True,
-                        b"".join(status_lines),
-                        True,
-                        provenance_owned,
-                    )
+                    if provenance_settle_deadline is None:
+                        provenance_settle_deadline = now + PROVENANCE_SETTLE_SECONDS
+                    if now >= provenance_settle_deadline:
+                        return _WaitResult(
+                            "selected",
+                            True,
+                            b"".join(status_lines),
+                            True,
+                            provenance_owned,
+                        )
             try:
-                wait = min(_remaining(deadline, dependencies.monotonic), 0.05)
+                active_deadline = deadline
+                if provenance_failure_deadline is not None:
+                    active_deadline = min(active_deadline, provenance_failure_deadline)
+                if provenance_settle_deadline is not None:
+                    active_deadline = min(active_deadline, provenance_settle_deadline)
+                wait = min(_remaining(active_deadline, dependencies.monotonic), 0.05)
             except _DeadlineExpired:
                 helper_exit_code = helper.poll()
                 if helper_exit_code not in (None, 0):
@@ -2354,6 +2443,38 @@ def _wait_for_proof(
                         b"".join(status_lines),
                         browser_identity,
                         provenance_owned,
+                    )
+                if provenance_failure:
+                    raise _ProvenanceProtocolError(
+                        receipt,
+                        b"".join(status_lines),
+                        browser_identity,
+                    )
+                if (
+                    provenance is not None
+                    and provenance_settle_deadline is None
+                    and (
+                        status_sequence == ["selected", "launch-error"]
+                        or (
+                            status_sequence == ["selected"]
+                            and receipt
+                            and browser_identity
+                        )
+                    )
+                ):
+                    raise _ProvenanceProtocolError(
+                        receipt,
+                        b"".join(status_lines),
+                        browser_identity,
+                    )
+                if (
+                    provenance_settle_deadline is not None
+                    and dependencies.monotonic() < provenance_settle_deadline
+                ):
+                    raise _ProvenanceProtocolError(
+                        receipt,
+                        b"".join(status_lines),
+                        browser_identity,
                     )
                 if status_sequence == ["selected", "launch-error"]:
                     raise _ProvenanceProtocolError(
@@ -2414,6 +2535,12 @@ def _wait_for_proof(
                 if key.data == "receipt":
                     processes.append_manual_stdout(receiver, chunk)
                 buffer = buffers[key.data]
+                if key.data == "provenance" and provenance is not None:
+                    raise _ProvenanceProtocolError(
+                        receipt,
+                        b"".join(status_lines),
+                        browser_identity,
+                    )
                 buffer.extend(chunk)
                 maximum = (
                     MAXIMUM_PROVENANCE_LINE_BYTES
@@ -2453,25 +2580,39 @@ def _wait_for_proof(
                                 expected_target=expected_target,
                                 expected_bundle_identifier=expected_bundle_identifier,
                                 expected_mode=expected_mode,
+                                expected_mechanism=expected_mechanism,
                             )
                             if provenance.outcome != "launch-observed":
-                                raise _ProvenanceProtocolError
-                            provenance_identity = dependencies.browser_process_identity(
-                                provenance.process_identifier
-                            )
-                            if (
-                                provenance_identity.pid
-                                != provenance.process_identifier
-                                or provenance_identity.executable
-                                != pathlib.Path(expected_browser_executable)
-                            ):
-                                raise _ProvenanceProtocolError
-                            browser_identity = True
-                            baseline_generations = set(
-                                _generation_map(preexisting_browsers)
-                            )
-                            if provenance_identity.generation_key not in baseline_generations:
-                                provenance_owned = frozenset({provenance_identity})
+                                provenance_failure = True
+                                provenance_failure_deadline = (
+                                    dependencies.monotonic()
+                                    + PROVENANCE_STATUS_GRACE_SECONDS
+                                )
+                            else:
+                                dependencies.browser_binding_checker(
+                                    pathlib.Path(expected_browser_app),
+                                    pathlib.Path(expected_browser_executable),
+                                    expected_bundle_identifier,
+                                )
+                                provenance_identity = dependencies.browser_process_identity(
+                                    provenance.process_identifier
+                                )
+                                if (
+                                    provenance_identity.pid
+                                    != provenance.process_identifier
+                                    or provenance_identity.executable
+                                    != pathlib.Path(expected_browser_executable)
+                                ):
+                                    raise _ProvenanceProtocolError
+                                browser_identity = True
+                                baseline_generations = set(
+                                    _generation_map(preexisting_browsers)
+                                )
+                                if (
+                                    provenance_identity.generation_key
+                                    not in baseline_generations
+                                ):
+                                    provenance_owned = frozenset({provenance_identity})
                         except _ProvenanceProtocolError as error:
                             error.token_received = receipt
                             error.status_line = b"".join(status_lines)
@@ -2480,6 +2621,7 @@ def _wait_for_proof(
                         except (
                             _ProcessDisappeared,
                             _IdentityInspectionError,
+                            _IdentityError,
                             OSError,
                             ValueError,
                             TypeError,
@@ -2691,7 +2833,7 @@ def _audit_regular_files_at(
 def run_driver(config, dependencies=None):
     dependencies = dependencies or DriverDependencies()
     try:
-        validated = _validated_config(config)
+        validated = _validated_config(config, dependencies.browser_binding_checker)
     except _IdentityError:
         return _failure_result(config, DRIVER_IDENTITY_FAILURE, "identity-error")
     if validated is None:
@@ -2824,7 +2966,9 @@ def run_driver(config, dependencies=None):
             config.target_id,
             config.bundle_identifier,
             config.mode,
+            config.expected_mechanism,
             token,
+            pathlib.Path(config.browser_app),
             browser_executable,
             preexisting_browsers,
             dependencies,
@@ -3092,6 +3236,8 @@ def run_driver(config, dependencies=None):
         "route_timeout_seconds": round(timeout, 6),
         "browser_cleanup_grace_seconds": BROWSER_CLEANUP_GRACE_SECONDS,
         "browser_quiescence_seconds": BROWSER_QUIESCENCE_SECONDS,
+        "provenance_settle_seconds": PROVENANCE_SETTLE_SECONDS,
+        "provenance_status_grace_seconds": PROVENANCE_STATUS_GRACE_SECONDS,
     }
     return DriverResult(
         exit_code=exit_code,
@@ -3117,6 +3263,11 @@ def main(argv=None):
     parser.add_argument("--target-id", required=True)
     parser.add_argument("--bundle-id", required=True)
     parser.add_argument("--mode", choices=("normal", "private"), required=True)
+    parser.add_argument(
+        "--mechanism",
+        choices=("process", "workspace", "duckduckgo"),
+        required=True,
+    )
     parser.add_argument("--session", required=True)
     parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--route-count", type=int, default=1)
@@ -3129,6 +3280,7 @@ def main(argv=None):
             target_id=arguments.target_id,
             bundle_identifier=arguments.bundle_id,
             mode=arguments.mode,
+            expected_mechanism=arguments.mechanism,
             session_nonce=arguments.session,
             timeout=arguments.timeout,
             route_count=arguments.route_count,
