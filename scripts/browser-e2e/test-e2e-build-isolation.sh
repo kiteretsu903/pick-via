@@ -548,6 +548,32 @@ assert_smoke_contract_is_status_driven_and_browser_free() {
 
 assert_smoke_contract_is_status_driven_and_browser_free
 
+assert_matrix_runner_is_sequential_and_profile_private() {
+  local runner="$repo_root/scripts/browser-e2e/run_browser_matrix.py"
+  local manifest="$repo_root/scripts/browser-e2e/browser_matrix_manifest.json"
+
+  grep -Fq 'max_active_drivers' \
+    "$repo_root/scripts/browser-e2e/test_run_browser_matrix.py"
+  grep -Fq '"com.apple.Safari"' "$manifest"
+  grep -Fq '"com.apple.SafariTechnologyPreview"' "$manifest"
+  grep -Fq '"skip":true' "$manifest"
+  grep -Fq 'profiles/' "$runner"
+  grep -Fq -- '--create-profile' "$runner"
+  grep -Fq -- '--derive-profile-target' "$runner"
+  ! grep -Eiq 'computer[ -]?use|system events|osascript|accessibility' "$runner"
+  ! grep -Fq 'Library/Application Support' "$runner"
+  ! grep -Fq 'Library/Application Support' "$manifest"
+}
+
+assert_matrix_runner_is_sequential_and_profile_private
+
+/usr/bin/env -i \
+  PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+  LANG=en_US.UTF-8 \
+  LC_CTYPE=UTF-8 \
+  PYTHONDONTWRITEBYTECODE=1 \
+  /usr/bin/python3 "$repo_root/scripts/browser-e2e/test_run_browser_matrix.py" >/dev/null
+
 /usr/bin/env -i \
   PATH=/usr/bin:/bin:/usr/sbin:/sbin \
   LANG=en_US.UTF-8 \

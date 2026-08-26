@@ -2,6 +2,7 @@
 
 import ctypes
 import errno
+import hashlib
 import json
 import os
 import pathlib
@@ -481,12 +482,11 @@ server.server_close()
                 f"time.sleep(0.05); print({valid!r}, flush=True)"
             ),
             "partial-trailing-receipt": (
-                'time.sleep(0.24); sys.stdout.write("{\\\"token\\\":"); '
+                'time.sleep(0.24); sys.stdout.write("{\\"token\\":"); '
                 "sys.stdout.flush()"
             ),
         }.get(self.probe_kind, "")
-        return (
-            """#!/usr/bin/env python3
+        return """#!/usr/bin/env python3
 import json
 import sys
 import time
@@ -500,9 +500,7 @@ server.handle_request()
 %s
 %s
 server.server_close()
-"""
-            % (emission, trailing)
-        )
+""" % (emission, trailing)
 
     def _write_executable(self, path, contents):
         path.write_text(contents, encoding="utf-8")
@@ -535,8 +533,8 @@ server.server_close()
                 + (now - self._proof_clock_phase_start)
             )
         if now >= self._proof_clock_escape:
-            return self._proof_clock_base + self.timeout + (
-                now - self._proof_clock_escape
+            return (
+                self._proof_clock_base + self.timeout + (now - self._proof_clock_escape)
             )
         return self._proof_clock_base
 
@@ -549,9 +547,7 @@ server.server_close()
             self._proof_clock_deferred_elapsed += time.monotonic() - started
 
     def _proof_phase_is_ready(self):
-        helper_started = any(
-            kind == "exact-app-helper" for kind in self.launched_kinds
-        )
+        helper_started = any(kind == "exact-app-helper" for kind in self.launched_kinds)
         helper_succeeded = any(
             kind == "exact-app-helper" and process.poll() == 0
             for kind, process in zip(self.launched_kinds, self.launched_processes)
@@ -781,7 +777,10 @@ server.server_close()
             browser_process_snapshot=self._snapshot_browser_processes,
             browser_process_identity=self._resolve_browser_pid,
             browser_binding_checker=self._check_browser_binding,
-            browser_running_code_checker=lambda _pid, _application, _executable, _bundle: None,
+            browser_running_code_checker=lambda _pid,
+            _application,
+            _executable,
+            _bundle: None,
             browser_process_terminator=self._terminate_browser,
             quiescence_monotonic=self._quiescence_monotonic,
             quiescence_sleep=self._quiescence_sleep,
@@ -871,8 +870,9 @@ class PickViaE2EDriverTests(unittest.TestCase):
             return real_open(path, flags, *args, **kwargs)
 
         try:
-            with mock.patch("tempfile.mkdtemp", side_effect=make_root), mock.patch(
-                "os.open", side_effect=swap_before_open
+            with (
+                mock.patch("tempfile.mkdtemp", side_effect=make_root),
+                mock.patch("os.open", side_effect=swap_before_open),
             ):
                 with self.assertRaises(OSError):
                     self._make_task_root()
@@ -903,9 +903,11 @@ class PickViaE2EDriverTests(unittest.TestCase):
             raise driver._DriverInterrupted
 
         try:
-            with mock.patch("tempfile.mkdtemp", side_effect=make_root), mock.patch(
-                "os.open", side_effect=record_open
-            ), mock.patch("os.fchmod", side_effect=interrupt):
+            with (
+                mock.patch("tempfile.mkdtemp", side_effect=make_root),
+                mock.patch("os.open", side_effect=record_open),
+                mock.patch("os.fchmod", side_effect=interrupt),
+            ):
                 with self.assertRaises(driver._DriverInterrupted):
                     self._make_task_root()
             self.assertFalse(created["path"].exists())
@@ -935,20 +937,19 @@ class PickViaE2EDriverTests(unittest.TestCase):
             observed.append((tuple(map(os.fspath, arguments)), dict(kwargs)))
             return real_run(arguments, *args, **kwargs)
 
-        with mock.patch.object(
-            driver.subprocess, "run", side_effect=record_run
-        ), mock.patch.object(
-            driver,
-            "_empty_task_root_fingerprint",
-            wraps=driver._empty_task_root_fingerprint,
-        ) as fingerprint:
+        with (
+            mock.patch.object(driver.subprocess, "run", side_effect=record_run),
+            mock.patch.object(
+                driver,
+                "_empty_task_root_fingerprint",
+                wraps=driver._empty_task_root_fingerprint,
+            ) as fingerprint,
+        ):
             self.assertTrue(pinned.remove())
         self.assertFalse(pinned.path.exists())
         self.assertEqual(fingerprint.call_count, 2)
         compile_calls = [
-            call
-            for call in observed
-            if call[0][:2] == ("/usr/bin/xcrun", "clang")
+            call for call in observed if call[0][:2] == ("/usr/bin/xcrun", "clang")
         ]
         self.assertLessEqual(len(compile_calls), 1)
         if compile_calls:
@@ -1002,7 +1003,9 @@ class PickViaE2EDriverTests(unittest.TestCase):
 
     def test_poisoned_cached_helper_is_rejected_and_owned_root_is_preserved(self):
         cache_repository = pathlib.Path(
-            tempfile.mkdtemp(prefix="pickvia-cleanup-cache-fixture-", dir="/private/tmp")
+            tempfile.mkdtemp(
+                prefix="pickvia-cleanup-cache-fixture-", dir="/private/tmp"
+            )
         )
         pinned = self._make_task_root()
         owner = driver._TaskRootOwner()
@@ -1123,13 +1126,15 @@ class PickViaE2EDriverTests(unittest.TestCase):
             return fingerprint
 
         try:
-            with mock.patch.object(
-                driver, "_pin_exclusive_cleanup_helper", return_value=helper
-            ), mock.patch.object(
-                driver, "_empty_task_root_fingerprint", side_effect=add_after_first
-            ), mock.patch.object(
-                driver, "_invoke_exclusive_cleanup_helper"
-            ) as invoke:
+            with (
+                mock.patch.object(
+                    driver, "_pin_exclusive_cleanup_helper", return_value=helper
+                ),
+                mock.patch.object(
+                    driver, "_empty_task_root_fingerprint", side_effect=add_after_first
+                ),
+                mock.patch.object(driver, "_invoke_exclusive_cleanup_helper") as invoke,
+            ):
                 self.assertFalse(pinned.remove())
             invoke.assert_not_called()
             self.assertEqual((pinned.path / "late-file").read_bytes(), b"preserve")
@@ -1158,13 +1163,15 @@ class PickViaE2EDriverTests(unittest.TestCase):
             return fingerprint
 
         try:
-            with mock.patch.object(
-                driver, "_pin_exclusive_cleanup_helper", return_value=helper
-            ), mock.patch.object(
-                driver, "_empty_task_root_fingerprint", side_effect=grow_after_first
-            ), mock.patch.object(
-                driver, "_invoke_exclusive_cleanup_helper"
-            ) as invoke:
+            with (
+                mock.patch.object(
+                    driver, "_pin_exclusive_cleanup_helper", return_value=helper
+                ),
+                mock.patch.object(
+                    driver, "_empty_task_root_fingerprint", side_effect=grow_after_first
+                ),
+                mock.patch.object(driver, "_invoke_exclusive_cleanup_helper") as invoke,
+            ):
                 self.assertFalse(pinned.remove())
             invoke.assert_not_called()
             self.assertTrue(pinned.path.is_dir())
@@ -1192,13 +1199,17 @@ class PickViaE2EDriverTests(unittest.TestCase):
             return fingerprint
 
         try:
-            with mock.patch.object(
-                driver, "_pin_exclusive_cleanup_helper", return_value=helper
-            ), mock.patch.object(
-                driver, "_empty_task_root_fingerprint", side_effect=replace_after_first
-            ), mock.patch.object(
-                driver, "_invoke_exclusive_cleanup_helper"
-            ) as invoke:
+            with (
+                mock.patch.object(
+                    driver, "_pin_exclusive_cleanup_helper", return_value=helper
+                ),
+                mock.patch.object(
+                    driver,
+                    "_empty_task_root_fingerprint",
+                    side_effect=replace_after_first,
+                ),
+                mock.patch.object(driver, "_invoke_exclusive_cleanup_helper") as invoke,
+            ):
                 self.assertFalse(pinned.remove())
             invoke.assert_not_called()
             self.assertEqual(
@@ -1235,9 +1246,11 @@ class PickViaE2EDriverTests(unittest.TestCase):
             return real_fstat(descriptor)
 
         try:
-            with mock.patch("tempfile.mkdtemp", side_effect=make_root), mock.patch(
-                "os.open", side_effect=record_open
-            ), mock.patch("os.fstat", side_effect=interrupt_second_fstat):
+            with (
+                mock.patch("tempfile.mkdtemp", side_effect=make_root),
+                mock.patch("os.open", side_effect=record_open),
+                mock.patch("os.fstat", side_effect=interrupt_second_fstat),
+            ):
                 with self.assertRaises(driver._DriverInterrupted):
                     self._make_task_root()
             self.assertFalse(created["path"].exists())
@@ -1280,8 +1293,9 @@ class PickViaE2EDriverTests(unittest.TestCase):
             return descriptor
 
         try:
-            with mock.patch("tempfile.mkdtemp", side_effect=make_root), mock.patch(
-                "os.open", side_effect=interrupt_root_open
+            with (
+                mock.patch("tempfile.mkdtemp", side_effect=make_root),
+                mock.patch("os.open", side_effect=interrupt_root_open),
             ):
                 with self.assertRaises(driver._DriverInterrupted):
                     self._make_task_root()
@@ -1311,8 +1325,9 @@ class PickViaE2EDriverTests(unittest.TestCase):
             os.kill(os.getpid(), signal.SIGINT)
             return os.fspath(path)
 
-        with DriverFixture() as fixture, mock.patch(
-            "tempfile.mkdtemp", side_effect=interrupt_after_create
+        with (
+            DriverFixture() as fixture,
+            mock.patch("tempfile.mkdtemp", side_effect=interrupt_after_create),
         ):
             result = fixture.run()
             self.assertEqual(result.exit_code, driver.DRIVER_PROCESS_ERROR)
@@ -1331,8 +1346,9 @@ class PickViaE2EDriverTests(unittest.TestCase):
                 os.kill(os.getpid(), signal.SIGTERM)
             return descriptor
 
-        with DriverFixture() as fixture, mock.patch(
-            "os.open", side_effect=interrupt_after_open
+        with (
+            DriverFixture() as fixture,
+            mock.patch("os.open", side_effect=interrupt_after_open),
         ):
             result = fixture.run()
             self.assertEqual(result.exit_code, driver.DRIVER_PROCESS_ERROR)
@@ -1349,11 +1365,14 @@ class PickViaE2EDriverTests(unittest.TestCase):
             observed["path"] = root.path
             os.kill(os.getpid(), signal.SIGHUP)
 
-        with DriverFixture() as fixture, mock.patch.object(
-            driver._TaskRootOwner,
-            "register",
-            autospec=True,
-            side_effect=interrupt_after_register,
+        with (
+            DriverFixture() as fixture,
+            mock.patch.object(
+                driver._TaskRootOwner,
+                "register",
+                autospec=True,
+                side_effect=interrupt_after_register,
+            ),
         ):
             result = fixture.run()
             self.assertEqual(result.exit_code, driver.DRIVER_PROCESS_ERROR)
@@ -1381,12 +1400,14 @@ class PickViaE2EDriverTests(unittest.TestCase):
             return result
 
         try:
-            with mock.patch(
-                "signal.pthread_sigmask",
-                side_effect=interrupt_after_native_mask_change,
-            ), mock.patch("os.open") as opened, mock.patch(
-                "tempfile.mkdtemp"
-            ) as made_root:
+            with (
+                mock.patch(
+                    "signal.pthread_sigmask",
+                    side_effect=interrupt_after_native_mask_change,
+                ),
+                mock.patch("os.open") as opened,
+                mock.patch("tempfile.mkdtemp") as made_root,
+            ):
                 with self.assertRaises(driver._DriverInterrupted):
                     driver._make_task_root(owner)
             current_mask = real_pthread_sigmask(signal.SIG_BLOCK, set())
@@ -1418,8 +1439,9 @@ class PickViaE2EDriverTests(unittest.TestCase):
             return metadata
 
         try:
-            with mock.patch("os.stat", side_effect=cross_device_stat), mock.patch(
-                "os.fstat", side_effect=cross_device_fstat
+            with (
+                mock.patch("os.stat", side_effect=cross_device_stat),
+                mock.patch("os.fstat", side_effect=cross_device_fstat),
             ):
                 self.assertFalse(pinned.audit_regular_files(b"forbidden"))
         finally:
@@ -1448,8 +1470,9 @@ class PickViaE2EDriverTests(unittest.TestCase):
             return metadata
 
         try:
-            with mock.patch("os.stat", side_effect=cross_device_stat), mock.patch(
-                "os.fstat", side_effect=cross_device_fstat
+            with (
+                mock.patch("os.stat", side_effect=cross_device_stat),
+                mock.patch("os.fstat", side_effect=cross_device_fstat),
             ):
                 self.assertFalse(pinned.remove())
             self.assertEqual(marker.read_bytes(), b"replacement")
@@ -1598,9 +1621,11 @@ class PickViaE2EDriverTests(unittest.TestCase):
         budget = driver._AuditBudget(time.monotonic() + 1.0)
         audit_pass = driver._AuditPass()
         try:
-            with mock.patch("os.scandir", return_value=entries), mock.patch(
-                "os.stat", return_value=metadata
-            ), mock.patch.object(driver, "MAXIMUM_AUDIT_ENTRIES", 3):
+            with (
+                mock.patch("os.scandir", return_value=entries),
+                mock.patch("os.stat", return_value=metadata),
+                mock.patch.object(driver, "MAXIMUM_AUDIT_ENTRIES", 3),
+            ):
                 with self.assertRaises(OSError):
                     driver._snapshot_directory_at(
                         pinned.descriptor,
@@ -1645,9 +1670,11 @@ class PickViaE2EDriverTests(unittest.TestCase):
         budget = driver._AuditBudget(2.0)
         audit_pass = driver._AuditPass()
         try:
-            with mock.patch("os.scandir", return_value=entries), mock.patch(
-                "os.stat", return_value=metadata
-            ), mock.patch("time.monotonic", side_effect=clock):
+            with (
+                mock.patch("os.scandir", return_value=entries),
+                mock.patch("os.stat", return_value=metadata),
+                mock.patch("time.monotonic", side_effect=clock),
+            ):
                 with self.assertRaises(OSError):
                     driver._snapshot_directory_at(
                         pinned.descriptor,
@@ -1730,9 +1757,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
             with mock.patch("os.rename", side_effect=swap_quarantined_child):
                 self.assertFalse(pinned.remove())
             self.assertEqual((pinned.path / "owned").read_bytes(), b"replacement")
-            self.assertEqual(
-                (pinned.path / swapped["held"]).read_bytes(), b"owned"
-            )
+            self.assertEqual((pinned.path / swapped["held"]).read_bytes(), b"owned")
         finally:
             pinned.close()
             if pinned.path.exists():
@@ -1833,9 +1858,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
         fixture = DriverFixture()
         self.addCleanup(fixture._remove_tree, fixture.fixture_root)
         fixture.e2e_pid = 222
-        parent = driver.ProcessIdentity(
-            222, 1, 1, 2, pathlib.Path("/usr/bin/python3")
-        )
+        parent = driver.ProcessIdentity(222, 1, 1, 2, pathlib.Path("/usr/bin/python3"))
         fixture.e2e_identity = parent
         original = driver.ProcessIdentity(333, 222, 10, 20, pathlib.Path("/bin/sleep"))
         replacement = driver.ProcessIdentity(
@@ -1847,9 +1870,12 @@ class PickViaE2EDriverTests(unittest.TestCase):
             side_effect=lambda pid: original if pid == 333 else parent,
         ):
             self.assertTrue(fixture._remember_fixture_child(333))
-        with mock.patch.object(
-            driver, "_darwin_process_identity", return_value=replacement
-        ), mock.patch("os.kill") as kill:
+        with (
+            mock.patch.object(
+                driver, "_darwin_process_identity", return_value=replacement
+            ),
+            mock.patch("os.kill") as kill,
+        ):
             fixture._terminate_remembered_fixture_children()
         kill.assert_not_called()
 
@@ -1860,12 +1886,13 @@ class PickViaE2EDriverTests(unittest.TestCase):
         fixture.e2e_identity = driver.ProcessIdentity(
             222, 1, 1, 2, pathlib.Path("/usr/bin/python3")
         )
-        unrelated = driver.ProcessIdentity(
-            333, 999, 10, 20, pathlib.Path("/bin/sleep")
-        )
-        with mock.patch.object(
-            driver, "_darwin_process_identity", return_value=unrelated
-        ), mock.patch("os.kill") as kill:
+        unrelated = driver.ProcessIdentity(333, 999, 10, 20, pathlib.Path("/bin/sleep"))
+        with (
+            mock.patch.object(
+                driver, "_darwin_process_identity", return_value=unrelated
+            ),
+            mock.patch("os.kill") as kill,
+        ):
             self.assertFalse(fixture._remember_fixture_child(333))
             fixture._terminate_remembered_fixture_children()
         kill.assert_not_called()
@@ -1874,9 +1901,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
         fixture = DriverFixture()
         self.addCleanup(fixture._remove_tree, fixture.fixture_root)
         fixture.e2e_pid = 222
-        parent = driver.ProcessIdentity(
-            222, 1, 1, 2, pathlib.Path("/usr/bin/python3")
-        )
+        parent = driver.ProcessIdentity(222, 1, 1, 2, pathlib.Path("/usr/bin/python3"))
         fixture.e2e_identity = parent
         owned = driver.ProcessIdentity(333, 222, 10, 20, pathlib.Path("/bin/sleep"))
         with mock.patch.object(
@@ -1914,9 +1939,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
         fixture.e2e_identity = driver.ProcessIdentity(
             222, 1, 10, 20, pathlib.Path("/usr/bin/python3")
         )
-        reparented = driver.ProcessIdentity(
-            333, 1, 30, 40, pathlib.Path("/bin/sleep")
-        )
+        reparented = driver.ProcessIdentity(333, 1, 30, 40, pathlib.Path("/bin/sleep"))
         with mock.patch.object(
             driver, "_darwin_process_identity", return_value=reparented
         ):
@@ -1963,10 +1986,13 @@ class PickViaE2EDriverTests(unittest.TestCase):
     def test_quiescence_preserves_quiet_and_preexisting_browser_baselines(self):
         records = [{"session": "session_0123456789", "outcome": "target-missing"}]
         for preexisting in (frozenset(), frozenset({41, 42})):
-            with self.subTest(preexisting=preexisting), DriverFixture(
-                status_records=records,
-                preexisting_browser_pids=preexisting,
-            ) as fixture:
+            with (
+                self.subTest(preexisting=preexisting),
+                DriverFixture(
+                    status_records=records,
+                    preexisting_browser_pids=preexisting,
+                ) as fixture,
+            ):
                 result = fixture.run()
                 self.assertEqual(result.exit_code, driver.DRIVER_SELECTION_REJECTED)
                 self.assertEqual(fixture.terminated_browser_pids, [])
@@ -2090,22 +2116,28 @@ class PickViaE2EDriverTests(unittest.TestCase):
     def test_browser_termination_treats_authoritative_presignal_absence_as_benign(self):
         executable = pathlib.Path("/Applications/Browser.app/Contents/MacOS/Browser")
         identity = driver.ProcessIdentity(123, 1, 2, 3, executable)
-        with mock.patch.object(
-            driver,
-            "_darwin_process_identity",
-            side_effect=driver._ProcessDisappeared,
-        ), mock.patch.object(driver.os, "kill") as kill:
+        with (
+            mock.patch.object(
+                driver,
+                "_darwin_process_identity",
+                side_effect=driver._ProcessDisappeared,
+            ),
+            mock.patch.object(driver.os, "kill") as kill,
+        ):
             self.assertTrue(
                 driver._terminate_exact_browser_process(
                     identity, executable, time.monotonic() + 1.0
                 )
             )
             kill.assert_not_called()
-        with mock.patch.object(
-            driver,
-            "_darwin_process_identity",
-            side_effect=driver._IdentityInspectionError,
-        ), mock.patch.object(driver.os, "kill") as kill:
+        with (
+            mock.patch.object(
+                driver,
+                "_darwin_process_identity",
+                side_effect=driver._IdentityInspectionError,
+            ),
+            mock.patch.object(driver.os, "kill") as kill,
+        ):
             with self.assertRaises(driver._IdentityInspectionError):
                 driver._terminate_exact_browser_process(
                     identity, executable, time.monotonic() + 1.0
@@ -2164,15 +2196,19 @@ time.sleep(3.25)
     def test_browser_termination_checks_target_generation_at_deadline_boundary(self):
         executable = pathlib.Path("/Applications/Browser.app/Contents/MacOS/Browser")
         identity = driver.ProcessIdentity(123, 1, 2, 3, executable)
-        with mock.patch.object(
-            driver,
-            "_darwin_process_identity",
-            side_effect=(identity, identity, driver._ProcessDisappeared),
-        ) as inspect, mock.patch.object(
-            driver.time, "monotonic", side_effect=(0.0, 0.0, 0.5, 1.0)
-        ), mock.patch.object(driver.time, "sleep"), mock.patch.object(
-            driver, "_snapshot_exact_browser_processes"
-        ) as snapshot, mock.patch.object(driver.os, "kill") as kill:
+        with (
+            mock.patch.object(
+                driver,
+                "_darwin_process_identity",
+                side_effect=(identity, identity, driver._ProcessDisappeared),
+            ) as inspect,
+            mock.patch.object(
+                driver.time, "monotonic", side_effect=(0.0, 0.0, 0.5, 1.0)
+            ),
+            mock.patch.object(driver.time, "sleep"),
+            mock.patch.object(driver, "_snapshot_exact_browser_processes") as snapshot,
+            mock.patch.object(driver.os, "kill") as kill,
+        ):
             self.assertTrue(
                 driver._terminate_exact_browser_process(identity, executable, 1.0)
             )
@@ -2184,15 +2220,16 @@ time.sleep(3.25)
         executable = pathlib.Path("/Applications/Browser.app/Contents/MacOS/Browser")
         identity = driver.ProcessIdentity(123, 1, 2, 3, executable)
         replacement = driver.ProcessIdentity(123, 1, 9, 9, executable)
-        with mock.patch.object(
-            driver,
-            "_darwin_process_identity",
-            side_effect=(identity, replacement),
-        ), mock.patch.object(
-            driver.time, "monotonic", return_value=0.0
-        ), mock.patch.object(
-            driver, "_snapshot_exact_browser_processes"
-        ) as snapshot, mock.patch.object(driver.os, "kill") as kill:
+        with (
+            mock.patch.object(
+                driver,
+                "_darwin_process_identity",
+                side_effect=(identity, replacement),
+            ),
+            mock.patch.object(driver.time, "monotonic", return_value=0.0),
+            mock.patch.object(driver, "_snapshot_exact_browser_processes") as snapshot,
+            mock.patch.object(driver.os, "kill") as kill,
+        ):
             self.assertTrue(
                 driver._terminate_exact_browser_process(identity, executable, 1.0)
             )
@@ -2202,16 +2239,19 @@ time.sleep(3.25)
     def test_browser_termination_caps_poll_sleep_at_shared_deadline(self):
         executable = pathlib.Path("/Applications/Browser.app/Contents/MacOS/Browser")
         identity = driver.ProcessIdentity(123, 1, 2, 3, executable)
-        with mock.patch.object(
-            driver,
-            "_darwin_process_identity",
-            side_effect=(identity, identity, driver._ProcessDisappeared),
-        ), mock.patch.object(
-            driver.time,
-            "monotonic",
-            side_effect=(0.0, 0.99, 0.995, 1.0),
-        ), mock.patch.object(driver.time, "sleep") as sleep, mock.patch.object(
-            driver.os, "kill"
+        with (
+            mock.patch.object(
+                driver,
+                "_darwin_process_identity",
+                side_effect=(identity, identity, driver._ProcessDisappeared),
+            ),
+            mock.patch.object(
+                driver.time,
+                "monotonic",
+                side_effect=(0.0, 0.99, 0.995, 1.0),
+            ),
+            mock.patch.object(driver.time, "sleep") as sleep,
+            mock.patch.object(driver.os, "kill"),
         ):
             self.assertTrue(
                 driver._terminate_exact_browser_process(identity, executable, 1.0)
@@ -2586,12 +2626,13 @@ time.sleep(3.25)
 
         dependencies = driver.DriverDependencies(
             monotonic=lambda: 0.0,
-            browser_process_snapshot=lambda _executable, _phase: {
-                browser_identity
-            },
+            browser_process_snapshot=lambda _executable, _phase: {browser_identity},
             browser_process_identity=lambda _pid: browser_identity,
             browser_binding_checker=lambda _application, _executable, _bundle: None,
-            browser_running_code_checker=lambda _pid, _application, _executable, _bundle: None,
+            browser_running_code_checker=lambda _pid,
+            _application,
+            _executable,
+            _bundle: None,
         )
         try:
             with mock.patch.object(
@@ -2627,7 +2668,6 @@ time.sleep(3.25)
             os.close(provenance_write)
             os.close(receipt_write)
             receiver_stream.close()
-
 
     def test_driver_keeps_url_out_of_harness_control_and_output_channels(self):
         with DriverFixture() as fixture:
@@ -2681,6 +2721,86 @@ time.sleep(3.25)
             for _, environment in fixture.observed_environment:
                 self.assertNotIn(encoded_root, b"\0".join(environment))
 
+    def test_driver_creates_requested_profile_inside_its_pinned_task_root(self):
+        created = []
+
+        def create_profile(strategy, application, executable, bundle_identifier, root):
+            created.append((strategy, application, executable, bundle_identifier, root))
+            root.mkdir(mode=0o700)
+            (root / "PickVia E2E").mkdir(mode=0o700)
+            (root / "Local State").write_text(
+                '{"profile":{"info_cache":{"PickVia E2E":{"name":"PickVia E2E"}}}}',
+                encoding="utf-8",
+            )
+            (root / "Local State").chmod(0o600)
+
+        with DriverFixture() as fixture:
+            result = fixture.run(
+                config_overrides={
+                    "profile_strategy": "chromium",
+                    "profile_relative_root": "profiles/edge-e2e",
+                    "create_profile": True,
+                    "derive_profile_target": True,
+                },
+                dependency_overrides={"profile_creator": create_profile},
+            )
+
+            self.assertEqual(result.exit_code, driver.DRIVER_SUCCESS)
+            self.assertEqual(len(created), 1)
+            strategy, application, executable, bundle_identifier, root = created[0]
+            self.assertEqual(strategy, "chromium")
+            self.assertEqual(application, fixture.browser_app)
+            self.assertEqual(executable, fixture.browser_executable)
+            self.assertEqual(bundle_identifier, "com.microsoft.edgemac")
+            self.assertEqual(root.parent.name, "profiles")
+            self.assertFalse(root.exists())
+            self.assertNotIn(str(root).encode(), result.stdout + result.stderr)
+
+    def test_derived_profile_target_matches_catalog_identity_rules(self):
+        chromium_root = pathlib.Path("/private/tmp/task/profiles/chrome")
+        firefox_root = pathlib.Path("/private/tmp/task/profiles/firefox")
+        self.assertEqual(
+            driver._derived_profile_target_id(
+                "com.google.Chrome", "chromium", chromium_root, "normal"
+            ),
+            "com.google.Chrome|PickVia E2E|normal",
+        )
+        expected_digest = hashlib.sha256(
+            str(firefox_root / "PickVia E2E").encode("utf-8")
+        ).hexdigest()
+        self.assertEqual(
+            driver._derived_profile_target_id(
+                "org.mozilla.firefox", "firefox", firefox_root, "private"
+            ),
+            f"org.mozilla.firefox|firefox-profile-v1:{expected_digest}|private",
+        )
+
+    def test_driver_report_exposes_only_closed_launch_provenance_outcome(self):
+        with DriverFixture() as fixture:
+            selected = fixture.run()
+            self.assertEqual(selected.report["launch_provenance"], "launch-observed")
+        with DriverFixture(
+            provenance_records=[
+                {
+                    "session": "session_0123456789",
+                    "request": "$request",
+                    "target": "com.microsoft.edgemac||normal",
+                    "bundleIdentifier": "com.microsoft.edgemac",
+                    "mode": "normal",
+                    "mechanism": "process",
+                    "outcome": "launch-error",
+                }
+            ],
+            status_records=[
+                {"session": "session_0123456789", "outcome": "selected"},
+                {"session": "session_0123456789", "outcome": "launch-error"},
+            ],
+            spawn_browser=False,
+            delivers_receipt=False,
+        ) as fixture:
+            launch_error = fixture.run()
+            self.assertEqual(launch_error.report["launch_provenance"], "launch-error")
+
     def test_profile_grant_controls_must_be_paired_and_relative(self):
         invalid = (
             {"profile_strategy": "chromium"},
@@ -2705,6 +2825,22 @@ time.sleep(3.25)
                 self.assertEqual(result.exit_code, driver.DRIVER_USAGE)
                 self.assertEqual(fixture.launched_kinds, [])
 
+    def test_profile_creation_and_target_derivation_flags_fail_closed(self):
+        invalid = (
+            {"create_profile": True},
+            {"derive_profile_target": True},
+            {
+                "profile_strategy": "chromium",
+                "profile_relative_root": "profiles/edge-e2e",
+                "derive_profile_target": True,
+            },
+        )
+        for overrides in invalid:
+            with self.subTest(overrides=overrides), DriverFixture() as fixture:
+                result = fixture.run(config_overrides=overrides)
+                self.assertEqual(result.exit_code, driver.DRIVER_USAGE)
+                self.assertEqual(fixture.launched_kinds, [])
+
     def test_omitted_profile_grant_creates_no_manifest_or_environment_key(self):
         with DriverFixture() as fixture:
             result = fixture.run()
@@ -2714,9 +2850,7 @@ time.sleep(3.25)
                 [name for name, _ in fixture.regular_file_snapshots],
             )
             for _, environment in fixture.observed_environment:
-                self.assertFalse(
-                    any(b"PROFILE_GRANT" in item for item in environment)
-                )
+                self.assertFalse(any(b"PROFILE_GRANT" in item for item in environment))
 
     def test_e2e_app_uses_exact_task_root_as_fixed_user_home_without_url_leak(self):
         with DriverFixture() as fixture:
@@ -2736,25 +2870,27 @@ time.sleep(3.25)
 
     def test_every_child_environment_is_minimal_and_excludes_parent_secrets(self):
         sentinel = "must-not-reach-any-child"
-        with mock.patch.dict(
-            os.environ,
-            {
-                "PICKVIA_PARENT_SENTINEL_SECRET": sentinel,
-                "AGENT_RUNTIME_SENTINEL": sentinel,
-            },
-            clear=False,
-        ), DriverFixture() as fixture:
+        with (
+            mock.patch.dict(
+                os.environ,
+                {
+                    "PICKVIA_PARENT_SENTINEL_SECRET": sentinel,
+                    "AGENT_RUNTIME_SENTINEL": sentinel,
+                },
+                clear=False,
+            ),
+            DriverFixture() as fixture,
+        ):
             result = fixture.run()
 
             self.assertEqual(result.exit_code, driver.DRIVER_SUCCESS)
             environments = {
-                kind: dict(
-                    item.decode("utf-8").split("=", 1)
-                    for item in items
-                )
+                kind: dict(item.decode("utf-8").split("=", 1) for item in items)
                 for kind, items in fixture.observed_environment
             }
-            self.assertEqual(set(environments), {"receiver", "e2e-app", "exact-app-helper"})
+            self.assertEqual(
+                set(environments), {"receiver", "e2e-app", "exact-app-helper"}
+            )
             task_root = str(fixture.task_root)
             base_keys = {"PATH", "LANG", "LC_CTYPE", "TMPDIR", "CFFIXED_USER_HOME"}
             control_keys = {
@@ -2781,10 +2917,12 @@ time.sleep(3.25)
             self.assertEqual(set(environments["e2e-app"]), base_keys | control_keys)
 
     def test_helper_compiler_receives_only_supplied_minimal_environment(self):
-        root = pathlib.Path(tempfile.mkdtemp(prefix="pickvia-compiler-env-", dir="/private/tmp"))
+        root = pathlib.Path(
+            tempfile.mkdtemp(prefix="pickvia-compiler-env-", dir="/private/tmp")
+        )
         source = root / "helper.swift"
         output = root / "helper"
-        source.write_text("print(\"ok\")\n", encoding="utf-8")
+        source.write_text('print("ok")\n', encoding="utf-8")
         expected_environment = {
             "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
             "LANG": "en_US.UTF-8",
@@ -2834,10 +2972,13 @@ time.sleep(3.25)
             "leak-stderr",
         )
         for channel in channels:
-            with self.subTest(channel=channel), DriverFixture(
-                leak_channel=channel,
-                probe_kind=channel if channel.startswith("leak-") else "normal",
-            ) as fixture:
+            with (
+                self.subTest(channel=channel),
+                DriverFixture(
+                    leak_channel=channel,
+                    probe_kind=channel if channel.startswith("leak-") else "normal",
+                ) as fixture,
+            ):
                 result = fixture.run()
                 route = fixture.route.encode("ascii")
                 self.assertEqual(result.exit_code, driver.DRIVER_PRIVACY_FAILURE)
@@ -2891,9 +3032,10 @@ time.sleep(3.25)
 
     def test_valid_provenance_accepts_direct_workspace_and_duckduckgo_mechanisms(self):
         for mechanism in ("process", "workspace", "duckduckgo"):
-            with self.subTest(mechanism=mechanism), DriverFixture(
-                provenance_mechanism=mechanism
-            ) as fixture:
+            with (
+                self.subTest(mechanism=mechanism),
+                DriverFixture(provenance_mechanism=mechanism) as fixture,
+            ):
                 result = fixture.run()
                 self.assertEqual(result.exit_code, driver.DRIVER_SUCCESS)
                 self.assertTrue(result.report["exact_browser_process_identity"])
@@ -2908,7 +3050,9 @@ time.sleep(3.25)
             self.assertEqual(result.report["outcome"], "provenance-error")
             self.assertEqual(fixture.terminated_browser_pids, [])
 
-    def test_provenance_parser_rejects_every_wrong_field_and_duplicate_or_missing_record(self):
+    def test_provenance_parser_rejects_every_wrong_field_and_duplicate_or_missing_record(
+        self,
+    ):
         base = {
             "session": "session_0123456789",
             "request": "request_0123456789",
@@ -2956,18 +3100,21 @@ time.sleep(3.25)
             driver._parse_provenance(
                 (json.dumps(invalid) + "\n").encode("ascii"), **expected
             )
-        duplicate_key = (json.dumps(base)[:-1] + ',"outcome":"launch-observed"}\n').encode(
-            "ascii"
-        )
+        duplicate_key = (
+            json.dumps(base)[:-1] + ',"outcome":"launch-observed"}\n'
+        ).encode("ascii")
         with self.assertRaises(driver._ProvenanceProtocolError):
             driver._parse_provenance(duplicate_key, **expected)
 
         for records in ([], [base, base]):
-            with self.subTest(record_count=len(records)), DriverFixture(
-                provenance_records=records,
-                timeout=1.0,
-                proof_deadline_phase="complete-proof",
-            ) as fixture:
+            with (
+                self.subTest(record_count=len(records)),
+                DriverFixture(
+                    provenance_records=records,
+                    timeout=1.0,
+                    proof_deadline_phase="complete-proof",
+                ) as fixture,
+            ):
                 result = fixture.run()
                 self.assertEqual(result.exit_code, driver.DRIVER_PROVENANCE_FAILURE)
                 self.assertEqual(result.report["outcome"], "provenance-error")
@@ -2985,7 +3132,9 @@ time.sleep(3.25)
             self.assertTrue(result.report["exact_browser_process_identity"])
             self.assertEqual(fixture.terminated_browser_pids, [])
 
-    def test_wrong_reported_pid_is_provenance_failure_and_grants_no_cleanup_authority(self):
+    def test_wrong_reported_pid_is_provenance_failure_and_grants_no_cleanup_authority(
+        self,
+    ):
         record = {
             "session": "session_0123456789",
             "request": "$request",
@@ -3007,9 +3156,10 @@ time.sleep(3.25)
 
     def test_provenance_resolution_revalidates_browser_bundle_binding_after_route(self):
         for mutation in ("wrong-bundle", "wrong-executable"):
-            with self.subTest(mutation=mutation), DriverFixture(
-                browser_binding_mutation=mutation
-            ) as fixture:
+            with (
+                self.subTest(mutation=mutation),
+                DriverFixture(browser_binding_mutation=mutation) as fixture,
+            ):
                 result = fixture.run()
                 self.assertEqual(result.exit_code, driver.DRIVER_PROVENANCE_FAILURE)
                 self.assertEqual(result.report["outcome"], "provenance-error")
@@ -3025,7 +3175,7 @@ time.sleep(3.25)
                             fixture.browser_app,
                             fixture.browser_executable,
                             "com.microsoft.edgemac",
-                        )
+                        ),
                     ],
                 )
                 self.assertEqual(fixture.terminated_browser_pids, [])
@@ -3035,7 +3185,9 @@ time.sleep(3.25)
             success = subprocess.CompletedProcess(
                 ["/usr/bin/codesign"], returncode=0, stdout=b"", stderr=b""
             )
-            with mock.patch.object(driver.subprocess, "run", return_value=success) as run:
+            with mock.patch.object(
+                driver.subprocess, "run", return_value=success
+            ) as run:
                 driver._validate_signed_browser_binding(
                     fixture.browser_app,
                     fixture.browser_executable,
@@ -3070,11 +3222,18 @@ time.sleep(3.25)
                 OSError("unavailable"),
             )
             for failure in failures:
-                with self.subTest(failure=type(failure).__name__), mock.patch.object(
-                    driver.subprocess,
-                    "run",
-                    return_value=failure if not isinstance(failure, BaseException) else None,
-                    side_effect=failure if isinstance(failure, BaseException) else None,
+                with (
+                    self.subTest(failure=type(failure).__name__),
+                    mock.patch.object(
+                        driver.subprocess,
+                        "run",
+                        return_value=failure
+                        if not isinstance(failure, BaseException)
+                        else None,
+                        side_effect=failure
+                        if isinstance(failure, BaseException)
+                        else None,
+                    ),
                 ):
                     with self.assertRaises(driver._IdentityError):
                         driver._validate_signed_browser_binding(
@@ -3113,9 +3272,10 @@ time.sleep(3.25)
             "attestation-output-overflow",
         )
         for failure in failures:
-            with self.subTest(failure=failure), DriverFixture(
-                proof_deadline_phase="complete-proof"
-            ) as fixture:
+            with (
+                self.subTest(failure=failure),
+                DriverFixture(proof_deadline_phase="complete-proof") as fixture,
+            ):
 
                 def reject(_pid, _application, _executable, _bundle):
                     raise driver._IdentityError(failure)
@@ -3229,9 +3389,7 @@ time.sleep(3.25)
                     FakeHelper(executable),
                     os.getpid(),
                     pathlib.Path("/Applications/Browser.app"),
-                    pathlib.Path(
-                        "/Applications/Browser.app/Contents/MacOS/Browser"
-                    ),
+                    pathlib.Path("/Applications/Browser.app/Contents/MacOS/Browser"),
                     "com.example.Browser",
                 )
             self.assertEqual(
@@ -3283,7 +3441,9 @@ time.sleep(3.25)
                                 "com.example.Browser",
                             )
 
-    def test_provenance_generation_change_during_binding_check_grants_no_authority(self):
+    def test_provenance_generation_change_during_binding_check_grants_no_authority(
+        self,
+    ):
         with DriverFixture(proof_deadline_phase="complete-proof") as fixture:
             state = {"binding_checks": 0, "generation_changed": False}
 
@@ -3347,7 +3507,9 @@ time.sleep(3.25)
             )
             self.assertEqual(result.exit_code, driver.DRIVER_SUCCESS)
             self.assertEqual(len(resolutions), 2)
-            self.assertEqual(resolutions[0].generation_key, resolutions[1].generation_key)
+            self.assertEqual(
+                resolutions[0].generation_key, resolutions[1].generation_key
+            )
             self.assertEqual(
                 fixture.terminated_browser_generations,
                 [resolutions[0].generation_key],
@@ -3447,19 +3609,24 @@ time.sleep(3.25)
             dict(provenance_before_status=True, status_delay=0.0),
         )
         for options in cases:
-            with self.subTest(options=options), DriverFixture(
-                provenance_records=[record],
-                status_records=status,
-                spawn_browser=False,
-                **options,
-            ) as fixture:
+            with (
+                self.subTest(options=options),
+                DriverFixture(
+                    provenance_records=[record],
+                    status_records=status,
+                    spawn_browser=False,
+                    **options,
+                ) as fixture,
+            ):
                 result = fixture.run()
                 self.assertEqual(result.exit_code, driver.DRIVER_SELECTION_REJECTED)
                 self.assertEqual(result.report["outcome"], "launch-error")
                 self.assertIn(b'"outcome":"selected"', result.status_line)
                 self.assertIn(b'"outcome":"launch-error"', result.status_line)
 
-    def test_provenance_failure_without_status_is_bounded_and_preserves_precedence(self):
+    def test_provenance_failure_without_status_is_bounded_and_preserves_precedence(
+        self,
+    ):
         record = {
             "session": "session_0123456789",
             "request": "$request",
@@ -3522,7 +3689,9 @@ time.sleep(3.25)
             self.assertIn(b'"outcome":"selected"', result.status_line)
             self.assertEqual(fixture.terminated_browser_pids, [])
 
-    def test_complete_proof_settles_before_success_and_rejects_delayed_second_record(self):
+    def test_complete_proof_settles_before_success_and_rejects_delayed_second_record(
+        self,
+    ):
         with DriverFixture() as fixture:
             result = fixture.run()
             self.assertEqual(result.exit_code, driver.DRIVER_SUCCESS)
@@ -3542,11 +3711,14 @@ time.sleep(3.25)
             "outcome": "launch-observed",
         }
         for delay, partial in ((0.05, False), (0.24, True)):
-            with self.subTest(delay=delay, partial=partial), DriverFixture(
-                provenance_records=[duplicate, duplicate],
-                provenance_second_delay=delay,
-                provenance_second_partial=partial,
-            ) as fixture:
+            with (
+                self.subTest(delay=delay, partial=partial),
+                DriverFixture(
+                    provenance_records=[duplicate, duplicate],
+                    provenance_second_delay=delay,
+                    provenance_second_partial=partial,
+                ) as fixture,
+            ):
                 result = fixture.run()
                 self.assertEqual(result.exit_code, driver.DRIVER_PROVENANCE_FAILURE)
                 self.assertEqual(result.report["outcome"], "provenance-error")
@@ -3556,7 +3728,9 @@ time.sleep(3.25)
         with DriverFixture() as fixture:
             result = fixture.run()
             self.assertEqual(result.exit_code, driver.DRIVER_SUCCESS)
-            self.assertEqual(fixture.terminated_browser_pids, [fixture.browser_pids()[0]])
+            self.assertEqual(
+                fixture.terminated_browser_pids, [fixture.browser_pids()[0]]
+            )
 
     def test_baseline_provenance_is_preserved_and_owns_nothing(self):
         record = {
@@ -3581,7 +3755,9 @@ time.sleep(3.25)
             self.assertTrue(result.report["exact_browser_process_identity"])
             self.assertEqual(fixture.terminated_browser_pids, [])
 
-    def test_temporal_replacement_multiple_late_and_unknown_generations_are_never_signalled(self):
+    def test_temporal_replacement_multiple_late_and_unknown_generations_are_never_signalled(
+        self,
+    ):
         cases = (
             dict(replacement_after_termination=True),
             dict(multiple_new_browsers=True),
@@ -3608,6 +3784,7 @@ time.sleep(3.25)
                     "token_received",
                     "exact_process_identity",
                     "exact_browser_process_identity",
+                    "launch_provenance",
                     "total_elapsed_seconds",
                     "route_timeout_seconds",
                     "browser_cleanup_grace_seconds",
@@ -3661,16 +3838,16 @@ time.sleep(3.25)
             ],
         )
         for records in invalid_sequences:
-            with self.subTest(records=records), DriverFixture(
-                status_records=records
-            ) as fixture:
+            with (
+                self.subTest(records=records),
+                DriverFixture(status_records=records) as fixture,
+            ):
                 self.assertEqual(fixture.run().exit_code, driver.DRIVER_INVALID_STATUS)
 
     def test_status_and_receipt_json_are_strict_bounded_and_finite(self):
         valid_status = b'{"session":"session_0123456789","outcome":"selected"}\n'
         valid_receipt = (
-            b'{"token":"TOKEN","receipt_time":1.25,'
-            b'"remote_address":"127.0.0.1"}\n'
+            b'{"token":"TOKEN","receipt_time":1.25,"remote_address":"127.0.0.1"}\n'
         )
         self.assertEqual(
             driver._parse_status(valid_status, "session_0123456789"), "selected"
@@ -3692,16 +3869,11 @@ time.sleep(3.25)
         invalid_receipts = (
             b'{"token":"TOKEN","token":"TOKEN","receipt_time":1,'
             b'"remote_address":"127.0.0.1"}\n',
-            b'{"token":"TOKEN","receipt_time":NaN,'
-            b'"remote_address":"127.0.0.1"}\n',
-            b'{"token":"TOKEN","receipt_time":Infinity,'
-            b'"remote_address":"127.0.0.1"}\n',
-            b'{"token":"TOKEN","receipt_time":true,'
-            b'"remote_address":"127.0.0.1"}\n',
+            b'{"token":"TOKEN","receipt_time":NaN,"remote_address":"127.0.0.1"}\n',
+            b'{"token":"TOKEN","receipt_time":Infinity,"remote_address":"127.0.0.1"}\n',
+            b'{"token":"TOKEN","receipt_time":true,"remote_address":"127.0.0.1"}\n',
             valid_receipt.rstrip(b"\n"),
-            valid_receipt[:-1]
-            + b" " * driver.MAXIMUM_PROTOCOL_LINE_BYTES
-            + b"\n",
+            valid_receipt[:-1] + b" " * driver.MAXIMUM_PROTOCOL_LINE_BYTES + b"\n",
         )
         for payload in invalid_receipts:
             with self.subTest(protocol="receipt", payload=payload[:80]):
@@ -3728,7 +3900,9 @@ time.sleep(3.25)
                 with self.assertRaises(driver._ReadinessError):
                     driver._parse_ready(payload)
 
-    def test_preplan_selected_then_launch_error_without_provenance_is_product_failure(self):
+    def test_preplan_selected_then_launch_error_without_provenance_is_product_failure(
+        self,
+    ):
         records = [
             {"session": "session_0123456789", "outcome": "selected"},
             {"session": "session_0123456789", "outcome": "launch-error"},
@@ -3810,10 +3984,9 @@ time.sleep(3.25)
                 dependency_overrides={
                     "browser_process_identity": lambda _pid: identity,
                     "browser_process_terminator": (
-                        lambda observed, _executable, _deadline: termination_attempts.append(
-                            observed
-                        )
-                        or True
+                        lambda observed,
+                        _executable,
+                        _deadline: termination_attempts.append(observed) or True
                     ),
                 }
             )
@@ -3824,13 +3997,16 @@ time.sleep(3.25)
 
     def test_closed_rejection_rejects_coalesced_or_delayed_partial_status(self):
         for delay in (0.0, 0.05):
-            with self.subTest(delay=delay), DriverFixture(
-                status_records=[
-                    {"session": "session_0123456789", "outcome": "target-missing"}
-                ],
-                status_trailing_payload=b'{"session":',
-                status_trailing_delay=delay,
-            ) as fixture:
+            with (
+                self.subTest(delay=delay),
+                DriverFixture(
+                    status_records=[
+                        {"session": "session_0123456789", "outcome": "target-missing"}
+                    ],
+                    status_trailing_payload=b'{"session":',
+                    status_trailing_delay=delay,
+                ) as fixture,
+            ):
                 result = fixture.run()
                 self.assertEqual(result.exit_code, driver.DRIVER_INVALID_STATUS)
                 self.assertEqual(result.report["outcome"], "invalid-status")
@@ -3883,8 +4059,7 @@ time.sleep(3.25)
                     {"session": "session_0123456789", "outcome": "target-missing"}
                 ],
                 "status_trailing_payload": (
-                    b'{"outcome":"target-missing",'
-                    b'"session":"session_0123456789"}\n'
+                    b'{"outcome":"target-missing","session":"session_0123456789"}\n'
                 ),
                 "status_trailing_delay": 0.05,
                 "helper_hangs_after_delivery": True,
@@ -3901,15 +4076,18 @@ time.sleep(3.25)
         )
         for fixture_options in cases:
             termination_attempts = []
-            with self.subTest(fixture_options=fixture_options), DriverFixture(
-                provenance_records=[provenance],
-                provenance_before_status=True,
-                status_delay=2.0,
-                spawn_browser=False,
-                proof_deadline_phase="status-written",
-                proof_clock_escape=15.0,
-                **fixture_options,
-            ) as fixture:
+            with (
+                self.subTest(fixture_options=fixture_options),
+                DriverFixture(
+                    provenance_records=[provenance],
+                    provenance_before_status=True,
+                    status_delay=2.0,
+                    spawn_browser=False,
+                    proof_deadline_phase="status-written",
+                    proof_clock_escape=15.0,
+                    **fixture_options,
+                ) as fixture,
+            ):
                 identity = driver.ProcessIdentity(
                     123, fixture.e2e_pid or 1, 2, 123, fixture.browser_executable
                 )
@@ -3917,10 +4095,9 @@ time.sleep(3.25)
                     dependency_overrides={
                         "browser_process_identity": lambda _pid: identity,
                         "browser_process_terminator": (
-                            lambda observed, _executable, _deadline: termination_attempts.append(
-                                observed
-                            )
-                            or True
+                            lambda observed,
+                            _executable,
+                            _deadline: termination_attempts.append(observed) or True
                         ),
                     }
                 )
@@ -3957,10 +4134,9 @@ time.sleep(3.25)
                 dependency_overrides={
                     "browser_process_identity": lambda _pid: identity,
                     "browser_process_terminator": (
-                        lambda observed, _executable, _deadline: termination_attempts.append(
-                            observed
-                        )
-                        or True
+                        lambda observed,
+                        _executable,
+                        _deadline: termination_attempts.append(observed) or True
                     ),
                 }
             )
@@ -3999,10 +4175,9 @@ time.sleep(3.25)
                 dependency_overrides={
                     "browser_process_identity": lambda _pid: identity,
                     "browser_process_terminator": (
-                        lambda observed, _executable, _deadline: termination_attempts.append(
-                            observed
-                        )
-                        or True
+                        lambda observed,
+                        _executable,
+                        _deadline: termination_attempts.append(observed) or True
                     ),
                 }
             )
@@ -4070,12 +4245,13 @@ time.sleep(3.25)
         dependencies = driver.DriverDependencies(
             browser_process_snapshot=lambda _executable, _phase: set(),
             browser_binding_checker=lambda _application, _executable, _bundle: None,
-            browser_running_code_checker=lambda _pid, _application, _executable, _bundle: None,
+            browser_running_code_checker=lambda _pid,
+            _application,
+            _executable,
+            _bundle: None,
         )
         try:
-            with mock.patch.object(
-                driver, "_remaining", side_effect=reach_boundary
-            ):
+            with mock.patch.object(driver, "_remaining", side_effect=reach_boundary):
                 with self.assertRaises(driver._HelperError) as raised:
                     driver._wait_for_proof(
                         ManualProcesses(),
@@ -4303,9 +4479,7 @@ time.sleep(3.25)
 
     def test_driver_rejects_nonclosed_expected_mechanism_without_launching(self):
         with DriverFixture() as fixture:
-            result = fixture.run(
-                config_overrides={"expected_mechanism": "shell"}
-            )
+            result = fixture.run(config_overrides={"expected_mechanism": "shell"})
             self.assertEqual(result.exit_code, driver.DRIVER_USAGE)
             self.assertEqual(fixture.launched_child_pids, [])
 
@@ -4334,9 +4508,10 @@ time.sleep(3.25)
             ),
         )
         for make_fixture, overrides, expected_code, expected_outcome in cases:
-            with self.subTest(
-                expected_outcome=expected_outcome
-            ), make_fixture() as fixture:
+            with (
+                self.subTest(expected_outcome=expected_outcome),
+                make_fixture() as fixture,
+            ):
                 result = fixture.run(dependency_overrides=overrides)
                 self.assertEqual(result.exit_code, expected_code)
                 self.assertEqual(result.report["outcome"], expected_outcome)
@@ -4684,13 +4859,16 @@ OpenWithAppPolicyTestMain.main()
         agent_home_key = "".join(
             chr(value) for value in (67, 79, 68, 69, 88, 95, 72, 79, 77, 69)
         )
-        with mock.patch.dict(
-            os.environ,
-            {
-                "PICKVIA_PARENT_SENTINEL_SECRET": sentinel,
-                agent_home_key: sentinel,
-            },
-        ), mock.patch("subprocess.run") as run:
+        with (
+            mock.patch.dict(
+                os.environ,
+                {
+                    "PICKVIA_PARENT_SENTINEL_SECRET": sentinel,
+                    agent_home_key: sentinel,
+                },
+            ),
+            mock.patch("subprocess.run") as run,
+        ):
             self.run_policy_subprocess(["/usr/bin/true"], timeout=1)
 
         environment = run.call_args.kwargs["env"]

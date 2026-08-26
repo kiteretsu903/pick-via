@@ -87,14 +87,10 @@ _CLOSED_OUTCOMES = frozenset(
         "launch-error",
     }
 )
-_PROVENANCE_OUTCOMES = frozenset(
-    {"launch-observed", "launch-unproven", "launch-error"}
-)
+_PROVENANCE_OUTCOMES = frozenset({"launch-observed", "launch-unproven", "launch-error"})
 _PROVENANCE_MECHANISMS = frozenset({"process", "workspace", "duckduckgo"})
 _PROFILE_STRATEGIES = frozenset({"chromium", "firefox"})
-_DEFERRED_SIGNALS = frozenset(
-    {signal.SIGINT, signal.SIGTERM, signal.SIGHUP}
-)
+_DEFERRED_SIGNALS = frozenset({signal.SIGINT, signal.SIGTERM, signal.SIGHUP})
 _SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 
 
@@ -112,6 +108,8 @@ class DriverConfig:
     route_count: int = 1
     profile_strategy: Optional[str] = None
     profile_relative_root: Optional[str] = None
+    create_profile: bool = False
+    derive_profile_target: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -473,7 +471,10 @@ class _PinnedTaskRoot:
 
     def write_regular_file(self, name, contents):
         path = self.child_path(name)
-        if not isinstance(contents, bytes) or len(contents) > MAXIMUM_PROTOCOL_LINE_BYTES:
+        if (
+            not isinstance(contents, bytes)
+            or len(contents) > MAXIMUM_PROTOCOL_LINE_BYTES
+        ):
             raise ValueError("invalid task-root file contents")
         descriptor = os.open(
             name,
@@ -630,8 +631,7 @@ class _PinnedCleanupHelper:
                 == self.directory_identity
                 and _DirectoryIdentity.from_stat(self.path.parent.lstat())
                 == self.directory_identity
-                and pathlib.Path(os.path.realpath(self.path.parent))
-                == self.path.parent
+                and pathlib.Path(os.path.realpath(self.path.parent)) == self.path.parent
                 and stat.S_ISREG(executable_metadata.st_mode)
                 and stat.S_IMODE(executable_metadata.st_mode) == 0o700
                 and executable_metadata.st_nlink == 1
@@ -694,10 +694,9 @@ def _hash_pinned_regular_file(descriptor, maximum_bytes):
         digest.update(chunk)
     after = os.fstat(descriptor)
     os.lseek(descriptor, 0, os.SEEK_SET)
-    if (
-        bytes_read != before.st_size
-        or _EntryIdentity.from_stat(before) != _EntryIdentity.from_stat(after)
-    ):
+    if bytes_read != before.st_size or _EntryIdentity.from_stat(
+        before
+    ) != _EntryIdentity.from_stat(after):
         raise OSError("pinned regular file changed during hash")
     return digest.hexdigest(), after
 
@@ -847,10 +846,9 @@ def _read_cleanup_record(directory_descriptor, source_digest):
                 break
             payload.extend(chunk)
         after = os.fstat(descriptor)
-        if (
-            len(payload) != metadata.st_size
-            or _EntryIdentity.from_stat(metadata) != _EntryIdentity.from_stat(after)
-        ):
+        if len(payload) != metadata.st_size or _EntryIdentity.from_stat(
+            metadata
+        ) != _EntryIdentity.from_stat(after):
             raise OSError("cleanup cache record changed during read")
         record = json.loads(payload)
         expected_keys = {
@@ -913,9 +911,7 @@ def _pin_cleanup_helper(cache_path, cache_descriptor, record_name, source_digest
         record = _read_cleanup_record(record_descriptor, source_digest)
         executable_descriptor = os.open(
             "helper",
-            os.O_RDONLY
-            | getattr(os, "O_NOFOLLOW", 0)
-            | getattr(os, "O_CLOEXEC", 0),
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0),
             dir_fd=record_descriptor,
         )
         executable_metadata = os.fstat(executable_descriptor)
@@ -977,13 +973,16 @@ def _rename_at_exclusive(descriptor, source, destination):
     ]
     library.renameatx_np.restype = ctypes.c_int
     ctypes.set_errno(0)
-    if library.renameatx_np(
-        descriptor,
-        os.fsencode(source),
-        descriptor,
-        os.fsencode(destination),
-        0x00000004,
-    ) != 0:
+    if (
+        library.renameatx_np(
+            descriptor,
+            os.fsencode(source),
+            descriptor,
+            os.fsencode(destination),
+            0x00000004,
+        )
+        != 0
+    ):
         error_number = ctypes.get_errno()
         raise OSError(error_number, os.strerror(error_number), destination)
 
@@ -1001,9 +1000,7 @@ def _discard_owned_staging(
     cache_descriptor, staging_name, staging_descriptor, staging_identity, entries
 ):
     try:
-        named = os.stat(
-            staging_name, dir_fd=cache_descriptor, follow_symlinks=False
-        )
+        named = os.stat(staging_name, dir_fd=cache_descriptor, follow_symlinks=False)
         if (
             _DirectoryIdentity.from_stat(os.fstat(staging_descriptor))
             != staging_identity
@@ -1012,18 +1009,14 @@ def _discard_owned_staging(
         ):
             return False
         for name, expected in entries.items():
-            current = os.stat(
-                name, dir_fd=staging_descriptor, follow_symlinks=False
-            )
+            current = os.stat(name, dir_fd=staging_descriptor, follow_symlinks=False)
             if _DeletionIdentity.from_stat(current) != expected:
                 return False
         for name in entries:
             os.unlink(name, dir_fd=staging_descriptor)
         if os.listdir(staging_descriptor):
             return False
-        current = os.stat(
-            staging_name, dir_fd=cache_descriptor, follow_symlinks=False
-        )
+        current = os.stat(staging_name, dir_fd=cache_descriptor, follow_symlinks=False)
         if _DirectoryIdentity.from_stat(current) != staging_identity:
             return False
         os.rmdir(staging_name, dir_fd=cache_descriptor)
@@ -1074,9 +1067,10 @@ def _publish_cached_helper(
             timeout=compile_timeout,
             check=False,
         )
-        if completed.returncode != 0 or _stable_source_digest(
-            source, maximum_source_bytes
-        ) != source_digest:
+        if (
+            completed.returncode != 0
+            or _stable_source_digest(source, maximum_source_bytes) != source_digest
+        ):
             raise OSError("cached helper compilation failed")
         helper_descriptor = os.open(
             "helper",
@@ -1194,9 +1188,7 @@ def _pin_exclusive_cleanup_helper():
             )
         descriptor = cache_descriptor
         cache_descriptor = -1
-        return _pin_cleanup_helper(
-            cache_path, descriptor, record_name, source_digest
-        )
+        return _pin_cleanup_helper(cache_path, descriptor, record_name, source_digest)
     finally:
         if cache_descriptor >= 0:
             os.close(cache_descriptor)
@@ -1215,9 +1207,7 @@ def _pin_browser_code_identity_helper():
             )
         descriptor = cache_descriptor
         cache_descriptor = -1
-        return _pin_cleanup_helper(
-            cache_path, descriptor, record_name, source_digest
-        )
+        return _pin_cleanup_helper(cache_path, descriptor, record_name, source_digest)
     finally:
         if cache_descriptor >= 0:
             os.close(cache_descriptor)
@@ -1297,9 +1287,7 @@ def _invoke_exclusive_cleanup_helper(task_root, helper):
             == _DirectoryIdentity.from_stat(root_metadata)
             and _DirectoryIdentity.from_stat(current_parent)
             == _DirectoryIdentity.from_stat(parent_metadata)
-            and _name_is_absent_at(
-                task_root.parent_descriptor, task_root.path.name
-            )
+            and _name_is_absent_at(task_root.parent_descriptor, task_root.path.name)
             and _name_is_absent_at(task_root.parent_descriptor, quarantine)
             and os.listdir(task_root.descriptor) == []
         )
@@ -1370,10 +1358,7 @@ def _invoke_browser_code_identity_helper(
                     selector.unregister(key.fd)
                     continue
                 buffers[key.data].extend(chunk)
-                if (
-                    len(buffers[key.data])
-                    > MAXIMUM_BROWSER_CODE_IDENTITY_OUTPUT_BYTES
-                ):
+                if len(buffers[key.data]) > MAXIMUM_BROWSER_CODE_IDENTITY_OUTPUT_BYTES:
                     raise _IdentityError
         remaining = deadline - time.monotonic()
         if remaining <= 0:
@@ -1505,9 +1490,7 @@ def _remove_directory_contents_at(descriptor, root_device):
                         continue
                 finally:
                     os.close(child)
-                current = os.stat(
-                    quarantine, dir_fd=descriptor, follow_symlinks=False
-                )
+                current = os.stat(quarantine, dir_fd=descriptor, follow_symlinks=False)
                 if (
                     current.st_dev != metadata.st_dev
                     or current.st_ino != metadata.st_ino
@@ -1520,9 +1503,7 @@ def _remove_directory_contents_at(descriptor, root_device):
                 if quarantine is None:
                     success = False
                     continue
-                current = os.stat(
-                    quarantine, dir_fd=descriptor, follow_symlinks=False
-                )
+                current = os.stat(quarantine, dir_fd=descriptor, follow_symlinks=False)
                 if _DeletionIdentity.from_stat(current) != expected:
                     _restore_quarantine(descriptor, quarantine, name)
                     success = False
@@ -1569,14 +1550,19 @@ class DriverDependencies:
         lambda pid: _darwin_process_identity(pid)
     )
     browser_binding_checker: Callable[[pathlib.Path, pathlib.Path, str], None] = (
-        lambda application, executable, bundle_identifier: _validate_signed_browser_binding(
+        lambda application,
+        executable,
+        bundle_identifier: _validate_signed_browser_binding(
             application, executable, bundle_identifier
         )
     )
     browser_running_code_checker: Callable[
         [int, pathlib.Path, pathlib.Path, str], None
     ] = (
-        lambda pid, application, executable, bundle_identifier: _validate_running_browser_code(
+        lambda pid,
+        application,
+        executable,
+        bundle_identifier: _validate_running_browser_code(
             pid, application, executable, bundle_identifier
         )
     )
@@ -1588,6 +1574,17 @@ class DriverDependencies:
     capture_observer: Callable[[str, str, bytes, bool], None] = _ignore
     task_root_remover: Callable[[_PinnedTaskRoot], bool] = _remove_task_root
     fifo_closer: Callable[[int], bool] = _close_fifo
+    profile_creator: Callable[
+        [str, pathlib.Path, pathlib.Path, str, pathlib.Path], None
+    ] = lambda strategy, application, executable, bundle_identifier, root: (
+        _create_synthetic_profile(
+            strategy,
+            application,
+            executable,
+            bundle_identifier,
+            root,
+        )
+    )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1606,6 +1603,7 @@ class _WaitResult:
     status_line: bytes
     exact_browser_identity: bool
     owned_browser_identities: frozenset
+    launch_provenance: str
 
 
 class _DriverInterrupted(Exception):
@@ -1702,12 +1700,20 @@ class _DeadlineExpired(Exception):
 
 
 class _ProofTimeout(Exception):
-    def __init__(self, token_received, status_line, browser_identity, owned_browsers):
+    def __init__(
+        self,
+        token_received,
+        status_line,
+        browser_identity,
+        owned_browsers,
+        launch_provenance="none",
+    ):
         super().__init__()
         self.token_received = token_received
         self.status_line = status_line
         self.browser_identity = browser_identity
         self.owned_browsers = frozenset(owned_browsers)
+        self.launch_provenance = launch_provenance
 
 
 class _ReceiptTimeout(_ProofTimeout):
@@ -1896,6 +1902,7 @@ def _empty_result(exit_code):
         "token_received": False,
         "exact_process_identity": False,
         "exact_browser_process_identity": False,
+        "launch_provenance": "none",
         "total_elapsed_seconds": 0.0,
         "route_timeout_seconds": 0.0,
         "browser_cleanup_grace_seconds": 0.0,
@@ -1920,6 +1927,7 @@ def _failure_result(config, exit_code, outcome):
         "token_received": False,
         "exact_process_identity": False,
         "exact_browser_process_identity": False,
+        "launch_provenance": "none",
         "total_elapsed_seconds": 0.0,
         "route_timeout_seconds": 0.0,
         "browser_cleanup_grace_seconds": 0.0,
@@ -1994,18 +2002,90 @@ def _valid_profile_grant_config(config):
     strategy = config.profile_strategy
     relative_root = config.profile_relative_root
     if strategy is None and relative_root is None:
-        return True
+        return not config.create_profile and not config.derive_profile_target
     if strategy not in _PROFILE_STRATEGIES or not _valid_nonempty(relative_root, 1_024):
         return False
     if relative_root.startswith("/"):
         return False
     pure = pathlib.PurePosixPath(relative_root)
-    return (
+    valid_relative_root = (
         pure.as_posix() == relative_root
         and pure.parts
         and pure.parts != (".",)
         and all(part not in {"", ".", ".."} for part in pure.parts)
     )
+    if not valid_relative_root:
+        return False
+    if config.derive_profile_target and not config.create_profile:
+        return False
+    if config.create_profile:
+        return (
+            pure.parts[0] == "profiles"
+            and len(pure.parts) == 2
+            and config.target_id == f"{config.bundle_identifier}||{config.mode}"
+        )
+    return not config.derive_profile_target
+
+
+def _derived_profile_target_id(bundle_identifier, strategy, root, mode):
+    if strategy == "chromium":
+        identity = "PickVia E2E"
+    elif strategy == "firefox":
+        profile_path = pathlib.Path(root) / "PickVia E2E"
+        digest = hashlib.sha256(os.fspath(profile_path).encode("utf-8")).hexdigest()
+        identity = f"firefox-profile-v1:{digest}"
+    else:
+        raise ValueError("invalid profile strategy")
+    return f"{bundle_identifier}|{identity}|{mode}"
+
+
+def _prepare_profile_parent(task_root):
+    task_root.require_current()
+    try:
+        os.mkdir("profiles", mode=0o700, dir_fd=task_root.descriptor)
+    except FileExistsError:
+        pass
+    metadata = os.stat("profiles", dir_fd=task_root.descriptor, follow_symlinks=False)
+    parent = task_root.child_path("profiles")
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or stat.S_ISLNK(metadata.st_mode)
+        or metadata.st_uid != os.getuid()
+        or metadata.st_dev != task_root.identity.device
+        or stat.S_IMODE(metadata.st_mode) != 0o700
+        or pathlib.Path(os.path.realpath(parent)) != parent
+    ):
+        raise OSError("invalid profile parent")
+    return parent
+
+
+def _profile_root_for_creation(task_root, relative_root):
+    pure = pathlib.PurePosixPath(relative_root)
+    if len(pure.parts) != 2 or pure.parts[0] != "profiles":
+        raise OSError("invalid profile root")
+    parent = _prepare_profile_parent(task_root)
+    root = parent / pure.parts[1]
+    if root.exists() or root.is_symlink():
+        raise OSError("profile root already exists")
+    return root
+
+
+def _create_synthetic_profile(
+    strategy, application, executable, bundle_identifier, root
+):
+    try:
+        import create_synthetic_profile as creator
+
+        arguments = argparse.Namespace(
+            application=os.fspath(application),
+            executable=os.fspath(executable),
+            bundle_identifier=bundle_identifier,
+            strategy=strategy,
+            root=os.fspath(root),
+        )
+        creator.create_synthetic_profile(arguments)
+    except Exception as error:
+        raise OSError("synthetic profile creation failed") from error
 
 
 def _profile_grant_manifest(config):
@@ -2082,9 +2162,7 @@ def _validate_browser_binding(browser_app, browser_executable, bundle_identifier
         raise _IdentityError
 
 
-def _open_stable_regular_file(
-    path, *, maximum_bytes=None, require_executable=False
-):
+def _open_stable_regular_file(path, *, maximum_bytes=None, require_executable=False):
     if (
         not path.is_absolute()
         or pathlib.Path(os.path.realpath(path)) != path
@@ -2094,9 +2172,7 @@ def _open_stable_regular_file(
     named = os.stat(path, follow_symlinks=False)
     descriptor = os.open(
         path,
-        os.O_RDONLY
-        | getattr(os, "O_NOFOLLOW", 0)
-        | getattr(os, "O_CLOEXEC", 0),
+        os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0),
     )
     try:
         opened = os.fstat(descriptor)
@@ -2188,9 +2264,7 @@ def _make_task_root_while_signals_blocked(owner):
             | getattr(os, "O_CLOEXEC", 0),
         )
         parent_identity = _DirectoryIdentity.from_stat(os.fstat(parent_descriptor))
-        root = pathlib.Path(
-            tempfile.mkdtemp(prefix="pickvia-e2e-", dir="/private/tmp")
-        )
+        root = pathlib.Path(tempfile.mkdtemp(prefix="pickvia-e2e-", dir="/private/tmp"))
         metadata = root.lstat()
         initial_identity = _DirectoryIdentity.from_stat(metadata)
         if (
@@ -2345,9 +2419,7 @@ def _read_protocol_line(processes, process, deadline, monotonic):
 
 
 def _parse_ready(line):
-    record = _strict_json_document(
-        line, _ReadinessError, MAXIMUM_PROTOCOL_LINE_BYTES
-    )
+    record = _strict_json_document(line, _ReadinessError, MAXIMUM_PROTOCOL_LINE_BYTES)
     if not isinstance(record, dict) or set(record) != {"port", "tokens"}:
         raise _ReadinessError
     port = record["port"]
@@ -2507,9 +2579,7 @@ def _minimal_child_environment(task_root):
     }
 
 
-def _compile_helper(
-    processes, source, output, deadline, monotonic, *, environment
-):
+def _compile_helper(processes, source, output, deadline, monotonic, *, environment):
     if not source.is_file() or source.is_symlink():
         raise _HelperError
     process = processes.start(
@@ -2766,6 +2836,7 @@ def _wait_for_proof(
                         b"".join(status_lines),
                         browser_identity,
                         provenance_owned,
+                        provenance.outcome if provenance is not None else "none",
                     )
             elif (
                 provenance is not None
@@ -2781,6 +2852,7 @@ def _wait_for_proof(
                     b"".join(status_lines),
                     browser_identity,
                     provenance_owned,
+                    provenance.outcome if provenance is not None else "none",
                 )
             if (
                 status_sequence
@@ -2804,6 +2876,7 @@ def _wait_for_proof(
                         b"".join(status_lines),
                         browser_identity,
                         frozenset(),
+                        "none",
                     )
             if status_sequence == ["selected"]:
                 try:
@@ -2839,6 +2912,7 @@ def _wait_for_proof(
                             b"".join(status_lines),
                             True,
                             provenance_owned,
+                            provenance.outcome,
                         )
             try:
                 active_deadline = deadline
@@ -2858,18 +2932,14 @@ def _wait_for_proof(
                         receipt,
                         b"".join(status_lines),
                         browser_identity,
-                        _helper_cleanup_authority(
-                            status_sequence, provenance_owned
-                        ),
+                        _helper_cleanup_authority(status_sequence, provenance_owned),
                     )
                 if helper_exit_code is None:
                     raise _HelperExitTimeout(
                         receipt,
                         b"".join(status_lines),
                         browser_identity,
-                        _helper_cleanup_authority(
-                            status_sequence, provenance_owned
-                        ),
+                        _helper_cleanup_authority(status_sequence, provenance_owned),
                     )
                 if provenance_failure:
                     raise _ProvenanceProtocolError(
@@ -2890,6 +2960,7 @@ def _wait_for_proof(
                         b"".join(status_lines),
                         browser_identity,
                         provenance_owned,
+                        provenance.outcome,
                     )
                 if (
                     provenance is not None
@@ -2938,6 +3009,7 @@ def _wait_for_proof(
                         b"".join(status_lines),
                         browser_identity,
                         frozenset(),
+                        "none",
                     )
                 if status_sequence == ["selected"] and not receipt:
                     raise _ReceiptTimeout(
@@ -2945,6 +3017,7 @@ def _wait_for_proof(
                         b"".join(status_lines),
                         browser_identity,
                         provenance_owned,
+                        provenance.outcome if provenance is not None else "none",
                     )
                 if status_sequence == ["selected"] and not browser_identity:
                     raise _BrowserIdentityTimeout(
@@ -2952,6 +3025,7 @@ def _wait_for_proof(
                         b"".join(status_lines),
                         browser_identity,
                         provenance_owned,
+                        provenance.outcome if provenance is not None else "none",
                     )
                 if (
                     status_sequence == ["selected"]
@@ -2972,6 +3046,7 @@ def _wait_for_proof(
                         b"".join(status_lines),
                         True,
                         provenance_owned,
+                        provenance.outcome,
                     )
                 raise
             for key, _ in selector.select(wait):
@@ -3032,10 +3107,7 @@ def _wait_for_proof(
                                 expected_mode=expected_mode,
                                 expected_mechanism=expected_mechanism,
                             )
-                            if (
-                                status_sequence
-                                and status_sequence[0] != "selected"
-                            ):
+                            if status_sequence and status_sequence[0] != "selected":
                                 raise _ProvenanceProtocolError
                             if provenance.outcome == "launch-unproven":
                                 provenance_failure = True
@@ -3222,9 +3294,7 @@ def _snapshot_directory_at(
                 count_toward_tree=count_toward_tree,
             )
             name = entry.name
-            metadata = os.stat(
-                name, dir_fd=descriptor, follow_symlinks=False
-            )
+            metadata = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
             if stat.S_ISDIR(metadata.st_mode) and metadata.st_dev != root_device:
                 raise OSError("task root crosses a device boundary")
             entries[name] = _EntryIdentity.from_stat(metadata)
@@ -3291,9 +3361,7 @@ def _audit_regular_files_at(
         budget.spend_file(metadata.st_size, audit_pass)
         file_descriptor = os.open(
             name,
-            os.O_RDONLY
-            | getattr(os, "O_NOFOLLOW", 0)
-            | getattr(os, "O_CLOEXEC", 0),
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0),
             dir_fd=descriptor,
         )
         try:
@@ -3363,6 +3431,7 @@ def run_driver(config, dependencies=None):
     received = False
     exact_e2e_identity = False
     exact_browser_identity = False
+    launch_provenance = "none"
     exit_code = DRIVER_PROCESS_ERROR
     app = None
     preexisting_browsers = set()
@@ -3375,17 +3444,38 @@ def run_driver(config, dependencies=None):
     baseline_authoritative = False
     route_delivery_attempted = False
     signal_guard = _SignalGuard().install()
+    target_id = config.target_id
     try:
         preexisting_browsers = _authoritative_browser_snapshot(
             dependencies, browser_executable, "baseline"
         )
         baseline_authoritative = True
         task_root = _make_task_root(task_root_owner)
+        if config.create_profile:
+            profile_root = _profile_root_for_creation(
+                task_root, config.profile_relative_root
+            )
+            task_root.require_current()
+            dependencies.profile_creator(
+                config.profile_strategy,
+                pathlib.Path(config.browser_app),
+                browser_executable,
+                config.bundle_identifier,
+                profile_root,
+            )
+            task_root.require_current()
+            if not profile_root.is_dir() or profile_root.is_symlink():
+                raise _IdentityError
+            if config.derive_profile_target:
+                target_id = _derived_profile_target_id(
+                    config.bundle_identifier,
+                    config.profile_strategy,
+                    profile_root,
+                    config.mode,
+                )
         profile_grant_manifest = _profile_grant_manifest(config)
         if profile_grant_manifest is not None:
-            task_root.write_regular_file(
-                "profile-grant.json", profile_grant_manifest
-            )
+            task_root.write_regular_file("profile-grant.json", profile_grant_manifest)
         task_root.create_fifo("status.fifo")
         task_root.create_fifo("provenance.fifo")
         fifo = task_root.child_path("status.fifo")
@@ -3417,7 +3507,7 @@ def run_driver(config, dependencies=None):
         app_environment = dict(base_environment)
         app_environment.update(
             {
-                "PICKVIA_E2E_TARGET_ID": config.target_id,
+                "PICKVIA_E2E_TARGET_ID": target_id,
                 "PICKVIA_E2E_BUNDLE_ID": config.bundle_identifier,
                 "PICKVIA_E2E_MODE": config.mode,
                 "PICKVIA_E2E_SESSION_NONCE": config.session_nonce,
@@ -3479,7 +3569,7 @@ def run_driver(config, dependencies=None):
             app,
             config.session_nonce,
             request_nonce,
-            config.target_id,
+            target_id,
             config.bundle_identifier,
             config.mode,
             config.expected_mechanism,
@@ -3494,6 +3584,7 @@ def run_driver(config, dependencies=None):
         received = proof.token_received
         status_line = proof.status_line
         exact_browser_identity = proof.exact_browser_identity
+        launch_provenance = proof.launch_provenance
         owned_browsers.update(proof.owned_browser_identities)
         exit_code = (
             DRIVER_SUCCESS if outcome == "selected" else DRIVER_SELECTION_REJECTED
@@ -3504,6 +3595,7 @@ def run_driver(config, dependencies=None):
         status_line = error.status_line
         exact_browser_identity = error.browser_identity
         owned_browsers.update(error.owned_browsers)
+        launch_provenance = error.launch_provenance
         exit_code = DRIVER_RECEIPT_TIMEOUT
     except _BrowserIdentityTimeout as error:
         outcome = "browser-identity-timeout"
@@ -3511,6 +3603,7 @@ def run_driver(config, dependencies=None):
         status_line = error.status_line
         exact_browser_identity = error.browser_identity
         owned_browsers.update(error.owned_browsers)
+        launch_provenance = error.launch_provenance
         exit_code = DRIVER_BROWSER_IDENTITY_TIMEOUT
     except _HelperExitTimeout as error:
         outcome = "helper-exit-timeout"
@@ -3518,6 +3611,7 @@ def run_driver(config, dependencies=None):
         status_line = error.status_line
         exact_browser_identity = error.browser_identity
         owned_browsers.update(error.owned_browsers)
+        launch_provenance = error.launch_provenance
         exit_code = DRIVER_HELPER_FAILURE
     except _IdentityAmbiguous as error:
         outcome = "identity-ambiguous"
@@ -3552,6 +3646,7 @@ def run_driver(config, dependencies=None):
         exit_code = DRIVER_INVALID_RECEIPT
     except _ProvenanceProtocolError as error:
         outcome = "provenance-error"
+        launch_provenance = "invalid"
         received = error.token_received
         status_line = error.status_line
         exact_browser_identity = error.browser_identity
@@ -3583,9 +3678,7 @@ def run_driver(config, dependencies=None):
         signal_guard.begin_cleanup()
         if task_root is None:
             task_root = task_root_owner.root
-        browser_cleanup_deadline = (
-            time.monotonic() + BROWSER_CLEANUP_GRACE_SECONDS
-        )
+        browser_cleanup_deadline = time.monotonic() + BROWSER_CLEANUP_GRACE_SECONDS
         browser_cleanup_safe = not identity_inspection_failed
         if app is not None:
             cleanup_ok = processes.stop(app) and cleanup_ok
@@ -3713,8 +3806,8 @@ def run_driver(config, dependencies=None):
                 outcome = "privacy-failure"
                 exit_code = DRIVER_PRIVACY_FAILURE
             try:
-                files_are_private = (
-                    task_root is None or task_root.audit_regular_files(route_bytes)
+                files_are_private = task_root is None or task_root.audit_regular_files(
+                    route_bytes
                 )
             except Exception:
                 files_are_private = False
@@ -3756,6 +3849,7 @@ def run_driver(config, dependencies=None):
         "token_received": received,
         "exact_process_identity": exact_e2e_identity,
         "exact_browser_process_identity": exact_browser_identity,
+        "launch_provenance": launch_provenance,
         "total_elapsed_seconds": round(total_elapsed, 6),
         "route_timeout_seconds": round(timeout, 6),
         "browser_cleanup_grace_seconds": BROWSER_CLEANUP_GRACE_SECONDS,
@@ -3797,6 +3891,8 @@ def main(argv=None):
     parser.add_argument("--route-count", type=int, default=1)
     parser.add_argument("--profile-strategy", choices=("chromium", "firefox"))
     parser.add_argument("--profile-relative-root")
+    parser.add_argument("--create-profile", action="store_true")
+    parser.add_argument("--derive-profile-target", action="store_true")
     arguments = parser.parse_args(argv)
     result = run_driver(
         DriverConfig(
@@ -3812,6 +3908,8 @@ def main(argv=None):
             route_count=arguments.route_count,
             profile_strategy=arguments.profile_strategy,
             profile_relative_root=arguments.profile_relative_root,
+            create_profile=arguments.create_profile,
+            derive_profile_target=arguments.derive_profile_target,
         )
     )
     sys.stdout.buffer.write(result.stdout)
