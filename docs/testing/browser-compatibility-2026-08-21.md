@@ -9,7 +9,11 @@ three-state sequence before route delivery. Its three cells are
 `NOT RUN / harness-ambiguity`; all 156 later cells are
 `NOT RUN / blocked-after-ambiguity`. Authenticated cleanup handoff evidence shows
 that the current Edge generation was never task-owned and that the new task root
-was finalized without signaling that preexisting browser. No route crossed
+was finalized without signaling that preexisting browser. Route cleanup was not
+invoked because no route was delivered; independently authenticated driver/task
+finalization completed. The immutable cell chain retains the then-emitted
+`cleanupSuccess=false` and `taskRootFinalized=false` values and is not rewritten;
+the terminal authenticated handoff is the finalization authority. No route crossed
 selection, no localhost receipt was requested, no launch provenance or exact
 route-process proof was produced, and no browser UI observation was attempted.
 This is the required user-state preservation stop, not evidence of a PickVia
@@ -25,16 +29,18 @@ cleanup grace, and quiescence bounds were 30, 5, and 2 seconds, respectively, bu
 none was exercised and no timing field was emitted. In the table, `n/a / n/a /
 n/a / n/a` means total elapsed / route timeout / cleanup grace / quiescence was
 not emitted; `false / false / false` means receipt / exact E2E identity / exact
-browser identity. No sanitized edition, browser-window, private/profile indicator,
+browser identity. The final column distinguishes route cleanup from independently
+authenticated task finalization; a lone `not invoked` means neither occurred.
+No sanitized edition, browser-window, private/profile indicator,
 or onboarding boolean exists because the visual observer was not invoked. Two
 earlier terminal attempts are retained as diagnostic-only evidence: they exposed
 and led to fixes for a signature-verification bound/classification defect and a
 volatile outer-bundle timestamp comparison. They do not override this final
 user-state-preservation classification.
 
-| Descriptor / capability | Strategy | Version | Primary / detail | Cold | Running | Reopen | Provenance | Receipt / E2E / browser | Timing | Cleanup |
+| Descriptor / capability | Strategy | Version | Primary / detail | Cold | Running | Reopen | Provenance | Receipt / E2E / browser | Timing | Route cleanup / task finalization |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `com.microsoft.edgemac` / normal | workspace | 151.0.4129.101 | **NOT RUN** / `harness-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.microsoft.edgemac` / normal | workspace | 151.0.4129.101 | **NOT RUN** / `harness-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked / finalized |
 | `com.google.Chrome` / normal | workspace | unavailable | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
 | `com.google.Chrome` / private | chromium-private | unavailable | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
 | `com.google.Chrome` / profile | chromium-profile | unavailable | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
