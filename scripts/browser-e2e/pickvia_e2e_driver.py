@@ -3460,17 +3460,17 @@ def _wait_for_proof(
                 and status_sequence[0] != "selected"
                 and helper_exit_code == 0
             ):
-                if provenance is not None or provenance_owned:
-                    provenance_owned = frozenset()
-                    raise _ProvenanceProtocolError(
-                        receipt,
-                        b"".join(status_lines),
-                        browser_identity,
-                    )
                 if provenance_settle_deadline is None:
                     provenance_settle_deadline = now + PROVENANCE_SETTLE_SECONDS
                 if now >= provenance_settle_deadline:
                     _reject_trailing_proof_bytes(buffers)
+                    if provenance is not None or provenance_owned:
+                        provenance_owned = frozenset()
+                        raise _ProvenanceProtocolError(
+                            receipt,
+                            b"".join(status_lines),
+                            browser_identity,
+                        )
                     return _WaitResult(
                         status_sequence[0],
                         receipt,

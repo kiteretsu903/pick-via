@@ -90,6 +90,7 @@ class DriverFixture:
         provenance_first_partial=False,
         provenance_before_status=False,
         status_delay=0.0,
+        status_record_delay=0.0,
         status_trailing_payload=b"",
         status_trailing_delay=0.0,
     ):
@@ -151,6 +152,7 @@ class DriverFixture:
         self.provenance_first_partial = provenance_first_partial
         self.provenance_before_status = provenance_before_status
         self.status_delay = status_delay
+        self.status_record_delay = status_record_delay
         self.status_trailing_payload = status_trailing_payload
         self.status_trailing_delay = status_trailing_delay
         self.fixture_root = pathlib.Path(
@@ -329,7 +331,8 @@ if provenance_before_status:
     write_provenance()
     time.sleep(%r)
 with open(os.environ["PICKVIA_E2E_STATUS_FIFO"], "w", encoding="utf-8") as stream:
-    for record in records:
+    for index, record in enumerate(records):
+        if index > 0: time.sleep(%r)
         resolved = dict(record)
         if resolved.get("session") == "$session":
             resolved["session"] = os.environ["PICKVIA_E2E_SESSION_NONCE"]
@@ -392,6 +395,7 @@ time.sleep(60)
             self.provenance_first_partial,
             self.provenance_second_partial,
             self.status_delay,
+            self.status_record_delay,
             bool(self.status_trailing_payload),
             self.status_trailing_delay,
             self.status_trailing_payload,
@@ -4682,6 +4686,7 @@ time.sleep(3.25)
                     {"session": "session_0123456789", "outcome": "target-missing"},
                     {"session": "session_0123456789", "outcome": "target-missing"},
                 ],
+                "status_record_delay": 0.05,
             },
             {
                 "status_records": [
