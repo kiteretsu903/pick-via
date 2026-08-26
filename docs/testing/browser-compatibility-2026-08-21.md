@@ -1,5 +1,123 @@
 # Browser Compatibility Evidence — 2026-08-21
 
+## Authoritative provenance-backed matrix — 2026-08-26
+
+Status: **NOT RUN for every eligible route.** The final fresh sequential
+invocation completed its immutable 159-cell evidence chain with exit status 3.
+The Edge Stable pilot found one exact preexisting Edge generation and refused the
+three-state sequence before route delivery. Its three cells are
+`NOT RUN / harness-ambiguity`; all 156 later cells are
+`NOT RUN / blocked-after-ambiguity`. Authenticated cleanup handoff evidence shows
+that the current Edge generation was never task-owned and that the new task root
+was finalized without signaling that preexisting browser. No route crossed
+selection, no localhost receipt was requested, no launch provenance or exact
+route-process proof was produced, and no browser UI observation was attempted.
+This is the required user-state preservation stop, not evidence of a PickVia
+product failure, so no browser descriptor or capability policy was changed and
+no direct product diagnostic was run.
+
+The authoritative artifact contains one run record plus 159 chained cell records.
+All eligible browser applications were present at the initial manifest preflight.
+Versions shown as `unavailable` are the sanitized values retained when strict
+signature verification did not succeed, not claims that an application was
+absent. The configured route timeout,
+cleanup grace, and quiescence bounds were 30, 5, and 2 seconds, respectively, but
+none was exercised and no timing field was emitted. In the table, `n/a / n/a /
+n/a / n/a` means total elapsed / route timeout / cleanup grace / quiescence was
+not emitted; `false / false / false` means receipt / exact E2E identity / exact
+browser identity. No sanitized edition, browser-window, private/profile indicator,
+or onboarding boolean exists because the visual observer was not invoked. Two
+earlier terminal attempts are retained as diagnostic-only evidence: they exposed
+and led to fixes for a signature-verification bound/classification defect and a
+volatile outer-bundle timestamp comparison. They do not override this final
+user-state-preservation classification.
+
+| Descriptor / capability | Strategy | Version | Primary / detail | Cold | Running | Reopen | Provenance | Receipt / E2E / browser | Timing | Cleanup |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `com.microsoft.edgemac` / normal | workspace | 151.0.4129.101 | **NOT RUN** / `harness-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.google.Chrome` / normal | workspace | unavailable | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.google.Chrome` / private | chromium-private | unavailable | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.google.Chrome` / profile | chromium-profile | unavailable | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.google.Chrome.beta` / normal | workspace | unavailable | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.google.Chrome.beta` / private | chromium-private | unavailable | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.google.Chrome.beta` / profile | chromium-profile | unavailable | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.google.Chrome.dev` / normal | workspace | 154.0.8013.2 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.google.Chrome.dev` / private | chromium-private | 154.0.8013.2 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.google.Chrome.dev` / profile | chromium-profile | 154.0.8013.2 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.google.Chrome.canary` / normal | workspace | 154.0.8025.0 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.google.Chrome.canary` / private | chromium-private | 154.0.8025.0 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.google.Chrome.canary` / profile | chromium-profile | 154.0.8025.0 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.microsoft.edgemac` / private | chromium-private | 151.0.4129.101 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.microsoft.edgemac` / profile | chromium-profile | 151.0.4129.101 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.microsoft.edgemac.Beta` / normal | workspace | 152.0.4191.41 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.microsoft.edgemac.Beta` / private | chromium-private | 152.0.4191.41 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.microsoft.edgemac.Beta` / profile | chromium-profile | 152.0.4191.41 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.microsoft.edgemac.Dev` / normal | workspace | 153.0.4224.0 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.microsoft.edgemac.Dev` / private | chromium-private | 153.0.4224.0 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.microsoft.edgemac.Dev` / profile | chromium-profile | 153.0.4224.0 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.microsoft.edgemac.Canary` / normal | workspace | 153.0.4233.0 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.microsoft.edgemac.Canary` / private | chromium-private | 153.0.4233.0 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.microsoft.edgemac.Canary` / profile | chromium-profile | 153.0.4233.0 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.brave.Browser` / normal | workspace | unavailable | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.brave.Browser` / private | chromium-private | unavailable | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.brave.Browser` / profile | chromium-profile | unavailable | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.brave.Browser.beta` / normal | workspace | 152.1.95.87 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.brave.Browser.beta` / private | chromium-private | 152.1.95.87 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.brave.Browser.beta` / profile | chromium-profile | 152.1.95.87 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.brave.Browser.nightly` / normal | workspace | 152.1.96.6 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.brave.Browser.nightly` / private | chromium-private | 152.1.96.6 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.brave.Browser.nightly` / profile | chromium-profile | 152.1.96.6 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.vivaldi.Vivaldi` / normal | workspace | 8.1.4087.70 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.vivaldi.Vivaldi` / private | chromium-private | 8.1.4087.70 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.vivaldi.Vivaldi` / profile | chromium-profile | 8.1.4087.70 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.vivaldi.Vivaldi.snapshot` / normal | workspace | 8.2.4133.24 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.vivaldi.Vivaldi.snapshot` / private | chromium-private | 8.2.4133.24 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.vivaldi.Vivaldi.snapshot` / profile | chromium-profile | 8.2.4133.24 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `org.mozilla.firefox` / normal | executable | 153.0.3 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `org.mozilla.firefox` / private | firefox-private | 153.0.3 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `org.mozilla.firefox` / profile | firefox-profile | 153.0.3 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `org.mozilla.firefoxdeveloperedition` / normal | executable | 155.0 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `org.mozilla.firefoxdeveloperedition` / private | firefox-private | 155.0 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `org.mozilla.firefoxdeveloperedition` / profile | firefox-profile | 155.0 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `org.mozilla.nightly` / normal | executable | 156.0a1 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `org.mozilla.nightly` / private | firefox-private | 156.0a1 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `org.mozilla.nightly` / profile | firefox-profile | 156.0a1 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.operasoftware.Opera` / normal | workspace | unavailable | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `company.thebrowser.Browser` / normal | workspace | unavailable | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.kagi.kagimacOS` / normal | workspace | 1.1.2 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.duckduckgo.macos.browser` / normal | duckduckgo | 1.203.0 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.duckduckgo.macos.browser` / private | duckduckgo-private | 1.203.0 | **NOT RUN** / `blocked-after-ambiguity` | NOT RUN | NOT RUN | NOT RUN | none | false / false / false | n/a / n/a / n/a / n/a | not invoked |
+| `com.apple.Safari` / normal | workspace | not inspected | **SKIPPED** / user decision | SKIPPED | SKIPPED | SKIPPED | none | n/a / n/a / n/a | n/a / n/a / n/a / n/a | not invoked |
+| `com.apple.SafariTechnologyPreview` / normal | workspace | not inspected | **SKIPPED** / user decision | SKIPPED | SKIPPED | SKIPPED | none | n/a / n/a / n/a | n/a / n/a / n/a / n/a | not invoked |
+
+Safari and Safari Technology Preview profile/private routing remain unsupported;
+the user chose to skip both Safari applications, so no Safari route, Shortcut,
+extension, profile, private window, UI observer, or browser process was invoked.
+The hash-chained evidence file is retained under the approved private matrix output
+for review. It contains only the sanitized schema: no application path, routed
+address, request token, URL, PID, process arguments, secret, profile path, raw UI,
+or screenshot. The three attempt-specific authenticated cleanup packages are also
+retained privately. One physical task root from the second diagnostic attempt is
+still present because a later exact Edge generation is not in any authenticated
+owned-generation ledger; its relationship to that root is therefore unproven.
+Neither the generation nor the root was signaled, inspected beyond ownership-safe
+metadata, or removed.
+
+The final process audit found no E2E application, driver, receiver, helper, FIFO,
+handoff directory, or cleanup/finalization quarantine. One Edge Stable generation
+and one Brave Stable generation were preserved because neither was proved
+task-owned; the Edge generation is the pilot blocker above, and Brave was never
+reached. One exact E2E preferences artifact created during the first attempt was
+moved recoverably to Trash, after which the real preferences location rechecked
+empty. The one ambiguous task root and three authenticated forensic packages
+remain intentionally retained for review.
+
+## Historical diagnostic-only ledgers
+
+Every section below predates the 2026-08-26 isolated matrix. It is retained for
+diagnosis and provenance, but is not authoritative compatibility evidence and
+must not be used to override the matrix classification above.
+
 ## Localhost receiver harness
 
 Status: **PASS for the receiver harness.** Normal browser-routing E2E remains
