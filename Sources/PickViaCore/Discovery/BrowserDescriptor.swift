@@ -98,7 +98,8 @@ public enum BrowserPrivateCapabilityResolver {
   ) -> Bool {
     guard
       descriptor.bundleIdentifier == applicationID,
-      descriptor.hasCompatibleStrategies
+      descriptor.hasCompatibleStrategies,
+      descriptor.routeCapabilityPolicy.browserPrivate
     else { return false }
     switch descriptor.privateStrategy {
     case .unsupported:

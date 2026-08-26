@@ -5,6 +5,7 @@ public struct DiscoveredBrowser: Equatable, Sendable {
   public let application: RoutedApplication
   public let profiles: [DiscoveredProfile]
   public let metadataStatus: ProfileMetadataStatus
+  let profileMetadataUsesSavedGrant: Bool
   public let privateModeIsAvailable: Bool
   public let routingCapabilities: BrowserRoutingCapabilities?
 
@@ -15,9 +16,28 @@ public struct DiscoveredBrowser: Equatable, Sendable {
     privateModeIsAvailable: Bool = true,
     routingCapabilities: BrowserRoutingCapabilities? = nil
   ) {
+    self.init(
+      application: application,
+      profiles: profiles,
+      metadataStatus: metadataStatus,
+      profileMetadataUsesSavedGrant: false,
+      privateModeIsAvailable: privateModeIsAvailable,
+      routingCapabilities: routingCapabilities
+    )
+  }
+
+  init(
+    application: RoutedApplication,
+    profiles: [DiscoveredProfile],
+    metadataStatus: ProfileMetadataStatus,
+    profileMetadataUsesSavedGrant: Bool,
+    privateModeIsAvailable: Bool,
+    routingCapabilities: BrowserRoutingCapabilities?
+  ) {
     self.application = application
     self.profiles = profiles
     self.metadataStatus = metadataStatus
+    self.profileMetadataUsesSavedGrant = profileMetadataUsesSavedGrant
     self.privateModeIsAvailable = privateModeIsAvailable
     self.routingCapabilities =
       routingCapabilities
@@ -494,6 +514,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
         application: application,
         profiles: metadata.profiles,
         metadataStatus: metadata.status,
+        profileMetadataUsesSavedGrant: metadata.usesSavedGrant,
         privateModeIsAvailable: privateModeIsAvailable,
         routingCapabilities: BrowserRoutingCapabilities(descriptor: descriptor)
       ),
@@ -503,11 +524,15 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
 
   private func readProfiles(
     for descriptor: BrowserDescriptor
-  ) -> (profiles: [DiscoveredProfile], status: ProfileMetadataStatus) {
+  ) -> (
+    profiles: [DiscoveredProfile],
+    status: ProfileMetadataStatus,
+    usesSavedGrant: Bool
+  ) {
     let profileRoot: String
     switch descriptor.profileStrategy {
     case .none, .safariShortcut:
-      return ([], .notApplicable)
+      return ([], .notApplicable, false)
     case .chromium(let root), .firefox(let root):
       profileRoot = root
     }
@@ -518,21 +543,30 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     let access = profileRootAccess.beginAccess(for: descriptor.bundleIdentifier)
     switch access.state {
     case .revoked:
-      return ([], .accessRevoked)
+      return ([], .accessRevoked, false)
     case .granted:
-      guard let lease = access.lease else { return ([], .accessRevoked) }
+      guard let lease = access.lease else { return ([], .accessRevoked, false) }
       defer { lease.end() }
-      return readProfiles(
+      let metadata = readProfiles(
         at: lease.root,
         for: descriptor,
         usesSavedGrant: true
       )
+      let usesSavedGrant =
+        switch access.provenance {
+        case .none:
+          false
+        case .currentSessionGrant, .persistentBookmark, .refreshedPersistentBookmark:
+          true
+        }
+      return (metadata.profiles, metadata.status, usesSavedGrant)
     case .missing:
-      return readProfiles(
+      let metadata = readProfiles(
         at: conventionalRoot,
         for: descriptor,
         usesSavedGrant: false
       )
+      return (metadata.profiles, metadata.status, false)
     }
   }
 
@@ -612,7 +646,15 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     case (true, .notApplicable), (true, .metadataAbsent), (true, .loaded):
       let profiles = uniqueProfiles(browser.profiles)
       let markedDefaults = profiles.filter(\.isDefault)
-      let absorbedID = markedDefaults.count == 1 ? markedDefaults[0].identifier : nil
+      let preservesGrantedFirefoxDefault =
+        browser.profileMetadataUsesSavedGrant
+        && {
+          if case .firefox = capabilities.profileStrategy { return true }
+          return false
+        }()
+      let absorbedID =
+        markedDefaults.count == 1 && !preservesGrantedFirefoxDefault
+        ? markedDefaults[0].identifier : nil
       explicitProfiles = profiles.filter { $0.identifier != absorbedID }
     case (true, .accessRequired), (true, .accessRevoked), (true, .metadataDamaged):
       explicitProfiles = []

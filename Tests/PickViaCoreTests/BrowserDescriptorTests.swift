@@ -38,7 +38,7 @@ struct BrowserDescriptorTests {
 
   @Test func privateCapabilityResolverKeepsStaticArgumentsAndFailClosedDynamicEvidence() {
     let applicationID = "com.example.private-capability"
-    let argument = BrowserDescriptor(
+    let argumentEnabled = BrowserDescriptor(
       bundleIdentifier: applicationID,
       family: .chromium,
       displayName: "Argument Browser",
@@ -47,7 +47,30 @@ struct BrowserDescriptorTests {
         executableRelativePath: "Contents/MacOS/browser",
         profileArgument: "--profile="
       ),
-      privateStrategy: .argument("--private")
+      privateStrategy: .argument("--private"),
+      routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+        normal: .executable,
+        browserPrivate: true,
+        profile: false,
+        profilePrivate: false
+      )
+    )
+    let argumentDisabled = BrowserDescriptor(
+      bundleIdentifier: applicationID,
+      family: .chromium,
+      displayName: "Argument Browser",
+      profileStrategy: .none,
+      launchStrategy: .chromium(
+        executableRelativePath: "Contents/MacOS/browser",
+        profileArgument: "--profile="
+      ),
+      privateStrategy: .argument("--private"),
+      routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+        normal: .executable,
+        browserPrivate: false,
+        profile: false,
+        profilePrivate: false
+      )
     )
     let unsupported = BrowserDescriptor(
       bundleIdentifier: applicationID,
@@ -57,13 +80,33 @@ struct BrowserDescriptorTests {
       launchStrategy: .workspace,
       privateStrategy: .unsupported
     )
-    let duckDuckGo = BrowserDescriptor(
+    let duckDuckGoEnabled = BrowserDescriptor(
       bundleIdentifier: applicationID,
       family: .duckDuckGo,
       displayName: "Dynamic Browser",
       profileStrategy: .none,
       launchStrategy: .duckDuckGo,
-      privateStrategy: .duckDuckGoFire
+      privateStrategy: .duckDuckGoFire,
+      routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+        normal: .executable,
+        browserPrivate: true,
+        profile: false,
+        profilePrivate: false
+      )
+    )
+    let duckDuckGoDisabled = BrowserDescriptor(
+      bundleIdentifier: applicationID,
+      family: .duckDuckGo,
+      displayName: "Dynamic Browser",
+      profileStrategy: .none,
+      launchStrategy: .duckDuckGo,
+      privateStrategy: .duckDuckGoFire,
+      routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+        normal: .executable,
+        browserPrivate: false,
+        profile: false,
+        profilePrivate: false
+      )
     )
     let safariShortcut = BrowserDescriptor(
       bundleIdentifier: applicationID,
@@ -94,9 +137,15 @@ struct BrowserDescriptorTests {
 
     #expect(
       BrowserPrivateCapabilityResolver.isAvailable(
-        descriptor: argument,
+        descriptor: argumentEnabled,
         applicationID: applicationID,
         targets: []
+      ))
+    #expect(
+      !BrowserPrivateCapabilityResolver.isAvailable(
+        descriptor: argumentDisabled,
+        applicationID: applicationID,
+        targets: [availablePrivate]
       ))
     #expect(
       !BrowserPrivateCapabilityResolver.isAvailable(
@@ -104,7 +153,13 @@ struct BrowserDescriptorTests {
         applicationID: applicationID,
         targets: [availablePrivate]
       ))
-    for descriptor in [duckDuckGo, safariShortcut] {
+    #expect(
+      !BrowserPrivateCapabilityResolver.isAvailable(
+        descriptor: duckDuckGoDisabled,
+        applicationID: applicationID,
+        targets: [availablePrivate]
+      ))
+    for descriptor in [duckDuckGoEnabled, safariShortcut] {
       #expect(
         !BrowserPrivateCapabilityResolver.isAvailable(
           descriptor: descriptor,

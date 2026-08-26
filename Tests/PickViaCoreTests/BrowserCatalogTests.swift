@@ -1351,6 +1351,118 @@ struct BrowserCatalogTests {
     #expect(access.endedBundleIdentifiers == ["com.google.Chrome"])
   }
 
+  @Test func savedGrantPreservesSoleFirefoxDefaultAsPolicyGatedProfileRoute() throws {
+    let grantedRoot = URL(fileURLWithPath: "/Granted/Firefox", isDirectory: true)
+    let conventionalRoot = URL(
+      fileURLWithPath: "/home/Library/Application Support/Firefox",
+      isDirectory: true
+    )
+    let metadata = Data(
+      """
+      [Profile0]
+      Name=PickVia E2E
+      IsRelative=1
+      Path=Profiles/pickvia-e2e
+      Default=1
+      """.utf8)
+    let grantedMarker = grantedRoot.appending(path: "profiles.ini")
+    let conventionalMarker = conventionalRoot.appending(path: "profiles.ini")
+    let applicationURL = URL(fileURLWithPath: "/Applications/Firefox.app")
+
+    let grantedCatalog = BrowserCatalog(
+      descriptors: [firefoxDescriptor],
+      applicationLocator: StubApplicationLocator(applications: [
+        firefoxDescriptor.bundleIdentifier: applicationURL
+      ]),
+      fileSystem: DiscoveryFileSystem(files: [grantedMarker: metadata]),
+      profileRootAccess: StubProfileRootAccess(grantedRoots: [
+        firefoxDescriptor.bundleIdentifier: grantedRoot
+      ]),
+      homeDirectory: URL(fileURLWithPath: "/home", isDirectory: true)
+    )
+
+    let granted = grantedCatalog.reconcile(
+      discovered: grantedCatalog.scanResult().browsers,
+      with: .initial
+    )
+    let grantedProfileTargets = granted.targets.filter { $0.profileIdentity != nil }
+    let grantedProfile = try #require(grantedProfileTargets.first)
+    #expect(grantedProfileTargets.count == 1)
+    #expect(grantedProfile.mode == .normal)
+    #expect(grantedProfile.profileIdentifier == "PickVia E2E")
+    #expect(
+      grantedProfile.profileLaunchPath
+        == grantedRoot.appending(
+          path: "Profiles/pickvia-e2e",
+          directoryHint: .isDirectory
+        ).path
+    )
+
+    let profileDisabled = BrowserDescriptor(
+      bundleIdentifier: firefoxDescriptor.bundleIdentifier,
+      family: firefoxDescriptor.family,
+      displayName: firefoxDescriptor.displayName,
+      profileStrategy: firefoxDescriptor.profileStrategy,
+      launchStrategy: firefoxDescriptor.launchStrategy,
+      privateStrategy: firefoxDescriptor.privateStrategy,
+      routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+        normal: firefoxDescriptor.routeCapabilityPolicy.normal,
+        browserPrivate: firefoxDescriptor.routeCapabilityPolicy.browserPrivate,
+        profile: false,
+        profilePrivate: false
+      )
+    )
+    let disabledCatalog = BrowserCatalog(
+      descriptors: [profileDisabled],
+      applicationLocator: StubApplicationLocator(applications: [
+        profileDisabled.bundleIdentifier: applicationURL
+      ]),
+      fileSystem: DiscoveryFileSystem(files: [grantedMarker: metadata]),
+      profileRootAccess: StubProfileRootAccess(grantedRoots: [
+        profileDisabled.bundleIdentifier: grantedRoot
+      ]),
+      homeDirectory: URL(fileURLWithPath: "/home", isDirectory: true)
+    )
+    let disabled = disabledCatalog.reconcile(
+      discovered: disabledCatalog.scanResult().browsers,
+      with: .initial
+    )
+    #expect(disabled.targets.allSatisfy { $0.profileIdentity == nil })
+
+    let missingProvenanceCatalog = BrowserCatalog(
+      descriptors: [firefoxDescriptor],
+      applicationLocator: StubApplicationLocator(applications: [
+        firefoxDescriptor.bundleIdentifier: applicationURL
+      ]),
+      fileSystem: DiscoveryFileSystem(files: [grantedMarker: metadata]),
+      profileRootAccess: StubProfileRootAccess(
+        grantedRoots: [firefoxDescriptor.bundleIdentifier: grantedRoot],
+        provenances: [firefoxDescriptor.bundleIdentifier: .none]
+      ),
+      homeDirectory: URL(fileURLWithPath: "/home", isDirectory: true)
+    )
+    let missingProvenance = missingProvenanceCatalog.reconcile(
+      discovered: missingProvenanceCatalog.scanResult().browsers,
+      with: .initial
+    )
+    #expect(missingProvenance.targets.allSatisfy { $0.profileIdentity == nil })
+
+    let conventionalCatalog = BrowserCatalog(
+      descriptors: [firefoxDescriptor],
+      applicationLocator: StubApplicationLocator(applications: [
+        firefoxDescriptor.bundleIdentifier: applicationURL
+      ]),
+      fileSystem: DiscoveryFileSystem(files: [conventionalMarker: metadata]),
+      profileRootAccess: StubProfileRootAccess(),
+      homeDirectory: URL(fileURLWithPath: "/home", isDirectory: true)
+    )
+    let conventional = conventionalCatalog.reconcile(
+      discovered: conventionalCatalog.scanResult().browsers,
+      with: .initial
+    )
+    #expect(conventional.targets.allSatisfy { $0.profileIdentity == nil })
+  }
+
   @Test func grantedChromiumRootRejectsNestedIdentifierWithoutLaunchPath() {
     let grantedRoot = URL(fileURLWithPath: "/Granted/Chrome", isDirectory: true)
     let marker = grantedRoot.appending(path: "Local State")
@@ -4343,15 +4455,18 @@ private struct StubDuckDuckGoCompatibilityChecker: DuckDuckGoBuildCompatibilityC
 private final class StubProfileRootAccess: ProfileRootAccessProviding, @unchecked Sendable {
   private let states: [String: ProfileRootAccessState]
   private let grantedRoots: [String: URL]
+  private let provenances: [String: ProfileRootAccessProvenance]
   private(set) var requestedBundleIdentifiers: [String] = []
   private(set) var endedBundleIdentifiers: [String] = []
 
   init(
     states: [String: ProfileRootAccessState] = [:],
-    grantedRoots: [String: URL] = [:]
+    grantedRoots: [String: URL] = [:],
+    provenances: [String: ProfileRootAccessProvenance] = [:]
   ) {
     self.states = states
     self.grantedRoots = grantedRoots
+    self.provenances = provenances
   }
 
   func beginAccess(for bundleIdentifier: String) -> ProfileRootAccessResult {
@@ -4361,7 +4476,8 @@ private final class StubProfileRootAccess: ProfileRootAccessProviding, @unchecke
         state: .granted,
         lease: ProfileRootLease(root: root) { [weak self] in
           self?.endedBundleIdentifiers.append(bundleIdentifier)
-        }
+        },
+        provenance: provenances[bundleIdentifier] ?? .persistentBookmark
       )
     }
     return ProfileRootAccessResult(
