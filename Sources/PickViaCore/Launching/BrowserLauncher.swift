@@ -456,8 +456,11 @@ public struct BrowserLauncher: Sendable {
       (profileLaunchPath as NSString).isAbsolutePath,
       !profileIdentifier.isEmpty,
       !profileIdentifier.contains("/"),
+      !profileIdentifier.contains("\\"),
       profileIdentifier != ".",
-      profileIdentifier != ".."
+      profileIdentifier != "..",
+      !(profileIdentifier as NSString).isAbsolutePath,
+      !profileIdentifier.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
     else { return nil }
 
     let profile = URL(fileURLWithPath: profileLaunchPath, isDirectory: true).standardizedFileURL

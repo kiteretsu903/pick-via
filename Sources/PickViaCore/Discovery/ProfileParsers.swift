@@ -47,7 +47,7 @@ public enum ChromiumProfileParser {
 
     return infoCache.compactMap { identifier, value in
       guard
-        !identifier.isEmpty,
+        isSafeProfileIdentifier(identifier, baseDirectory: baseDirectory),
         let metadata = value as? [String: Any],
         let displayName = metadata["name"] as? String,
         !displayName.isEmpty
@@ -65,6 +65,28 @@ public enum ChromiumProfileParser {
       )
     }
     .sorted { $0.identifier < $1.identifier }
+  }
+
+  private static func isSafeProfileIdentifier(
+    _ identifier: String,
+    baseDirectory: URL?
+  ) -> Bool {
+    guard
+      !identifier.isEmpty,
+      identifier != ".",
+      identifier != "..",
+      !identifier.contains("/"),
+      !identifier.contains("\\"),
+      !(identifier as NSString).isAbsolutePath,
+      !identifier.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
+    else { return false }
+    guard let baseDirectory else { return true }
+    let candidate = baseDirectory.appending(
+      path: identifier,
+      directoryHint: .isDirectory
+    ).standardizedFileURL
+    return candidate.lastPathComponent == identifier
+      && candidate.deletingLastPathComponent().standardizedFileURL.path == baseDirectory.path
   }
 }
 

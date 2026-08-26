@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 import configparser
+import contextlib
+import io
 import json
 import os
 import pathlib
@@ -157,6 +159,25 @@ class SyntheticProfileFixture:
         self.close()
 
 
+class _CreatorProcessDouble:
+    def __init__(self, wait_success=lambda _timeout: True):
+        self.process = mock.Mock()
+        self.process.poll.return_value = None
+        self._wait_success = wait_success
+        self.signals = []
+
+    def terminate_bounded(self, *, term_timeout, kill_timeout):
+        del term_timeout, kill_timeout
+        self.signals.append("term")
+        return True
+
+    def wait_success(self, timeout):
+        return self._wait_success(timeout)
+
+    def close_streams(self):
+        return None
+
+
 class SyntheticProfileCreatorTests(unittest.TestCase):
     def test_chromium_creator_uses_isolated_user_data_and_one_profile(self):
         with SyntheticProfileFixture(strategy="chromium") as fixture:
@@ -230,7 +251,12 @@ class SyntheticProfileCreatorTests(unittest.TestCase):
         ) as temporary:
             root = pathlib.Path(temporary).resolve()
             root.chmod(0o700)
-            environment = creator._minimal_environment(root)
+            synthetic_root = root / "synthetic-root"
+            pinned = creator._prepare_root(synthetic_root)
+            try:
+                environment = creator._minimal_environment(pinned)
+            finally:
+                pinned.close()
 
             self.assertEqual(
                 set(environment),
@@ -240,12 +266,148 @@ class SyntheticProfileCreatorTests(unittest.TestCase):
             self.assertNotIn("GITHUB_TOKEN", environment)
             self.assertNotIn("AGENT_RUNTIME_SENTINEL", environment)
 
+    def test_prepared_root_replacement_is_rejected_before_environment_mutation(self):
+        with tempfile.TemporaryDirectory(
+            prefix="pickvia-synthetic-root-pin-"
+        ) as temporary:
+            parent = pathlib.Path(temporary).resolve()
+            root = parent / "root"
+            pinned = creator._prepare_root(root)
+            original = parent / "original"
+            root.rename(original)
+            root.mkdir(mode=0o700)
+            replacement_marker = root / "replacement"
+            replacement_marker.write_bytes(b"preserved")
+            try:
+                with self.assertRaises(creator.SyntheticProfileError):
+                    creator._minimal_environment(pinned)
+                self.assertEqual(replacement_marker.read_bytes(), b"preserved")
+                self.assertFalse((root / ".creator-home").exists())
+            finally:
+                pinned.close()
+
+    def test_chromium_replacement_after_child_is_not_normalized(self):
+        with tempfile.TemporaryDirectory(
+            prefix="pickvia-synthetic-chromium-pin-"
+        ) as temporary:
+            parent = pathlib.Path(temporary).resolve()
+            root = parent / "root"
+            pinned = creator._prepare_root(root)
+            environment = creator._minimal_environment(pinned)
+            process = _CreatorProcessDouble()
+            replacement_contents = (
+                b'{"profile":{"info_cache":{"PickVia E2E":{"name":"Replacement"}}}}'
+            )
+
+            def replace_after_child(*_args):
+                root.rename(parent / "original")
+                root.mkdir(mode=0o700)
+                (root / "PickVia E2E").mkdir(mode=0o755)
+                (root / "Local State").write_bytes(replacement_contents)
+
+            try:
+                with (
+                    mock.patch.object(creator, "_start_exact", return_value=process),
+                    mock.patch.object(
+                        creator,
+                        "_wait_for_chromium_profile",
+                        side_effect=replace_after_child,
+                    ),
+                ):
+                    with self.assertRaises(creator.SyntheticProfileError):
+                        creator._create_chromium(
+                            pinned,
+                            pathlib.Path("/private/tmp/fake-browser"),
+                            environment,
+                        )
+                self.assertEqual(
+                    (root / "Local State").read_bytes(), replacement_contents
+                )
+                self.assertEqual((root / "PickVia E2E").stat().st_mode & 0o777, 0o755)
+                self.assertEqual(process.signals, ["term"])
+            finally:
+                pinned.close()
+
+    def test_firefox_replacement_after_child_is_not_mutated(self):
+        with tempfile.TemporaryDirectory(
+            prefix="pickvia-synthetic-firefox-pin-"
+        ) as temporary:
+            parent = pathlib.Path(temporary).resolve()
+            root = parent / "root"
+            pinned = creator._prepare_root(root)
+            environment = creator._minimal_environment(pinned)
+
+            def replace_and_finish(_timeout):
+                root.rename(parent / "original")
+                root.mkdir(mode=0o700)
+                (root / "PickVia E2E").mkdir(mode=0o755)
+                (root / "replacement").write_bytes(b"preserved")
+                return True
+
+            process = _CreatorProcessDouble(wait_success=replace_and_finish)
+            try:
+                with mock.patch.object(creator, "_start_exact", return_value=process):
+                    with self.assertRaises(creator.SyntheticProfileError):
+                        creator._create_firefox(
+                            pinned,
+                            pathlib.Path("/private/tmp/fake-browser"),
+                            environment,
+                        )
+                self.assertEqual((root / "replacement").read_bytes(), b"preserved")
+                self.assertEqual((root / "PickVia E2E").stat().st_mode & 0o777, 0o755)
+                self.assertFalse((root / "profiles.ini").exists())
+                self.assertEqual(process.signals, [])
+            finally:
+                pinned.close()
+
+    def test_malformed_cli_uses_fixed_sanitized_argument_stage(self):
+        secret = "/private/tmp/sensitive-PickVia E2E-profile"
+        cases = [
+            [f"--unknown={secret}"],
+            ["--strategy", secret],
+            ["--application", secret],
+        ]
+        for arguments in cases:
+            with self.subTest(arguments=arguments):
+                result = subprocess.run(
+                    [str(SCRIPT), *arguments],
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=5,
+                    check=False,
+                )
+                output = result.stdout + result.stderr
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(output, b"synthetic-profile-error:arguments\n")
+                self.assertNotIn(secret.encode(), output)
+                self.assertNotIn(b"PickVia E2E", output)
+
+    def test_arbitrary_runtime_exception_text_uses_fixed_creation_stage(self):
+        secret = "/private/tmp/sensitive-PickVia E2E-runtime"
+        stderr = io.StringIO()
+        with (
+            mock.patch.object(creator, "_arguments", return_value=object()),
+            mock.patch.object(
+                creator,
+                "create_synthetic_profile",
+                side_effect=RuntimeError(secret),
+            ),
+            contextlib.redirect_stderr(stderr),
+        ):
+            result = creator.main([])
+
+        self.assertEqual(result, 1)
+        self.assertEqual(stderr.getvalue(), "synthetic-profile-error:creation\n")
+        self.assertNotIn(secret, stderr.getvalue())
+
     def test_chromium_normalization_rejects_marker_replacement_before_write(self):
         with tempfile.TemporaryDirectory(
             prefix="pickvia-synthetic-normalization-"
         ) as temporary:
             root = pathlib.Path(temporary).resolve()
-            root.chmod(0o700)
+            root = root / "root"
+            pinned = creator._prepare_root(root)
             (root / "PickVia E2E").mkdir(mode=0o700)
             marker = root / "Local State"
             marker.write_text(
@@ -259,24 +421,40 @@ class SyntheticProfileCreatorTests(unittest.TestCase):
 
             def replace_before_open(path, flags, *args, **kwargs):
                 nonlocal swapped
-                if pathlib.Path(path) == marker and flags & os.O_WRONLY and not swapped:
+                if (
+                    os.fspath(path) == "Local State"
+                    and flags & os.O_WRONLY
+                    and not swapped
+                ):
                     swapped = True
-                    marker.unlink()
-                    replacement.rename(marker)
+                    directory = kwargs["dir_fd"]
+                    os.unlink("Local State", dir_fd=directory)
+                    os.rename(
+                        "replacement",
+                        "Local State",
+                        src_dir_fd=directory,
+                        dst_dir_fd=directory,
+                    )
                 return real_open(path, flags, *args, **kwargs)
 
-            with mock.patch.object(creator.os, "open", side_effect=replace_before_open):
-                with self.assertRaises(creator.SyntheticProfileError):
-                    creator._normalize_chromium(root)
+            try:
+                with mock.patch.object(
+                    creator.os, "open", side_effect=replace_before_open
+                ):
+                    with self.assertRaises(creator.SyntheticProfileError):
+                        creator._normalize_chromium(pinned)
 
-            self.assertEqual(marker.read_bytes(), b"replacement-preserved")
+                self.assertEqual(marker.read_bytes(), b"replacement-preserved")
+            finally:
+                pinned.close()
 
     def test_chromium_normalization_rejects_profile_symlink_without_mutation(self):
         with tempfile.TemporaryDirectory(
             prefix="pickvia-synthetic-profile-symlink-"
         ) as temporary:
             root = pathlib.Path(temporary).resolve()
-            root.chmod(0o700)
+            root = root / "root"
+            pinned = creator._prepare_root(root)
             external = root.parent / f"external-profile-{os.getpid()}"
             external.mkdir(mode=0o755)
             try:
@@ -287,10 +465,11 @@ class SyntheticProfileCreatorTests(unittest.TestCase):
                 )
 
                 with self.assertRaises(creator.SyntheticProfileError):
-                    creator._normalize_chromium(root)
+                    creator._normalize_chromium(pinned)
 
                 self.assertEqual(external.stat().st_mode & 0o777, 0o755)
             finally:
+                pinned.close()
                 external.rmdir()
 
 

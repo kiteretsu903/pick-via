@@ -1241,6 +1241,30 @@ struct BrowserCatalogTests {
     #expect(access.endedBundleIdentifiers == ["com.google.Chrome"])
   }
 
+  @Test func grantedChromiumRootRejectsNestedIdentifierWithoutLaunchPath() {
+    let grantedRoot = URL(fileURLWithPath: "/Granted/Chrome", isDirectory: true)
+    let marker = grantedRoot.appending(path: "Local State")
+    let fileSystem = DiscoveryFileSystem(files: [
+      marker: Data(
+        #"{"profile":{"info_cache":{"nested/profile":{"name":"PickVia E2E"}}}}"#.utf8)
+    ])
+    let access = StubProfileRootAccess(grantedRoots: ["com.google.Chrome": grantedRoot])
+    let catalog = BrowserCatalog(
+      descriptors: [chromeDescriptor],
+      applicationLocator: StubApplicationLocator(applications: [
+        "com.google.Chrome": URL(fileURLWithPath: "/Applications/Google Chrome.app")
+      ]),
+      fileSystem: fileSystem,
+      profileRootAccess: access,
+      homeDirectory: URL(fileURLWithPath: "/home", isDirectory: true)
+    )
+
+    let result = catalog.scanResult()
+
+    #expect(result.browsers.first?.metadataStatus == .loaded)
+    #expect(result.browsers.first?.profiles.isEmpty == true)
+  }
+
   @Test func grantedRootWithoutRequiredMarkerIsAccessRevoked() {
     let grantedRoot = URL(fileURLWithPath: "/Moved/Chrome", isDirectory: true)
     let access = StubProfileRootAccess(grantedRoots: ["com.google.Chrome": grantedRoot])

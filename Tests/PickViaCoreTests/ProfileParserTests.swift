@@ -60,6 +60,22 @@ struct ProfileParserTests {
     }
   }
 
+  @Test(
+    arguments: ["", ".", "..", "nested/profile", #"nested\profile"#, "/absolute"]
+  )
+  func chromiumCustomRootRejectsUnsafeProfileIdentifier(_ identifier: String) throws {
+    let data = try JSONSerialization.data(withJSONObject: [
+      "profile": ["info_cache": [identifier: ["name": "PickVia E2E"]]]
+    ])
+
+    let profiles = try ChromiumProfileParser.parse(
+      data: data,
+      baseDirectory: URL(fileURLWithPath: "/private/tmp/pickvia-profile-root")
+    )
+
+    #expect(profiles.isEmpty)
+  }
+
   @Test func firefoxResolvesRelativeAndAbsolutePaths() throws {
     let baseDirectory = URL(fileURLWithPath: "/Users/example/Firefox", isDirectory: true)
     let profiles = try FirefoxProfileParser.parse(

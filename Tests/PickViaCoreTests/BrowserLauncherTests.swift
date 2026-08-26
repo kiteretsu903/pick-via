@@ -320,6 +320,23 @@ struct BrowserLauncherTests {
     }
   }
 
+  @Test(arguments: [".", "..", "nested/profile", #"nested\profile"#, "/absolute"])
+  func chromiumCustomRootRejectsUnsafeProfileIdentifier(_ identifier: String) throws {
+    try withChromiumProfileRoot { _, profile in
+      #expect(throws: LaunchFailure.self) {
+        try testLauncher().makePlan(
+          url: url,
+          application: application(family: .chromium),
+          target: target(
+            family: .chromium,
+            profile: identifier,
+            profileLaunchPath: profile.path
+          )
+        )
+      }
+    }
+  }
+
   @Test(arguments: [ProfileEvidenceField.displayName, .identity, .launchPath])
   func chromiumRejectsProfileEvidenceWithoutIdentifier(field: ProfileEvidenceField) {
     #expect(throws: LaunchFailure.self) {
