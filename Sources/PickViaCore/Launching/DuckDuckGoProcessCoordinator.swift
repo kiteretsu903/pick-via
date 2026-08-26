@@ -2,11 +2,12 @@ import Foundation
 import OSLog
 
 public protocol DuckDuckGoRouting: Sendable {
+  @discardableResult
   func open(
     url: URL,
     applicationURL: URL,
     mode: BrowserMode
-  ) async throws
+  ) async throws -> BrowserLaunchObservation
 }
 
 enum DuckDuckGoRoutingError: Error, Equatable, Sendable {
@@ -111,17 +112,18 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     }
   }
 
+  @discardableResult
   public func open(
     url: URL,
     applicationURL: URL,
     mode: BrowserMode
-  ) async throws {
+  ) async throws -> BrowserLaunchObservation {
     await acquireRoute()
     defer { releaseRoute() }
     try Task.checkCancellation()
     try await waitForStartupCleanup()
     try Task.checkCancellation()
-    try await openSerially(url: url, applicationURL: applicationURL, mode: mode)
+    return try await openSerially(url: url, applicationURL: applicationURL, mode: mode)
   }
 
   func waitForStartupCleanup() async throws {
@@ -159,7 +161,7 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     url: URL,
     applicationURL: URL,
     mode: BrowserMode
-  ) async throws {
+  ) async throws -> BrowserLaunchObservation {
     let quarantine = try await reconcileQuarantinedLaunches()
     let trustedApplicationURL = Self.canonicalFileURL(applicationURL)
     let expectedExecutableURL = Self.canonicalFileURL(
@@ -194,9 +196,13 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     switch mode {
     case .normal:
       if mustExcludeEveryRunningProcess {
-        try await launchOrdinary(url: url, applicationURL: trustedApplicationURL)
+        return try await launchOrdinary(
+          url: url,
+          applicationURL: trustedApplicationURL,
+          executableURL: expectedExecutableURL
+        )
       } else {
-        try await openOrdinary(
+        return try await openOrdinary(
           url: url,
           applicationURL: trustedApplicationURL,
           executableURL: expectedExecutableURL,
@@ -215,9 +221,9 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
           )
         }
       if let existing = Self.newestLiveManaged(reusable) {
-        try await reuseFireProcess(existing, url: url)
+        return try await reuseFireProcess(existing, url: url)
       } else {
-        try await launchFire(
+        return try await launchFire(
           url: url,
           applicationURL: trustedApplicationURL,
           executableURL: expectedExecutableURL
@@ -279,7 +285,7 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     applicationURL: URL,
     executableURL: URL,
     excluding managedProcessIdentifiers: Set<Int32>
-  ) async throws {
+  ) async throws -> BrowserLaunchObservation {
     let running = await applications.runningApplications(
       bundleIdentifier: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier
     )
@@ -296,8 +302,11 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
       .max { ($0.launchDate ?? .distantPast) < ($1.launchDate ?? .distantPast) }
 
     guard let existing else {
-      try await launchOrdinary(url: url, applicationURL: applicationURL)
-      return
+      return try await launchOrdinary(
+        url: url,
+        applicationURL: applicationURL,
+        executableURL: executableURL
+      )
     }
 
     logger.debug(
@@ -309,11 +318,16 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     guard await applications.activate(processIdentifier: existing.processIdentifier) else {
       throw DuckDuckGoRoutingError.activationFailed
     }
+    return try Self.observation(processIdentifier: existing.processIdentifier)
   }
 
-  private func launchOrdinary(url: URL, applicationURL: URL) async throws {
+  private func launchOrdinary(
+    url: URL,
+    applicationURL: URL,
+    executableURL: URL
+  ) async throws -> BrowserLaunchObservation {
     try Task.checkCancellation()
-    _ = try await applications.launch(
+    let launched = try await applications.launch(
       DuckDuckGoApplicationLaunchRequest(
         applicationURL: applicationURL,
         urls: [url],
@@ -323,13 +337,23 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
         activates: true
       )
     )
+    guard
+      Self.matchesApplicationIdentity(
+        launched,
+        applicationURL: applicationURL,
+        executableURL: executableURL
+      )
+    else {
+      throw DuckDuckGoRoutingError.processIdentityMismatch
+    }
+    return try Self.observation(processIdentifier: launched.processIdentifier)
   }
 
   private func launchFire(
     url: URL,
     applicationURL: URL,
     executableURL: URL
-  ) async throws {
+  ) async throws -> BrowserLaunchObservation {
     try Task.checkCancellation()
     let session = try stateStore.prepareHome(identifier: UUID())
     let pendingQuarantine = DuckDuckGoLaunchQuarantineMarker(
@@ -379,6 +403,16 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
       if Self.removeSessionIfPossible(stateStore, identifier: session.identifier) {
         quarantinedLaunches.removeValue(forKey: session.identifier)
       }
+      throw error
+    }
+
+    let launchObservation: BrowserLaunchObservation
+    do {
+      launchObservation = try Self.observation(
+        processIdentifier: launched.processIdentifier
+      )
+    } catch {
+      await rollbackFreshLaunch(launched, session: session)
       throw error
     }
 
@@ -444,6 +478,7 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     }
 
     try await deliverFireURL(url, to: ready.processIdentifier)
+    return launchObservation
   }
 
   private func deliverFireURL(_ url: URL, to processIdentifier: Int32) async throws {
@@ -466,7 +501,7 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
   private func reuseFireProcess(
     _ process: LiveManagedProcess,
     url: URL
-  ) async throws {
+  ) async throws -> BrowserLaunchObservation {
     var snapshot = process.snapshot
     if !snapshot.isFinishedLaunching {
       try Task.checkCancellation()
@@ -488,6 +523,7 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
       }
     }
     try await deliverFireURL(url, to: snapshot.processIdentifier)
+    return try Self.observation(processIdentifier: snapshot.processIdentifier)
   }
 
   private func rollbackFreshLaunch(
@@ -776,6 +812,20 @@ public actor DuckDuckGoProcessCoordinator: DuckDuckGoRouting {
     }
     return canonicalFileURL(bundleURL).path == applicationURL.path
       && canonicalFileURL(runningExecutableURL).path == executableURL.path
+  }
+
+  private static func observation(
+    processIdentifier: Int32
+  ) throws -> BrowserLaunchObservation {
+    guard
+      let observation = BrowserLaunchObservation(
+        processIdentifier: processIdentifier,
+        mechanism: .duckDuckGo
+      )
+    else {
+      throw DuckDuckGoRoutingError.processIdentityMismatch
+    }
+    return observation
   }
 
   private static func canonicalFileURL(_ url: URL) -> URL {

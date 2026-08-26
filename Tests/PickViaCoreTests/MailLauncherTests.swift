@@ -337,17 +337,31 @@ private final class RecordingMailWorkspace: WorkspaceOpening, @unchecked Sendabl
     self.error = error
   }
 
-  func open(_ url: URL, withApplicationAt application: URL) async throws {
+  func open(
+    _ url: URL,
+    withApplicationAt application: URL
+  ) async throws -> BrowserLaunchObservation {
     invocations.append(.init(application: application, url: url))
     if let error { throw error }
+    return BrowserLaunchObservation(
+      processIdentifier: 5_001,
+      mechanism: .workspace
+    )!
   }
 }
 
 private final class RecordingMailProcessRunner: ProcessRunning, @unchecked Sendable {
   private(set) var invocationCount = 0
 
-  func run(executable application: URL, arguments: [String]) throws {
+  func run(
+    executable application: URL,
+    arguments: [String]
+  ) throws -> BrowserLaunchObservation {
     invocationCount += 1
+    return BrowserLaunchObservation(
+      processIdentifier: 4_001,
+      mechanism: .process
+    )!
   }
 }
 

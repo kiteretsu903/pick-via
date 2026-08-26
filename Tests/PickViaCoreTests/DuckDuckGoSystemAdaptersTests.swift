@@ -5,6 +5,34 @@ import Testing
 @testable import PickViaCore
 
 struct DuckDuckGoSystemAdaptersTests {
+  @Test func launchSnapshotRequiresAnExactPositiveProcessIdentifier() throws {
+    let positive = DuckDuckGoApplicationSnapshot(
+      processIdentifier: 7_001,
+      bundleIdentifier: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
+      bundleURL: URL(fileURLWithPath: "/Applications/DuckDuckGo.app"),
+      executableURL: URL(
+        fileURLWithPath: "/Applications/DuckDuckGo.app/Contents/MacOS/DuckDuckGo"
+      ),
+      launchDate: Date(timeIntervalSince1970: 1_234),
+      isFinishedLaunching: true,
+      isTerminated: false
+    )
+    let zero = DuckDuckGoApplicationSnapshot(
+      processIdentifier: 0,
+      bundleIdentifier: positive.bundleIdentifier,
+      bundleURL: positive.bundleURL,
+      executableURL: positive.executableURL,
+      launchDate: positive.launchDate,
+      isFinishedLaunching: positive.isFinishedLaunching,
+      isTerminated: positive.isTerminated
+    )
+
+    #expect(try SystemDuckDuckGoApplicationManager.validatedLaunchSnapshot(positive) == positive)
+    #expect(throws: DuckDuckGoApplicationManagerError.invalidProcessIdentifier) {
+      try SystemDuckDuckGoApplicationManager.validatedLaunchSnapshot(zero)
+    }
+  }
+
   @Test func reopenDescriptorUsesCoreReopenEvent() {
     let value = SystemDuckDuckGoAppleEventSender.descriptor(
       for: .reopen,

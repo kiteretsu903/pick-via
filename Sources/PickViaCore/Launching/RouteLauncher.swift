@@ -19,7 +19,11 @@ public struct RouteLauncher: RouteLaunching, Sendable {
   ) async throws {
     switch target.capability {
     case .browser:
-      try await browserLauncher.launch(url: url, application: application, target: target)
+      _ = try await browserLauncher.launch(
+        url: url,
+        application: application,
+        target: target
+      )
     case .mail:
       try await mailLauncher.launch(url: url, application: application, target: target)
     }

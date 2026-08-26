@@ -50,7 +50,7 @@ public struct MailLauncher: Sendable {
     do {
       switch plan {
       case .workspace(let application, let url):
-        try await workspace.open(url, withApplicationAt: application)
+        _ = try await workspace.open(url, withApplicationAt: application)
       }
     } catch {
       throw Self.launchFailure

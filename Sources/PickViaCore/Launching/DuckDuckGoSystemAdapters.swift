@@ -70,6 +70,7 @@ public protocol DuckDuckGoApplicationManaging: Sendable {
 
 public enum DuckDuckGoApplicationManagerError: Error, Equatable, Sendable {
   case launchReturnedNoApplication
+  case invalidProcessIdentifier
   case applicationDisappeared(processIdentifier: Int32)
   case applicationTerminated(processIdentifier: Int32)
   case launchTimedOut(processIdentifier: Int32)
@@ -131,7 +132,7 @@ public struct SystemDuckDuckGoApplicationManager: DuckDuckGoApplicationManaging 
         )
       }
     }
-    return Self.snapshot(from: application)
+    return try Self.validatedLaunchSnapshot(Self.snapshot(from: application))
   }
 
   public func snapshot(processIdentifier: Int32) async -> DuckDuckGoApplicationSnapshot? {
@@ -190,6 +191,15 @@ public struct SystemDuckDuckGoApplicationManager: DuckDuckGoApplicationManaging 
     configuration.promptsUserIfNeeded = false
     configuration.addsToRecentItems = false
     return configuration
+  }
+
+  nonisolated static func validatedLaunchSnapshot(
+    _ snapshot: DuckDuckGoApplicationSnapshot
+  ) throws -> DuckDuckGoApplicationSnapshot {
+    guard snapshot.processIdentifier > 0 else {
+      throw DuckDuckGoApplicationManagerError.invalidProcessIdentifier
+    }
+    return snapshot
   }
 
   private static func snapshot(

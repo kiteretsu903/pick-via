@@ -10,10 +10,15 @@ struct DuckDuckGoProcessCoordinatorTests {
     defer { fixture.removeRoot() }
     let url = URL(string: "https://example.com/fire")!
 
-    try await fixture.coordinator.open(
+    let observation = try await fixture.coordinator.open(
       url: url,
       applicationURL: fixture.applicationURL,
       mode: .private
+    )
+
+    #expect(
+      observation
+        == BrowserLaunchObservation(processIdentifier: 7001, mechanism: .duckDuckGo)
     )
 
     let launches = await fixture.applications.launches
@@ -51,10 +56,15 @@ struct DuckDuckGoProcessCoordinatorTests {
     defer { fixture.removeRoot() }
     let url = URL(string: "https://example.com/reopen")!
 
-    try await fixture.coordinator.open(
+    let observation = try await fixture.coordinator.open(
       url: url,
       applicationURL: fixture.applicationURL,
       mode: .private
+    )
+
+    #expect(
+      observation
+        == BrowserLaunchObservation(processIdentifier: 7001, mechanism: .duckDuckGo)
     )
 
     #expect(await fixture.applications.launches.isEmpty)
@@ -66,6 +76,32 @@ struct DuckDuckGoProcessCoordinatorTests {
       ]
     )
     #expect(try fixture.realStore.records().count == 1)
+  }
+
+  @Test func zeroPIDFreshLaunchFailsClosedAndRollsBack() async throws {
+    let fixture = try CoordinatorFixture(compatibility: .fire)
+    defer { fixture.removeRoot() }
+    await fixture.applications.setNextLaunch(
+      Self.makeSnapshot(
+        processIdentifier: 0,
+        applicationURL: fixture.applicationURL,
+        executableURL: fixture.executableURL,
+        launchDate: Date(timeIntervalSince1970: 1_300)
+      )
+    )
+
+    await #expect(throws: DuckDuckGoRoutingError.processIdentityMismatch) {
+      try await fixture.coordinator.open(
+        url: URL(string: "https://example.com/zero-pid")!,
+        applicationURL: fixture.applicationURL,
+        mode: .private
+      )
+    }
+
+    #expect(await fixture.events.invocations.isEmpty)
+    #expect(await fixture.applications.terminatedPIDs == [0])
+    #expect(try fixture.realStore.records().isEmpty)
+    #expect(fixture.sessionDirectoryNames().isEmpty)
   }
 
   @Test func unfinishedManagedProcessWaitsBeforeReuse() async throws {
@@ -122,8 +158,8 @@ struct DuckDuckGoProcessCoordinatorTests {
 
     #expect(await fixture.applications.launches.count == 1)
     await fixture.applications.resumeSuspendedLaunches()
-    try await first.value
-    try await second.value
+    _ = try await first.value
+    _ = try await second.value
     #expect(await fixture.applications.launches.count == 1)
   }
 
@@ -153,7 +189,7 @@ struct DuckDuckGoProcessCoordinatorTests {
     cancelled.cancel()
 
     await fixture.applications.resumeSuspendedLaunches()
-    try await first.value
+    _ = try await first.value
     await #expect(throws: CancellationError.self) {
       try await cancelled.value
     }

@@ -6,6 +6,81 @@ import Testing
 struct BrowserLauncherTests {
   private let url = URL(string: "https://example.com")!
 
+  @Test func launchObservationRejectsNonpositiveProcessIdentifiers() {
+    #expect(BrowserLaunchObservation(processIdentifier: 0, mechanism: .process) == nil)
+    #expect(BrowserLaunchObservation(processIdentifier: -1, mechanism: .workspace) == nil)
+  }
+
+  @Test func systemProcessRunnerReturnsItsExactChildProcessIdentifier() throws {
+    let observation = try SystemProcessRunner().run(
+      executable: URL(fileURLWithPath: "/usr/bin/true"),
+      arguments: []
+    )
+
+    #expect(observation.processIdentifier > 0)
+    #expect(observation.mechanism == .process)
+  }
+
+  @Test func workspaceCompletionReturnsItsExactApplicationProcessIdentifier() throws {
+    let application = WorkspaceApplicationSnapshot(
+      processIdentifier: 4_321,
+      bundleIdentifier: "com.example.Browser",
+      bundleURL: applicationURL
+    )
+
+    let observation = try SystemWorkspace.observation(
+      requestedApplicationURL: applicationURL,
+      requestedBundleIdentifier: "com.example.Browser",
+      returnedApplications: [application]
+    )
+
+    #expect(
+      observation
+        == BrowserLaunchObservation(processIdentifier: 4_321, mechanism: .workspace)
+    )
+  }
+
+  @Test func workspaceCompletionFailsClosedWithoutOneExactPositiveApplication() {
+    let matching = WorkspaceApplicationSnapshot(
+      processIdentifier: 4_321,
+      bundleIdentifier: "com.example.Browser",
+      bundleURL: applicationURL
+    )
+    let mismatchedBundle = WorkspaceApplicationSnapshot(
+      processIdentifier: 4_322,
+      bundleIdentifier: "com.example.Other",
+      bundleURL: applicationURL
+    )
+    let mismatchedPath = WorkspaceApplicationSnapshot(
+      processIdentifier: 4_323,
+      bundleIdentifier: "com.example.Browser",
+      bundleURL: URL(fileURLWithPath: "/Applications/Other.app")
+    )
+    let zeroPID = WorkspaceApplicationSnapshot(
+      processIdentifier: 0,
+      bundleIdentifier: "com.example.Browser",
+      bundleURL: applicationURL
+    )
+    let invalidResults: [[WorkspaceApplicationSnapshot]?] = [
+      nil,
+      [],
+      [matching, matching],
+      [mismatchedBundle],
+      [mismatchedPath],
+      [zeroPID],
+    ]
+
+    for returnedApplications in invalidResults {
+      #expect(throws: (any Error).self) {
+        try SystemWorkspace.observation(
+          requestedApplicationURL: applicationURL,
+          requestedBundleIdentifier: "com.example.Browser",
+          returnedApplications: returnedApplications
+        )
+      }
+    }
+  }
+
   @Test func mailTargetIsRejectedWithoutReadingBrowserOptions() {
     let application = RoutedApplication(
       id: "com.google.Chrome",
@@ -430,10 +505,10 @@ struct BrowserLauncherTests {
   }
 
   @Test func executeForwardsDuckDuckGoPlanToInjectedRouter() async throws {
-    let router = RecordingDuckDuckGoRouter()
+    let router = RecordingDuckDuckGoRouter(processIdentifier: 6_001)
     let launcher = duckDuckGoLauncher(router: router)
 
-    try await launcher.execute(
+    let observation = try await launcher.execute(
       .duckDuckGo(
         application: applicationURL,
         url: url,
@@ -449,6 +524,10 @@ struct BrowserLauncherTests {
           mode: .private
         )
       ]
+    )
+    #expect(
+      observation
+        == BrowserLaunchObservation(processIdentifier: 6_001, mechanism: .duckDuckGo)
     )
   }
 
@@ -1037,27 +1116,58 @@ struct BrowserLauncherTests {
   }
 
   @Test func executeDispatchesExecutablePlanToInjectedProcessRunner() async throws {
-    let process = RecordingProcessRunner()
+    let process = RecordingProcessRunner(processIdentifier: 4_001)
     let launcher = BrowserLauncher(processRunner: process, workspace: RecordingWorkspace())
     let plan = LaunchPlan.executable(
       application: executableURL, arguments: ["-P", "work", url.absoluteString])
 
-    try await launcher.execute(plan)
+    let observation = try await launcher.execute(plan)
 
     #expect(
       process.invocations == [
         .init(application: executableURL, arguments: ["-P", "work", url.absoluteString])
       ])
+    #expect(
+      observation
+        == BrowserLaunchObservation(processIdentifier: 4_001, mechanism: .process)
+    )
+  }
+
+  @Test func launchReturnsTheExactExecutionObservation() async throws {
+    let process = RecordingProcessRunner(processIdentifier: 4_101)
+    let launcher = BrowserLauncher(
+      trustedApplicationResolver: StubTrustedApplicationResolver(urls: [
+        "com.google.Chrome": applicationURL
+      ]),
+      processRunner: process,
+      workspace: RecordingWorkspace(),
+      executableValidator: StubExecutableValidator(isExecutable: true)
+    )
+
+    let observation = try await launcher.launch(
+      url: url,
+      application: application(family: .chromium),
+      target: target(family: .chromium, profile: "Profile 1")
+    )
+
+    #expect(
+      observation
+        == BrowserLaunchObservation(processIdentifier: 4_101, mechanism: .process)
+    )
   }
 
   @Test func executeDispatchesWorkspacePlanToInjectedWorkspace() async throws {
-    let workspace = RecordingWorkspace()
+    let workspace = RecordingWorkspace(processIdentifier: 5_001)
     let launcher = BrowserLauncher(processRunner: RecordingProcessRunner(), workspace: workspace)
     let appURL = applicationURL
 
-    try await launcher.execute(.workspace(application: appURL, url: url))
+    let observation = try await launcher.execute(.workspace(application: appURL, url: url))
 
     #expect(workspace.invocations == [.init(application: appURL, url: url)])
+    #expect(
+      observation
+        == BrowserLaunchObservation(processIdentifier: 5_001, mechanism: .workspace)
+    )
   }
 
   @Test(arguments: [ExecutionKind.process, .workspace])
@@ -1362,9 +1472,11 @@ private actor RecordingDuckDuckGoRouter: DuckDuckGoRouting {
   }
 
   private(set) var invocations: [Invocation] = []
+  let processIdentifier: Int32
   let errorCode: Int?
 
-  init(errorCode: Int? = nil) {
+  init(processIdentifier: Int32 = 6_001, errorCode: Int? = nil) {
+    self.processIdentifier = processIdentifier
     self.errorCode = errorCode
   }
 
@@ -1372,13 +1484,17 @@ private actor RecordingDuckDuckGoRouter: DuckDuckGoRouting {
     url: URL,
     applicationURL: URL,
     mode: BrowserMode
-  ) async throws {
+  ) async throws -> BrowserLaunchObservation {
     invocations.append(
       .init(url: url, applicationURL: applicationURL, mode: mode)
     )
     if let errorCode {
       throw NSError(domain: NSCocoaErrorDomain, code: errorCode)
     }
+    return BrowserLaunchObservation(
+      processIdentifier: processIdentifier,
+      mechanism: .duckDuckGo
+    )!
   }
 }
 
@@ -1407,15 +1523,24 @@ private final class RecordingProcessRunner: ProcessRunning, @unchecked Sendable 
   }
 
   private(set) var invocations: [Invocation] = []
+  private let processIdentifier: Int32
   private let error: (any Error)?
 
-  init(error: (any Error)? = nil) {
+  init(processIdentifier: Int32 = 4_001, error: (any Error)? = nil) {
+    self.processIdentifier = processIdentifier
     self.error = error
   }
 
-  func run(executable application: URL, arguments: [String]) throws {
+  func run(
+    executable application: URL,
+    arguments: [String]
+  ) throws -> BrowserLaunchObservation {
     invocations.append(.init(application: application, arguments: arguments))
     if let error { throw error }
+    return BrowserLaunchObservation(
+      processIdentifier: processIdentifier,
+      mechanism: .process
+    )!
   }
 }
 
@@ -1426,15 +1551,24 @@ private final class RecordingWorkspace: WorkspaceOpening, @unchecked Sendable {
   }
 
   private(set) var invocations: [Invocation] = []
+  private let processIdentifier: Int32
   private let error: (any Error)?
 
-  init(error: (any Error)? = nil) {
+  init(processIdentifier: Int32 = 5_001, error: (any Error)? = nil) {
+    self.processIdentifier = processIdentifier
     self.error = error
   }
 
-  func open(_ url: URL, withApplicationAt application: URL) async throws {
+  func open(
+    _ url: URL,
+    withApplicationAt application: URL
+  ) async throws -> BrowserLaunchObservation {
     invocations.append(.init(application: application, url: url))
     if let error { throw error }
+    return BrowserLaunchObservation(
+      processIdentifier: processIdentifier,
+      mechanism: .workspace
+    )!
   }
 }
 

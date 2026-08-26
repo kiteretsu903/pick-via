@@ -8,11 +8,19 @@ public enum LaunchPlan: Equatable, Sendable {
 }
 
 public protocol ProcessRunning: Sendable {
-  func run(executable application: URL, arguments: [String]) throws
+  @discardableResult
+  func run(
+    executable application: URL,
+    arguments: [String]
+  ) throws -> BrowserLaunchObservation
 }
 
 public protocol WorkspaceOpening: Sendable {
-  func open(_ url: URL, withApplicationAt application: URL) async throws
+  @discardableResult
+  func open(
+    _ url: URL,
+    withApplicationAt application: URL
+  ) async throws -> BrowserLaunchObservation
 }
 
 public protocol ExecutableValidating: Sendable {
@@ -34,37 +42,119 @@ public struct FoundationExecutableValidator: ExecutableValidating {
 public struct SystemProcessRunner: ProcessRunning {
   public init() {}
 
-  public func run(executable application: URL, arguments: [String]) throws {
+  @discardableResult
+  public func run(
+    executable application: URL,
+    arguments: [String]
+  ) throws -> BrowserLaunchObservation {
     let process = Process()
     process.executableURL = application
     process.arguments = arguments
     try process.run()
+    guard
+      let observation = BrowserLaunchObservation(
+        processIdentifier: process.processIdentifier,
+        mechanism: .process
+      )
+    else {
+      throw BrowserLaunchObservationError.invalidProcessIdentifier
+    }
+    return observation
   }
+}
+
+struct WorkspaceApplicationSnapshot: Equatable, Sendable {
+  let processIdentifier: Int32
+  let bundleIdentifier: String?
+  let bundleURL: URL?
+}
+
+enum BrowserLaunchObservationError: Error, Equatable, Sendable {
+  case invalidProcessIdentifier
+  case workspaceApplicationIdentityUnavailable
+  case workspaceCompletionDidNotReturnExactApplication
 }
 
 public struct SystemWorkspace: WorkspaceOpening {
   public init() {}
 
-  public func open(_ url: URL, withApplicationAt application: URL) async throws {
-    try await withCheckedThrowingContinuation {
-      (continuation: CheckedContinuation<Void, any Error>) in
+  @discardableResult
+  public func open(
+    _ url: URL,
+    withApplicationAt application: URL
+  ) async throws -> BrowserLaunchObservation {
+    let requestedApplicationURL = Self.canonicalFileURL(application)
+    guard
+      let requestedBundleIdentifier = Bundle(url: requestedApplicationURL)?.bundleIdentifier
+    else {
+      throw BrowserLaunchObservationError.workspaceApplicationIdentityUnavailable
+    }
+
+    return try await withCheckedThrowingContinuation {
+      (continuation: CheckedContinuation<BrowserLaunchObservation, any Error>) in
       let configuration = NSWorkspace.OpenConfiguration()
       NSWorkspace.shared.open(
         [url],
         withApplicationAt: application,
         configuration: configuration
-      ) { _, error in
+      ) { (application: NSRunningApplication?, error: (any Error)?) in
         if let error {
           continuation.resume(throwing: error)
-        } else {
-          continuation.resume()
+          return
+        }
+        let snapshots = application.map {
+          [
+            WorkspaceApplicationSnapshot(
+              processIdentifier: $0.processIdentifier,
+              bundleIdentifier: $0.bundleIdentifier,
+              bundleURL: $0.bundleURL
+            )
+          ]
+        }
+        do {
+          continuation.resume(
+            returning: try Self.observation(
+              requestedApplicationURL: requestedApplicationURL,
+              requestedBundleIdentifier: requestedBundleIdentifier,
+              returnedApplications: snapshots
+            )
+          )
+        } catch {
+          continuation.resume(throwing: error)
         }
       }
     }
   }
+
+  static func observation(
+    requestedApplicationURL: URL,
+    requestedBundleIdentifier: String,
+    returnedApplications: [WorkspaceApplicationSnapshot]?
+  ) throws -> BrowserLaunchObservation {
+    guard
+      let returnedApplications,
+      returnedApplications.count == 1,
+      let application = returnedApplications.first,
+      application.bundleIdentifier == requestedBundleIdentifier,
+      let returnedBundleURL = application.bundleURL,
+      canonicalFileURL(returnedBundleURL).path
+        == canonicalFileURL(requestedApplicationURL).path,
+      let observation = BrowserLaunchObservation(
+        processIdentifier: application.processIdentifier,
+        mechanism: .workspace
+      )
+    else {
+      throw BrowserLaunchObservationError.workspaceCompletionDidNotReturnExactApplication
+    }
+    return observation
+  }
+
+  private static func canonicalFileURL(_ url: URL) -> URL {
+    url.standardizedFileURL.resolvingSymlinksInPath().standardizedFileURL
+  }
 }
 
-public struct BrowserLauncher: RouteLaunching, Sendable {
+public struct BrowserLauncher: Sendable {
   private static let launchFailure = LaunchFailure(
     message: "Could not open the selected browser target."
   )
@@ -228,15 +318,16 @@ public struct BrowserLauncher: RouteLaunching, Sendable {
     return executable
   }
 
-  public func execute(_ plan: LaunchPlan) async throws {
+  @discardableResult
+  public func execute(_ plan: LaunchPlan) async throws -> BrowserLaunchObservation {
     do {
       switch plan {
       case .executable(let application, let arguments):
-        try processRunner.run(executable: application, arguments: arguments)
+        return try processRunner.run(executable: application, arguments: arguments)
       case .workspace(let application, let url):
-        try await workspace.open(url, withApplicationAt: application)
+        return try await workspace.open(url, withApplicationAt: application)
       case .duckDuckGo(let application, let url, let mode):
-        try await duckDuckGoRouter.open(
+        return try await duckDuckGoRouter.open(
           url: url,
           applicationURL: application,
           mode: mode
@@ -247,12 +338,13 @@ public struct BrowserLauncher: RouteLaunching, Sendable {
     }
   }
 
+  @discardableResult
   public func launch(
     url: URL,
     application: BrowserApplication,
     target: BrowserTarget
-  ) async throws {
+  ) async throws -> BrowserLaunchObservation {
     let plan = try makePlan(url: url, application: application, target: target)
-    try await execute(plan)
+    return try await execute(plan)
   }
 }
