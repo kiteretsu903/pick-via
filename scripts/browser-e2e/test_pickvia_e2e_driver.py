@@ -3621,6 +3621,26 @@ time.sleep(3.25)
                 with self.assertRaises(driver._ReceiptProtocolError):
                     driver._parse_receipt(payload, "TOKEN")
 
+    def test_readiness_json_is_strict_bounded_and_finite(self):
+        valid = b'{"port":1234,"tokens":["TOKEN"]}\n'
+        self.assertEqual(driver._parse_ready(valid), (1234, "TOKEN"))
+
+        invalid = (
+            b'{"port":4321,"port":1234,"tokens":["TOKEN"]}\n',
+            b'{"port":1234,"tokens":["wrong"],"tokens":["TOKEN"]}\n',
+            b'{"port":NaN,"port":1234,"tokens":["TOKEN"]}\n',
+            b'{"port":NaN,"tokens":["TOKEN"]}\n',
+            b'{"port":Infinity,"tokens":["TOKEN"]}\n',
+            valid.rstrip(b"\n"),
+            valid + b"{}\n",
+            b'{"port":1234\n',
+            valid[:-1] + b" " * driver.MAXIMUM_PROTOCOL_LINE_BYTES + b"\n",
+        )
+        for payload in invalid:
+            with self.subTest(payload=payload[:80]):
+                with self.assertRaises(driver._ReadinessError):
+                    driver._parse_ready(payload)
+
     def test_preplan_selected_then_launch_error_without_provenance_is_product_failure(self):
         records = [
             {"session": "session_0123456789", "outcome": "selected"},
@@ -3752,6 +3772,72 @@ time.sleep(3.25)
             self.assertEqual(result.exit_code, driver.DRIVER_PROVENANCE_FAILURE)
             self.assertEqual(result.report["outcome"], "provenance-error")
             self.assertEqual(fixture.terminated_browser_pids, [])
+
+    def test_invalid_status_after_closed_rejection_revokes_provenance_ownership(self):
+        provenance = {
+            "session": "session_0123456789",
+            "request": "$request",
+            "target": "com.microsoft.edgemac||normal",
+            "bundleIdentifier": "com.microsoft.edgemac",
+            "mode": "normal",
+            "mechanism": "process",
+            "processIdentifier": 123,
+            "outcome": "launch-observed",
+        }
+        cases = (
+            {
+                "status_records": [
+                    {"session": "session_0123456789", "outcome": "target-missing"},
+                    {"session": "session_0123456789", "outcome": "target-missing"},
+                ],
+            },
+            {
+                "status_records": [
+                    {"session": "session_0123456789", "outcome": "target-missing"}
+                ],
+                "status_trailing_payload": (
+                    b'{"outcome":"target-missing",'
+                    b'"session":"session_0123456789"}\n'
+                ),
+                "status_trailing_delay": 0.05,
+                "helper_hangs_after_delivery": True,
+                "timeout": 0.5,
+            },
+            {
+                "status_records": [
+                    {"session": "session_0123456789", "outcome": "target-missing"}
+                ],
+                "status_trailing_payload": b'{"session":oops}\n',
+                "helper_hangs_after_delivery": True,
+                "timeout": 0.5,
+            },
+        )
+        for fixture_options in cases:
+            termination_attempts = []
+            with self.subTest(fixture_options=fixture_options), DriverFixture(
+                provenance_records=[provenance],
+                provenance_before_status=True,
+                status_delay=0.1,
+                spawn_browser=False,
+                **fixture_options,
+            ) as fixture:
+                identity = driver.ProcessIdentity(
+                    123, fixture.e2e_pid or 1, 2, 123, fixture.browser_executable
+                )
+                result = fixture.run(
+                    dependency_overrides={
+                        "browser_process_identity": lambda _pid: identity,
+                        "browser_process_terminator": (
+                            lambda observed, _executable, _deadline: termination_attempts.append(
+                                observed
+                            )
+                            or True
+                        ),
+                    }
+                )
+                self.assertEqual(result.exit_code, driver.DRIVER_INVALID_STATUS)
+                self.assertEqual(result.report["outcome"], "invalid-status")
+                self.assertEqual(termination_attempts, [])
 
     def test_closed_rejection_helper_failure_keeps_precedence_without_ownership(self):
         provenance = {

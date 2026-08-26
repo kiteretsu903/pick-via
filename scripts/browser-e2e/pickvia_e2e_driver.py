@@ -2270,10 +2270,9 @@ def _read_protocol_line(processes, process, deadline, monotonic):
 
 
 def _parse_ready(line):
-    try:
-        record = json.loads(line)
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise _ReadinessError from error
+    record = _strict_json_document(
+        line, _ReadinessError, MAXIMUM_PROTOCOL_LINE_BYTES
+    )
     if not isinstance(record, dict) or set(record) != {"port", "tokens"}:
         raise _ReadinessError
     port = record["port"]
@@ -3082,7 +3081,9 @@ def _wait_for_proof(
         error.token_received = receipt
         error.status_line = b"".join(status_lines)
         error.browser_identity = browser_identity
-        error.owned_browsers = provenance_owned
+        error.owned_browsers = _helper_cleanup_authority(
+            status_sequence, provenance_owned
+        )
         raise
     finally:
         selector.close()
