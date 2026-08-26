@@ -4,9 +4,12 @@ import contextlib
 import hashlib
 import io
 import json
+import os
 import pathlib
+import plistlib
 import tempfile
 import unittest
+from unittest import mock
 
 try:
     import run_browser_matrix as matrix
@@ -124,6 +127,41 @@ class MatrixRunnerTests(unittest.TestCase):
                 self.manifest_path.write_bytes(payload)
                 with self.assertRaises(matrix.MatrixManifestError):
                     matrix.load_manifest(self.manifest_path)
+
+    def test_manifest_rejects_symlink_and_parent_replacement_during_read(self):
+        outside = self.root / "outside-manifest.json"
+        outside.write_text(
+            json.dumps({"schemaVersion": 1, "applications": [self.edge_application()]})
+            + "\n",
+            encoding="utf-8",
+        )
+        linked = self.root / "linked-manifest.json"
+        linked.symlink_to(outside)
+        with self.assertRaises(matrix.MatrixManifestError):
+            matrix.load_manifest(linked)
+
+        parent = self.root / "manifest-parent"
+        parent.mkdir()
+        manifest = parent / "manifest.json"
+        manifest.write_bytes(outside.read_bytes())
+        displaced = self.root / "manifest-parent-displaced"
+        real_read = os.read
+        attacked = False
+
+        def replace_parent(descriptor, count):
+            nonlocal attacked
+            if not attacked:
+                attacked = True
+                parent.rename(displaced)
+                parent.mkdir()
+                (parent / "manifest.json").write_bytes(outside.read_bytes())
+            return real_read(descriptor, count)
+
+        with (
+            mock.patch.object(matrix.os, "read", side_effect=replace_parent),
+            self.assertRaises(matrix.MatrixManifestError),
+        ):
+            matrix.load_manifest(manifest)
 
     def test_safari_and_technology_preview_must_be_forced_skip(self):
         for bundle_identifier in (
@@ -346,6 +384,659 @@ class MatrixRunnerTests(unittest.TestCase):
             all(record["detail"] == "build-blocker" for record in result.records)
         )
 
+    def test_browser_static_identity_change_before_sequence_stops_without_driver(self):
+        dependencies = FakeDependencies(static_change_phase="pre")
+        result = matrix.execute_matrix(
+            matrix.load_manifest(self.write_manifest()),
+            self.root / "output",
+            dependencies=dependencies,
+        )
+        self.assertEqual(result.exit_code, matrix.MATRIX_BLOCKED)
+        self.assertEqual(dependencies.driver_calls, [])
+        self.assertTrue(all(record["result"] == "NOT RUN" for record in result.records))
+        self.assertEqual(result.records[0]["detail"], "browser-identity-changed")
+        self.assertEqual(result.records[0]["installedVersion"], "unavailable")
+
+    def test_browser_static_identity_change_after_sequence_discards_stale_evidence(
+        self,
+    ):
+        dependencies = FakeDependencies(static_change_phase="post")
+        result = matrix.execute_matrix(
+            matrix.load_manifest(self.write_manifest()),
+            self.root / "output",
+            dependencies=dependencies,
+        )
+        self.assertEqual(result.exit_code, matrix.MATRIX_BLOCKED)
+        self.assertTrue(dependencies.driver_calls)
+        self.assertTrue(all(record["result"] == "NOT RUN" for record in result.records))
+        self.assertEqual(result.records[0]["detail"], "browser-identity-changed")
+        self.assertEqual(result.records[0]["installedVersion"], "unavailable")
+
+    def test_static_identity_digest_detects_same_size_executable_replacement(self):
+        application_path = self.root / "Browser.app"
+        executable = application_path / "Contents" / "MacOS" / "Browser"
+        executable.parent.mkdir(parents=True)
+        executable.write_bytes(b"first-static-payload")
+        executable.chmod(0o700)
+        with (application_path / "Contents" / "Info.plist").open("wb") as handle:
+            plistlib.dump(
+                {
+                    "CFBundleIdentifier": "com.example.Browser",
+                    "CFBundleExecutable": "Browser",
+                    "CFBundleShortVersionString": "1.0",
+                },
+                handle,
+            )
+        application = matrix.MatrixApplication(
+            "com.example.Browser",
+            application_path,
+            pathlib.PurePosixPath("Contents/MacOS/Browser"),
+            "none",
+            "workspace",
+            False,
+            False,
+            False,
+            False,
+        )
+        dependencies = matrix.SystemDependencies()
+        with mock.patch.object(
+            matrix.browser_driver,
+            "_validate_signed_browser_binding",
+            return_value=None,
+        ):
+            before = dependencies.verify_application(application)
+            metadata = executable.stat()
+            executable.write_bytes(b"other-static-value!!")
+            os.utime(executable, ns=(metadata.st_atime_ns, metadata.st_mtime_ns))
+            after = dependencies.verify_application(application)
+        self.assertNotEqual(before.identity, after.identity)
+
+    def test_static_identity_rejects_named_file_replacement_during_digest(self):
+        executable = self.root / "static-executable"
+        replacement = self.root / "static-replacement"
+        executable.write_bytes(b"a" * (1024 * 1024 + 1))
+        replacement.write_bytes(b"b" * (1024 * 1024 + 1))
+        real_read = os.read
+        attacked = False
+
+        def replace_after_read(descriptor, count):
+            nonlocal attacked
+            chunk = real_read(descriptor, count)
+            if chunk and not attacked:
+                attacked = True
+                replacement.replace(executable)
+            return chunk
+
+        with (
+            mock.patch.object(
+                matrix.browser_driver.os, "read", side_effect=replace_after_read
+            ),
+            self.assertRaises(matrix.browser_driver._IdentityError),
+        ):
+            matrix.browser_driver._stable_static_identity(executable)
+
+    def test_driver_supervision_uses_exact_generation_and_cooperative_term(self):
+        executable = pathlib.Path("/usr/bin/python3")
+        identity = matrix.browser_driver.ProcessIdentity(9001, 1, 2, 3, executable)
+
+        class CooperativeProcess:
+            pid = 9001
+            returncode = matrix.browser_driver.DRIVER_PROCESS_ERROR
+
+            def __init__(self):
+                self.calls = 0
+
+            def communicate(self, timeout):
+                self.calls += 1
+                if self.calls == 1:
+                    raise matrix.subprocess.TimeoutExpired("driver", timeout)
+                return b'{"outcome":"terminal"}\n', b""
+
+        process = CooperativeProcess()
+        signals = []
+        completed = matrix._supervise_driver_process(
+            ["/usr/bin/python3", "driver.py"],
+            {},
+            popen=lambda *args, **kwargs: process,
+            identity_reader=lambda _pid: identity,
+            signaler=lambda pid, signum: signals.append((pid, signum)),
+            run_timeout=0.1,
+            cleanup_timeout=0.1,
+        )
+        self.assertEqual(signals, [(9001, matrix.signal.SIGTERM)])
+        self.assertEqual(completed.stdout, b'{"outcome":"terminal"}\n')
+        self.assertEqual(
+            completed.returncode, matrix.browser_driver.DRIVER_PROCESS_ERROR
+        )
+
+    def test_driver_supervision_never_signals_reused_or_hung_generation_blindly(self):
+        executable = pathlib.Path("/usr/bin/python3")
+        original = matrix.browser_driver.ProcessIdentity(9001, 1, 2, 3, executable)
+        replacement = matrix.browser_driver.ProcessIdentity(9001, 1, 4, 5, executable)
+
+        class HungProcess:
+            pid = 9001
+            returncode = None
+
+            def communicate(self, timeout):
+                raise matrix.subprocess.TimeoutExpired("driver", timeout)
+
+        for identities, expected_signals in (
+            ([original, replacement], []),
+            ([original, original, original], [(9001, matrix.signal.SIGTERM)]),
+        ):
+            signals = []
+
+            def identity_reader(_pid):
+                return identities.pop(0)
+
+            with (
+                self.subTest(expected_signals=expected_signals),
+                self.assertRaises(matrix.MatrixIdentityError),
+            ):
+                matrix._supervise_driver_process(
+                    ["/usr/bin/python3", "driver.py"],
+                    {},
+                    popen=lambda *args, **kwargs: HungProcess(),
+                    identity_reader=identity_reader,
+                    signaler=lambda pid, signum: signals.append((pid, signum)),
+                    run_timeout=0.1,
+                    cleanup_timeout=0.1,
+                )
+            self.assertEqual(signals, expected_signals)
+
+    def test_authenticated_handoff_recovers_only_exact_owned_generations_and_root(self):
+        browser_executable = pathlib.Path("/Applications/Fake.app/Browser")
+        context = {
+            "bundleIdentifier": "com.example.Fake",
+            "targetID": "com.example.Fake||normal",
+            "capability": "normal",
+            "browserAppIdentity": "a" * 64,
+            "e2eAppIdentity": "b" * 64,
+            "browserExecutable": os.fspath(browser_executable),
+            "sessionHashes": ["c" * 64, "d" * 64, "e" * 64],
+        }
+        handoff = matrix._CleanupHandoff.create(context)
+        publisher = matrix.browser_driver._CleanupHandoffPublisher(
+            os.dup(handoff.descriptor), handoff.token, context
+        )
+        driver_identity = matrix.browser_driver._darwin_process_identity(os.getpid())
+        owner = matrix.browser_driver._TaskRootOwner()
+        root = matrix.browser_driver._make_task_root(owner)
+        child = matrix.browser_driver.ProcessIdentity(
+            7101, 7000, 11, 12, pathlib.Path("/usr/bin/python3")
+        )
+        browser = matrix.browser_driver.ProcessIdentity(
+            7102, 7000, 13, 14, browser_executable
+        )
+        publisher.observe_root(root)
+        publisher.baseline_empty()
+        publisher.observe_child(child)
+        publisher.observe_browser(browser)
+        publisher.close()
+        live = {child.generation_key: child, browser.generation_key: browser}
+        terminated = []
+
+        def identity_reader(pid):
+            if pid == driver_identity.pid:
+                return driver_identity
+            for identity in live.values():
+                if identity.pid == pid:
+                    return identity
+            raise matrix.browser_driver._ProcessDisappeared
+
+        def terminate(identity, executable, _deadline):
+            self.assertEqual(identity.executable, executable)
+            terminated.append(identity.generation_key)
+            live.pop(identity.generation_key)
+            return True
+
+        clock = [0.0]
+
+        recovered = matrix._recover_cleanup_handoff(
+            handoff,
+            identity_reader=identity_reader,
+            terminator=terminate,
+            snapshotter=lambda _executable: frozenset(
+                value for value in live.values() if value == browser
+            ),
+            direct_child_snapshotter=lambda _group: frozenset(
+                {driver_identity} | {value for value in live.values() if value == child}
+            ),
+            static_checker=lambda _context: True,
+            root_reopener=lambda record: root,
+            root_remover=lambda pinned: pinned.remove(),
+            monotonic=lambda: clock[0],
+            sleep=lambda seconds: clock.__setitem__(0, clock[0] + seconds),
+        )
+        self.assertTrue(recovered)
+        self.assertEqual(terminated, [child.generation_key, browser.generation_key])
+        self.assertFalse(root.path.exists())
+        handoff.close()
+
+    def test_handoff_rejects_forgery_and_pid_reuse_without_signals_or_root_removal(
+        self,
+    ):
+        context = {
+            "bundleIdentifier": "com.example.Fake",
+            "targetID": "com.example.Fake||normal",
+            "capability": "normal",
+            "browserAppIdentity": "a" * 64,
+            "e2eAppIdentity": "b" * 64,
+            "browserExecutable": "/Applications/Fake.app/Browser",
+            "sessionHashes": ["c" * 64, "d" * 64, "e" * 64],
+        }
+        for attack in ("forgery", "reuse"):
+            with self.subTest(attack=attack):
+                handoff = matrix._CleanupHandoff.create(context)
+                publisher = matrix.browser_driver._CleanupHandoffPublisher(
+                    os.dup(handoff.descriptor), handoff.token, context
+                )
+                owner = matrix.browser_driver._TaskRootOwner()
+                root = matrix.browser_driver._make_task_root(owner)
+                child = matrix.browser_driver.ProcessIdentity(
+                    7201, 7000, 21, 22, pathlib.Path("/usr/bin/python3")
+                )
+                publisher.observe_root(root)
+                publisher.baseline_empty()
+                publisher.observe_child(child)
+                publisher.close()
+                if attack == "forgery":
+                    os.lseek(handoff.descriptor, 0, os.SEEK_END)
+                    os.write(
+                        handoff.descriptor,
+                        b'{"payload":{},"authentication":"forged"}\n',
+                    )
+                signals = []
+                if attack == "forgery":
+                    with self.assertRaises(matrix.MatrixIdentityError):
+                        matrix._recover_cleanup_handoff(
+                            handoff,
+                            terminator=lambda *args: signals.append(args),
+                            root_reopener=lambda _record: root,
+                        )
+                else:
+                    replacement = matrix.dataclasses.replace(child, start_seconds=99)
+                    self.assertFalse(
+                        matrix._recover_cleanup_handoff(
+                            handoff,
+                            identity_reader=lambda _pid: replacement,
+                            terminator=lambda *args: signals.append(args),
+                            root_reopener=lambda _record: root,
+                        )
+                    )
+                self.assertEqual(signals, [])
+                self.assertTrue(root.path.exists())
+                root.remove()
+                handoff.mark_recovered()
+                handoff.close()
+
+    def test_handoff_rejects_missing_or_authenticated_out_of_order_transition(self):
+        context = {
+            "bundleIdentifier": "com.example.Fake",
+            "targetID": "com.example.Fake||normal",
+            "capability": "normal",
+            "browserAppIdentity": "a" * 64,
+            "e2eAppIdentity": "b" * 64,
+            "browserExecutable": "/Applications/Fake.app/Browser",
+            "sessionHashes": ["c" * 64, "d" * 64, "e" * 64],
+        }
+        handoff = matrix._CleanupHandoff.create(context)
+        try:
+            self.assertFalse(matrix._recover_cleanup_handoff(handoff))
+            payload = {
+                "schemaVersion": 1,
+                "counter": 1,
+                "transition": "child-owned",
+                "context": context,
+                "taskRoot": None,
+                "ownedChildren": [],
+                "ownedBrowsers": [],
+                "taskRootFinalized": False,
+            }
+            canonical = json.dumps(
+                payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+            ).encode("ascii")
+            record = {
+                "payload": payload,
+                "authentication": matrix.hmac.new(
+                    bytes.fromhex(handoff.token), canonical, hashlib.sha256
+                ).hexdigest(),
+            }
+            os.write(
+                handoff.descriptor,
+                (
+                    json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n"
+                ).encode("ascii"),
+            )
+            with self.assertRaises(matrix.MatrixIdentityError):
+                matrix._recover_cleanup_handoff(handoff)
+        finally:
+            handoff.mark_recovered()
+            handoff.close()
+
+    def test_hung_driver_uses_authenticated_recovery_before_exact_kill(self):
+        executable = pathlib.Path("/usr/bin/python3")
+        identity = matrix.browser_driver.ProcessIdentity(9002, 1, 8, 9, executable)
+
+        class RecoveredHungProcess:
+            pid = 9002
+            returncode = None
+
+            def __init__(self):
+                self.calls = 0
+
+            def communicate(self, timeout):
+                self.calls += 1
+                if self.calls < 3:
+                    raise matrix.subprocess.TimeoutExpired("driver", timeout)
+                self.returncode = -matrix.signal.SIGKILL
+                return b"", b""
+
+        process = RecoveredHungProcess()
+        signals = []
+        completed = matrix._supervise_driver_process(
+            ["/usr/bin/python3", "driver.py"],
+            {},
+            popen=lambda *args, **kwargs: process,
+            identity_reader=lambda _pid: identity,
+            signaler=lambda pid, signum: signals.append((pid, signum)),
+            handoff=object(),
+            recoverer=lambda _handoff: True,
+            run_timeout=0.1,
+            cleanup_timeout=0.1,
+        )
+        self.assertEqual(
+            signals,
+            [
+                (9002, matrix.signal.SIGTERM),
+                (9002, matrix.signal.SIGKILL),
+            ],
+        )
+        self.assertEqual(completed.returncode, -matrix.signal.SIGKILL)
+
+    def test_driver_handoff_secret_uses_inherited_pipe_not_argv_or_environment(self):
+        executable = pathlib.Path("/usr/bin/python3")
+        identity = matrix.browser_driver.ProcessIdentity(9003, 1, 10, 11, executable)
+        handoff = matrix._CleanupHandoff.create(
+            {"browserExecutable": "/Applications/Fake.app/Browser"}
+        )
+        captured = {}
+
+        class HungThenRecovered:
+            pid = 9003
+            returncode = None
+
+            def __init__(self):
+                self.calls = 0
+
+            def communicate(self, timeout):
+                self.calls += 1
+                if self.calls < 3:
+                    raise matrix.subprocess.TimeoutExpired("driver", timeout)
+                self.returncode = -matrix.signal.SIGKILL
+                return b"", b""
+
+        process = HungThenRecovered()
+
+        def popen(arguments, **options):
+            captured["arguments"] = tuple(arguments)
+            captured["environment"] = dict(options["env"])
+            captured["secret"] = os.dup(options["pass_fds"][1])
+            return process
+
+        matrix._supervise_driver_process(
+            ["/usr/bin/python3", "driver.py", "--cleanup-handoff-secret-fd", "9"],
+            {"PATH": "/usr/bin"},
+            popen=popen,
+            identity_reader=lambda _pid: identity,
+            signaler=lambda _pid, _signal: None,
+            handoff=handoff,
+            recoverer=lambda _handoff: True,
+            run_timeout=0.1,
+            cleanup_timeout=0.1,
+        )
+        try:
+            self.assertNotIn(handoff.token, " ".join(captured["arguments"]))
+            self.assertNotIn(handoff.token, captured["environment"].values())
+            self.assertEqual(
+                os.read(captured["secret"], 65),
+                (handoff.token + "\n").encode("ascii"),
+            )
+        finally:
+            os.close(captured["secret"])
+            handoff.mark_recovered()
+            handoff.close()
+
+    def test_handoff_child_cleanup_revalidates_before_each_exact_signal(self):
+        executable = pathlib.Path("/usr/bin/python3")
+        identity = matrix.browser_driver.ProcessIdentity(9301, 1, 30, 31, executable)
+        replacement = matrix.dataclasses.replace(identity, start_seconds=32)
+        signals = []
+        with self.assertRaises(matrix.MatrixIdentityError):
+            matrix._terminate_exact_handoff_child(
+                identity,
+                executable,
+                5.0,
+                identity_reader=lambda _pid: replacement,
+                signaler=lambda pid, signum: signals.append((pid, signum)),
+                monotonic=lambda: 0.0,
+                sleep=lambda _seconds: None,
+            )
+        self.assertEqual(signals, [])
+
+        live = [True]
+        clock = [0.0]
+
+        def identity_reader(_pid):
+            if not live[0]:
+                raise matrix.browser_driver._ProcessDisappeared
+            return identity
+
+        def signaler(pid, signum):
+            signals.append((pid, signum))
+            if signum == matrix.signal.SIGKILL:
+                live[0] = False
+
+        self.assertTrue(
+            matrix._terminate_exact_handoff_child(
+                identity,
+                executable,
+                5.0,
+                identity_reader=identity_reader,
+                signaler=signaler,
+                monotonic=lambda: clock[0],
+                sleep=lambda seconds: clock.__setitem__(0, clock[0] + seconds),
+            )
+        )
+        self.assertEqual(
+            signals,
+            [
+                (9301, matrix.signal.SIGTERM),
+                (9301, matrix.signal.SIGCONT),
+                (9301, matrix.signal.SIGKILL),
+            ],
+        )
+
+    def test_recovery_rejects_unledgered_browser_without_signal_or_root_removal(self):
+        executable = pathlib.Path("/Applications/Fake.app/Browser")
+        context = {
+            "bundleIdentifier": "com.example.Fake",
+            "targetID": "com.example.Fake||normal",
+            "capability": "normal",
+            "browserAppIdentity": "a" * 64,
+            "e2eAppIdentity": "b" * 64,
+            "browserExecutable": os.fspath(executable),
+            "browserApplication": "/Applications/Fake.app",
+            "sessionHashes": ["c" * 64, "d" * 64, "e" * 64],
+        }
+        handoff = matrix._CleanupHandoff.create(context)
+        publisher = matrix.browser_driver._CleanupHandoffPublisher(
+            os.dup(handoff.descriptor), handoff.token, context
+        )
+        owner = matrix.browser_driver._TaskRootOwner()
+        root = matrix.browser_driver._make_task_root(owner)
+        publisher.observe_root(root)
+        publisher.baseline_empty()
+        publisher.close()
+        driver_identity = matrix.browser_driver._darwin_process_identity(os.getpid())
+        unknown = matrix.browser_driver.ProcessIdentity(9401, 1, 41, 42, executable)
+        signals = []
+        self.assertFalse(
+            matrix._recover_cleanup_handoff(
+                handoff,
+                identity_reader=lambda _pid: driver_identity,
+                terminator=lambda *args: signals.append(args),
+                snapshotter=lambda _executable: frozenset({unknown}),
+                direct_child_snapshotter=lambda _group: frozenset({driver_identity}),
+                static_checker=lambda _context: True,
+            )
+        )
+        self.assertEqual(signals, [])
+        self.assertTrue(root.path.exists())
+        root.remove()
+        handoff.mark_recovered()
+        handoff.close()
+
+    def test_finalized_handoff_still_proves_root_quiescence_and_static_identity(self):
+        context = {
+            "bundleIdentifier": "com.example.Fake",
+            "targetID": "com.example.Fake||normal",
+            "capability": "normal",
+            "browserAppIdentity": "a" * 64,
+            "e2eAppIdentity": "b" * 64,
+            "browserExecutable": "/Applications/Fake.app/Browser",
+            "browserApplication": "/Applications/Fake.app",
+            "sessionHashes": ["c" * 64, "d" * 64, "e" * 64],
+        }
+        for root_present, static_ok, expected in (
+            (True, True, False),
+            (False, False, False),
+            (False, True, True),
+        ):
+            with self.subTest(root_present=root_present, static_ok=static_ok):
+                handoff = matrix._CleanupHandoff.create(context)
+                publisher = matrix.browser_driver._CleanupHandoffPublisher(
+                    os.dup(handoff.descriptor), handoff.token, context
+                )
+                owner = matrix.browser_driver._TaskRootOwner()
+                root = matrix.browser_driver._make_task_root(owner)
+                root_path = root.path
+                publisher.observe_root(root)
+                publisher.baseline_empty()
+                publisher.cleanup_progress()
+                if not root_present:
+                    root.remove()
+                publisher.finalized()
+                publisher.close()
+                driver_identity = matrix.browser_driver._darwin_process_identity(
+                    os.getpid()
+                )
+                clock = [0.0]
+                snapshots = [0]
+                static_calls = [0]
+
+                def snapshot(_executable):
+                    snapshots[0] += 1
+                    return frozenset()
+
+                def check_static(_context):
+                    static_calls[0] += 1
+                    return static_ok
+
+                recovered = matrix._recover_cleanup_handoff(
+                    handoff,
+                    identity_reader=lambda _pid: driver_identity,
+                    snapshotter=snapshot,
+                    direct_child_snapshotter=lambda _group: frozenset(
+                        {driver_identity}
+                    ),
+                    static_checker=check_static,
+                    monotonic=lambda: clock[0],
+                    sleep=lambda seconds: clock.__setitem__(0, clock[0] + seconds),
+                )
+                self.assertEqual(recovered, expected)
+                if expected:
+                    self.assertGreaterEqual(snapshots[0], 2)
+                    self.assertEqual(clock[0], 2.0)
+                    self.assertEqual(static_calls[0], 2)
+                if root_path.exists():
+                    root.remove()
+                handoff.mark_recovered()
+                handoff.close()
+
+    def test_recovery_rejects_leftover_driver_process_group_member(self):
+        context = {
+            "bundleIdentifier": "com.example.Fake",
+            "targetID": "com.example.Fake||normal",
+            "capability": "normal",
+            "browserAppIdentity": "a" * 64,
+            "e2eAppIdentity": "b" * 64,
+            "browserExecutable": "/Applications/Fake.app/Browser",
+            "browserApplication": "/Applications/Fake.app",
+            "sessionHashes": ["c" * 64, "d" * 64, "e" * 64],
+        }
+        handoff = matrix._CleanupHandoff.create(context)
+        publisher = matrix.browser_driver._CleanupHandoffPublisher(
+            os.dup(handoff.descriptor), handoff.token, context
+        )
+        owner = matrix.browser_driver._TaskRootOwner()
+        root = matrix.browser_driver._make_task_root(owner)
+        publisher.observe_root(root)
+        publisher.baseline_empty()
+        publisher.close()
+        driver_identity = matrix.browser_driver._darwin_process_identity(os.getpid())
+        leftover = matrix.browser_driver.ProcessIdentity(
+            9501, driver_identity.pid, 51, 52, pathlib.Path("/usr/bin/python3")
+        )
+        group_calls = [0]
+
+        def process_group(_group):
+            group_calls[0] += 1
+            return frozenset({driver_identity, leftover})
+
+        clock = [0.0]
+
+        self.assertFalse(
+            matrix._recover_cleanup_handoff(
+                handoff,
+                identity_reader=lambda pid: (
+                    driver_identity if pid == driver_identity.pid else leftover
+                ),
+                terminator=lambda *_args: True,
+                snapshotter=lambda _executable: frozenset(),
+                direct_child_snapshotter=process_group,
+                static_checker=lambda _context: True,
+                monotonic=lambda: clock[0],
+                sleep=lambda seconds: clock.__setitem__(0, clock[0] + seconds),
+            )
+        )
+        self.assertGreaterEqual(group_calls[0], 2)
+        self.assertTrue(root.path.exists())
+        root.remove()
+        handoff.mark_recovered()
+        handoff.close()
+
+    def test_unrecoverable_handoff_retains_private_artifact_success_does_not(self):
+        context = {"browserExecutable": "/Applications/Fake.app/Browser"}
+        handoff = matrix._CleanupHandoff.create(context)
+        handoff.close()
+        retained = handoff.retained_path
+        self.assertEqual(matrix.stat.S_IMODE(retained.stat().st_mode), 0o700)
+        self.assertEqual(
+            {path.name for path in retained.iterdir()},
+            {"authentication-key", "cleanup-ledger.jsonl", "context.json"},
+        )
+        for path in retained.iterdir():
+            self.assertEqual(matrix.stat.S_IMODE(path.stat().st_mode), 0o600)
+            path.unlink()
+        retained.rmdir()
+
+        successful = matrix._CleanupHandoff.create(context)
+        successful.mark_recovered()
+        successful.close()
+        self.assertFalse(hasattr(successful, "retained_path"))
+
     def test_fresh_run_rejects_nonempty_output_without_overwriting_it(self):
         output = self.root / "output"
         output.mkdir(mode=0o700)
@@ -358,6 +1049,119 @@ class MatrixRunnerTests(unittest.TestCase):
                 dependencies=FakeDependencies(),
             )
         self.assertEqual(sentinel.read_text(encoding="utf-8"), "owned elsewhere")
+
+    def test_evidence_publication_detects_operation_time_staging_swap(self):
+        output_path = self.root / "publication-output"
+        output = matrix._PinnedOutputDirectory.open(output_path, create=True)
+        real_rename = os.rename
+
+        def swap_before_rename(source, destination, **kwargs):
+            os.unlink(source, dir_fd=output.descriptor)
+            forged = os.open(
+                source,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                0o600,
+                dir_fd=output.descriptor,
+            )
+            try:
+                os.write(forged, b"forged-after-check\n")
+            finally:
+                os.close(forged)
+            return real_rename(source, destination, **kwargs)
+
+        try:
+            with (
+                mock.patch.object(matrix.os, "rename", side_effect=swap_before_rename),
+                self.assertRaises(matrix.MatrixError),
+            ):
+                matrix._write_records(output, [{"recordType": "run"}])
+        finally:
+            output.close()
+
+    def test_output_rejects_symlinked_parent_without_outside_write(self):
+        outside = self.root / "outside"
+        outside.mkdir(mode=0o700)
+        linked_parent = self.root / "linked-parent"
+        linked_parent.symlink_to(outside, target_is_directory=True)
+        output = linked_parent / "output"
+        with self.assertRaises(matrix.MatrixError):
+            matrix.execute_matrix(
+                matrix.load_manifest(self.write_manifest()),
+                output,
+                dependencies=FakeDependencies(),
+            )
+        self.assertEqual(list(outside.iterdir()), [])
+
+    def test_output_rejects_parent_replacement_before_creation_without_write(self):
+        parent = self.root / "preopen-parent"
+        parent.mkdir(mode=0o700)
+        displaced = self.root / "preopen-parent-displaced"
+        output = parent / "output"
+        real_open = os.open
+        attacked = False
+
+        def replace_before_open(path, *args, **kwargs):
+            nonlocal attacked
+            if pathlib.Path(path) == parent and not attacked:
+                attacked = True
+                parent.rename(displaced)
+                parent.mkdir(mode=0o700)
+            return real_open(path, *args, **kwargs)
+
+        with (
+            mock.patch.object(matrix.os, "open", side_effect=replace_before_open),
+            self.assertRaises(matrix.MatrixError),
+        ):
+            matrix.execute_matrix(
+                matrix.load_manifest(self.write_manifest()),
+                output,
+                dependencies=FakeDependencies(),
+            )
+        self.assertEqual(list(parent.iterdir()), [])
+        self.assertEqual(list(displaced.iterdir()), [])
+
+    def test_pinned_output_rejects_parent_or_output_replacement_without_outside_write(
+        self,
+    ):
+        for attack in ("parent", "output"):
+            base = self.root / attack
+            base.mkdir(mode=0o700)
+            output_path = base / "output"
+            pinned = matrix._PinnedOutputDirectory.open(output_path, create=True)
+            held = base.with_name(f"{base.name}-held")
+            try:
+                if attack == "parent":
+                    base.rename(held)
+                    base.mkdir(mode=0o700)
+                    replacement = base / "output"
+                    replacement.mkdir(mode=0o700)
+                else:
+                    output_path.rename(held)
+                    replacement = output_path
+                    replacement.mkdir(mode=0o700)
+                sentinel = replacement / "outside-must-survive"
+                sentinel.write_text("preserved", encoding="utf-8")
+                with (
+                    self.subTest(attack=attack),
+                    self.assertRaises(matrix.MatrixError),
+                ):
+                    matrix._write_records(
+                        pinned,
+                        [
+                            {
+                                "recordType": "run",
+                                "schemaVersion": 1,
+                                "manifestDigest": "m" * 64,
+                                "planDigest": "p" * 64,
+                                "previousHash": "0" * 64,
+                                "recordHash": "r" * 64,
+                            }
+                        ],
+                    )
+                self.assertEqual(sentinel.read_text(encoding="utf-8"), "preserved")
+                self.assertFalse((replacement / "evidence.jsonl").exists())
+            finally:
+                pinned.close()
 
     def test_driver_runtime_exception_is_sanitized_not_run_and_stops(self):
         dependencies = FakeDependencies(raise_on=("com.microsoft.edgemac", "cold"))
@@ -866,6 +1670,8 @@ class MatrixRunnerTests(unittest.TestCase):
         session_hashes = [record["sessionHash"] for record in records[1:]]
         self.assertTrue(all(len(value) == 64 for value in session_hashes))
         self.assertEqual(len(session_hashes), len(set(session_hashes)))
+        self.assertTrue(all(record["cleanupSuccess"] for record in records[1:]))
+        self.assertTrue(all(record["taskRootFinalized"] for record in records[1:]))
         for call in first_dependencies.driver_calls:
             self.assertNotIn(call["session"], evidence)
 
@@ -986,6 +1792,166 @@ class MatrixRunnerTests(unittest.TestCase):
                     resume=True,
                 )
 
+    def test_resume_rejects_rehashed_semantic_contradictions(self):
+        mutations = (
+            lambda record: record.update(result="FAIL"),
+            lambda record: record.update(detail="product-route-failure"),
+            lambda record: record.update(driverOutcome="launch-error"),
+            lambda record: record.update(provenance="none"),
+            lambda record: record.update(receipt=False),
+            lambda record: record.update(browserIdentity=False),
+        )
+        for index, mutate in enumerate(mutations):
+            output = self.root / f"semantic-{index}"
+            matrix.execute_matrix(
+                matrix.load_manifest(self.write_manifest()),
+                output,
+                dependencies=FakeDependencies(),
+            )
+            evidence_path = output / "evidence.jsonl"
+            records = [
+                json.loads(line)
+                for line in evidence_path.read_text(encoding="utf-8").splitlines()
+            ]
+            mutate(records[1])
+            previous = "0" * 64
+            for record in records:
+                record["previousHash"] = previous
+                unhashed = dict(record)
+                unhashed.pop("recordHash", None)
+                record["recordHash"] = matrix._digest_json(unhashed)
+                previous = record["recordHash"]
+            evidence_path.write_text(
+                "\n".join(
+                    json.dumps(record, separators=(",", ":"), sort_keys=True)
+                    for record in records
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            with (
+                self.subTest(index=index),
+                self.assertRaises(matrix.MatrixResumeError),
+            ):
+                matrix.execute_matrix(
+                    matrix.load_manifest(self.manifest_path),
+                    output,
+                    dependencies=FakeDependencies(),
+                    resume=True,
+                )
+
+    def test_resume_incomplete_edge_pilot_blocks_without_execution(self):
+        output = self.root / "incomplete-edge"
+        matrix.execute_matrix(
+            matrix.load_manifest(self.write_manifest()),
+            output,
+            dependencies=FakeDependencies(),
+        )
+        evidence_path = output / "evidence.jsonl"
+        lines = evidence_path.read_text(encoding="utf-8").splitlines()
+        evidence_path.write_text("\n".join(lines[:3]) + "\n", encoding="utf-8")
+
+        resumed_dependencies = FakeDependencies()
+        resumed = matrix.execute_matrix(
+            matrix.load_manifest(self.manifest_path),
+            output,
+            dependencies=resumed_dependencies,
+            resume=True,
+        )
+        self.assertEqual(resumed.exit_code, matrix.MATRIX_BLOCKED)
+        self.assertEqual(resumed_dependencies.build_count, 0)
+        self.assertEqual(resumed_dependencies.driver_calls, [])
+        self.assertTrue(
+            all(record["result"] == "NOT RUN" for record in resumed.records[2:])
+        )
+
+    def test_resume_after_prior_fail_or_not_run_never_executes_later_cells(self):
+        chrome = self.edge_application(
+            bundleIdentifier="com.google.Chrome",
+            applicationPath="/Applications/Google Chrome.app",
+            executableRelativePath="Contents/MacOS/Google Chrome",
+        )
+        cases = (
+            (
+                "fail",
+                FakeDependencies(fail_on=("com.google.Chrome", "cold")),
+                7,
+                matrix.MATRIX_PRODUCT_FAILURE,
+            ),
+            (
+                "not-run",
+                FakeDependencies(ambiguous_on=("com.microsoft.edgemac", "cold")),
+                4,
+                matrix.MATRIX_BLOCKED,
+            ),
+            (
+                "edge-unsupported",
+                FakeDependencies(
+                    unsupported_on=("com.microsoft.edgemac", "normal", "cold")
+                ),
+                4,
+                matrix.MATRIX_BLOCKED,
+            ),
+        )
+        for case, initial_dependencies, prefix_lines, expected_exit in cases:
+            output = self.root / case
+            manifest = matrix.load_manifest(
+                self.write_manifest([chrome, self.edge_application()])
+            )
+            matrix.execute_matrix(
+                output=output, manifest=manifest, dependencies=initial_dependencies
+            )
+            evidence_path = output / "evidence.jsonl"
+            lines = evidence_path.read_text(encoding="utf-8").splitlines()
+            evidence_path.write_text(
+                "\n".join(lines[:prefix_lines]) + "\n", encoding="utf-8"
+            )
+
+            resumed_dependencies = FakeDependencies()
+            resumed = matrix.execute_matrix(
+                matrix.load_manifest(self.manifest_path),
+                output,
+                dependencies=resumed_dependencies,
+                resume=True,
+            )
+            with self.subTest(case=case):
+                self.assertEqual(resumed.exit_code, expected_exit)
+                self.assertEqual(resumed_dependencies.build_count, 0)
+                self.assertEqual(resumed_dependencies.driver_calls, [])
+
+    def test_resume_rejects_same_version_static_identity_replacement(self):
+        chrome = self.edge_application(
+            bundleIdentifier="com.google.Chrome",
+            applicationPath="/Applications/Google Chrome.app",
+            executableRelativePath="Contents/MacOS/Google Chrome",
+        )
+        manifest = matrix.load_manifest(
+            self.write_manifest([chrome, self.edge_application()])
+        )
+        output = self.root / "resume-static-change"
+        matrix.execute_matrix(manifest, output, dependencies=FakeDependencies())
+        evidence = output / "evidence.jsonl"
+        lines = evidence.read_text(encoding="utf-8").splitlines()
+        evidence.write_text("\n".join(lines[:4]) + "\n", encoding="utf-8")
+
+        class ReplacedDependencies(FakeDependencies):
+            def verify_application(self, application):
+                verification = super().verify_application(application)
+                if application.bundle_identifier == "com.microsoft.edgemac":
+                    return matrix.VerifiedApplication(verification.version, "d" * 64)
+                return verification
+
+        dependencies = ReplacedDependencies()
+        result = matrix.execute_matrix(
+            manifest, output, dependencies=dependencies, resume=True
+        )
+        self.assertEqual(result.exit_code, matrix.MATRIX_BLOCKED)
+        self.assertEqual(dependencies.build_count, 0)
+        self.assertEqual(dependencies.driver_calls, [])
+        self.assertTrue(
+            all(record["result"] == "NOT RUN" for record in result.records[3:])
+        )
+
     def test_dry_run_lists_only_installed_non_safari_cells_without_mutation(self):
         dependencies = FakeDependencies()
         manifest = matrix.load_manifest(
@@ -1012,6 +1978,7 @@ class FakeDependencies:
         blocked_bundles=frozenset(),
         receipt_fail_on=None,
         unsupported_on=None,
+        static_change_phase=None,
         raise_on=None,
         unsafe_outcome=None,
         unsafe_version=None,
@@ -1023,6 +1990,7 @@ class FakeDependencies:
         self.blocked_bundles = set(blocked_bundles)
         self.receipt_fail_on = receipt_fail_on
         self.unsupported_on = unsupported_on
+        self.static_change_phase = static_change_phase
         self.raise_on = raise_on
         self.unsafe_outcome = unsafe_outcome
         self.unsafe_version = unsafe_version
@@ -1032,19 +2000,27 @@ class FakeDependencies:
         self.active_drivers = 0
         self.max_active_drivers = 0
         self.created_paths = []
+        self.verification_counts = {}
 
     def is_installed(self, _application):
         return True
 
     def verify_application(self, _application):
+        count = self.verification_counts.get(_application.bundle_identifier, 0) + 1
+        self.verification_counts[_application.bundle_identifier] = count
         if (
             not self.signature_ok
             or _application.bundle_identifier in self.blocked_bundles
         ):
             raise matrix.MatrixIdentityError("blocked")
+        changed = (
+            self.static_change_phase == "pre"
+            and count == 2
+            or (self.static_change_phase == "post" and count == 3)
+        )
         return matrix.VerifiedApplication(
-            self.unsafe_version or "151.0",
-            "b" * 64,
+            "152.0" if changed else self.unsafe_version or "151.0",
+            "c" * 64 if changed else "b" * 64,
         )
 
     def build_and_pin(self):

@@ -3,6 +3,7 @@
 import argparse
 import dataclasses
 import hashlib
+import hmac
 import json
 import math
 import os
@@ -10,9 +11,12 @@ import pathlib
 import plistlib
 import re
 import secrets
+import signal
 import stat
 import subprocess
 import sys
+import tempfile
+import time
 
 import pickvia_e2e_driver as browser_driver
 import smoke_e2e_runtime
@@ -318,6 +322,7 @@ _SAFE_DETAILS = frozenset(
         "build-blocker",
         "blocked-after-sequence-failure",
         "blocked-after-sequence-refusal",
+        "browser-identity-changed",
     }
 )
 _CELL_REQUIRED_KEYS = frozenset(
@@ -330,6 +335,7 @@ _CELL_REQUIRED_KEYS = frozenset(
         "capability",
         "state",
         "installedVersion",
+        "browserStaticHash",
         "result",
         "detail",
         "driverOutcome",
@@ -338,8 +344,25 @@ _CELL_REQUIRED_KEYS = frozenset(
         "e2eIdentity",
         "browserIdentity",
         "sessionHash",
+        "cleanupSuccess",
+        "taskRootFinalized",
         "previousHash",
         "recordHash",
+    }
+)
+
+_NONINVOKED_DETAILS = frozenset(
+    {
+        "harness-ambiguity",
+        "signature-blocker",
+        "installed-absence",
+        "blocked-before-run",
+        "blocked-after-ambiguity",
+        "edge-pilot-failed",
+        "build-blocker",
+        "blocked-after-sequence-failure",
+        "blocked-after-sequence-refusal",
+        "browser-identity-changed",
     }
 )
 _CELL_TIMING_KEYS = frozenset(
@@ -896,7 +919,77 @@ def _reject_constant(_value):
 
 def _load_strict_json(path, maximum_bytes, error_type):
     try:
-        data = pathlib.Path(path).read_bytes()
+        path = pathlib.Path(os.path.abspath(os.fspath(path)))
+        if not path.name or path.parent == path:
+            raise error_type("unsafe JSON path")
+        parent_components = (path.parent, *tuple(path.parent.parents)[:-1])
+        for component in reversed(parent_components):
+            metadata = component.lstat()
+            if not stat.S_ISDIR(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode):
+                raise error_type("unsafe JSON parent")
+        initial_parent = path.parent.lstat()
+        parent_descriptor = os.open(
+            path.parent,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0),
+        )
+        try:
+            opened_parent = os.fstat(parent_descriptor)
+            if _entry_generation(initial_parent) != _entry_generation(opened_parent):
+                raise error_type("JSON parent changed")
+            descriptor = os.open(
+                path.name,
+                os.O_RDONLY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=parent_descriptor,
+            )
+            try:
+                before = os.fstat(descriptor)
+                named = os.stat(
+                    path.name, dir_fd=parent_descriptor, follow_symlinks=False
+                )
+                if (
+                    not stat.S_ISREG(before.st_mode)
+                    or stat.S_ISLNK(named.st_mode)
+                    or before.st_uid != os.getuid()
+                    or before.st_nlink != 1
+                    or _entry_generation(before) != _entry_generation(named)
+                    or before.st_size <= 0
+                    or before.st_size > maximum_bytes
+                ):
+                    raise error_type("unsafe JSON file")
+                chunks = bytearray()
+                while len(chunks) <= maximum_bytes:
+                    chunk = os.read(
+                        descriptor, min(65_536, maximum_bytes + 1 - len(chunks))
+                    )
+                    if not chunk:
+                        break
+                    chunks.extend(chunk)
+                after = os.fstat(descriptor)
+                if (
+                    len(chunks) != before.st_size
+                    or _entry_generation(after) != _entry_generation(before)
+                    or after.st_size != before.st_size
+                    or after.st_mtime_ns != before.st_mtime_ns
+                    or after.st_ctime_ns != before.st_ctime_ns
+                ):
+                    raise error_type("JSON changed while reading")
+                data = bytes(chunks)
+                final_named = os.stat(
+                    path.name, dir_fd=parent_descriptor, follow_symlinks=False
+                )
+                if browser_driver._EntryIdentity.from_stat(
+                    final_named
+                ) != browser_driver._EntryIdentity.from_stat(before):
+                    raise error_type("JSON name changed while reading")
+            finally:
+                os.close(descriptor)
+            final_parent = path.parent.lstat()
+            if _entry_generation(os.fstat(parent_descriptor)) != _entry_generation(
+                opened_parent
+            ) or _entry_generation(final_parent) != _entry_generation(opened_parent):
+                raise error_type("JSON parent changed")
+        finally:
+            os.close(parent_descriptor)
         if not data or len(data) > maximum_bytes or not data.endswith(b"\n"):
             raise error_type("invalid JSON framing")
         text = data.decode("utf-8")
@@ -1101,50 +1194,236 @@ def _plan_digest(cells):
 
 
 def _chain_record(record, previous_hash):
+    if record.get("recordType") == "cell" and not _valid_cell_evidence_semantics(
+        record
+    ):
+        raise MatrixError("invalid fresh cell evidence semantics")
     chained = dict(record)
     chained["previousHash"] = previous_hash
     chained["recordHash"] = _digest_json(chained)
     return chained
 
 
-def _validate_output_directory(output, *, create):
-    output = pathlib.Path(output)
-    if not output.is_absolute() or output.parent == output:
-        raise MatrixError("unsafe output directory")
-    if output.exists() or output.is_symlink():
-        metadata = output.lstat()
-        if (
-            output.is_symlink()
-            or not stat.S_ISDIR(metadata.st_mode)
-            or metadata.st_uid != os.getuid()
-            or metadata.st_mode & 0o077
-            or output.resolve(strict=True) != output
-        ):
+def _valid_cell_evidence_semantics(record):
+    if (
+        not isinstance(record.get("browserStaticHash"), str)
+        or _SAFE_HASH.fullmatch(record["browserStaticHash"]) is None
+    ):
+        return False
+    timing_keys = set(record) & _CELL_TIMING_KEYS
+    result = record.get("result")
+    detail = record.get("detail")
+    common_invoked = (
+        record.get("e2eIdentity") is True
+        and record.get("cleanupSuccess") is True
+        and record.get("taskRootFinalized") is True
+        and isinstance(record.get("sessionHash"), str)
+        and _SAFE_HASH.fullmatch(record["sessionHash"]) is not None
+        and timing_keys == _CELL_TIMING_KEYS
+        and record.get("cleanupGraceSeconds") == 5.0
+        and record.get("quiescenceSeconds") == 2.0
+        and type(record.get("routeTimeoutSeconds")) in {int, float}
+        and record["routeTimeoutSeconds"] > 0
+    )
+    if result == "PASS" and detail == "proven-route":
+        return (
+            common_invoked
+            and record.get("driverOutcome") == "selected"
+            and record.get("provenance") == "launch-observed"
+            and record.get("receipt") is True
+            and record.get("browserIdentity") is True
+        )
+    if result == "FAIL" and detail == "product-route-failure":
+        return (
+            common_invoked
+            and record.get("driverOutcome") == "launch-error"
+            and record.get("provenance") in {"none", "launch-error"}
+            and record.get("receipt") is False
+            and record.get("browserIdentity") is False
+        )
+    if result == "FAIL" and detail == "product-receipt-failure":
+        return (
+            common_invoked
+            and record.get("driverOutcome") == "receipt-timeout"
+            and record.get("provenance") == "launch-observed"
+            and record.get("receipt") is False
+            and record.get("browserIdentity") is True
+        )
+    if result == "UNSUPPORTED" and detail == "catalog-capability-refused":
+        return (
+            common_invoked
+            and record.get("driverOutcome")
+            in {"target-disabled", "target-missing", "target-mode-mismatch"}
+            and record.get("provenance") == "none"
+            and record.get("receipt") is False
+            and record.get("browserIdentity") is False
+        )
+    if result == "NOT RUN" and detail in _NONINVOKED_DETAILS:
+        return (
+            record.get("driverOutcome") == "not-invoked"
+            and record.get("provenance") == "none"
+            and record.get("receipt") is False
+            and record.get("e2eIdentity") is False
+            and record.get("browserIdentity") is False
+            and record.get("sessionHash") == "not-invoked"
+            and record.get("cleanupSuccess") is False
+            and record.get("taskRootFinalized") is False
+            and not timing_keys
+        )
+    return False
+
+
+class _PinnedOutputDirectory:
+    def __init__(self, path, parent_descriptor, descriptor, parent_identity, identity):
+        self.path = pathlib.Path(path)
+        self.parent_descriptor = parent_descriptor
+        self.descriptor = descriptor
+        self.parent_identity = parent_identity
+        self.identity = identity
+        self.closed = False
+
+    @classmethod
+    def open(cls, output, *, create):
+        output = pathlib.Path(output)
+        if not output.is_absolute() or output.parent == output or not output.name:
             raise MatrixError("unsafe output directory")
-        if create and any(output.iterdir()):
-            raise MatrixError("fresh output directory is not empty")
-        if not create:
-            entries = list(output.iterdir())
-            if len(entries) != 1 or entries[0].name != _EVIDENCE_NAME:
-                raise MatrixResumeError("resume directory contains unexpected entries")
-            evidence = entries[0]
-            evidence_metadata = evidence.lstat()
-            if (
-                evidence.is_symlink()
-                or not stat.S_ISREG(evidence_metadata.st_mode)
-                or evidence_metadata.st_uid != os.getuid()
-                or stat.S_IMODE(evidence_metadata.st_mode) != 0o600
-                or evidence.resolve(strict=True) != evidence
-            ):
-                raise MatrixResumeError("resume evidence identity is invalid")
-    elif create:
-        output.mkdir(mode=0o700)
-    else:
-        raise MatrixResumeError("missing output directory")
-    return output
+        try:
+            parent_components = (
+                output.parent,
+                *tuple(output.parent.parents)[:-1],
+            )
+            for component in reversed(parent_components):
+                metadata = component.lstat()
+                if not stat.S_ISDIR(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode):
+                    raise MatrixError("unsafe output parent component")
+            initial_parent = output.parent.lstat()
+            parent_descriptor = os.open(
+                output.parent,
+                os.O_RDONLY
+                | getattr(os, "O_DIRECTORY", 0)
+                | getattr(os, "O_NOFOLLOW", 0)
+                | os.O_CLOEXEC,
+            )
+            descriptor = -1
+            try:
+                parent_metadata = os.fstat(parent_descriptor)
+                named_parent = output.parent.lstat()
+                if _entry_generation(parent_metadata) != _entry_generation(
+                    initial_parent
+                ) or _entry_generation(named_parent) != _entry_generation(
+                    initial_parent
+                ):
+                    raise MatrixError("output parent changed before creation")
+                if create:
+                    try:
+                        os.mkdir(output.name, 0o700, dir_fd=parent_descriptor)
+                    except FileExistsError:
+                        pass
+                descriptor = os.open(
+                    output.name,
+                    os.O_RDONLY
+                    | getattr(os, "O_DIRECTORY", 0)
+                    | getattr(os, "O_NOFOLLOW", 0)
+                    | os.O_CLOEXEC,
+                    dir_fd=parent_descriptor,
+                )
+                metadata = os.fstat(descriptor)
+                named = os.stat(
+                    output.name, dir_fd=parent_descriptor, follow_symlinks=False
+                )
+                identity = (metadata.st_dev, metadata.st_ino)
+                if (
+                    not stat.S_ISDIR(metadata.st_mode)
+                    or stat.S_ISLNK(named.st_mode)
+                    or metadata.st_uid != os.getuid()
+                    or stat.S_IMODE(metadata.st_mode) != 0o700
+                    or identity != (named.st_dev, named.st_ino)
+                ):
+                    raise MatrixError("unsafe output directory")
+                pinned = cls(
+                    output,
+                    parent_descriptor,
+                    descriptor,
+                    _entry_generation(parent_metadata),
+                    _entry_generation(metadata),
+                )
+                parent_descriptor = -1
+                descriptor = -1
+                entries = os.listdir(pinned.descriptor)
+                if create and entries:
+                    raise MatrixError("fresh output directory is not empty")
+                if not create and entries != [_EVIDENCE_NAME]:
+                    raise MatrixResumeError(
+                        "resume directory contains unexpected entries"
+                    )
+                pinned.require_current()
+                return pinned
+            finally:
+                if descriptor >= 0:
+                    os.close(descriptor)
+                if parent_descriptor >= 0:
+                    os.close(parent_descriptor)
+        except MatrixError:
+            raise
+        except OSError as error:
+            if create:
+                raise MatrixError("unsafe output directory") from error
+            raise MatrixResumeError("missing or unsafe output directory") from error
+
+    def require_current(self):
+        if self.closed:
+            raise MatrixError("output directory pin is closed")
+        metadata = os.fstat(self.descriptor)
+        parent = os.fstat(self.parent_descriptor)
+        try:
+            named_parent = self.path.parent.lstat()
+        except OSError as error:
+            raise MatrixError("output parent identity changed") from error
+        named = os.stat(
+            self.path.name,
+            dir_fd=self.parent_descriptor,
+            follow_symlinks=False,
+        )
+        if (
+            _entry_generation(metadata) != self.identity
+            or _entry_generation(named) != self.identity
+            or _entry_generation(parent) != self.parent_identity
+            or _entry_generation(named_parent) != self.parent_identity
+            or stat.S_ISLNK(named_parent.st_mode)
+            or not stat.S_ISDIR(metadata.st_mode)
+            or stat.S_ISLNK(named.st_mode)
+            or metadata.st_uid != os.getuid()
+            or stat.S_IMODE(metadata.st_mode) != 0o700
+        ):
+            raise MatrixError("output directory identity changed")
+
+    def close(self):
+        if self.closed:
+            return
+        self.closed = True
+        os.close(self.descriptor)
+        os.close(self.parent_descriptor)
+
+    def __del__(self):
+        try:
+            self.close()
+        except OSError:
+            pass
 
 
-def _write_records(path, records):
+def _publication_identity(metadata):
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_uid,
+        metadata.st_mode,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+    )
+
+
+def _write_records(output, records):
+    output.require_current()
     data = b"".join(
         (
             json.dumps(record, allow_nan=False, separators=(",", ":"), sort_keys=True)
@@ -1154,9 +1433,16 @@ def _write_records(path, records):
     )
     if len(data) > _MAXIMUM_EVIDENCE_BYTES:
         raise MatrixError("evidence limit exceeded")
-    temporary = path.with_name(f".{path.name}.{secrets.token_hex(8)}")
+    temporary = f".{_EVIDENCE_NAME}.{secrets.token_hex(8)}"
     descriptor = os.open(
-        temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC, 0o600
+        temporary,
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | os.O_CLOEXEC
+        | getattr(os, "O_NOFOLLOW", 0),
+        0o600,
+        dir_fd=output.descriptor,
     )
     try:
         offset = 0
@@ -1165,16 +1451,80 @@ def _write_records(path, records):
             if written <= 0:
                 raise MatrixError("evidence write failed")
             offset += written
+        opened = os.fstat(descriptor)
+        named = os.stat(temporary, dir_fd=output.descriptor, follow_symlinks=False)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or opened.st_uid != os.getuid()
+            or stat.S_IMODE(opened.st_mode) != 0o600
+            or opened.st_nlink != 1
+            or _entry_generation(opened) != _entry_generation(named)
+        ):
+            raise MatrixError("evidence staging identity changed")
+        staging_identity = _publication_identity(opened)
         os.fsync(descriptor)
         os.close(descriptor)
         descriptor = -1
-        os.replace(temporary, path)
+        output.require_current()
+        named = os.stat(temporary, dir_fd=output.descriptor, follow_symlinks=False)
+        if _publication_identity(named) != staging_identity:
+            raise MatrixError("evidence staging identity changed")
+        os.rename(
+            temporary,
+            _EVIDENCE_NAME,
+            src_dir_fd=output.descriptor,
+            dst_dir_fd=output.descriptor,
+        )
+        published = os.stat(
+            _EVIDENCE_NAME, dir_fd=output.descriptor, follow_symlinks=False
+        )
+        if _publication_identity(published) != staging_identity:
+            raise MatrixError("published evidence identity changed")
+        published_descriptor = os.open(
+            _EVIDENCE_NAME,
+            os.O_RDONLY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0),
+            dir_fd=output.descriptor,
+        )
+        try:
+            published_opened = os.fstat(published_descriptor)
+            if _publication_identity(published_opened) != staging_identity:
+                raise MatrixError("published evidence identity changed")
+            final_identity = browser_driver._EntryIdentity.from_stat(published_opened)
+            published_contents = bytearray()
+            while len(published_contents) <= len(data):
+                chunk = os.read(
+                    published_descriptor,
+                    min(65_536, len(data) + 1 - len(published_contents)),
+                )
+                if not chunk:
+                    break
+                published_contents.extend(chunk)
+            if bytes(published_contents) != data:
+                raise MatrixError("published evidence contents changed")
+            published_after = os.fstat(published_descriptor)
+            named_after = os.stat(
+                _EVIDENCE_NAME,
+                dir_fd=output.descriptor,
+                follow_symlinks=False,
+            )
+            if (
+                browser_driver._EntryIdentity.from_stat(published_after)
+                != final_identity
+                or browser_driver._EntryIdentity.from_stat(named_after)
+                != final_identity
+                or published_after.st_size != len(data)
+            ):
+                raise MatrixError("published evidence identity changed")
+        finally:
+            os.close(published_descriptor)
+        os.fsync(output.descriptor)
+        output.require_current()
     except BaseException:
         if descriptor >= 0:
             os.close(descriptor)
         try:
-            temporary.unlink()
-        except FileNotFoundError:
+            os.unlink(temporary, dir_fd=output.descriptor)
+        except (FileNotFoundError, OSError):
             pass
         raise
     finally:
@@ -1182,9 +1532,63 @@ def _write_records(path, records):
             os.close(descriptor)
 
 
-def _read_resume(path, manifest, cells):
+def _read_resume(output, manifest, cells):
     try:
-        data = path.read_bytes()
+        output.require_current()
+        descriptor = os.open(
+            _EVIDENCE_NAME,
+            os.O_RDONLY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0),
+            dir_fd=output.descriptor,
+        )
+        try:
+            before = os.fstat(descriptor)
+            named = os.stat(
+                _EVIDENCE_NAME, dir_fd=output.descriptor, follow_symlinks=False
+            )
+            if (
+                not stat.S_ISREG(before.st_mode)
+                or before.st_uid != os.getuid()
+                or stat.S_IMODE(before.st_mode) != 0o600
+                or before.st_nlink != 1
+                or (before.st_dev, before.st_ino) != (named.st_dev, named.st_ino)
+            ):
+                raise MatrixResumeError("resume evidence identity is invalid")
+            chunks = bytearray()
+            while True:
+                chunk = os.read(descriptor, 1024 * 1024)
+                if not chunk:
+                    break
+                chunks.extend(chunk)
+                if len(chunks) > _MAXIMUM_EVIDENCE_BYTES:
+                    raise MatrixResumeError("invalid evidence framing")
+            after = os.fstat(descriptor)
+            if (
+                before.st_dev,
+                before.st_ino,
+                before.st_size,
+                before.st_mtime_ns,
+                before.st_ctime_ns,
+            ) != (
+                after.st_dev,
+                after.st_ino,
+                after.st_size,
+                after.st_mtime_ns,
+                after.st_ctime_ns,
+            ):
+                raise MatrixResumeError("resume evidence changed while reading")
+            named_after = os.stat(
+                _EVIDENCE_NAME,
+                dir_fd=output.descriptor,
+                follow_symlinks=False,
+            )
+            if browser_driver._EntryIdentity.from_stat(
+                named_after
+            ) != browser_driver._EntryIdentity.from_stat(before):
+                raise MatrixResumeError("resume evidence name changed while reading")
+            data = bytes(chunks)
+        finally:
+            os.close(descriptor)
+        output.require_current()
         if not data or len(data) > _MAXIMUM_EVIDENCE_BYTES or not data.endswith(b"\n"):
             raise MatrixResumeError("invalid evidence framing")
         lines = data.splitlines(keepends=True)
@@ -1274,6 +1678,7 @@ def _read_resume(path, manifest, cells):
             )
             or record.get("sessionHash") != "not-invoked"
             and _SAFE_HASH.fullmatch(record.get("sessionHash", "")) is None
+            or not _valid_cell_evidence_semantics(record)
         ):
             raise MatrixResumeError("completed cell mismatch")
         session_hash = record["sessionHash"]
@@ -1283,24 +1688,6 @@ def _read_resume(path, manifest, cells):
             seen_session_hashes.add(session_hash)
         completed.append(record)
     return records, completed
-
-
-def _classification(report, return_code):
-    outcome = report.get("outcome")
-    provenance = report.get("launch_provenance", "none")
-    if return_code == 0 and outcome == "selected" and provenance == "launch-observed":
-        return "PASS", "proven-route", False
-    if outcome in {"launch-error"}:
-        return "FAIL", "product-route-failure", False
-    if (
-        outcome == "receipt-timeout"
-        and report.get("exact_browser_process_identity") is True
-        and provenance == "launch-observed"
-    ):
-        return "FAIL", "product-receipt-failure", False
-    if outcome in {"target-disabled", "target-mode-mismatch"}:
-        return "UNSUPPORTED", "catalog-capability-refused", False
-    return "NOT RUN", "harness-ambiguity", True
 
 
 def _expected_target_id(cell):
@@ -1313,7 +1700,7 @@ def _expected_target_id(cell):
     raise DriverProofError("unsupported profile target")
 
 
-def _sanitized_record(cell, version, report, result, detail):
+def _sanitized_record(cell, version, browser_app_identity, report, result, detail):
     timings = {}
     for source, target in (
         ("total_elapsed_seconds", "totalElapsedSeconds"),
@@ -1350,6 +1737,12 @@ def _sanitized_record(cell, version, report, result, detail):
         "capability": cell.capability,
         "state": cell.state,
         "installedVersion": safe_version,
+        "browserStaticHash": (
+            browser_app_identity
+            if isinstance(browser_app_identity, str)
+            and _SAFE_HASH.fullmatch(browser_app_identity)
+            else "0" * 64
+        ),
         "result": result,
         "detail": detail,
         "driverOutcome": safe_outcome,
@@ -1358,38 +1751,89 @@ def _sanitized_record(cell, version, report, result, detail):
         "e2eIdentity": report.get("exact_process_identity") is True,
         "browserIdentity": report.get("exact_browser_process_identity") is True,
         "sessionHash": safe_session_hash,
+        "cleanupSuccess": report.get("cleanup_success") is True,
+        "taskRootFinalized": report.get("task_root_finalized") is True,
         **timings,
     }
 
 
-def _not_run_record(cell, version, detail):
+def _not_run_record(cell, version, detail, browser_app_identity="0" * 64):
     return _sanitized_record(
         cell,
         version,
+        browser_app_identity,
         {"outcome": "not-invoked"},
         "NOT RUN",
         detail,
     )
 
 
+def _resume_terminal(completed):
+    if not completed:
+        return None
+    prior_failure = any(record["result"] == "FAIL" for record in completed)
+    if len(completed) < 3:
+        return (
+            MATRIX_PRODUCT_FAILURE if prior_failure else MATRIX_BLOCKED,
+            "edge-pilot-failed",
+        )
+    edge_pilot = completed[:3]
+    if any(record["result"] != "PASS" for record in edge_pilot):
+        return (
+            MATRIX_PRODUCT_FAILURE if prior_failure else MATRIX_BLOCKED,
+            "edge-pilot-failed",
+        )
+    if len(completed) % 3:
+        return (
+            MATRIX_PRODUCT_FAILURE if prior_failure else MATRIX_BLOCKED,
+            "blocked-after-ambiguity",
+        )
+    if prior_failure:
+        return MATRIX_PRODUCT_FAILURE, "blocked-after-sequence-failure"
+    if any(record["result"] == "NOT RUN" for record in completed):
+        return MATRIX_BLOCKED, "blocked-after-ambiguity"
+    return None
+
+
 def execute_matrix(manifest, output, *, dependencies=None, resume=False):
     dependencies = dependencies or SystemDependencies()
+    pinned_output = _PinnedOutputDirectory.open(output, create=not resume)
+    try:
+        return _execute_matrix_with_output(
+            manifest, pinned_output, dependencies=dependencies, resume=resume
+        )
+    finally:
+        pinned_output.close()
+
+
+def _execute_matrix_with_output(manifest, output, *, dependencies, resume):
     cells = plan_cells(manifest, dependencies.is_installed)
     if not cells:
         raise MatrixError("no installed eligible cells")
-    output = _validate_output_directory(output, create=not resume)
-    evidence_path = output / _EVIDENCE_NAME
+    evidence_path = output
     if resume:
         chained_records, completed = _read_resume(evidence_path, manifest, cells)
-        if len(completed) == len(cells):
-            exit_code = (
-                MATRIX_PRODUCT_FAILURE
-                if any(record["result"] == "FAIL" for record in completed)
-                else MATRIX_BLOCKED
-                if any(record["result"] == "NOT RUN" for record in completed)
-                else MATRIX_SUCCESS
-            )
+        terminal = _resume_terminal(completed)
+        if terminal is not None:
+            exit_code, detail = terminal
+            persisted_versions = {
+                record["bundleIdentifier"]: record["installedVersion"]
+                for record in completed
+            }
+            for cell in cells[len(completed) :]:
+                record = _not_run_record(
+                    cell,
+                    persisted_versions.get(cell.bundle_identifier, "unverified"),
+                    detail,
+                )
+                chained_records.append(
+                    _chain_record(record, chained_records[-1]["recordHash"])
+                )
+                completed.append(chained_records[-1])
+            _write_records(evidence_path, chained_records)
             return MatrixExecutionResult(exit_code, tuple(completed))
+        if len(completed) == len(cells):
+            return MatrixExecutionResult(MATRIX_SUCCESS, tuple(completed))
     else:
         header = _chain_record(
             {
@@ -1406,6 +1850,7 @@ def execute_matrix(manifest, output, *, dependencies=None, resume=False):
 
     versions = {}
     application_identities = {}
+    application_verifications = {}
     absent_bundles = set()
     identity_blocked_bundles = set()
     for cell in cells:
@@ -1418,12 +1863,36 @@ def execute_matrix(manifest, output, *, dependencies=None, resume=False):
             continue
         try:
             verification = dependencies.verify_application(cell.application)
+            application_verifications[cell.bundle_identifier] = verification
             versions[cell.bundle_identifier] = verification.version
             application_identities[cell.bundle_identifier] = verification.identity
         except MatrixIdentityError:
             versions[cell.bundle_identifier] = "unavailable"
             application_identities[cell.bundle_identifier] = "0" * 64
             identity_blocked_bundles.add(cell.bundle_identifier)
+    if resume and any(
+        record["result"] != "NOT RUN"
+        and (
+            record["installedVersion"]
+            != versions.get(record["bundleIdentifier"], "unavailable")
+            or record["browserStaticHash"]
+            != application_identities.get(record["bundleIdentifier"], "0" * 64)
+        )
+        for record in completed
+    ):
+        for pending in cells[len(completed) :]:
+            pending_record = _not_run_record(
+                pending,
+                versions.get(pending.bundle_identifier, "unavailable"),
+                "browser-identity-changed",
+                application_identities.get(pending.bundle_identifier, "0" * 64),
+            )
+            chained_records.append(
+                _chain_record(pending_record, chained_records[-1]["recordHash"])
+            )
+            completed.append(chained_records[-1])
+        _write_records(evidence_path, chained_records)
+        return MatrixExecutionResult(MATRIX_BLOCKED, tuple(completed))
     blocked_bundles = absent_bundles | identity_blocked_bundles
     if "com.microsoft.edgemac" in blocked_bundles:
         for cell in cells[len(completed) :]:
@@ -1512,6 +1981,30 @@ def execute_matrix(manifest, output, *, dependencies=None, resume=False):
                 _write_records(evidence_path, chained_records)
                 offset += 3
                 continue
+            try:
+                current_verification = dependencies.verify_application(cell.application)
+            except MatrixIdentityError:
+                current_verification = None
+            if (
+                current_verification
+                != application_verifications[cell.bundle_identifier]
+            ):
+                versions[cell.bundle_identifier] = "unavailable"
+                for pending in remaining[offset:]:
+                    record = _not_run_record(
+                        pending,
+                        "unavailable"
+                        if pending.bundle_identifier == cell.bundle_identifier
+                        else versions.get(pending.bundle_identifier, "unverified"),
+                        "browser-identity-changed",
+                    )
+                    chained_records.append(
+                        _chain_record(record, chained_records[-1]["recordHash"])
+                    )
+                    completed.append(chained_records[-1])
+                _write_records(evidence_path, chained_records)
+                exit_code = MATRIX_BLOCKED
+                break
             sessions = tuple(secrets.token_hex(24) for _ in _STATES)
             requests = tuple(secrets.token_hex(24) for _ in _STATES)
             profile_relative_root = (
@@ -1530,6 +2023,27 @@ def execute_matrix(manifest, output, *, dependencies=None, resume=False):
             except Exception:
                 report = {"outcome": "invalid-driver-report"}
                 driver_code = browser_driver.DRIVER_PROCESS_ERROR
+            try:
+                post_verification = dependencies.verify_application(cell.application)
+            except MatrixIdentityError:
+                post_verification = None
+            if post_verification != application_verifications[cell.bundle_identifier]:
+                versions[cell.bundle_identifier] = "unavailable"
+                for pending in remaining[offset:]:
+                    record = _not_run_record(
+                        pending,
+                        "unavailable"
+                        if pending.bundle_identifier == cell.bundle_identifier
+                        else versions.get(pending.bundle_identifier, "unverified"),
+                        "browser-identity-changed",
+                    )
+                    chained_records.append(
+                        _chain_record(record, chained_records[-1]["recordHash"])
+                    )
+                    completed.append(chained_records[-1])
+                _write_records(evidence_path, chained_records)
+                exit_code = MATRIX_BLOCKED
+                break
             expectations = tuple(
                 DriverProofExpectation(
                     session=session,
@@ -1561,6 +2075,17 @@ def execute_matrix(manifest, output, *, dependencies=None, resume=False):
             for index, (state_cell, (result, detail)) in enumerate(
                 zip(group, sequence_results)
             ):
+                if result == "NOT RUN":
+                    record = _not_run_record(
+                        state_cell,
+                        versions[state_cell.bundle_identifier],
+                        detail,
+                    )
+                    chained_records.append(
+                        _chain_record(record, chained_records[-1]["recordHash"])
+                    )
+                    completed.append(chained_records[-1])
+                    continue
                 proof = proofs[index] if index < len(proofs) else {}
                 cell_report = {
                     "outcome": proof.get("outcome", "not-invoked"),
@@ -1583,10 +2108,13 @@ def execute_matrix(manifest, output, *, dependencies=None, resume=False):
                     and isinstance(report.get("sessionHashes"), list)
                     and index < len(report["sessionHashes"])
                     else "not-invoked",
+                    "cleanup_success": report.get("cleanup_success") is True,
+                    "task_root_finalized": report.get("task_root_finalized") is True,
                 }
                 record = _sanitized_record(
                     state_cell,
                     versions[state_cell.bundle_identifier],
+                    application_identities[state_cell.bundle_identifier],
                     cell_report,
                     result,
                     detail,
@@ -1649,6 +2177,772 @@ def dry_run(manifest, *, dependencies=None):
     return MATRIX_SUCCESS if any(cell.installed for cell in cells) else MATRIX_BLOCKED
 
 
+_HANDOFF_FILE = "cleanup-ledger.jsonl"
+_HANDOFF_TRANSITIONS = frozenset(
+    {
+        "initialized",
+        "root-owned",
+        "baseline-empty",
+        "child-owned",
+        "browser-owned",
+        "cleanup-progress",
+        "finalized",
+    }
+)
+
+
+def _handoff_process_identity(record):
+    if not isinstance(record, dict) or set(record) != {
+        "pid",
+        "parentPid",
+        "startSeconds",
+        "startMicroseconds",
+        "executable",
+    }:
+        raise MatrixIdentityError("invalid cleanup process identity")
+    if (
+        any(
+            not isinstance(record[key], int) or isinstance(record[key], bool)
+            for key in ("pid", "parentPid", "startSeconds", "startMicroseconds")
+        )
+        or record["pid"] <= 0
+        or record["parentPid"] < 0
+        or record["startSeconds"] < 0
+        or not 0 <= record["startMicroseconds"] < 1_000_000
+        or not isinstance(record["executable"], str)
+        or not pathlib.Path(record["executable"]).is_absolute()
+    ):
+        raise MatrixIdentityError("invalid cleanup process identity")
+    return browser_driver.ProcessIdentity(
+        record["pid"],
+        record["parentPid"],
+        record["startSeconds"],
+        record["startMicroseconds"],
+        pathlib.Path(record["executable"]),
+    )
+
+
+def _validate_handoff_root_record(record):
+    if not isinstance(record, dict) or set(record) != {
+        "path",
+        "device",
+        "inode",
+        "owner",
+        "mode",
+    }:
+        raise MatrixIdentityError("invalid cleanup task root")
+    if (
+        not isinstance(record["path"], str)
+        or any(
+            not isinstance(record[key], int) or isinstance(record[key], bool)
+            for key in ("device", "inode", "owner", "mode")
+        )
+        or record["device"] < 0
+        or record["inode"] <= 0
+        or record["owner"] != os.getuid()
+        or record["mode"] != 0o700
+    ):
+        raise MatrixIdentityError("invalid cleanup task root")
+    path = pathlib.Path(record["path"])
+    if (
+        not path.is_absolute()
+        or path.parent != pathlib.Path("/private/tmp")
+        or not path.name.startswith("pickvia-e2e-")
+    ):
+        raise MatrixIdentityError("invalid cleanup task root")
+    return record
+
+
+class _CleanupHandoff:
+    def __init__(
+        self,
+        descriptor,
+        token,
+        context,
+        secret_reader,
+        secret_writer,
+    ):
+        self.descriptor = descriptor
+        self.token = token
+        self.context = context
+        self.secret_reader = secret_reader
+        self.secret_writer = secret_writer
+        self._retained = True
+        self.driver_identity = None
+
+    @classmethod
+    def create(cls, context, *, temporary_parent="/private/tmp"):
+        directory = pathlib.Path(
+            tempfile.mkdtemp(
+                prefix="pickvia-matrix-handoff-", dir=os.fspath(temporary_parent)
+            )
+        )
+        os.chmod(directory, 0o700)
+        path = directory / _HANDOFF_FILE
+        descriptor = os.open(
+            path,
+            os.O_RDWR
+            | os.O_APPEND
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+        )
+        os.fchmod(descriptor, 0o600)
+        os.unlink(path)
+        os.rmdir(directory)
+        secret_reader, secret_writer = os.pipe()
+        return cls(
+            descriptor,
+            secrets.token_hex(32),
+            context,
+            secret_reader,
+            secret_writer,
+        )
+
+    def child_secret_descriptor(self):
+        if self.secret_reader is None:
+            raise MatrixIdentityError("cleanup secret reader is unavailable")
+        return self.secret_reader
+
+    def child_ledger_descriptor(self):
+        return self.descriptor
+
+    def deliver_secret(self):
+        if self.secret_writer is None:
+            raise MatrixIdentityError("cleanup secret was already delivered")
+        try:
+            payload = (self.token + "\n").encode("ascii")
+            offset = 0
+            while offset < len(payload):
+                written = os.write(self.secret_writer, payload[offset:])
+                if written <= 0:
+                    raise MatrixIdentityError("cleanup secret delivery failed")
+                offset += written
+        finally:
+            os.close(self.secret_writer)
+            self.secret_writer = None
+            os.close(self.secret_reader)
+            self.secret_reader = None
+
+    def _require_current(self):
+        opened = os.fstat(self.descriptor)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or opened.st_uid != os.getuid()
+            or stat.S_IMODE(opened.st_mode) != 0o600
+            or opened.st_nlink != 0
+        ):
+            raise MatrixIdentityError("cleanup handoff identity changed")
+
+    def records(self):
+        self._require_current()
+        metadata = os.fstat(self.descriptor)
+        maximum = (
+            browser_driver.MAXIMUM_HANDOFF_RECORD_BYTES
+            * browser_driver.MAXIMUM_HANDOFF_RECORDS
+        )
+        if metadata.st_size > maximum:
+            raise MatrixIdentityError("cleanup handoff is oversized")
+        contents = b""
+        offset = 0
+        while len(contents) <= maximum:
+            chunk = os.pread(
+                self.descriptor,
+                min(65_536, maximum + 1 - len(contents)),
+                offset,
+            )
+            if not chunk:
+                break
+            contents += chunk
+            offset += len(chunk)
+        after = os.fstat(self.descriptor)
+        if (
+            len(contents) != metadata.st_size
+            or after.st_size != metadata.st_size
+            or after.st_mtime_ns != metadata.st_mtime_ns
+            or after.st_ctime_ns != metadata.st_ctime_ns
+            or (contents and not contents.endswith(b"\n"))
+        ):
+            raise MatrixIdentityError("cleanup handoff is incomplete")
+        self._require_current()
+        records = []
+        previous_children = set()
+        previous_browsers = set()
+        root_record = None
+        cleanup_started = False
+        baseline_empty = False
+        driver_identity = None
+        for counter, line in enumerate(contents.splitlines(), 1):
+            if len(line) + 1 > browser_driver.MAXIMUM_HANDOFF_RECORD_BYTES:
+                raise MatrixIdentityError("cleanup handoff record is oversized")
+            try:
+                record = json.loads(
+                    line,
+                    object_pairs_hook=_unique_object,
+                    parse_constant=_reject_constant,
+                )
+            except (
+                UnicodeDecodeError,
+                json.JSONDecodeError,
+                MatrixManifestError,
+            ) as error:
+                raise MatrixIdentityError("cleanup handoff is malformed") from error
+            if not isinstance(record, dict) or set(record) != {
+                "payload",
+                "authentication",
+            }:
+                raise MatrixIdentityError("cleanup handoff schema mismatch")
+            payload = record["payload"]
+            authentication = record["authentication"]
+            canonical = json.dumps(
+                payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+            ).encode("ascii")
+            expected = hmac.new(
+                bytes.fromhex(self.token), canonical, hashlib.sha256
+            ).hexdigest()
+            if not isinstance(authentication, str) or not hmac.compare_digest(
+                authentication, expected
+            ):
+                raise MatrixIdentityError("cleanup handoff authentication failed")
+            if not isinstance(payload, dict) or set(payload) != {
+                "schemaVersion",
+                "counter",
+                "transition",
+                "context",
+                "driverProcess",
+                "baselineEmpty",
+                "taskRoot",
+                "ownedChildren",
+                "ownedBrowsers",
+                "taskRootFinalized",
+            }:
+                raise MatrixIdentityError("cleanup handoff payload mismatch")
+            transition = payload["transition"]
+            current_driver = _handoff_process_identity(payload["driverProcess"])
+            if (
+                payload["schemaVersion"] != 1
+                or payload["counter"] != counter
+                or transition not in _HANDOFF_TRANSITIONS
+                or payload["context"] != self.context
+                or not isinstance(payload["baselineEmpty"], bool)
+                or not isinstance(payload["taskRootFinalized"], bool)
+                or not isinstance(payload["ownedChildren"], list)
+                or not isinstance(payload["ownedBrowsers"], list)
+            ):
+                raise MatrixIdentityError("cleanup handoff invariant failed")
+            if driver_identity is None:
+                driver_identity = current_driver
+            elif current_driver.generation_key != driver_identity.generation_key:
+                raise MatrixIdentityError("cleanup driver identity changed")
+            if (
+                self.driver_identity is not None
+                and current_driver.generation_key != self.driver_identity.generation_key
+            ):
+                raise MatrixIdentityError("cleanup driver identity mismatch")
+            children = tuple(
+                _handoff_process_identity(value) for value in payload["ownedChildren"]
+            )
+            browsers = tuple(
+                _handoff_process_identity(value) for value in payload["ownedBrowsers"]
+            )
+            child_keys = {value.generation_key for value in children}
+            browser_keys = {value.generation_key for value in browsers}
+            if len(child_keys) != len(children) or len(browser_keys) != len(browsers):
+                raise MatrixIdentityError("duplicate cleanup ownership")
+            current_root = payload["taskRoot"]
+            if transition == "initialized":
+                if (
+                    counter != 1
+                    or current_root is not None
+                    or children
+                    or browsers
+                    or payload["baselineEmpty"]
+                ):
+                    raise MatrixIdentityError("invalid cleanup initialization")
+            elif transition == "root-owned":
+                if counter != 2 or root_record is not None or children or browsers:
+                    raise MatrixIdentityError("invalid cleanup root transition")
+                root_record = _validate_handoff_root_record(current_root)
+            elif transition == "baseline-empty":
+                if (
+                    baseline_empty
+                    or root_record is None
+                    or current_root != root_record
+                    or children
+                    or browsers
+                    or not payload["baselineEmpty"]
+                ):
+                    raise MatrixIdentityError("invalid baseline transition")
+                baseline_empty = True
+            elif transition in {"child-owned", "browser-owned"}:
+                if (
+                    cleanup_started
+                    or current_root != root_record
+                    or root_record is None
+                    or not baseline_empty
+                ):
+                    raise MatrixIdentityError("late cleanup ownership transition")
+                if transition == "child-owned" and not (
+                    previous_children < child_keys and previous_browsers == browser_keys
+                ):
+                    raise MatrixIdentityError("invalid child ownership transition")
+                if transition == "browser-owned" and not (
+                    previous_browsers < browser_keys and previous_children == child_keys
+                ):
+                    raise MatrixIdentityError("invalid browser ownership transition")
+            elif transition == "cleanup-progress":
+                cleanup_started = True
+                if (
+                    current_root != root_record
+                    or not child_keys.issubset(previous_children)
+                    or not browser_keys.issubset(previous_browsers)
+                ):
+                    raise MatrixIdentityError("invalid cleanup progress")
+            elif transition == "finalized":
+                if (
+                    counter == 1
+                    or not cleanup_started
+                    or root_record is None
+                    or current_root is not None
+                    or children
+                    or browsers
+                    or not payload["taskRootFinalized"]
+                ):
+                    raise MatrixIdentityError("invalid cleanup finalization")
+            if transition != "finalized" and payload["taskRootFinalized"]:
+                raise MatrixIdentityError("premature cleanup finalization")
+            if payload["baselineEmpty"] != baseline_empty:
+                raise MatrixIdentityError("cleanup baseline changed")
+            previous_children = child_keys
+            previous_browsers = browser_keys
+            records.append((payload, children, browsers))
+        if len(records) > browser_driver.MAXIMUM_HANDOFF_RECORDS:
+            raise MatrixIdentityError("too many cleanup transitions")
+        return tuple(records)
+
+    def mark_recovered(self):
+        self._retained = False
+
+    def _persist_retained(self):
+        maximum = (
+            browser_driver.MAXIMUM_HANDOFF_RECORD_BYTES
+            * browser_driver.MAXIMUM_HANDOFF_RECORDS
+        )
+        metadata = os.fstat(self.descriptor)
+        if metadata.st_size > maximum:
+            raise MatrixIdentityError("cleanup ledger cannot be retained safely")
+        ledger = os.pread(self.descriptor, metadata.st_size, 0)
+        directory = pathlib.Path(
+            tempfile.mkdtemp(prefix="pickvia-matrix-retained-", dir="/private/tmp")
+        )
+        os.chmod(directory, 0o700)
+        initial_directory = directory.lstat()
+        directory_descriptor = os.open(
+            directory,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0),
+        )
+        try:
+            if (
+                not stat.S_ISDIR(initial_directory.st_mode)
+                or stat.S_ISLNK(initial_directory.st_mode)
+                or initial_directory.st_uid != os.getuid()
+                or stat.S_IMODE(initial_directory.st_mode) != 0o700
+                or _entry_generation(os.fstat(directory_descriptor))
+                != _entry_generation(initial_directory)
+                or directory.parent != pathlib.Path("/private/tmp")
+            ):
+                raise MatrixIdentityError("retained evidence directory is unsafe")
+            artifacts = {
+                "cleanup-ledger.jsonl": ledger,
+                "authentication-key": (self.token + "\n").encode("ascii"),
+                "context.json": (
+                    json.dumps(
+                        self.context,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                        ensure_ascii=True,
+                    )
+                    + "\n"
+                ).encode("ascii"),
+            }
+            for name, contents in artifacts.items():
+                descriptor = os.open(
+                    name,
+                    os.O_WRONLY
+                    | os.O_CREAT
+                    | os.O_EXCL
+                    | os.O_CLOEXEC
+                    | getattr(os, "O_NOFOLLOW", 0),
+                    0o600,
+                    dir_fd=directory_descriptor,
+                )
+                try:
+                    offset = 0
+                    while offset < len(contents):
+                        written = os.write(descriptor, contents[offset:])
+                        if written <= 0:
+                            raise OSError("retained evidence write failed")
+                        offset += written
+                    os.fsync(descriptor)
+                    opened = os.fstat(descriptor)
+                    named = os.stat(
+                        name,
+                        dir_fd=directory_descriptor,
+                        follow_symlinks=False,
+                    )
+                    if (
+                        not stat.S_ISREG(opened.st_mode)
+                        or opened.st_uid != os.getuid()
+                        or stat.S_IMODE(opened.st_mode) != 0o600
+                        or opened.st_nlink != 1
+                        or _entry_generation(opened) != _entry_generation(named)
+                        or opened.st_size != len(contents)
+                    ):
+                        raise MatrixIdentityError("retained evidence file is unsafe")
+                finally:
+                    os.close(descriptor)
+            os.fsync(directory_descriptor)
+            if _entry_generation(directory.lstat()) != _entry_generation(
+                initial_directory
+            ):
+                raise MatrixIdentityError("retained evidence directory changed")
+            self.retained_path = directory
+        finally:
+            os.close(directory_descriptor)
+
+    def close(self):
+        if self._retained:
+            self._persist_retained()
+        for attribute in ("secret_reader", "secret_writer"):
+            descriptor = getattr(self, attribute)
+            if descriptor is not None:
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    pass
+                setattr(self, attribute, None)
+        try:
+            os.close(self.descriptor)
+        except OSError:
+            pass
+
+
+def _entry_generation(metadata):
+    return (metadata.st_dev, metadata.st_ino, metadata.st_uid, metadata.st_mode)
+
+
+def _reopen_handoff_task_root(record):
+    record = _validate_handoff_root_record(record)
+    path = pathlib.Path(record["path"])
+    parent_descriptor = os.open(
+        "/private/tmp",
+        os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_CLOEXEC", 0),
+    )
+    try:
+        descriptor = os.open(
+            path.name,
+            os.O_RDONLY
+            | os.O_DIRECTORY
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+            dir_fd=parent_descriptor,
+        )
+    except Exception:
+        os.close(parent_descriptor)
+        raise
+    metadata = os.fstat(descriptor)
+    identity = browser_driver._DirectoryIdentity.from_stat(metadata)
+    expected = browser_driver._DirectoryIdentity(
+        record["device"], record["inode"], record["owner"], record["mode"]
+    )
+    if identity != expected:
+        os.close(descriptor)
+        os.close(parent_descriptor)
+        raise MatrixIdentityError("cleanup task root changed")
+    return browser_driver._PinnedTaskRoot(
+        path,
+        descriptor,
+        identity,
+        parent_descriptor,
+        browser_driver._DirectoryIdentity.from_stat(os.fstat(parent_descriptor)),
+    )
+
+
+def _terminate_exact_handoff_child(
+    identity,
+    executable,
+    cleanup_deadline,
+    *,
+    identity_reader=browser_driver._darwin_process_identity,
+    signaler=os.kill,
+    monotonic=time.monotonic,
+    sleep=time.sleep,
+):
+    def current_generation():
+        try:
+            current = identity_reader(identity.pid)
+        except browser_driver._ProcessDisappeared:
+            return None
+        if (
+            current.generation_key != identity.generation_key
+            or current.executable != pathlib.Path(executable)
+        ):
+            raise MatrixIdentityError("owned child generation changed")
+        return current
+
+    if current_generation() is None:
+        return True
+    if monotonic() >= cleanup_deadline:
+        return False
+    try:
+        signaler(identity.pid, signal.SIGTERM)
+        if current_generation() is not None:
+            signaler(identity.pid, signal.SIGCONT)
+    except ProcessLookupError:
+        return True
+    term_deadline = min(cleanup_deadline, monotonic() + 0.5)
+    while monotonic() < term_deadline:
+        if current_generation() is None:
+            return True
+        sleep(min(0.02, term_deadline - monotonic()))
+    if current_generation() is None:
+        return True
+    try:
+        signaler(identity.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        return True
+    while monotonic() < cleanup_deadline:
+        if current_generation() is None:
+            return True
+        sleep(min(0.02, cleanup_deadline - monotonic()))
+    return current_generation() is None
+
+
+def _recover_cleanup_handoff(
+    handoff,
+    *,
+    identity_reader=browser_driver._darwin_process_identity,
+    terminator=None,
+    snapshotter=browser_driver._snapshot_exact_browser_processes,
+    direct_child_snapshotter=browser_driver._snapshot_process_group,
+    static_checker=None,
+    root_reopener=_reopen_handoff_task_root,
+    root_remover=browser_driver._remove_task_root,
+    monotonic=time.monotonic,
+    sleep=time.sleep,
+):
+    records = handoff.records()
+    if not records:
+        return False
+    payload, children, browsers = records[-1]
+    root_records = [
+        record_payload["taskRoot"]
+        for record_payload, _record_children, _record_browsers in records
+        if record_payload["taskRoot"] is not None
+    ]
+    if not root_records or any(record != root_records[0] for record in root_records):
+        return False
+    root_record = root_records[0]
+    finalized = payload["transition"] == "finalized"
+    if not any(record_payload["baselineEmpty"] for record_payload, _, _ in records):
+        return False
+    driver_identity = handoff.driver_identity or _handoff_process_identity(
+        payload["driverProcess"]
+    )
+    try:
+        current_driver = identity_reader(driver_identity.pid)
+        process_group = direct_child_snapshotter(driver_identity.pid)
+    except (
+        browser_driver._ProcessDisappeared,
+        browser_driver._IdentityInspectionError,
+    ):
+        return False
+    if current_driver.generation_key != driver_identity.generation_key:
+        return False
+    child_map = {value.generation_key: value for value in children}
+    for group_process in process_group:
+        if group_process.generation_key == driver_identity.generation_key:
+            continue
+        child_map[group_process.generation_key] = group_process
+    children = tuple(child_map.values())
+    browser_executable = pathlib.Path(handoff.context["browserExecutable"])
+    try:
+        current_browsers = snapshotter(browser_executable)
+    except browser_driver._IdentityInspectionError:
+        return False
+    browser_map = {value.generation_key: value for value in browsers}
+    for current_browser in current_browsers:
+        if current_browser.generation_key not in browser_map:
+            return False
+    browsers = tuple(browser_map.values())
+
+    def static_matches():
+        if static_checker is not None:
+            return static_checker(handoff.context)
+        try:
+            return (
+                browser_driver._browser_static_identity(
+                    pathlib.Path(handoff.context["browserApplication"]),
+                    browser_executable,
+                    handoff.context["bundleIdentifier"],
+                )[1]
+                == handoff.context["browserAppIdentity"]
+            )
+        except (OSError, browser_driver._IdentityError):
+            return False
+
+    if not static_matches():
+        return False
+    owned = (*children, *browsers)
+    for expected in owned:
+        try:
+            current = identity_reader(expected.pid)
+        except browser_driver._ProcessDisappeared:
+            continue
+        if current.generation_key != expected.generation_key:
+            return False
+    deadline = monotonic() + browser_driver.BROWSER_CLEANUP_GRACE_SECONDS
+    child_terminator = terminator or _terminate_exact_handoff_child
+    browser_terminator = terminator or browser_driver._terminate_exact_browser_process
+    for expected in children:
+        if not child_terminator(expected, expected.executable, deadline):
+            return False
+    for expected in browsers:
+        if expected.executable != browser_executable or not browser_terminator(
+            expected, browser_executable, deadline
+        ):
+            return False
+    quiescence_deadline = monotonic() + browser_driver.BROWSER_QUIESCENCE_SECONDS
+    while True:
+        try:
+            if snapshotter(browser_executable):
+                return False
+        except browser_driver._IdentityInspectionError:
+            return False
+        now = monotonic()
+        if now >= quiescence_deadline:
+            break
+        sleep(
+            min(
+                browser_driver.BROWSER_QUIESCENCE_POLL_SECONDS,
+                quiescence_deadline - now,
+            )
+        )
+    try:
+        remaining_group = direct_child_snapshotter(driver_identity.pid)
+        if any(
+            value.generation_key != driver_identity.generation_key
+            for value in remaining_group
+        ):
+            return False
+    except browser_driver._IdentityInspectionError:
+        return False
+    root_path = pathlib.Path(root_record["path"])
+    if finalized:
+        if root_path.exists() or root_path.is_symlink():
+            return False
+    else:
+        root = root_reopener(root_record)
+        if not root_remover(root) or root_path.exists() or root_path.is_symlink():
+            return False
+    if not static_matches():
+        return False
+    handoff.mark_recovered()
+    return True
+
+
+def _supervise_driver_process(
+    arguments,
+    environment,
+    *,
+    popen=subprocess.Popen,
+    identity_reader=browser_driver._darwin_process_identity,
+    signaler=os.kill,
+    run_timeout=150.0,
+    cleanup_timeout=15.0,
+    handoff=None,
+    recoverer=_recover_cleanup_handoff,
+):
+    independently_recovered = False
+    try:
+        popen_options = {
+            "cwd": _REPOSITORY_ROOT,
+            "env": environment,
+            "stdin": subprocess.DEVNULL,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+            "start_new_session": True,
+        }
+        if isinstance(handoff, _CleanupHandoff):
+            popen_options["pass_fds"] = (
+                handoff.child_ledger_descriptor(),
+                handoff.child_secret_descriptor(),
+            )
+        process = popen(arguments, **popen_options)
+        if isinstance(handoff, _CleanupHandoff):
+            handoff.deliver_secret()
+        identity = identity_reader(process.pid)
+        if identity.pid != process.pid or identity.executable != pathlib.Path(
+            arguments[0]
+        ):
+            raise MatrixIdentityError("driver process identity mismatch")
+        if isinstance(handoff, _CleanupHandoff):
+            handoff.driver_identity = identity
+        try:
+            stdout, stderr = process.communicate(timeout=run_timeout)
+        except subprocess.TimeoutExpired:
+            current = identity_reader(process.pid)
+            if current.generation_key != identity.generation_key:
+                raise MatrixIdentityError("driver generation changed before TERM")
+            signaler(identity.pid, signal.SIGTERM)
+            try:
+                stdout, stderr = process.communicate(timeout=cleanup_timeout)
+            except subprocess.TimeoutExpired as error:
+                current = identity_reader(process.pid)
+                if current.generation_key != identity.generation_key:
+                    raise MatrixIdentityError(
+                        "driver generation changed during cleanup"
+                    ) from error
+                if handoff is None or not recoverer(handoff):
+                    raise MatrixIdentityError(
+                        "driver did not prove independent cleanup"
+                    ) from error
+                independently_recovered = True
+                current = identity_reader(process.pid)
+                if current.generation_key != identity.generation_key:
+                    raise MatrixIdentityError(
+                        "driver generation changed after cleanup"
+                    ) from error
+                signaler(identity.pid, signal.SIGKILL)
+                try:
+                    stdout, stderr = process.communicate(timeout=cleanup_timeout)
+                except subprocess.TimeoutExpired as final_error:
+                    raise MatrixIdentityError(
+                        "recovered driver generation did not exit"
+                    ) from final_error
+        if process.returncode is None:
+            raise MatrixIdentityError("driver completion status is unavailable")
+        if handoff is not None and not independently_recovered:
+            records = handoff.records()
+            if not records or records[-1][0]["transition"] != "finalized":
+                raise MatrixIdentityError("driver cleanup handoff is not terminal")
+            handoff.mark_recovered()
+        return subprocess.CompletedProcess(
+            arguments,
+            process.returncode,
+            stdout=stdout,
+            stderr=stderr,
+        )
+    except (
+        OSError,
+        browser_driver._ProcessDisappeared,
+        browser_driver._IdentityInspectionError,
+    ) as error:
+        raise MatrixIdentityError("driver supervision failed") from error
+
+
 class SystemDependencies:
     def is_installed(self, application):
         path = application.application_path
@@ -1664,33 +2958,14 @@ class SystemDependencies:
 
     def verify_application(self, application):
         try:
-            browser_driver._validate_signed_browser_binding(
+            version, identity = browser_driver._browser_static_identity(
                 application.application_path,
                 application.executable_path,
                 application.bundle_identifier,
             )
-            with (application.application_path / "Contents" / "Info.plist").open(
-                "rb"
-            ) as handle:
-                document = plistlib.load(handle)
-            version = document.get("CFBundleShortVersionString") or document.get(
-                "CFBundleVersion"
-            )
             if not isinstance(version, str) or _SAFE_VERSION.fullmatch(version) is None:
                 raise MatrixIdentityError("invalid version")
-            identity_fields = (
-                application.bundle_identifier,
-                os.fspath(application.application_path),
-                os.fspath(application.executable_path),
-                application.application_path.lstat().st_ino,
-                application.executable_path.lstat().st_ino,
-                application.executable_path.lstat().st_mtime_ns,
-                application.executable_path.lstat().st_size,
-            )
-            return VerifiedApplication(
-                version,
-                hashlib.sha256(repr(identity_fields).encode("utf-8")).hexdigest(),
-            )
+            return VerifiedApplication(version, identity)
         except (
             OSError,
             plistlib.InvalidFileException,
@@ -1762,6 +3037,23 @@ class SystemDependencies:
         if not pinned_app.validate():
             raise MatrixIdentityError("E2E application identity changed")
         target_id = f"{cell.bundle_identifier}||{cell.mode}"
+        handoff_context = {
+            "bundleIdentifier": cell.bundle_identifier,
+            "targetID": target_id,
+            "capability": cell.capability,
+            "browserAppIdentity": browser_app_identity,
+            "e2eAppIdentity": e2e_app_identity,
+            "browserExecutable": os.fspath(cell.application.executable_path),
+            "browserApplication": os.fspath(cell.application.application_path),
+            "profileStrategy": cell.profile_strategy or "none",
+            "profileRelativeRoot": profile_relative_root or "none",
+            "createProfile": profile_relative_root is not None,
+            "sessionHashes": [
+                hashlib.sha256(session.encode("ascii")).hexdigest()
+                for session in sessions
+            ],
+        }
+        handoff = _CleanupHandoff.create(handoff_context)
         arguments = [
             "/usr/bin/python3",
             os.fspath(_SCRIPT_DIR / "pickvia_e2e_driver.py"),
@@ -1793,6 +3085,10 @@ class SystemDependencies:
             browser_app_identity,
             "--route-count",
             "3",
+            "--cleanup-handoff-fd",
+            str(handoff.child_ledger_descriptor()),
+            "--cleanup-handoff-secret-fd",
+            str(handoff.child_secret_descriptor()),
         ]
         for request in requests:
             arguments.extend(["--sequence-request", request])
@@ -1816,18 +3112,11 @@ class SystemDependencies:
             "PYTHONDONTWRITEBYTECODE": "1",
         }
         try:
-            completed = subprocess.run(
-                arguments,
-                cwd=_REPOSITORY_ROOT,
-                env=environment,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=150,
-                check=False,
+            completed = _supervise_driver_process(
+                arguments, environment, handoff=handoff
             )
-        except (OSError, subprocess.TimeoutExpired) as error:
-            raise MatrixIdentityError("driver invocation failed") from error
+        finally:
+            handoff.close()
         try:
             if len(completed.stdout) > 16_384 or not completed.stdout.endswith(b"\n"):
                 raise ValueError

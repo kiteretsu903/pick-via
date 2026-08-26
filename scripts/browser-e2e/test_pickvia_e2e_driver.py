@@ -3,6 +3,7 @@
 import ctypes
 import errno
 import hashlib
+import hmac
 import json
 import os
 import pathlib
@@ -803,6 +804,10 @@ server.server_close()
             browser_process_snapshot=self._snapshot_browser_processes,
             browser_process_identity=self._resolve_browser_pid,
             browser_binding_checker=self._check_browser_binding,
+            browser_static_identity_checker=lambda _application,
+            _executable,
+            _bundle,
+            _expected: None,
             browser_running_code_checker=lambda _pid,
             _application,
             _executable,
@@ -862,6 +867,65 @@ class PickViaE2EDriverTests(unittest.TestCase):
         self.assertRegex(first.request_nonce, r"\A[0-9a-f]{32}\Z")
         self.assertRegex(second.request_nonce, r"\A[0-9a-f]{32}\Z")
         self.assertNotEqual(first.request_nonce, second.request_nonce)
+
+    def test_driver_publishes_authenticated_bounded_cleanup_handoff(self):
+        handoff_directory = pathlib.Path(
+            tempfile.mkdtemp(prefix="pickvia-matrix-handoff-", dir="/private/tmp")
+        )
+        handoff_directory.chmod(0o700)
+        handoff_path = handoff_directory / "cleanup-ledger.jsonl"
+        descriptor = os.open(
+            handoff_path,
+            os.O_RDWR | os.O_APPEND | os.O_CREAT | os.O_EXCL,
+            0o600,
+        )
+        os.unlink(handoff_path)
+        handoff_directory.rmdir()
+        token = "7" * 64
+        secret_reader, secret_writer = os.pipe()
+        os.write(secret_writer, (token + "\n").encode("ascii"))
+        os.close(secret_writer)
+        try:
+            with DriverFixture() as fixture:
+                result = fixture.run(
+                    config_overrides={
+                        "cleanup_handoff_descriptor": os.dup(descriptor),
+                        "cleanup_handoff_secret_descriptor": secret_reader,
+                    }
+                )
+            self.assertEqual(result.exit_code, driver.DRIVER_SUCCESS)
+            contents = os.pread(descriptor, os.fstat(descriptor).st_size, 0)
+            lines = contents.splitlines()
+            self.assertGreaterEqual(len(lines), 5)
+            self.assertLessEqual(len(lines), driver.MAXIMUM_HANDOFF_RECORDS)
+            transitions = []
+            for counter, line in enumerate(lines, 1):
+                self.assertLessEqual(len(line) + 1, driver.MAXIMUM_HANDOFF_RECORD_BYTES)
+                record = json.loads(line)
+                payload = record["payload"]
+                canonical = json.dumps(
+                    payload,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=True,
+                ).encode("ascii")
+                self.assertTrue(
+                    hmac.compare_digest(
+                        record["authentication"],
+                        hmac.new(
+                            bytes.fromhex(token), canonical, hashlib.sha256
+                        ).hexdigest(),
+                    )
+                )
+                self.assertEqual(payload["counter"], counter)
+                transitions.append(payload["transition"])
+            self.assertEqual(transitions[:2], ["initialized", "root-owned"])
+            self.assertIn("child-owned", transitions)
+            self.assertIn("browser-owned", transitions)
+            self.assertEqual(transitions[-1], "finalized")
+            self.assertTrue(json.loads(lines[-1])["payload"]["taskRootFinalized"])
+        finally:
+            os.close(descriptor)
 
     def test_three_state_controller_orders_routes_and_reopens_distinct_generation(self):
         executable = pathlib.Path("/Applications/Fake.app/Contents/MacOS/Fake")
@@ -1084,6 +1148,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
         )
         with DriverFixture() as fixture:
             observed_fifos = []
+            static_checks = []
 
             def inspect_fifos(root):
                 observed_fifos.extend(
@@ -1102,8 +1167,19 @@ class PickViaE2EDriverTests(unittest.TestCase):
                     "session_nonce": sessions[0],
                     "sequence_sessions": sessions,
                     "sequence_requests": requests,
+                    "browser_app_identity": "b" * 64,
                 },
-                dependency_overrides={"before_cleanup": inspect_fifos},
+                dependency_overrides={
+                    "before_cleanup": inspect_fifos,
+                    "browser_static_identity_checker": (
+                        lambda application,
+                        executable,
+                        bundle,
+                        expected: static_checks.append(
+                            (application, executable, bundle, expected)
+                        )
+                    ),
+                },
             )
             self.assertEqual(result.exit_code, driver.DRIVER_SUCCESS)
             self.assertEqual(len(fixture.routes), 3)
@@ -1131,6 +1207,8 @@ class PickViaE2EDriverTests(unittest.TestCase):
                 [proof["session"] for proof in result.report["stateProofs"]],
                 list(sessions),
             )
+            self.assertGreaterEqual(len(static_checks), 5)
+            self.assertTrue(all(check[-1] == "b" * 64 for check in static_checks))
             self.assertEqual(len(fixture.terminated_browser_generations), 2)
             self.assertNotEqual(
                 fixture.terminated_browser_generations[0],

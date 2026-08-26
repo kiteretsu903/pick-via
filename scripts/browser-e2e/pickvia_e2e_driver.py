@@ -4,7 +4,9 @@ import argparse
 import ctypes
 import dataclasses
 import errno
+import fcntl
 import hashlib
+import hmac
 import json
 import math
 import os
@@ -69,6 +71,8 @@ BROWSER_CODE_IDENTITY_COMPILE_TIMEOUT_SECONDS = 10.0
 MAXIMUM_BROWSER_CODE_IDENTITY_SOURCE_BYTES = 64 * 1_024
 MAXIMUM_BROWSER_CODE_IDENTITY_OUTPUT_BYTES = 64
 MAXIMUM_CLEANUP_RECORD_BYTES = 4 * 1_024
+MAXIMUM_HANDOFF_RECORD_BYTES = 8 * 1_024
+MAXIMUM_HANDOFF_RECORDS = 64
 _SESSION_PATTERN = re.compile(r"\A[A-Za-z0-9_-]{16,64}\Z")
 _TOKEN_PATTERN = re.compile(r"\A[A-Za-z0-9_-]+\Z")
 _CLOSED_OUTCOMES = frozenset(
@@ -119,6 +123,8 @@ class DriverConfig:
     browser_app_identity: str = "0" * 64
     sequence_sessions: tuple = ()
     sequence_requests: tuple = ()
+    cleanup_handoff_descriptor: Optional[int] = None
+    cleanup_handoff_secret_descriptor: Optional[int] = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -137,6 +143,207 @@ class ProcessIdentity:
             self.start_microseconds,
             self.executable,
         )
+
+
+def _handoff_process_record(identity):
+    return {
+        "pid": identity.pid,
+        "parentPid": identity.parent_pid,
+        "startSeconds": identity.start_seconds,
+        "startMicroseconds": identity.start_microseconds,
+        "executable": os.fspath(identity.executable),
+    }
+
+
+def _handoff_context(config):
+    sessions = (
+        config.sequence_sessions
+        if config.state == "sequence"
+        else (config.session_nonce,)
+    )
+    return {
+        "bundleIdentifier": config.bundle_identifier,
+        "targetID": config.target_id,
+        "capability": config.capability,
+        "browserAppIdentity": config.browser_app_identity,
+        "e2eAppIdentity": config.e2e_app_identity,
+        "browserExecutable": os.fspath(config.expected_browser_executable),
+        "browserApplication": os.fspath(config.browser_app),
+        "profileStrategy": config.profile_strategy or "none",
+        "profileRelativeRoot": config.profile_relative_root or "none",
+        "createProfile": config.create_profile,
+        "sessionHashes": [
+            hashlib.sha256(session.encode("ascii")).hexdigest() for session in sessions
+        ],
+    }
+
+
+def _consume_cleanup_handoff_secret(descriptor):
+    if (
+        not isinstance(descriptor, int)
+        or isinstance(descriptor, bool)
+        or descriptor <= 2
+    ):
+        raise _IdentityError
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISFIFO(metadata.st_mode) or metadata.st_uid != os.getuid():
+            raise _IdentityError
+        contents = bytearray()
+        while len(contents) <= 65:
+            chunk = os.read(descriptor, 66 - len(contents))
+            if not chunk:
+                break
+            contents.extend(chunk)
+        if re.fullmatch(rb"[0-9a-f]{64}\n", bytes(contents)) is None:
+            raise _IdentityError
+        return contents[:-1].decode("ascii")
+    finally:
+        os.close(descriptor)
+
+
+class _CleanupHandoffPublisher:
+    """Append authenticated, bounded ownership transitions to a runner-owned file."""
+
+    def __init__(self, descriptor, token, context):
+        if (
+            not isinstance(descriptor, int)
+            or isinstance(descriptor, bool)
+            or descriptor <= 2
+            or not isinstance(token, str)
+            or re.fullmatch(r"[0-9a-f]{64}", token) is None
+        ):
+            raise _IdentityError
+        file_metadata = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(file_metadata.st_mode)
+            or file_metadata.st_uid != os.getuid()
+            or stat.S_IMODE(file_metadata.st_mode) != 0o600
+            or file_metadata.st_nlink != 0
+            or fcntl.fcntl(descriptor, fcntl.F_GETFL) & os.O_APPEND == 0
+        ):
+            raise _IdentityError
+        self._descriptor = descriptor
+        self._token = bytes.fromhex(token)
+        self._context = context
+        self._counter = 0
+        self._driver_identity = _darwin_process_identity(os.getpid())
+        self._baseline_empty = False
+        self._root = None
+        self._children = {}
+        self._browsers = {}
+        self._closed = False
+        self.publish("initialized")
+
+    def _root_record(self):
+        if self._root is None:
+            return None
+        root = self._root
+        return {
+            "path": os.fspath(root.path),
+            "device": root.identity.device,
+            "inode": root.identity.inode,
+            "owner": root.identity.owner,
+            "mode": root.identity.mode,
+        }
+
+    def publish(self, transition, *, finalized=False):
+        if (
+            self._closed
+            or self._counter >= MAXIMUM_HANDOFF_RECORDS
+            or transition
+            not in {
+                "initialized",
+                "root-owned",
+                "baseline-empty",
+                "child-owned",
+                "browser-owned",
+                "cleanup-progress",
+                "finalized",
+            }
+        ):
+            raise _IdentityError
+        self._counter += 1
+        payload = {
+            "schemaVersion": 1,
+            "counter": self._counter,
+            "transition": transition,
+            "context": self._context,
+            "driverProcess": _handoff_process_record(self._driver_identity),
+            "baselineEmpty": self._baseline_empty,
+            "taskRoot": self._root_record(),
+            "ownedChildren": [
+                _handoff_process_record(identity)
+                for identity in sorted(
+                    self._children.values(), key=lambda value: value.generation_key
+                )
+            ],
+            "ownedBrowsers": [
+                _handoff_process_record(identity)
+                for identity in sorted(
+                    self._browsers.values(), key=lambda value: value.generation_key
+                )
+            ],
+            "taskRootFinalized": finalized,
+        }
+        canonical = json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+        ).encode("ascii")
+        record = {
+            "payload": payload,
+            "authentication": hmac.new(
+                self._token, canonical, hashlib.sha256
+            ).hexdigest(),
+        }
+        encoded = (
+            json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n"
+        ).encode("ascii")
+        if len(encoded) > MAXIMUM_HANDOFF_RECORD_BYTES:
+            raise _IdentityError
+        _write_all(self._descriptor, encoded)
+        os.fsync(self._descriptor)
+
+    def observe_root(self, root):
+        if not isinstance(root, _PinnedTaskRoot):
+            raise _IdentityError
+        root.require_current()
+        self._root = root
+        self.publish("root-owned")
+
+    def observe_child(self, identity):
+        if identity.generation_key in self._children:
+            return
+        self._children[identity.generation_key] = identity
+        self.publish("child-owned")
+
+    def baseline_empty(self):
+        if self._baseline_empty or self._root is None:
+            raise _IdentityError
+        self._baseline_empty = True
+        self.publish("baseline-empty")
+
+    def observe_browser(self, identity):
+        if identity.generation_key in self._browsers:
+            return
+        self._browsers[identity.generation_key] = identity
+        self.publish("browser-owned")
+
+    def cleanup_progress(self, *, children=(), browsers=()):
+        self._children = {value.generation_key: value for value in children}
+        self._browsers = {value.generation_key: value for value in browsers}
+        self.publish("cleanup-progress")
+
+    def finalized(self):
+        self._children.clear()
+        self._browsers.clear()
+        self._root = None
+        self.publish("finalized", finalized=True)
+
+    def close(self):
+        if self._closed:
+            return
+        self._closed = True
+        os.close(self._descriptor)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -299,6 +506,78 @@ def _snapshot_exact_browser_processes(executable, library=None):
                 continue
             if identity.executable == expected:
                 identities.add(identity)
+        return frozenset(identities)
+    except _IdentityInspectionError:
+        raise
+    except (OSError, ValueError, TypeError) as error:
+        raise _IdentityInspectionError from error
+
+
+def _snapshot_direct_child_processes(parent_pid, library=None):
+    try:
+        if not isinstance(parent_pid, int) or parent_pid <= 0:
+            raise _IdentityInspectionError
+        library = library or _load_libproc()
+        proc_ppid_only = 6
+        required_bytes = library.proc_listpids(proc_ppid_only, parent_pid, None, 0)
+        if required_bytes <= 0:
+            raise _IdentityInspectionError
+        count = required_bytes // ctypes.sizeof(ctypes.c_int) + 128
+        pids = (ctypes.c_int * count)()
+        used_bytes = library.proc_listpids(
+            proc_ppid_only, parent_pid, pids, ctypes.sizeof(pids)
+        )
+        if (
+            used_bytes <= 0
+            or used_bytes >= ctypes.sizeof(pids)
+            or used_bytes % ctypes.sizeof(ctypes.c_int) != 0
+        ):
+            raise _IdentityInspectionError
+        identities = set()
+        for pid in pids[: used_bytes // ctypes.sizeof(ctypes.c_int)]:
+            if pid <= 0:
+                continue
+            try:
+                identity = _darwin_process_identity(pid, library)
+            except _ProcessDisappeared:
+                continue
+            if identity.parent_pid == parent_pid:
+                identities.add(identity)
+        return frozenset(identities)
+    except _IdentityInspectionError:
+        raise
+    except (OSError, ValueError, TypeError) as error:
+        raise _IdentityInspectionError from error
+
+
+def _snapshot_process_group(process_group, library=None):
+    try:
+        if not isinstance(process_group, int) or process_group <= 0:
+            raise _IdentityInspectionError
+        library = library or _load_libproc()
+        proc_pgrp_only = 2
+        required_bytes = library.proc_listpids(proc_pgrp_only, process_group, None, 0)
+        if required_bytes <= 0:
+            raise _IdentityInspectionError
+        count = required_bytes // ctypes.sizeof(ctypes.c_int) + 128
+        pids = (ctypes.c_int * count)()
+        used_bytes = library.proc_listpids(
+            proc_pgrp_only, process_group, pids, ctypes.sizeof(pids)
+        )
+        if (
+            used_bytes <= 0
+            or used_bytes >= ctypes.sizeof(pids)
+            or used_bytes % ctypes.sizeof(ctypes.c_int) != 0
+        ):
+            raise _IdentityInspectionError
+        identities = set()
+        for pid in pids[: used_bytes // ctypes.sizeof(ctypes.c_int)]:
+            if pid <= 0:
+                continue
+            try:
+                identities.add(_darwin_process_identity(pid, library))
+            except _ProcessDisappeared:
+                continue
         return frozenset(identities)
     except _IdentityInspectionError:
         raise
@@ -1537,6 +1816,102 @@ def _close_fifo(descriptor):
         return False
 
 
+def _stable_static_identity(path, *, capture=False):
+    path = pathlib.Path(path)
+    named_before = path.lstat()
+    descriptor = os.open(
+        path,
+        os.O_RDONLY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0),
+    )
+    try:
+        before = os.fstat(descriptor)
+        expected = _EntryIdentity.from_stat(named_before)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or stat.S_ISLNK(named_before.st_mode)
+            or _EntryIdentity.from_stat(before) != expected
+        ):
+            raise _IdentityError
+        digest = hashlib.sha256()
+        contents = bytearray() if capture else None
+        while True:
+            chunk = os.read(descriptor, 1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+            if contents is not None:
+                if len(contents) + len(chunk) > 256 * 1024:
+                    raise _IdentityError
+                contents.extend(chunk)
+        after = os.fstat(descriptor)
+        named_after = path.lstat()
+        if (
+            _EntryIdentity.from_stat(after) != expected
+            or _EntryIdentity.from_stat(named_after) != expected
+            or stat.S_ISLNK(named_after.st_mode)
+        ):
+            raise _IdentityError
+        identity = dataclasses.astuple(expected)
+        return (
+            identity,
+            digest.hexdigest(),
+            bytes(contents) if contents is not None else None,
+        )
+    finally:
+        os.close(descriptor)
+
+
+def _browser_static_identity(application, executable, bundle_identifier):
+    application = pathlib.Path(application)
+    executable = pathlib.Path(executable)
+    app_before = application.lstat()
+    app_identity = _EntryIdentity.from_stat(app_before)
+    if not stat.S_ISDIR(app_before.st_mode) or stat.S_ISLNK(app_before.st_mode):
+        raise _IdentityError
+    _validate_signed_browser_binding(application, executable, bundle_identifier)
+    plist_identity, plist_digest, plist_data = _stable_static_identity(
+        application / "Contents" / "Info.plist", capture=True
+    )
+    executable_identity, executable_digest, _ = _stable_static_identity(executable)
+    try:
+        document = plistlib.loads(plist_data)
+    except plistlib.InvalidFileException as error:
+        raise _IdentityError from error
+    version = document.get("CFBundleShortVersionString") or document.get(
+        "CFBundleVersion"
+    )
+    if not isinstance(version, str) or not version:
+        raise _IdentityError
+    app_after = application.lstat()
+    if _EntryIdentity.from_stat(app_after) != app_identity:
+        raise _IdentityError
+    _validate_signed_browser_binding(application, executable, bundle_identifier)
+    final_plist_identity, final_plist_digest, _ = _stable_static_identity(
+        application / "Contents" / "Info.plist", capture=True
+    )
+    final_executable_identity, final_executable_digest, _ = _stable_static_identity(
+        executable
+    )
+    if (
+        _EntryIdentity.from_stat(application.lstat()) != app_identity
+        or (final_plist_identity, final_plist_digest) != (plist_identity, plist_digest)
+        or (final_executable_identity, final_executable_digest)
+        != (executable_identity, executable_digest)
+    ):
+        raise _IdentityError
+    identity_fields = (
+        bundle_identifier,
+        os.fspath(application),
+        os.fspath(executable),
+        dataclasses.astuple(app_identity),
+        plist_identity,
+        plist_digest,
+        executable_identity,
+        executable_digest,
+    )
+    return version, hashlib.sha256(repr(identity_fields).encode("utf-8")).hexdigest()
+
+
 @dataclasses.dataclass(frozen=True)
 class DriverDependencies:
     helper_executable: Optional[pathlib.Path] = None
@@ -1564,6 +1939,14 @@ class DriverDependencies:
         bundle_identifier: _validate_signed_browser_binding(
             application, executable, bundle_identifier
         )
+    )
+    browser_static_identity_checker: Callable[
+        [pathlib.Path, pathlib.Path, str, str], None
+    ] = lambda application, executable, bundle_identifier, expected: (
+        None
+        if _browser_static_identity(application, executable, bundle_identifier)[1]
+        == expected
+        else (_ for _ in ()).throw(_IdentityError())
     )
     browser_running_code_checker: Callable[
         [int, pathlib.Path, pathlib.Path, str], None
@@ -1829,11 +2212,13 @@ class _OwnedChild:
 
 
 class _OwnedProcesses:
-    def __init__(self, dependencies):
+    def __init__(self, dependencies, ownership_observer=None):
         self._dependencies = dependencies
+        self._ownership_observer = ownership_observer
         self._children = []
         self._closed = False
         self._stopped_pids = set()
+        self._handoff_identities = {}
 
     def start(self, kind, argv, *, environment=None, stdin=None, manual_stdout=False):
         process = subprocess.Popen(
@@ -1847,11 +2232,57 @@ class _OwnedProcesses:
         captures = {"stdout": _BoundedCapture(), "stderr": _BoundedCapture()}
         child = _OwnedChild(kind, process, captures, [], manual_stdout)
         self._children.append(child)
+        if self._ownership_observer is not None:
+            try:
+                identity = None
+                deadline = time.monotonic() + 0.25
+                while time.monotonic() < deadline:
+                    current = _darwin_process_identity(process.pid)
+                    if (
+                        identity is not None
+                        and current.generation_key == identity.generation_key
+                        and current.executable != pathlib.Path("/usr/bin/env")
+                    ):
+                        identity = current
+                        break
+                    identity = current
+                    time.sleep(0.005)
+                else:
+                    raise _IdentityInspectionError
+            except _ProcessDisappeared:
+                identity = None
+            except _IdentityInspectionError as error:
+                raise _IdentityError from error
+            if identity is not None:
+                self._handoff_identities[process.pid] = identity
+                self._ownership_observer(identity)
         if not manual_stdout:
             child.threads.append(self._start_reader(process.stdout, captures["stdout"]))
         child.threads.append(self._start_reader(process.stderr, captures["stderr"]))
         self._dependencies.process_observer(kind, process, argv, environment)
         return process
+
+    def live_identities(self):
+        identities = []
+        for child in self._children:
+            expected = self._handoff_identities.get(child.process.pid)
+            if expected is None:
+                continue
+            if (
+                child.process.pid not in self._stopped_pids
+                and child.process.poll() is not None
+            ):
+                continue
+            try:
+                identity = _darwin_process_identity(child.process.pid)
+            except _ProcessDisappeared:
+                continue
+            except _IdentityInspectionError as error:
+                raise _IdentityError from error
+            if identity.generation_key != expected.generation_key:
+                raise _IdentityError
+            identities.append(identity)
+        return tuple(identities)
 
     def _start_reader(self, stream, capture):
         descriptor = stream.fileno()
@@ -2065,7 +2496,7 @@ def _valid_nonempty(value, maximum_bytes):
     )
 
 
-def _validated_config(config, browser_binding_checker):
+def _validated_config(config, browser_binding_checker, browser_static_identity_checker):
     if (
         config.mode not in {"normal", "private"}
         or config.expected_mechanism not in _PROVENANCE_MECHANISMS
@@ -2112,6 +2543,20 @@ def _validated_config(config, browser_binding_checker):
         for value in (config.e2e_app_identity, config.browser_app_identity)
     ):
         return None
+    handoff_descriptors = (
+        config.cleanup_handoff_descriptor,
+        config.cleanup_handoff_secret_descriptor,
+    )
+    if any(value is None for value in handoff_descriptors) and any(
+        value is not None for value in handoff_descriptors
+    ):
+        return None
+    if any(
+        not isinstance(value, int) or isinstance(value, bool) or value <= 2
+        for value in handoff_descriptors
+        if value is not None
+    ):
+        return None
     if not _valid_profile_grant_config(config):
         return None
     try:
@@ -2133,6 +2578,12 @@ def _validated_config(config, browser_binding_checker):
         browser_app,
         browser_executable,
         config.bundle_identifier,
+    )
+    browser_static_identity_checker(
+        browser_app,
+        browser_executable,
+        config.bundle_identifier,
+        config.browser_app_identity,
     )
     return timeout, e2e_app, e2e_executable, browser_executable
 
@@ -2911,6 +3362,7 @@ def _wait_for_proof(
     preexisting_browsers,
     dependencies,
     deadline,
+    ownership_observer=_ignore,
 ):
     receiver_descriptor = receiver.stdout.fileno()
     os.set_blocking(receiver_descriptor, False)
@@ -3337,6 +3789,7 @@ def _wait_for_proof(
                                         provenance_owned = frozenset(
                                             {provenance_identity}
                                         )
+                                        ownership_observer(provenance_identity)
                         except _ProvenanceProtocolError as error:
                             error.token_received = receipt
                             error.status_line = b"".join(status_lines)
@@ -3561,14 +4014,36 @@ def _audit_regular_files_at(
 def run_driver(config, dependencies=None):
     dependencies = dependencies or DriverDependencies()
     try:
-        validated = _validated_config(config, dependencies.browser_binding_checker)
+        validated = _validated_config(
+            config,
+            dependencies.browser_binding_checker,
+            dependencies.browser_static_identity_checker,
+        )
     except _IdentityError:
         return _failure_result(config, DRIVER_IDENTITY_FAILURE, "identity-error")
     if validated is None:
         return _empty_result(DRIVER_USAGE)
     timeout, e2e_app, e2e_executable, browser_executable = validated
     started = dependencies.monotonic()
-    processes = _OwnedProcesses(dependencies)
+    handoff = None
+    if config.cleanup_handoff_descriptor is not None:
+        try:
+            handoff_token = _consume_cleanup_handoff_secret(
+                config.cleanup_handoff_secret_descriptor
+            )
+            handoff = _CleanupHandoffPublisher(
+                config.cleanup_handoff_descriptor,
+                handoff_token,
+                _handoff_context(config),
+            )
+        except (OSError, ValueError, TypeError, _IdentityError):
+            return _failure_result(
+                config, DRIVER_IDENTITY_FAILURE, "cleanup-handoff-error"
+            )
+    processes = _OwnedProcesses(
+        dependencies,
+        None if handoff is None else handoff.observe_child,
+    )
     task_root = None
     task_root_owner = _TaskRootOwner()
     fifo_descriptor = None
@@ -3601,6 +4076,12 @@ def run_driver(config, dependencies=None):
         )
         baseline_authoritative = True
         task_root = _make_task_root(task_root_owner)
+        if handoff is not None:
+            handoff.observe_root(task_root)
+        if config.state == "sequence" and preexisting_browsers:
+            raise _StateSequenceError
+        if handoff is not None and config.state == "sequence":
+            handoff.baseline_empty()
         if config.create_profile:
             profile_root = _profile_root_for_creation(
                 task_root, config.profile_relative_root
@@ -3647,6 +4128,12 @@ def run_driver(config, dependencies=None):
             nonlocal fifo_descriptor, provenance_descriptor, route_delivery_attempted
             route_started = dependencies.monotonic()
             route_deadline = dependencies.monotonic() + timeout
+            dependencies.browser_static_identity_checker(
+                pathlib.Path(config.browser_app),
+                browser_executable,
+                config.bundle_identifier,
+                config.browser_app_identity,
+            )
             fifo_suffix = f"-{state}" if config.state == "sequence" else ""
             fifo_name = f"status{fifo_suffix}.fifo"
             provenance_name = f"provenance{fifo_suffix}.fifo"
@@ -3737,6 +4224,7 @@ def run_driver(config, dependencies=None):
                     preexisting_browsers,
                     dependencies,
                     route_deadline,
+                    _ignore if handoff is None else handoff.observe_browser,
                 )
             except (
                 _ReceiptTimeout,
@@ -3760,6 +4248,9 @@ def run_driver(config, dependencies=None):
                     else "invalid-receipt"
                 )
                 safe_owned = frozenset(getattr(error, "owned_browsers", ()))
+                if handoff is not None:
+                    for safe_identity in safe_owned:
+                        handoff.observe_browser(safe_identity)
                 failure_provenance = _safe_failure_provenance(error)
                 identity = (
                     next(iter(safe_owned))
@@ -3806,6 +4297,9 @@ def run_driver(config, dependencies=None):
             )
             if config.state != "sequence":
                 owned_browsers.update(proof.owned_browser_identities)
+                if handoff is not None:
+                    for safe_identity in proof.owned_browser_identities:
+                        handoff.observe_browser(safe_identity)
                 return (
                     next(iter(proof.owned_browser_identities))
                     if len(proof.owned_browser_identities) == 1
@@ -3822,11 +4316,11 @@ def run_driver(config, dependencies=None):
             identity = next(iter(proof.owned_browser_identities))
             state_proofs[-1][4] = identity
             owned_browsers.add(identity)
+            if handoff is not None:
+                handoff.observe_browser(identity)
             return identity
 
         if config.state == "sequence":
-            if preexisting_browsers:
-                raise _StateSequenceError
 
             def sequence_snapshot(phase):
                 return _authoritative_browser_snapshot(
@@ -3837,6 +4331,12 @@ def run_driver(config, dependencies=None):
                 before = dependencies.browser_process_identity(identity.pid)
                 if before.generation_key != identity.generation_key:
                     return False
+                dependencies.browser_static_identity_checker(
+                    pathlib.Path(config.browser_app),
+                    browser_executable,
+                    config.bundle_identifier,
+                    config.browser_app_identity,
+                )
                 dependencies.browser_binding_checker(
                     pathlib.Path(config.browser_app),
                     browser_executable,
@@ -4004,6 +4504,13 @@ def run_driver(config, dependencies=None):
         if task_root is None:
             task_root = task_root_owner.root
         browser_cleanup_deadline = time.monotonic() + BROWSER_CLEANUP_GRACE_SECONDS
+        if handoff is not None:
+            try:
+                handoff.cleanup_progress(
+                    children=processes.live_identities(), browsers=owned_browsers
+                )
+            except Exception:
+                cleanup_ok = False
         browser_cleanup_safe = not identity_inspection_failed
         if app is not None:
             cleanup_ok = processes.stop(app) and cleanup_ok
@@ -4089,6 +4596,11 @@ def run_driver(config, dependencies=None):
             cleanup_ok = processes.close() and cleanup_ok
         except Exception:
             cleanup_ok = False
+        if handoff is not None:
+            try:
+                handoff.cleanup_progress(children=(), browsers=owned_browsers)
+            except Exception:
+                cleanup_ok = False
         if baseline_authoritative and route_delivery_attempted:
             try:
                 final_current = _authoritative_browser_snapshot(
@@ -4151,6 +4663,16 @@ def run_driver(config, dependencies=None):
                 cleanup_ok = False
             finally:
                 task_root.close()
+        if handoff is not None:
+            try:
+                if task_root_finalized and cleanup_ok:
+                    handoff.finalized()
+                else:
+                    handoff.cleanup_progress(children=(), browsers=owned_browsers)
+            except Exception:
+                cleanup_ok = False
+            finally:
+                handoff.close()
         if identity_ambiguous:
             outcome = "identity-ambiguous"
             exact_browser_identity = False
@@ -4282,6 +4804,8 @@ def main(argv=None):
     parser.add_argument("--profile-relative-root")
     parser.add_argument("--create-profile", action="store_true")
     parser.add_argument("--derive-profile-target", action="store_true")
+    parser.add_argument("--cleanup-handoff-fd", type=int)
+    parser.add_argument("--cleanup-handoff-secret-fd", type=int)
     arguments = parser.parse_args(argv)
     result = run_driver(
         DriverConfig(
@@ -4306,6 +4830,8 @@ def main(argv=None):
             browser_app_identity=arguments.browser_app_identity,
             sequence_sessions=tuple(arguments.sequence_session),
             sequence_requests=tuple(arguments.sequence_request),
+            cleanup_handoff_descriptor=arguments.cleanup_handoff_fd,
+            cleanup_handoff_secret_descriptor=arguments.cleanup_handoff_secret_fd,
         )
     )
     sys.stdout.buffer.write(result.stdout)
