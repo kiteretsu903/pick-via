@@ -472,7 +472,10 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     } else if descriptor.privateStrategy == .safariShortcut {
       privateModeIsAvailable = false
     } else {
-      privateModeIsAvailable = descriptor.supportsPrivateMode
+      privateModeIsAvailable =
+        descriptor.hasCompatibleStrategies
+        && (descriptor.routeCapabilityPolicy.browserPrivate
+          || descriptor.routeCapabilityPolicy.profilePrivate)
     }
 
     let application = RoutedApplication(
@@ -592,8 +595,14 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   }
 
   private static func targetCandidates(for browser: DiscoveredBrowser) -> [RouteTarget] {
-    var defaults = [candidate(browser: browser.application, profile: nil, mode: .normal)]
-    if supportsPrivateMode(browser) {
+    guard let capabilities = routingCapabilities(for: browser) else { return [] }
+    var defaults: [RouteTarget] = []
+    if capabilities.hasCompatibleStrategies,
+      capabilities.routeCapabilityPolicy.normal != .unsupported
+    {
+      defaults.append(candidate(browser: browser.application, profile: nil, mode: .normal))
+    }
+    if supportsBrowserPrivateMode(browser) {
       defaults.append(candidate(browser: browser.application, profile: nil, mode: .private))
     }
     let explicitProfiles: [DiscoveredProfile]
@@ -611,8 +620,12 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
 
     return defaults
       + explicitProfiles.flatMap { profile in
-        var candidates = [candidate(browser: browser.application, profile: profile, mode: .normal)]
-        if supportsPrivateMode(browser) {
+        var candidates: [RouteTarget] = []
+        if capabilities.routeCapabilityPolicy.profile {
+          candidates.append(
+            candidate(browser: browser.application, profile: profile, mode: .normal))
+        }
+        if supportsProfilePrivateMode(browser) {
           candidates.append(
             candidate(browser: browser.application, profile: profile, mode: .private))
         }
@@ -634,8 +647,15 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     routingCapabilities(for: browser)?.supportsProfiles == true
   }
 
-  private static func supportsPrivateMode(_ browser: DiscoveredBrowser) -> Bool {
+  private static func supportsBrowserPrivateMode(_ browser: DiscoveredBrowser) -> Bool {
     routingCapabilities(for: browser)?.supportsPrivateMode == true && browser.privateModeIsAvailable
+  }
+
+  private static func supportsProfilePrivateMode(_ browser: DiscoveredBrowser) -> Bool {
+    guard let capabilities = routingCapabilities(for: browser) else { return false }
+    return capabilities.hasCompatibleStrategies
+      && capabilities.routeCapabilityPolicy.profilePrivate
+      && browser.privateModeIsAvailable
   }
 
   private static func candidate(
@@ -735,19 +755,33 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       let capabilities
     {
       if isBrowserLevelTarget(target) {
-        availability =
-          target.mode == .normal || supportsPrivateMode(browser)
-          ? .available : .unavailable
+        let capabilityIsAvailable =
+          switch target.mode {
+          case .normal:
+            capabilities.hasCompatibleStrategies
+              && capabilities.routeCapabilityPolicy.normal != .unsupported
+          case .private:
+            supportsBrowserPrivateMode(browser)
+          }
+        availability = capabilityIsAvailable ? .available : .unavailable
       } else {
         switch browser.metadataStatus {
         case .metadataDamaged, .accessRequired, .accessRevoked:
           return preservingWithoutAuthoritativeMetadata(
             target,
             capabilities: capabilities,
-            privateModeIsAvailable: supportsPrivateMode(browser)
+            privateModeIsAvailable: supportsBrowserPrivateMode(browser)
           )
         case .notApplicable, .metadataAbsent, .loaded:
-          guard capabilities.supportsProfiles else {
+          let profileCapabilityIsAvailable =
+            switch target.mode {
+            case .normal:
+              capabilities.hasCompatibleStrategies
+                && capabilities.routeCapabilityPolicy.profile
+            case .private:
+              supportsProfilePrivateMode(browser)
+            }
+          guard profileCapabilityIsAvailable else {
             return copying(
               target,
               availability: .unavailable,
@@ -1021,7 +1055,12 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     )
     let browserLevelIsAvailable =
       isBrowserLevelTarget(sanitized)
-      && (sanitized.mode == .normal || privateModeIsAvailable)
+      && (sanitized.mode == .normal
+        ? capabilities.hasCompatibleStrategies
+          && capabilities.routeCapabilityPolicy.normal != .unsupported
+        : capabilities.hasCompatibleStrategies
+          && capabilities.routeCapabilityPolicy.browserPrivate
+          && privateModeIsAvailable)
     return copying(
       sanitized,
       availability: browserLevelIsAvailable ? .available : .unavailable,

@@ -30,32 +30,58 @@ public enum BrowserPrivateStrategy: Equatable, Sendable {
   case safariShortcut
 }
 
+public enum BrowserNormalStrategy: Equatable, Sendable {
+  case unsupported
+  case workspace
+  case executable
+}
+
+public struct BrowserRouteCapabilityPolicy: Equatable, Sendable {
+  public let normal: BrowserNormalStrategy
+  public let browserPrivate: Bool
+  public let profile: Bool
+  public let profilePrivate: Bool
+
+  public init(
+    normal: BrowserNormalStrategy,
+    browserPrivate: Bool,
+    profile: Bool,
+    profilePrivate: Bool
+  ) {
+    self.normal = normal
+    self.browserPrivate = browserPrivate
+    self.profile = profile
+    self.profilePrivate = profilePrivate
+  }
+}
+
 public struct BrowserRoutingCapabilities: Equatable, Sendable {
   public let bundleIdentifier: String
   public let profileStrategy: BrowserProfileStrategy
   public let privateStrategy: BrowserPrivateStrategy
+  public let routeCapabilityPolicy: BrowserRouteCapabilityPolicy
+  public let hasCompatibleStrategies: Bool
 
   public init(descriptor: BrowserDescriptor) {
     bundleIdentifier = descriptor.bundleIdentifier
     profileStrategy = descriptor.profileStrategy
     privateStrategy = descriptor.privateStrategy
+    routeCapabilityPolicy = descriptor.routeCapabilityPolicy
+    hasCompatibleStrategies = descriptor.hasCompatibleStrategies
   }
 
   public var supportsProfiles: Bool {
-    switch profileStrategy {
-    case .none:
-      false
-    case .chromium, .firefox, .safariShortcut:
-      true
-    }
+    hasCompatibleStrategies
+      && (routeCapabilityPolicy.profile || routeCapabilityPolicy.profilePrivate)
   }
 
   public var supportsPrivateMode: Bool {
-    privateStrategy != .unsupported
+    hasCompatibleStrategies && routeCapabilityPolicy.browserPrivate
   }
 
   public var hasFileBackedProfiles: Bool {
-    switch profileStrategy {
+    guard supportsProfiles else { return false }
+    return switch profileStrategy {
     case .chromium, .firefox:
       true
     case .none, .safariShortcut:
@@ -108,6 +134,7 @@ public struct BrowserDescriptor: Equatable, Sendable {
   public let profileStrategy: BrowserProfileStrategy
   public let launchStrategy: BrowserLaunchStrategy
   public let privateStrategy: BrowserPrivateStrategy
+  public let routeCapabilityPolicy: BrowserRouteCapabilityPolicy
 
   public init(
     bundleIdentifier: String,
@@ -115,7 +142,8 @@ public struct BrowserDescriptor: Equatable, Sendable {
     displayName: String,
     profileStrategy: BrowserProfileStrategy,
     launchStrategy: BrowserLaunchStrategy,
-    privateStrategy: BrowserPrivateStrategy
+    privateStrategy: BrowserPrivateStrategy,
+    routeCapabilityPolicy: BrowserRouteCapabilityPolicy? = nil
   ) {
     self.bundleIdentifier = bundleIdentifier
     self.family = family
@@ -123,6 +151,13 @@ public struct BrowserDescriptor: Equatable, Sendable {
     self.profileStrategy = profileStrategy
     self.launchStrategy = launchStrategy
     self.privateStrategy = privateStrategy
+    self.routeCapabilityPolicy =
+      routeCapabilityPolicy
+      ?? Self.defaultRouteCapabilityPolicy(
+        profileStrategy: profileStrategy,
+        launchStrategy: launchStrategy,
+        privateStrategy: privateStrategy
+      )
   }
 
   public var profileRoot: String? {
@@ -148,21 +183,11 @@ public struct BrowserDescriptor: Equatable, Sendable {
   }
 
   public var supportsProfiles: Bool {
-    switch profileStrategy {
-    case .none:
-      false
-    case .chromium, .firefox, .safariShortcut:
-      true
-    }
+    routeCapabilityPolicy.profile || routeCapabilityPolicy.profilePrivate
   }
 
   public var supportsPrivateMode: Bool {
-    switch privateStrategy {
-    case .unsupported:
-      false
-    case .argument, .duckDuckGoFire, .safariShortcut:
-      true
-    }
+    routeCapabilityPolicy.browserPrivate
   }
 
   public var hasCompatibleStrategies: Bool {
@@ -193,7 +218,34 @@ public struct BrowserDescriptor: Equatable, Sendable {
       case .safariShortcut:
         launchStrategy == .workspace
       }
+    let policyNormalIsCompatible =
+      switch routeCapabilityPolicy.normal {
+      case .unsupported, .workspace:
+        true
+      case .executable:
+        launchStrategy != .workspace
+      }
+    let policyProfileIsCompatible =
+      !(routeCapabilityPolicy.profile || routeCapabilityPolicy.profilePrivate)
+      || profileStrategy != .none
+    let policyPrivateIsCompatible =
+      !(routeCapabilityPolicy.browserPrivate || routeCapabilityPolicy.profilePrivate)
+      || privateStrategy != .unsupported
     return profileIsCompatible && privateModeIsCompatible
+      && policyNormalIsCompatible && policyProfileIsCompatible && policyPrivateIsCompatible
+  }
+
+  private static func defaultRouteCapabilityPolicy(
+    profileStrategy: BrowserProfileStrategy,
+    launchStrategy: BrowserLaunchStrategy,
+    privateStrategy: BrowserPrivateStrategy
+  ) -> BrowserRouteCapabilityPolicy {
+    BrowserRouteCapabilityPolicy(
+      normal: launchStrategy == .workspace ? .workspace : .executable,
+      browserPrivate: privateStrategy != .unsupported,
+      profile: profileStrategy != .none,
+      profilePrivate: false
+    )
   }
 
   public static let supported: [BrowserDescriptor] = [
@@ -203,7 +255,13 @@ public struct BrowserDescriptor: Equatable, Sendable {
       displayName: "Safari",
       profileStrategy: .none,
       launchStrategy: .workspace,
-      privateStrategy: .unsupported
+      privateStrategy: .unsupported,
+      routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+        normal: .workspace,
+        browserPrivate: false,
+        profile: false,
+        profilePrivate: false
+      )
     ),
     BrowserDescriptor(
       bundleIdentifier: "com.apple.SafariTechnologyPreview",
@@ -211,7 +269,13 @@ public struct BrowserDescriptor: Equatable, Sendable {
       displayName: "Safari Technology Preview",
       profileStrategy: .none,
       launchStrategy: .workspace,
-      privateStrategy: .unsupported
+      privateStrategy: .unsupported,
+      routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+        normal: .workspace,
+        browserPrivate: false,
+        profile: false,
+        profilePrivate: false
+      )
     ),
     BrowserDescriptor(
       bundleIdentifier: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
@@ -219,7 +283,13 @@ public struct BrowserDescriptor: Equatable, Sendable {
       displayName: "DuckDuckGo",
       profileStrategy: .none,
       launchStrategy: .duckDuckGo,
-      privateStrategy: .duckDuckGoFire
+      privateStrategy: .duckDuckGoFire,
+      routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+        normal: .executable,
+        browserPrivate: true,
+        profile: false,
+        profilePrivate: false
+      )
     ),
     chromium(
       bundleIdentifier: "com.google.Chrome",
@@ -315,7 +385,13 @@ public struct BrowserDescriptor: Equatable, Sendable {
       displayName: "Firefox",
       profileStrategy: .firefox(root: "Library/Application Support/Firefox"),
       launchStrategy: .firefox(executableRelativePath: "Contents/MacOS/firefox"),
-      privateStrategy: .argument("-private-window")
+      privateStrategy: .argument("-private-window"),
+      routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+        normal: .executable,
+        browserPrivate: true,
+        profile: true,
+        profilePrivate: false
+      )
     ),
     BrowserDescriptor(
       bundleIdentifier: "org.mozilla.firefoxdeveloperedition",
@@ -323,7 +399,13 @@ public struct BrowserDescriptor: Equatable, Sendable {
       displayName: "Firefox Developer Edition",
       profileStrategy: .firefox(root: "Library/Application Support/Firefox"),
       launchStrategy: .firefox(executableRelativePath: "Contents/MacOS/firefox"),
-      privateStrategy: .argument("-private-window")
+      privateStrategy: .argument("-private-window"),
+      routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+        normal: .executable,
+        browserPrivate: true,
+        profile: true,
+        profilePrivate: false
+      )
     ),
     BrowserDescriptor(
       bundleIdentifier: "org.mozilla.nightly",
@@ -331,7 +413,13 @@ public struct BrowserDescriptor: Equatable, Sendable {
       displayName: "Firefox Nightly",
       profileStrategy: .firefox(root: "Library/Application Support/Firefox"),
       launchStrategy: .firefox(executableRelativePath: "Contents/MacOS/firefox"),
-      privateStrategy: .argument("-private-window")
+      privateStrategy: .argument("-private-window"),
+      routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+        normal: .executable,
+        browserPrivate: true,
+        profile: true,
+        profilePrivate: false
+      )
     ),
     BrowserDescriptor(
       bundleIdentifier: "com.operasoftware.Opera",
@@ -339,7 +427,13 @@ public struct BrowserDescriptor: Equatable, Sendable {
       displayName: "Opera",
       profileStrategy: .none,
       launchStrategy: .workspace,
-      privateStrategy: .unsupported
+      privateStrategy: .unsupported,
+      routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+        normal: .workspace,
+        browserPrivate: false,
+        profile: false,
+        profilePrivate: false
+      )
     ),
     BrowserDescriptor(
       bundleIdentifier: "company.thebrowser.Browser",
@@ -347,7 +441,13 @@ public struct BrowserDescriptor: Equatable, Sendable {
       displayName: "Arc",
       profileStrategy: .none,
       launchStrategy: .workspace,
-      privateStrategy: .unsupported
+      privateStrategy: .unsupported,
+      routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+        normal: .workspace,
+        browserPrivate: false,
+        profile: false,
+        profilePrivate: false
+      )
     ),
     BrowserDescriptor(
       bundleIdentifier: "com.kagi.kagimacOS",
@@ -355,7 +455,13 @@ public struct BrowserDescriptor: Equatable, Sendable {
       displayName: "Orion",
       profileStrategy: .none,
       launchStrategy: .workspace,
-      privateStrategy: .unsupported
+      privateStrategy: .unsupported,
+      routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+        normal: .workspace,
+        browserPrivate: false,
+        profile: false,
+        profilePrivate: false
+      )
     ),
   ]
 
@@ -384,7 +490,13 @@ public struct BrowserDescriptor: Equatable, Sendable {
         executableRelativePath: executableRelativePath,
         profileArgument: "--profile-directory="
       ),
-      privateStrategy: .argument(privateArgument)
+      privateStrategy: .argument(privateArgument),
+      routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+        normal: .workspace,
+        browserPrivate: true,
+        profile: true,
+        profilePrivate: false
+      )
     )
   }
 }

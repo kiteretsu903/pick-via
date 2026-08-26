@@ -889,7 +889,13 @@ struct BrowserCatalogTests {
         executableRelativePath: "Contents/MacOS/Chromium Strategy",
         profileArgument: "--profile="
       ),
-      privateStrategy: .argument("--private")
+      privateStrategy: .argument("--private"),
+      routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+        normal: .workspace,
+        browserPrivate: true,
+        profile: true,
+        profilePrivate: false
+      )
     )
     let marker = URL(
       fileURLWithPath:
@@ -914,13 +920,117 @@ struct BrowserCatalogTests {
     #expect(browser.profiles.map(\.identifier) == ["Default", "Profile 1"])
     #expect(browser.routingCapabilities == BrowserRoutingCapabilities(descriptor: descriptor))
     #expect(fileSystem.readURLs == [marker])
-    #expect(reconciled.targets.count == 4)
+    #expect(reconciled.targets.count == 3)
     #expect(
       Set(reconciled.targets.map { ($0.profileIdentity ?? "default") + "|" + $0.mode.rawValue })
         == [
-          "default|normal", "default|private", "Profile 1|normal", "Profile 1|private",
+          "default|normal", "default|private", "Profile 1|normal",
         ]
     )
+  }
+
+  @Test func targetCandidatesGateEveryExactDescriptorCapabilityIndependently() {
+    let policies: [(BrowserRouteCapabilityPolicy, Set<String>)] = [
+      (
+        BrowserRouteCapabilityPolicy(
+          normal: .unsupported,
+          browserPrivate: false,
+          profile: false,
+          profilePrivate: false
+        ),
+        []
+      ),
+      (
+        BrowserRouteCapabilityPolicy(
+          normal: .workspace,
+          browserPrivate: false,
+          profile: false,
+          profilePrivate: false
+        ),
+        ["browser|normal"]
+      ),
+      (
+        BrowserRouteCapabilityPolicy(
+          normal: .executable,
+          browserPrivate: true,
+          profile: false,
+          profilePrivate: false
+        ),
+        ["browser|normal", "browser|private"]
+      ),
+      (
+        BrowserRouteCapabilityPolicy(
+          normal: .unsupported,
+          browserPrivate: false,
+          profile: true,
+          profilePrivate: false
+        ),
+        ["profile|normal"]
+      ),
+      (
+        BrowserRouteCapabilityPolicy(
+          normal: .unsupported,
+          browserPrivate: false,
+          profile: false,
+          profilePrivate: true
+        ),
+        ["profile|private"]
+      ),
+      (
+        BrowserRouteCapabilityPolicy(
+          normal: .executable,
+          browserPrivate: true,
+          profile: true,
+          profilePrivate: true
+        ),
+        ["browser|normal", "browser|private", "profile|normal", "profile|private"]
+      ),
+    ]
+
+    for (index, expectation) in policies.enumerated() {
+      let bundleIdentifier = "com.example.capability-policy-\(index)"
+      let descriptor = BrowserDescriptor(
+        bundleIdentifier: bundleIdentifier,
+        family: .chromium,
+        displayName: "Capability Browser",
+        profileStrategy: .chromium(root: "unused"),
+        launchStrategy: .chromium(
+          executableRelativePath: "Contents/MacOS/Capability Browser",
+          profileArgument: "--profile="
+        ),
+        privateStrategy: .argument("--private"),
+        routeCapabilityPolicy: expectation.0
+      )
+      let browser = DiscoveredBrowser(
+        application: BrowserApplication(
+          id: bundleIdentifier,
+          family: .chromium,
+          displayName: "Capability Browser",
+          bundleIdentifier: bundleIdentifier,
+          applicationURL: URL(fileURLWithPath: "/Applications/Capability Browser.app"),
+          executableURL: nil,
+          isAvailable: true
+        ),
+        profiles: [
+          DiscoveredProfile(
+            identifier: "Profile 1",
+            displayName: "PickVia E2E",
+            directoryURL: URL(fileURLWithPath: "/isolated/Profile 1", isDirectory: true)
+          )
+        ],
+        metadataStatus: .loaded,
+        privateModeIsAvailable: true,
+        routingCapabilities: BrowserRoutingCapabilities(descriptor: descriptor)
+      )
+
+      let result = BrowserCatalog.reconcile(discovered: [browser], with: .initial)
+      let actual = Set(
+        result.targets.map { target in
+          "\(target.profileIdentity == nil ? "browser" : "profile")|\(target.mode.rawValue)"
+        })
+
+      #expect(actual == expectation.1)
+    }
   }
 
   @Test func firefoxProfileStrategyControlsMetadataIndependentOfFamily() throws {
@@ -3464,7 +3574,7 @@ struct BrowserCatalogTests {
           metadataStatus: .loaded,
           privateModeIsAvailable: true
         ),
-        [(.normal, nil), (.private, nil), (.normal, "Profile 1"), (.private, "Profile 1")]
+        [(.normal, nil), (.private, nil), (.normal, "Profile 1")]
       ),
     ]
 
@@ -3580,16 +3690,16 @@ struct BrowserCatalogTests {
     let profiled = result.targets.filter { $0.profileIdentity == profile.identifier }
 
     #expect(Set(result.browsers.map(\.id)) == Set(bundleIdentifiers))
-    #expect(profiled.count == 6)
+    #expect(profiled.count == 3)
     #expect(Set(profiled.map(\.applicationID)) == Set(bundleIdentifiers))
-    #expect(Set(profiled.map(\.id)).count == 6)
+    #expect(Set(profiled.map(\.id)).count == 3)
     for bundleIdentifier in bundleIdentifiers {
       let modes =
         profiled
         .filter { $0.applicationID == bundleIdentifier }
         .map(\.mode.rawValue)
         .sorted()
-      #expect(modes == [BrowserMode.normal.rawValue, BrowserMode.private.rawValue].sorted())
+      #expect(modes == [BrowserMode.normal.rawValue])
     }
   }
 
@@ -3962,6 +4072,26 @@ private let duckDuckGoDescriptor = BrowserDescriptor.supported.first {
   $0.bundleIdentifier == DuckDuckGoBuildCompatibilityChecker.bundleIdentifier
 }!
 
+private func profilePrivateCapabilities(
+  _ descriptor: BrowserDescriptor
+) -> BrowserRoutingCapabilities {
+  BrowserRoutingCapabilities(
+    descriptor: BrowserDescriptor(
+      bundleIdentifier: descriptor.bundleIdentifier,
+      family: descriptor.family,
+      displayName: descriptor.displayName,
+      profileStrategy: descriptor.profileStrategy,
+      launchStrategy: descriptor.launchStrategy,
+      privateStrategy: descriptor.privateStrategy,
+      routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+        normal: descriptor.routeCapabilityPolicy.normal,
+        browserPrivate: descriptor.routeCapabilityPolicy.browserPrivate,
+        profile: descriptor.routeCapabilityPolicy.profile,
+        profilePrivate: true
+      )
+    ))
+}
+
 private func duckDuckGoCatalog(
   applicationURL: URL,
   compatibility: DuckDuckGoBuildCompatibility,
@@ -4014,7 +4144,8 @@ private func chrome(
       isAvailable: true
     ),
     profiles: profiles,
-    metadataStatus: metadataStatus
+    metadataStatus: metadataStatus,
+    routingCapabilities: profilePrivateCapabilities(chromeDescriptor)
   )
 }
 
@@ -4037,7 +4168,8 @@ private func firefox(
       isAvailable: true
     ),
     profiles: profiles,
-    metadataStatus: metadataStatus
+    metadataStatus: metadataStatus,
+    routingCapabilities: profilePrivateCapabilities(firefoxDescriptor)
   )
 }
 

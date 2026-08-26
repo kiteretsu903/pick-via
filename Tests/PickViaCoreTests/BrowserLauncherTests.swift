@@ -549,6 +549,201 @@ struct BrowserLauncherTests {
     #expect(validator.requestedURLs.isEmpty)
   }
 
+  @Test func normalCapabilityPolicySelectsUnsupportedWorkspaceAndExecutableExactly() throws {
+    let workspaceDescriptor = capabilityDescriptor(
+      BrowserRouteCapabilityPolicy(
+        normal: .workspace,
+        browserPrivate: false,
+        profile: false,
+        profilePrivate: false
+      ))
+    let workspaceValidator = StubExecutableValidator(isExecutable: false)
+    let workspacePlan = try launcher(
+      descriptor: workspaceDescriptor,
+      executableValidator: workspaceValidator
+    ).makePlan(
+      url: url,
+      application: application(
+        family: .chromium,
+        bundleIdentifier: workspaceDescriptor.bundleIdentifier
+      ),
+      target: target(
+        browserID: workspaceDescriptor.bundleIdentifier,
+        profile: nil
+      )
+    )
+    #expect(workspacePlan == .workspace(application: applicationURL, url: url))
+    #expect(workspaceValidator.requestedURLs.isEmpty)
+
+    let executableDescriptor = capabilityDescriptor(
+      BrowserRouteCapabilityPolicy(
+        normal: .executable,
+        browserPrivate: false,
+        profile: false,
+        profilePrivate: false
+      ))
+    let executableValidator = StubExecutableValidator(isExecutable: true)
+    let executablePlan = try launcher(
+      descriptor: executableDescriptor,
+      executableValidator: executableValidator
+    ).makePlan(
+      url: url,
+      application: application(
+        family: .chromium,
+        bundleIdentifier: executableDescriptor.bundleIdentifier
+      ),
+      target: target(
+        browserID: executableDescriptor.bundleIdentifier,
+        profile: nil
+      )
+    )
+    let executable = applicationURL.appending(path: "Contents/MacOS/Capability Browser")
+    #expect(executablePlan == .executable(application: executable, arguments: [url.absoluteString]))
+    #expect(executableValidator.requestedURLs == [executable])
+
+    let unsupportedDescriptor = capabilityDescriptor(
+      BrowserRouteCapabilityPolicy(
+        normal: .unsupported,
+        browserPrivate: true,
+        profile: true,
+        profilePrivate: true
+      ))
+    let unsupportedValidator = StubExecutableValidator(isExecutable: true)
+    #expect(throws: LaunchFailure.self) {
+      try launcher(
+        descriptor: unsupportedDescriptor,
+        executableValidator: unsupportedValidator
+      ).makePlan(
+        url: url,
+        application: application(
+          family: .chromium,
+          bundleIdentifier: unsupportedDescriptor.bundleIdentifier
+        ),
+        target: target(
+          id: "forged-private-identity",
+          browserID: unsupportedDescriptor.bundleIdentifier,
+          profile: nil,
+          mode: .normal
+        )
+      )
+    }
+    #expect(unsupportedValidator.requestedURLs.isEmpty)
+  }
+
+  @Test func launcherRefusesEveryExactCapabilityNotAdvertisedByDescriptor() throws {
+    let browserPrivateOnly = capabilityDescriptor(
+      BrowserRouteCapabilityPolicy(
+        normal: .unsupported,
+        browserPrivate: true,
+        profile: false,
+        profilePrivate: false
+      ))
+    let browserPrivatePlan = try launcher(descriptor: browserPrivateOnly).makePlan(
+      url: url,
+      application: application(
+        family: .chromium,
+        bundleIdentifier: browserPrivateOnly.bundleIdentifier
+      ),
+      target: target(
+        browserID: browserPrivateOnly.bundleIdentifier,
+        profile: nil,
+        mode: .private
+      )
+    )
+    #expect(
+      browserPrivatePlan
+        == .executable(
+          application: applicationURL.appending(path: "Contents/MacOS/Capability Browser"),
+          arguments: ["--private", url.absoluteString]
+        ))
+
+    let profileOnly = capabilityDescriptor(
+      BrowserRouteCapabilityPolicy(
+        normal: .unsupported,
+        browserPrivate: false,
+        profile: true,
+        profilePrivate: false
+      ))
+    let profilePlan = try launcher(descriptor: profileOnly).makePlan(
+      url: url,
+      application: application(
+        family: .chromium,
+        bundleIdentifier: profileOnly.bundleIdentifier
+      ),
+      target: target(
+        browserID: profileOnly.bundleIdentifier,
+        profile: "Profile 1"
+      )
+    )
+    #expect(
+      profilePlan
+        == .executable(
+          application: applicationURL.appending(path: "Contents/MacOS/Capability Browser"),
+          arguments: ["--profile=Profile 1", url.absoluteString]
+        ))
+
+    let profilePrivateOnly = capabilityDescriptor(
+      BrowserRouteCapabilityPolicy(
+        normal: .unsupported,
+        browserPrivate: false,
+        profile: false,
+        profilePrivate: true
+      ))
+    let profilePrivatePlan = try launcher(descriptor: profilePrivateOnly).makePlan(
+      url: url,
+      application: application(
+        family: .chromium,
+        bundleIdentifier: profilePrivateOnly.bundleIdentifier
+      ),
+      target: target(
+        browserID: profilePrivateOnly.bundleIdentifier,
+        profile: "Profile 1",
+        mode: .private
+      )
+    )
+    #expect(
+      profilePrivatePlan
+        == .executable(
+          application: applicationURL.appending(path: "Contents/MacOS/Capability Browser"),
+          arguments: ["--profile=Profile 1", "--private", url.absoluteString]
+        ))
+
+    let noCapabilities = capabilityDescriptor(
+      BrowserRouteCapabilityPolicy(
+        normal: .unsupported,
+        browserPrivate: false,
+        profile: false,
+        profilePrivate: false
+      ))
+    let application = application(
+      family: .chromium,
+      bundleIdentifier: noCapabilities.bundleIdentifier
+    )
+    let unadvertisedTargets = [
+      target(browserID: noCapabilities.bundleIdentifier, profile: nil, mode: .private),
+      target(browserID: noCapabilities.bundleIdentifier, profile: "Profile 1", mode: .normal),
+      target(
+        id: BrowserCatalog.targetID(
+          bundleIdentifier: noCapabilities.bundleIdentifier,
+          profileIdentifier: nil,
+          mode: .normal
+        ),
+        browserID: noCapabilities.bundleIdentifier,
+        profile: "Profile 1",
+        mode: .private
+      ),
+    ]
+    for unadvertisedTarget in unadvertisedTargets {
+      #expect(throws: LaunchFailure.self) {
+        try launcher(descriptor: noCapabilities).makePlan(
+          url: url,
+          application: application,
+          target: unadvertisedTarget
+        )
+      }
+    }
+  }
+
   @Test(arguments: ProfileEvidenceField.allCases)
   func workspaceRejectsProfileEvidenceForIncompatibleProfileStrategy(
     field: ProfileEvidenceField
@@ -668,11 +863,11 @@ struct BrowserLauncherTests {
     let betaTarget = target(
       id: BrowserCatalog.targetID(
         bundleIdentifier: "com.google.Chrome.beta",
-        profileIdentifier: "Profile 1",
+        profileIdentifier: nil,
         mode: .private
       ),
       browserID: "com.google.Chrome.beta",
-      profile: "Profile 1",
+      profile: nil,
       mode: .private
     )
 
@@ -687,7 +882,7 @@ struct BrowserLauncherTests {
         == URL(
           fileURLWithPath: "/Applications/Google Chrome Beta.app/Contents/MacOS/Google Chrome Beta")
     )
-    #expect(arguments == ["--profile-directory=Profile 1", "--incognito", "https://example.com"])
+    #expect(arguments == ["--incognito", "https://example.com"])
   }
 
   @Test func safariTechnologyPreviewUsesOnlyItsTrustedWorkspaceApplication() throws {
@@ -774,7 +969,7 @@ struct BrowserLauncherTests {
     let privatePlan = try launcher.makePlan(
       url: url,
       application: channelApplication,
-      target: channelTarget(profiled: true, mode: .private)
+      target: channelTarget(profiled: false, mode: .private)
     )
 
     if expectation.family == .chromium {
@@ -788,9 +983,6 @@ struct BrowserLauncherTests {
       #expect(
         profilePlan
           == .executable(application: executable, arguments: expectation.profileArguments))
-      #expect(
-        privatePlan
-          == .executable(application: executable, arguments: expectation.privateArguments))
     } else {
       #expect(
         profilePlan
@@ -799,14 +991,10 @@ struct BrowserLauncherTests {
             arguments: expectation.profileArguments,
             validation: BrowserProfileLaunchValidation()
           ))
-      #expect(
-        privatePlan
-          == .profileExecutable(
-            application: executable,
-            arguments: expectation.privateArguments,
-            validation: BrowserProfileLaunchValidation()
-          ))
     }
+    #expect(
+      privatePlan
+        == .executable(application: executable, arguments: expectation.privateArguments))
     let expectedValidatedExecutables =
       expectation.family == .chromium
       ? [executable, executable]
@@ -1042,20 +1230,14 @@ struct BrowserLauncherTests {
     }
   }
 
-  @Test func chromiumPrivatePlanUsesExactProfileIncognitoAndURLTokens() throws {
-    let launcher = testLauncher()
-
-    let plan = try launcher.makePlan(
-      url: url,
-      application: application(family: .chromium),
-      target: target(family: .chromium, profile: "Profile 1", mode: .private)
-    )
-
-    guard case .executable(_, let arguments) = plan else {
-      Issue.record("Expected executable launch plan")
-      return
+  @Test func chromiumBuiltInRejectsUnadvertisedProfilePrivateTarget() {
+    #expect(throws: LaunchFailure.self) {
+      try testLauncher().makePlan(
+        url: url,
+        application: application(family: .chromium),
+        target: target(family: .chromium, profile: "Profile 1", mode: .private)
+      )
     }
-    #expect(arguments == ["--profile-directory=Profile 1", "--incognito", "https://example.com"])
   }
 
   @Test func edgePrivatePlanUsesInPrivateArgument() throws {
@@ -1078,7 +1260,7 @@ struct BrowserLauncherTests {
       target: target(
         family: .chromium,
         browserID: "com.microsoft.edgemac",
-        profile: "Profile 1",
+        profile: nil,
         mode: .private
       )
     )
@@ -1088,7 +1270,7 @@ struct BrowserLauncherTests {
       return
     }
     #expect(executable == applicationURL.appending(path: "Contents/MacOS/Microsoft Edge"))
-    #expect(arguments == ["--profile-directory=Profile 1", "--inprivate", url.absoluteString])
+    #expect(arguments == ["--inprivate", url.absoluteString])
   }
 
   @Test func edgeBrowserLevelNormalUsesExactTrustedWorkspaceApplication() throws {
@@ -1988,9 +2170,7 @@ private func chromiumChannelLaunch(
     profileLaunchPath: nil,
     normalArguments: ["https://example.com"],
     profileArguments: ["--profile-directory=PickVia E2E", "https://example.com"],
-    privateArguments: [
-      "--profile-directory=PickVia E2E", privateArgument, "https://example.com",
-    ]
+    privateArguments: [privateArgument, "https://example.com"]
   )
 }
 
@@ -2007,7 +2187,7 @@ private func firefoxChannelLaunch(
     profileLaunchPath: profilePath,
     normalArguments: ["-new-tab", "https://example.com"],
     profileArguments: ["-profile", profilePath, "-new-tab", "https://example.com"],
-    privateArguments: ["-profile", profilePath, "-private-window", "https://example.com"]
+    privateArguments: ["-private-window", "https://example.com"]
   )
 }
 
@@ -2179,17 +2359,37 @@ private func duckDuckGoLauncher(
   )
 }
 
-private func launcher(descriptor: BrowserDescriptor) -> BrowserLauncher {
+private func launcher(
+  descriptor: BrowserDescriptor,
+  executableValidator: any ExecutableValidating = StubExecutableValidator(isExecutable: true)
+) -> BrowserLauncher {
   BrowserLauncher(
     trustedApplicationResolver: StubTrustedApplicationResolver(urls: [
       descriptor.bundleIdentifier: applicationURL
     ]),
     processRunner: RecordingProcessRunner(),
     workspace: RecordingWorkspace(),
-    executableValidator: StubExecutableValidator(isExecutable: true),
+    executableValidator: executableValidator,
     duckDuckGoRouter: RecordingDuckDuckGoRouter(),
     profileLaunchValidator: StubProfileLaunchValidator(),
     descriptors: [descriptor]
+  )
+}
+
+private func capabilityDescriptor(
+  _ policy: BrowserRouteCapabilityPolicy
+) -> BrowserDescriptor {
+  BrowserDescriptor(
+    bundleIdentifier: "com.example.capability-browser",
+    family: .chromium,
+    displayName: "Capability Browser",
+    profileStrategy: .chromium(root: "unused"),
+    launchStrategy: .chromium(
+      executableRelativePath: "Contents/MacOS/Capability Browser",
+      profileArgument: "--profile="
+    ),
+    privateStrategy: .argument("--private"),
+    routeCapabilityPolicy: policy
   )
 }
 

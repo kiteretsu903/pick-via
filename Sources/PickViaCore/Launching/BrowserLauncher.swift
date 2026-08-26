@@ -466,11 +466,7 @@ public struct BrowserLauncher: Sendable {
         $0.bundleIdentifier == application.bundleIdentifier
       }),
       descriptor.family == browserFamily,
-      descriptor.hasCompatibleStrategies,
-      let trustedApplicationURL = trustedApplicationResolver.applicationURL(
-        forBundleIdentifier: application.bundleIdentifier),
-      application.isAvailable(for: .web),
-      target.availability == .available
+      descriptor.hasCompatibleStrategies
     else {
       throw Self.launchFailure
     }
@@ -480,17 +476,37 @@ public struct BrowserLauncher: Sendable {
       || options.profileDisplayName != nil
       || options.profileIdentity != nil
       || options.profileLaunchPath != nil
-    guard descriptor.supportsProfiles || !hasProfileEvidence else {
+    let policy = descriptor.routeCapabilityPolicy
+    let advertisesExactCapability =
+      if hasProfileEvidence {
+        options.mode == .private ? policy.profilePrivate : policy.profile
+      } else {
+        options.mode == .private ? policy.browserPrivate : policy.normal != .unsupported
+      }
+    guard advertisesExactCapability else {
       throw Self.launchFailure
     }
-    guard descriptor.supportsPrivateMode || options.mode == .normal else {
-      throw Self.launchFailure
+    guard
+      let trustedApplicationURL = trustedApplicationResolver.applicationURL(
+        forBundleIdentifier: application.bundleIdentifier),
+      application.isAvailable(for: .web),
+      target.availability == .available
+    else { throw Self.launchFailure }
+
+    if !hasProfileEvidence, options.mode == .normal {
+      switch policy.normal {
+      case .unsupported:
+        throw Self.launchFailure
+      case .workspace:
+        return .workspace(application: trustedApplicationURL, url: url)
+      case .executable:
+        break
+      }
     }
 
     switch descriptor.launchStrategy {
     case .workspace:
-      guard !hasProfileEvidence, options.mode == .normal else { throw Self.launchFailure }
-      return .workspace(application: trustedApplicationURL, url: url)
+      throw Self.launchFailure
 
     case .duckDuckGo:
       guard !hasProfileEvidence else { throw Self.launchFailure }
@@ -506,9 +522,6 @@ public struct BrowserLauncher: Sendable {
       )
 
     case .chromium(let relativeExecutable, let profileArgument):
-      if !hasProfileEvidence, options.mode == .normal {
-        return .workspace(application: trustedApplicationURL, url: url)
-      }
       guard
         let executable = trustedExecutable(
           applicationURL: trustedApplicationURL,

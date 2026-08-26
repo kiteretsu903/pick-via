@@ -14,6 +14,7 @@ struct BrowserDescriptorTests {
     #expect(descriptor.profileStrategy == expectation.profileStrategy)
     #expect(descriptor.launchStrategy == expectation.launchStrategy)
     #expect(descriptor.privateStrategy == expectation.privateStrategy)
+    #expect(descriptor.routeCapabilityPolicy == expectation.routeCapabilityPolicy)
     #expect(descriptor.profileRoot == expectation.profileRoot)
     #expect(descriptor.requiredProfileMarker == expectation.requiredProfileMarker)
     #expect(descriptor.executableRelativePath == expectation.executableRelativePath)
@@ -169,6 +170,7 @@ struct DescriptorExpectation: Sendable {
   let profileStrategy: BrowserProfileStrategy
   let launchStrategy: BrowserLaunchStrategy
   let privateStrategy: BrowserPrivateStrategy
+  let routeCapabilityPolicy: BrowserRouteCapabilityPolicy
   let profileRoot: String?
   let requiredProfileMarker: String?
   let executableRelativePath: String?
@@ -184,6 +186,12 @@ let descriptorExpectations = [
     profileStrategy: .none,
     launchStrategy: .workspace,
     privateStrategy: .unsupported,
+    routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+      normal: .workspace,
+      browserPrivate: false,
+      profile: false,
+      profilePrivate: false
+    ),
     profileRoot: nil,
     requiredProfileMarker: nil,
     executableRelativePath: nil,
@@ -197,6 +205,12 @@ let descriptorExpectations = [
     profileStrategy: .none,
     launchStrategy: .workspace,
     privateStrategy: .unsupported,
+    routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+      normal: .workspace,
+      browserPrivate: false,
+      profile: false,
+      profilePrivate: false
+    ),
     profileRoot: nil,
     requiredProfileMarker: nil,
     executableRelativePath: nil,
@@ -210,6 +224,12 @@ let descriptorExpectations = [
     profileStrategy: .none,
     launchStrategy: .duckDuckGo,
     privateStrategy: .duckDuckGoFire,
+    routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+      normal: .executable,
+      browserPrivate: true,
+      profile: false,
+      profilePrivate: false
+    ),
     profileRoot: nil,
     requiredProfileMarker: nil,
     executableRelativePath: nil,
@@ -345,6 +365,12 @@ func failClosedExpectation(
     profileStrategy: .none,
     launchStrategy: .workspace,
     privateStrategy: .unsupported,
+    routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+      normal: .workspace,
+      browserPrivate: false,
+      profile: false,
+      profilePrivate: false
+    ),
     profileRoot: nil,
     requiredProfileMarker: nil,
     executableRelativePath: nil,
@@ -370,6 +396,12 @@ func chromiumExpectation(
       profileArgument: "--profile-directory="
     ),
     privateStrategy: .argument(privateArgument),
+    routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+      normal: .workspace,
+      browserPrivate: true,
+      profile: true,
+      profilePrivate: false
+    ),
     profileRoot: profileRoot,
     requiredProfileMarker: "Local State",
     executableRelativePath: executableRelativePath,
@@ -389,6 +421,12 @@ func firefoxExpectation(
     profileStrategy: .firefox(root: "Library/Application Support/Firefox"),
     launchStrategy: .firefox(executableRelativePath: "Contents/MacOS/firefox"),
     privateStrategy: .argument("-private-window"),
+    routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
+      normal: .executable,
+      browserPrivate: true,
+      profile: true,
+      profilePrivate: false
+    ),
     profileRoot: "Library/Application Support/Firefox",
     requiredProfileMarker: "profiles.ini",
     executableRelativePath: "Contents/MacOS/firefox",
