@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 
@@ -12,13 +13,12 @@ struct BrowserLauncherTests {
   }
 
   @Test func systemProcessRunnerReturnsItsExactChildProcessIdentifier() throws {
-    let observation = try SystemProcessRunner().run(
+    let processIdentifier = try SystemProcessRunner().run(
       executable: URL(fileURLWithPath: "/usr/bin/true"),
       arguments: []
     )
 
-    #expect(observation.processIdentifier > 0)
-    #expect(observation.mechanism == .process)
+    #expect(processIdentifier > 0)
   }
 
   @Test func workspaceCompletionReturnsItsExactApplicationProcessIdentifier() throws {
@@ -28,16 +28,32 @@ struct BrowserLauncherTests {
       bundleURL: applicationURL
     )
 
-    let observation = try SystemWorkspace.observation(
+    let processIdentifier = try SystemWorkspace.processIdentifier(
       requestedApplicationURL: applicationURL,
       requestedBundleIdentifier: "com.example.Browser",
       returnedApplications: [application]
     )
 
-    #expect(
-      observation
-        == BrowserLaunchObservation(processIdentifier: 4_321, mechanism: .workspace)
+    #expect(processIdentifier == 4_321)
+  }
+
+  @Test func systemWorkspaceDisablesRunningApplicationSubstitution() async throws {
+    let application = try makeTestApplicationBundle(
+      bundleIdentifier: "com.example.ExactBrowser"
     )
+    defer { try? FileManager.default.removeItem(at: application) }
+    let opener = RecordingWorkspaceApplicationOpener(
+      application: WorkspaceApplicationSnapshot(
+        processIdentifier: 4_321,
+        bundleIdentifier: "com.example.ExactBrowser",
+        bundleURL: application
+      )
+    )
+    let workspace = SystemWorkspace(opener: opener)
+
+    _ = try await workspace.open(url, withApplicationAt: application)
+
+    #expect(opener.allowsRunningApplicationSubstitution == [false])
   }
 
   @Test func workspaceCompletionFailsClosedWithoutOneExactPositiveApplication() {
@@ -72,13 +88,33 @@ struct BrowserLauncherTests {
 
     for returnedApplications in invalidResults {
       #expect(throws: (any Error).self) {
-        try SystemWorkspace.observation(
+        try SystemWorkspace.processIdentifier(
           requestedApplicationURL: applicationURL,
           requestedBundleIdentifier: "com.example.Browser",
           returnedApplications: returnedApplications
         )
       }
     }
+  }
+
+  private func makeTestApplicationBundle(bundleIdentifier: String) throws -> URL {
+    let application = FileManager.default.temporaryDirectory.appending(
+      path: "PickVia-Workspace-\(UUID().uuidString).app",
+      directoryHint: .isDirectory
+    )
+    let contents = application.appending(path: "Contents", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+    let information: [String: Any] = [
+      "CFBundleIdentifier": bundleIdentifier,
+      "CFBundlePackageType": "APPL",
+    ]
+    let data = try PropertyListSerialization.data(
+      fromPropertyList: information,
+      format: .xml,
+      options: 0
+    )
+    try data.write(to: contents.appending(path: "Info.plist"))
+    return application
   }
 
   @Test func mailTargetIsRejectedWithoutReadingBrowserOptions() {
@@ -1170,6 +1206,36 @@ struct BrowserLauncherTests {
     )
   }
 
+  @Test(arguments: LaunchAdapterKind.allCases)
+  func executeRejectsNonpositiveAdapterProcessIdentifier(kind: LaunchAdapterKind) async {
+    let launcher = BrowserLauncher(
+      trustedApplicationResolver: StubTrustedApplicationResolver(urls: [:]),
+      processRunner: RecordingProcessRunner(processIdentifier: 0),
+      workspace: RecordingWorkspace(processIdentifier: 0),
+      executableValidator: StubExecutableValidator(isExecutable: true),
+      duckDuckGoRouter: RecordingDuckDuckGoRouter(processIdentifier: 0),
+      descriptors: []
+    )
+    let plan: LaunchPlan =
+      switch kind {
+      case .process:
+        .executable(application: executableURL, arguments: [])
+      case .workspace:
+        .workspace(application: applicationURL, url: url)
+      case .duckDuckGo:
+        .duckDuckGo(application: applicationURL, url: url, mode: .private)
+      }
+
+    do {
+      _ = try await launcher.execute(plan)
+      Issue.record("Expected execution failure")
+    } catch let failure as LaunchFailure {
+      #expect(failure.message == "Could not open the selected browser target.")
+    } catch {
+      Issue.record("Expected LaunchFailure, got \(type(of: error))")
+    }
+  }
+
   @Test(arguments: [ExecutionKind.process, .workspace])
   func executionErrorsBecomeSanitizedLaunchFailures(kind: ExecutionKind) async {
     let underlying = NSError(
@@ -1484,17 +1550,14 @@ private actor RecordingDuckDuckGoRouter: DuckDuckGoRouting {
     url: URL,
     applicationURL: URL,
     mode: BrowserMode
-  ) async throws -> BrowserLaunchObservation {
+  ) async throws -> Int32 {
     invocations.append(
       .init(url: url, applicationURL: applicationURL, mode: mode)
     )
     if let errorCode {
       throw NSError(domain: NSCocoaErrorDomain, code: errorCode)
     }
-    return BrowserLaunchObservation(
-      processIdentifier: processIdentifier,
-      mechanism: .duckDuckGo
-    )!
+    return processIdentifier
   }
 }
 
@@ -1509,6 +1572,12 @@ private struct StubTrustedApplicationResolver: TrustedApplicationResolving {
 enum ExecutionKind: Sendable {
   case process
   case workspace
+}
+
+enum LaunchAdapterKind: CaseIterable, Sendable {
+  case process
+  case workspace
+  case duckDuckGo
 }
 
 enum AvailabilityKind: Sendable {
@@ -1534,13 +1603,10 @@ private final class RecordingProcessRunner: ProcessRunning, @unchecked Sendable 
   func run(
     executable application: URL,
     arguments: [String]
-  ) throws -> BrowserLaunchObservation {
+  ) throws -> Int32 {
     invocations.append(.init(application: application, arguments: arguments))
     if let error { throw error }
-    return BrowserLaunchObservation(
-      processIdentifier: processIdentifier,
-      mechanism: .process
-    )!
+    return processIdentifier
   }
 }
 
@@ -1562,13 +1628,39 @@ private final class RecordingWorkspace: WorkspaceOpening, @unchecked Sendable {
   func open(
     _ url: URL,
     withApplicationAt application: URL
-  ) async throws -> BrowserLaunchObservation {
+  ) async throws -> Int32 {
     invocations.append(.init(application: application, url: url))
     if let error { throw error }
-    return BrowserLaunchObservation(
-      processIdentifier: processIdentifier,
-      mechanism: .workspace
-    )!
+    return processIdentifier
+  }
+}
+
+private final class RecordingWorkspaceApplicationOpener:
+  WorkspaceApplicationOpening, @unchecked Sendable
+{
+  private let lock = NSLock()
+  private let application: WorkspaceApplicationSnapshot?
+  private(set) var allowsRunningApplicationSubstitution: [Bool] = []
+
+  init(application: WorkspaceApplicationSnapshot?) {
+    self.application = application
+  }
+
+  func open(
+    _ urls: [URL],
+    withApplicationAt applicationURL: URL,
+    configuration: NSWorkspace.OpenConfiguration,
+    completionHandler:
+      @escaping @Sendable (
+        WorkspaceApplicationSnapshot?, (any Error)?
+      ) -> Void
+  ) {
+    lock.withLock {
+      allowsRunningApplicationSubstitution.append(
+        configuration.allowsRunningApplicationSubstitution
+      )
+    }
+    completionHandler(application, nil)
   }
 }
 

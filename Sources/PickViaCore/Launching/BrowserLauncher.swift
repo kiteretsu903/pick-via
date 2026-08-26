@@ -12,7 +12,7 @@ public protocol ProcessRunning: Sendable {
   func run(
     executable application: URL,
     arguments: [String]
-  ) throws -> BrowserLaunchObservation
+  ) throws -> Int32
 }
 
 public protocol WorkspaceOpening: Sendable {
@@ -20,7 +20,7 @@ public protocol WorkspaceOpening: Sendable {
   func open(
     _ url: URL,
     withApplicationAt application: URL
-  ) async throws -> BrowserLaunchObservation
+  ) async throws -> Int32
 }
 
 public protocol ExecutableValidating: Sendable {
@@ -46,20 +46,15 @@ public struct SystemProcessRunner: ProcessRunning {
   public func run(
     executable application: URL,
     arguments: [String]
-  ) throws -> BrowserLaunchObservation {
+  ) throws -> Int32 {
     let process = Process()
     process.executableURL = application
     process.arguments = arguments
     try process.run()
-    guard
-      let observation = BrowserLaunchObservation(
-        processIdentifier: process.processIdentifier,
-        mechanism: .process
-      )
-    else {
+    guard process.processIdentifier > 0 else {
       throw BrowserLaunchObservationError.invalidProcessIdentifier
     }
-    return observation
+    return process.processIdentifier
   }
 }
 
@@ -69,6 +64,47 @@ struct WorkspaceApplicationSnapshot: Equatable, Sendable {
   let bundleURL: URL?
 }
 
+protocol WorkspaceApplicationOpening: Sendable {
+  func open(
+    _ urls: [URL],
+    withApplicationAt applicationURL: URL,
+    configuration: NSWorkspace.OpenConfiguration,
+    completionHandler:
+      @escaping @Sendable (
+        WorkspaceApplicationSnapshot?, (any Error)?
+      ) -> Void
+  )
+}
+
+private struct NSWorkspaceApplicationOpener: WorkspaceApplicationOpening {
+  func open(
+    _ urls: [URL],
+    withApplicationAt applicationURL: URL,
+    configuration: NSWorkspace.OpenConfiguration,
+    completionHandler:
+      @escaping @Sendable (
+        WorkspaceApplicationSnapshot?, (any Error)?
+      ) -> Void
+  ) {
+    NSWorkspace.shared.open(
+      urls,
+      withApplicationAt: applicationURL,
+      configuration: configuration
+    ) { application, error in
+      completionHandler(
+        application.map {
+          WorkspaceApplicationSnapshot(
+            processIdentifier: $0.processIdentifier,
+            bundleIdentifier: $0.bundleIdentifier,
+            bundleURL: $0.bundleURL
+          )
+        },
+        error
+      )
+    }
+  }
+}
+
 enum BrowserLaunchObservationError: Error, Equatable, Sendable {
   case invalidProcessIdentifier
   case workspaceApplicationIdentityUnavailable
@@ -76,13 +112,21 @@ enum BrowserLaunchObservationError: Error, Equatable, Sendable {
 }
 
 public struct SystemWorkspace: WorkspaceOpening {
-  public init() {}
+  private let opener: any WorkspaceApplicationOpening
+
+  public init() {
+    opener = NSWorkspaceApplicationOpener()
+  }
+
+  init(opener: any WorkspaceApplicationOpening) {
+    self.opener = opener
+  }
 
   @discardableResult
   public func open(
     _ url: URL,
     withApplicationAt application: URL
-  ) async throws -> BrowserLaunchObservation {
+  ) async throws -> Int32 {
     let requestedApplicationURL = Self.canonicalFileURL(application)
     guard
       let requestedBundleIdentifier = Bundle(url: requestedApplicationURL)?.bundleIdentifier
@@ -91,32 +135,24 @@ public struct SystemWorkspace: WorkspaceOpening {
     }
 
     return try await withCheckedThrowingContinuation {
-      (continuation: CheckedContinuation<BrowserLaunchObservation, any Error>) in
+      (continuation: CheckedContinuation<Int32, any Error>) in
       let configuration = NSWorkspace.OpenConfiguration()
-      NSWorkspace.shared.open(
+      configuration.allowsRunningApplicationSubstitution = false
+      opener.open(
         [url],
         withApplicationAt: application,
         configuration: configuration
-      ) { (application: NSRunningApplication?, error: (any Error)?) in
+      ) { application, error in
         if let error {
           continuation.resume(throwing: error)
           return
         }
-        let snapshots = application.map {
-          [
-            WorkspaceApplicationSnapshot(
-              processIdentifier: $0.processIdentifier,
-              bundleIdentifier: $0.bundleIdentifier,
-              bundleURL: $0.bundleURL
-            )
-          ]
-        }
         do {
           continuation.resume(
-            returning: try Self.observation(
+            returning: try Self.processIdentifier(
               requestedApplicationURL: requestedApplicationURL,
               requestedBundleIdentifier: requestedBundleIdentifier,
-              returnedApplications: snapshots
+              returnedApplications: application.map { [$0] }
             )
           )
         } catch {
@@ -126,11 +162,11 @@ public struct SystemWorkspace: WorkspaceOpening {
     }
   }
 
-  static func observation(
+  static func processIdentifier(
     requestedApplicationURL: URL,
     requestedBundleIdentifier: String,
     returnedApplications: [WorkspaceApplicationSnapshot]?
-  ) throws -> BrowserLaunchObservation {
+  ) throws -> Int32 {
     guard
       let returnedApplications,
       returnedApplications.count == 1,
@@ -139,14 +175,11 @@ public struct SystemWorkspace: WorkspaceOpening {
       let returnedBundleURL = application.bundleURL,
       canonicalFileURL(returnedBundleURL).path
         == canonicalFileURL(requestedApplicationURL).path,
-      let observation = BrowserLaunchObservation(
-        processIdentifier: application.processIdentifier,
-        mechanism: .workspace
-      )
+      application.processIdentifier > 0
     else {
       throw BrowserLaunchObservationError.workspaceCompletionDidNotReturnExactApplication
     }
-    return observation
+    return application.processIdentifier
   }
 
   private static func canonicalFileURL(_ url: URL) -> URL {
@@ -321,18 +354,35 @@ public struct BrowserLauncher: Sendable {
   @discardableResult
   public func execute(_ plan: LaunchPlan) async throws -> BrowserLaunchObservation {
     do {
+      let processIdentifier: Int32
+      let mechanism: BrowserLaunchMechanism
       switch plan {
       case .executable(let application, let arguments):
-        return try processRunner.run(executable: application, arguments: arguments)
+        processIdentifier = try processRunner.run(
+          executable: application,
+          arguments: arguments
+        )
+        mechanism = .process
       case .workspace(let application, let url):
-        return try await workspace.open(url, withApplicationAt: application)
+        processIdentifier = try await workspace.open(url, withApplicationAt: application)
+        mechanism = .workspace
       case .duckDuckGo(let application, let url, let mode):
-        return try await duckDuckGoRouter.open(
+        processIdentifier = try await duckDuckGoRouter.open(
           url: url,
           applicationURL: application,
           mode: mode
         )
+        mechanism = .duckDuckGo
       }
+      guard
+        let observation = BrowserLaunchObservation(
+          processIdentifier: processIdentifier,
+          mechanism: mechanism
+        )
+      else {
+        throw BrowserLaunchObservationError.invalidProcessIdentifier
+      }
+      return observation
     } catch {
       throw Self.launchFailure
     }

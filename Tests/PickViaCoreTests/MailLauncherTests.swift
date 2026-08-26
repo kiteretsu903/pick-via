@@ -340,13 +340,10 @@ private final class RecordingMailWorkspace: WorkspaceOpening, @unchecked Sendabl
   func open(
     _ url: URL,
     withApplicationAt application: URL
-  ) async throws -> BrowserLaunchObservation {
+  ) async throws -> Int32 {
     invocations.append(.init(application: application, url: url))
     if let error { throw error }
-    return BrowserLaunchObservation(
-      processIdentifier: 5_001,
-      mechanism: .workspace
-    )!
+    return 5_001
   }
 }
 
@@ -356,12 +353,9 @@ private final class RecordingMailProcessRunner: ProcessRunning, @unchecked Senda
   func run(
     executable application: URL,
     arguments: [String]
-  ) throws -> BrowserLaunchObservation {
+  ) throws -> Int32 {
     invocationCount += 1
-    return BrowserLaunchObservation(
-      processIdentifier: 4_001,
-      mechanism: .process
-    )!
+    return 4_001
   }
 }
 

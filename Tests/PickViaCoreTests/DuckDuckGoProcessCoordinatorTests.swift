@@ -10,16 +10,13 @@ struct DuckDuckGoProcessCoordinatorTests {
     defer { fixture.removeRoot() }
     let url = URL(string: "https://example.com/fire")!
 
-    let observation = try await fixture.coordinator.open(
+    let processIdentifier = try await fixture.coordinator.open(
       url: url,
       applicationURL: fixture.applicationURL,
       mode: .private
     )
 
-    #expect(
-      observation
-        == BrowserLaunchObservation(processIdentifier: 7001, mechanism: .duckDuckGo)
-    )
+    #expect(processIdentifier == 7001)
 
     let launches = await fixture.applications.launches
     #expect(launches.count == 1)
@@ -56,16 +53,13 @@ struct DuckDuckGoProcessCoordinatorTests {
     defer { fixture.removeRoot() }
     let url = URL(string: "https://example.com/reopen")!
 
-    let observation = try await fixture.coordinator.open(
+    let processIdentifier = try await fixture.coordinator.open(
       url: url,
       applicationURL: fixture.applicationURL,
       mode: .private
     )
 
-    #expect(
-      observation
-        == BrowserLaunchObservation(processIdentifier: 7001, mechanism: .duckDuckGo)
-    )
+    #expect(processIdentifier == 7001)
 
     #expect(await fixture.applications.launches.isEmpty)
     #expect(await fixture.applications.waitTimeouts.isEmpty)
