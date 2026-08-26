@@ -147,6 +147,34 @@ static int pause_after_rename(void) {
 }
 #endif
 
+#if PICKVIA_EXCLUSIVE_CLEANUP_TESTING
+static int pause_before_unlink(int *descriptor) {
+    const char *text = getenv("PICKVIA_EXCLUSIVE_CLEANUP_TEST_BEFORE_UNLINK_SOCKET_FD");
+    int socket_descriptor;
+    char byte;
+
+    if (text == NULL) {
+        return 1;
+    }
+    if (!parse_fd(text, &socket_descriptor) ||
+        write(socket_descriptor, "U", 1) != 1 ||
+        read(socket_descriptor, &byte, 1) != 1 || byte != 'C') {
+        return 0;
+    }
+    if (getenv("PICKVIA_EXCLUSIVE_CLEANUP_TEST_CLOSE_BEFORE_UNLINK") != NULL) {
+        if (close(*descriptor) != 0) {
+            return 0;
+        }
+    }
+    return 1;
+}
+#else
+static int pause_before_unlink(int *descriptor) {
+    (void)descriptor;
+    return 1;
+}
+#endif
+
 int main(int argc, char *argv[]) {
     int parent_descriptor;
     int root_descriptor;
@@ -212,9 +240,14 @@ int main(int argc, char *argv[]) {
         close(quarantine_descriptor);
         return empty == 0 ? EXIT_NOT_EMPTY : EXIT_AMBIGUOUS;
     }
-    if (unlinkat(parent_descriptor, quarantine, AT_REMOVEDIR) != 0) {
+    if (!pause_before_unlink(&quarantine_descriptor)) {
         close(quarantine_descriptor);
-        return errno == ENOTEMPTY ? EXIT_NOT_EMPTY : EXIT_AMBIGUOUS;
+        return EXIT_AMBIGUOUS;
+    }
+    if (unlinkat(parent_descriptor, quarantine, AT_REMOVEDIR) != 0) {
+        int unlink_error = errno;
+        close(quarantine_descriptor);
+        return unlink_error == ENOTEMPTY ? EXIT_NOT_EMPTY : EXIT_AMBIGUOUS;
     }
     if (name_is_absent(parent_descriptor, original) != 1 ||
         name_is_absent(parent_descriptor, quarantine) != 1 ||

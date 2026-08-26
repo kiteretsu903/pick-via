@@ -53,6 +53,8 @@ MAXIMUM_AUDIT_WORK_ENTRIES = MAXIMUM_AUDIT_ENTRIES * MAXIMUM_AUDIT_PASSES * 4
 EXCLUSIVE_CLEANUP_TIMEOUT_SECONDS = 2.0
 EXCLUSIVE_CLEANUP_COMPILE_TIMEOUT_SECONDS = 10.0
 MAXIMUM_CLEANUP_SOURCE_BYTES = 256 * 1_024
+MAXIMUM_CLEANUP_HELPER_BYTES = 8 * 1_024 * 1_024
+MAXIMUM_CLEANUP_RECORD_BYTES = 4 * 1_024
 _SESSION_PATTERN = re.compile(r"\A[A-Za-z0-9_-]{16,64}\Z")
 _TOKEN_PATTERN = re.compile(r"\A[A-Za-z0-9_-]+\Z")
 _CLOSED_OUTCOMES = frozenset(
@@ -509,12 +511,14 @@ class _PinnedCleanupHelper:
         executable_descriptor,
         directory_identity,
         executable_identity,
+        executable_digest,
     ):
         self.path = pathlib.Path(path)
         self.directory_descriptor = directory_descriptor
         self.executable_descriptor = executable_descriptor
         self.directory_identity = directory_identity
         self.executable_identity = executable_identity
+        self.executable_digest = executable_digest
 
     def validate(self):
         try:
@@ -525,6 +529,9 @@ class _PinnedCleanupHelper:
                 dir_fd=self.directory_descriptor,
                 follow_symlinks=False,
             )
+            digest, stable_metadata = _hash_pinned_regular_file(
+                self.executable_descriptor, MAXIMUM_CLEANUP_HELPER_BYTES
+            )
             return (
                 stat.S_ISDIR(directory_metadata.st_mode)
                 and _DirectoryIdentity.from_stat(directory_metadata)
@@ -534,13 +541,16 @@ class _PinnedCleanupHelper:
                 and pathlib.Path(os.path.realpath(self.path.parent))
                 == self.path.parent
                 and stat.S_ISREG(executable_metadata.st_mode)
-                and executable_metadata.st_mode & 0o111 != 0
+                and stat.S_IMODE(executable_metadata.st_mode) == 0o700
                 and executable_metadata.st_nlink == 1
                 and executable_metadata.st_uid == os.getuid()
                 and _DeletionIdentity.from_stat(executable_metadata)
                 == self.executable_identity
+                and _DeletionIdentity.from_stat(stable_metadata)
+                == self.executable_identity
                 and _DeletionIdentity.from_stat(named_metadata)
                 == self.executable_identity
+                and digest == self.executable_digest
             )
         except OSError:
             return False
@@ -571,6 +581,33 @@ def _exclusive_cleanup_identity_arguments(metadata):
         str(metadata.st_uid),
         str(metadata.st_mode),
     ]
+
+
+def _hash_pinned_regular_file(descriptor, maximum_bytes):
+    before = os.fstat(descriptor)
+    if (
+        not stat.S_ISREG(before.st_mode)
+        or before.st_size < 1
+        or before.st_size > maximum_bytes
+    ):
+        raise OSError("pinned regular file is invalid")
+    os.lseek(descriptor, 0, os.SEEK_SET)
+    digest = hashlib.sha256()
+    bytes_read = 0
+    while bytes_read < before.st_size:
+        chunk = os.read(descriptor, min(65_536, before.st_size - bytes_read))
+        if not chunk:
+            break
+        bytes_read += len(chunk)
+        digest.update(chunk)
+    after = os.fstat(descriptor)
+    os.lseek(descriptor, 0, os.SEEK_SET)
+    if (
+        bytes_read != before.st_size
+        or _EntryIdentity.from_stat(before) != _EntryIdentity.from_stat(after)
+    ):
+        raise OSError("pinned regular file changed during hash")
+    return digest.hexdigest(), after
 
 
 def _stable_cleanup_source_digest():
@@ -606,8 +643,12 @@ def _stable_cleanup_source_digest():
         os.close(descriptor)
 
 
+def _cleanup_cache_repository():
+    return _SCRIPT_DIR.parents[1]
+
+
 def _open_owned_cache_directory():
-    repository = _SCRIPT_DIR.parents[1]
+    repository = pathlib.Path(_cleanup_cache_repository())
     repository_descriptor = os.open(
         repository,
         os.O_RDONLY
@@ -674,39 +715,139 @@ def _open_owned_cache_directory():
                 os.close(descriptor)
 
 
-def _pin_cleanup_helper(cache_path, cache_descriptor, helper_name):
-    executable_descriptor = os.open(
-        helper_name,
+def _read_cleanup_record(directory_descriptor, source_digest):
+    descriptor = os.open(
+        "record.json",
         os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0),
-        dir_fd=cache_descriptor,
+        dir_fd=directory_descriptor,
     )
     try:
+        metadata = os.fstat(descriptor)
+        named = os.stat(
+            "record.json", dir_fd=directory_descriptor, follow_symlinks=False
+        )
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_size < 1
+            or metadata.st_size > MAXIMUM_CLEANUP_RECORD_BYTES
+            or metadata.st_uid != os.getuid()
+            or metadata.st_nlink != 1
+            or _DeletionIdentity.from_stat(metadata)
+            != _DeletionIdentity.from_stat(named)
+        ):
+            raise OSError("cleanup cache record is invalid")
+        payload = bytearray()
+        while len(payload) < metadata.st_size:
+            chunk = os.read(descriptor, metadata.st_size - len(payload))
+            if not chunk:
+                break
+            payload.extend(chunk)
+        after = os.fstat(descriptor)
+        if (
+            len(payload) != metadata.st_size
+            or _EntryIdentity.from_stat(metadata) != _EntryIdentity.from_stat(after)
+        ):
+            raise OSError("cleanup cache record changed during read")
+        record = json.loads(payload)
+        expected_keys = {
+            "schema",
+            "source_sha256",
+            "executable_sha256",
+            "device",
+            "inode",
+            "owner",
+            "mode",
+            "size",
+        }
+        if (
+            not isinstance(record, dict)
+            or set(record) != expected_keys
+            or record["schema"] != 1
+            or record["source_sha256"] != source_digest
+            or not isinstance(record["executable_sha256"], str)
+            or len(record["executable_sha256"]) != 64
+            or any(
+                not isinstance(record[key], int)
+                for key in ("device", "inode", "owner", "mode", "size")
+            )
+        ):
+            raise OSError("cleanup cache record contents are invalid")
+        return record
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise OSError("cleanup cache record could not be decoded") from error
+    finally:
+        os.close(descriptor)
+
+
+def _pin_cleanup_helper(cache_path, cache_descriptor, record_name, source_digest):
+    record_descriptor = os.open(
+        record_name,
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0),
+        dir_fd=cache_descriptor,
+    )
+    executable_descriptor = -1
+    try:
         cache_metadata = os.fstat(cache_descriptor)
-        executable_metadata = os.fstat(executable_descriptor)
-        named_metadata = os.stat(
-            helper_name, dir_fd=cache_descriptor, follow_symlinks=False
+        record_metadata = os.fstat(record_descriptor)
+        named_record = os.stat(
+            record_name, dir_fd=cache_descriptor, follow_symlinks=False
         )
         if (
             not stat.S_ISDIR(cache_metadata.st_mode)
             or cache_metadata.st_uid != os.getuid()
             or stat.S_IMODE(cache_metadata.st_mode) != 0o700
-            or not stat.S_ISREG(executable_metadata.st_mode)
-            or executable_metadata.st_mode & 0o111 == 0
-            or executable_metadata.st_nlink != 1
-            or executable_metadata.st_uid != os.getuid()
-            or executable_metadata.st_dev != cache_metadata.st_dev
-            or _DeletionIdentity.from_stat(executable_metadata)
-            != _DeletionIdentity.from_stat(named_metadata)
+            or not stat.S_ISDIR(record_metadata.st_mode)
+            or record_metadata.st_uid != os.getuid()
+            or stat.S_IMODE(record_metadata.st_mode) != 0o700
+            or _DirectoryIdentity.from_stat(record_metadata)
+            != _DirectoryIdentity.from_stat(named_record)
         ):
-            raise OSError("cached cleanup helper is invalid")
-        pinned = _PinnedCleanupHelper(
-            cache_path / helper_name,
-            cache_descriptor,
-            executable_descriptor,
-            _DirectoryIdentity.from_stat(cache_metadata),
-            _DeletionIdentity.from_stat(executable_metadata),
+            raise OSError("cached cleanup record directory is invalid")
+        record = _read_cleanup_record(record_descriptor, source_digest)
+        executable_descriptor = os.open(
+            "helper",
+            os.O_RDONLY
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_CLOEXEC", 0),
+            dir_fd=record_descriptor,
         )
-        cache_descriptor = -1
+        executable_metadata = os.fstat(executable_descriptor)
+        named_executable = os.stat(
+            "helper", dir_fd=record_descriptor, follow_symlinks=False
+        )
+        expected_identity = _DeletionIdentity(
+            device=record["device"],
+            inode=record["inode"],
+            owner=record["owner"],
+            mode=record["mode"],
+            size=record["size"],
+        )
+        digest, stable_metadata = _hash_pinned_regular_file(
+            executable_descriptor, MAXIMUM_CLEANUP_HELPER_BYTES
+        )
+        if (
+            executable_metadata.st_uid != os.getuid()
+            or executable_metadata.st_dev != record_metadata.st_dev
+            or stat.S_IMODE(executable_metadata.st_mode) != 0o700
+            or executable_metadata.st_nlink != 1
+            or _DeletionIdentity.from_stat(executable_metadata) != expected_identity
+            or _DeletionIdentity.from_stat(stable_metadata) != expected_identity
+            or _DeletionIdentity.from_stat(named_executable) != expected_identity
+            or digest != record["executable_sha256"]
+        ):
+            raise OSError("cached cleanup helper provenance is invalid")
+        pinned = _PinnedCleanupHelper(
+            cache_path / record_name / "helper",
+            record_descriptor,
+            executable_descriptor,
+            _DirectoryIdentity.from_stat(record_metadata),
+            expected_identity,
+            record["executable_sha256"],
+        )
+        record_descriptor = -1
         executable_descriptor = -1
         if not pinned.validate():
             pinned.close()
@@ -715,43 +856,201 @@ def _pin_cleanup_helper(cache_path, cache_descriptor, helper_name):
     finally:
         if executable_descriptor >= 0:
             os.close(executable_descriptor)
+        if record_descriptor >= 0:
+            os.close(record_descriptor)
         if cache_descriptor >= 0:
             os.close(cache_descriptor)
+
+
+def _rename_at_exclusive(descriptor, source, destination):
+    library = ctypes.CDLL(None, use_errno=True)
+    library.renameatx_np.argtypes = [
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    ]
+    library.renameatx_np.restype = ctypes.c_int
+    ctypes.set_errno(0)
+    if library.renameatx_np(
+        descriptor,
+        os.fsencode(source),
+        descriptor,
+        os.fsencode(destination),
+        0x00000004,
+    ) != 0:
+        error_number = ctypes.get_errno()
+        raise OSError(error_number, os.strerror(error_number), destination)
+
+
+def _write_all(descriptor, contents):
+    offset = 0
+    while offset < len(contents):
+        written = os.write(descriptor, contents[offset:])
+        if written <= 0:
+            raise OSError("short cleanup cache record write")
+        offset += written
+
+
+def _discard_owned_staging(
+    cache_descriptor, staging_name, staging_descriptor, staging_identity, entries
+):
+    try:
+        named = os.stat(
+            staging_name, dir_fd=cache_descriptor, follow_symlinks=False
+        )
+        if (
+            _DirectoryIdentity.from_stat(os.fstat(staging_descriptor))
+            != staging_identity
+            or _DirectoryIdentity.from_stat(named) != staging_identity
+            or set(os.listdir(staging_descriptor)) != set(entries)
+        ):
+            return False
+        for name, expected in entries.items():
+            current = os.stat(
+                name, dir_fd=staging_descriptor, follow_symlinks=False
+            )
+            if _DeletionIdentity.from_stat(current) != expected:
+                return False
+        for name in entries:
+            os.unlink(name, dir_fd=staging_descriptor)
+        if os.listdir(staging_descriptor):
+            return False
+        current = os.stat(
+            staging_name, dir_fd=cache_descriptor, follow_symlinks=False
+        )
+        if _DirectoryIdentity.from_stat(current) != staging_identity:
+            return False
+        os.rmdir(staging_name, dir_fd=cache_descriptor)
+        return True
+    except OSError:
+        return False
+
+
+def _publish_cleanup_helper(cache_path, cache_descriptor, source_digest, record_name):
+    staging_name = f".exclusive-cleanup-staging-{secrets.token_hex(16)}"
+    os.mkdir(staging_name, mode=0o700, dir_fd=cache_descriptor)
+    staging_descriptor = os.open(
+        staging_name,
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0),
+        dir_fd=cache_descriptor,
+    )
+    staging_identity = _DirectoryIdentity.from_stat(os.fstat(staging_descriptor))
+    entries = {}
+    try:
+        completed = subprocess.run(
+            [
+                "/usr/bin/xcrun",
+                "clang",
+                "-std=c17",
+                "-Wall",
+                "-Wextra",
+                "-Werror",
+                os.fspath(_SCRIPT_DIR / "exclusive_cleanup.c"),
+                "-o",
+                os.fspath(cache_path / staging_name / "helper"),
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=_exclusive_cleanup_environment(cache_path / staging_name),
+            close_fds=True,
+            timeout=EXCLUSIVE_CLEANUP_COMPILE_TIMEOUT_SECONDS,
+            check=False,
+        )
+        if completed.returncode != 0 or _stable_cleanup_source_digest() != source_digest:
+            raise OSError("exclusive cleanup helper compilation failed")
+        helper_descriptor = os.open(
+            "helper",
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0),
+            dir_fd=staging_descriptor,
+        )
+        try:
+            os.fchmod(helper_descriptor, 0o700)
+            os.fsync(helper_descriptor)
+            executable_digest, helper_metadata = _hash_pinned_regular_file(
+                helper_descriptor, MAXIMUM_CLEANUP_HELPER_BYTES
+            )
+            named_helper = os.stat(
+                "helper", dir_fd=staging_descriptor, follow_symlinks=False
+            )
+            helper_identity = _DeletionIdentity.from_stat(helper_metadata)
+            if (
+                helper_metadata.st_nlink != 1
+                or helper_metadata.st_uid != os.getuid()
+                or helper_identity != _DeletionIdentity.from_stat(named_helper)
+            ):
+                raise OSError("compiled cleanup helper identity is invalid")
+            entries["helper"] = helper_identity
+        finally:
+            os.close(helper_descriptor)
+        record = {
+            "schema": 1,
+            "source_sha256": source_digest,
+            "executable_sha256": executable_digest,
+            "device": helper_metadata.st_dev,
+            "inode": helper_metadata.st_ino,
+            "owner": helper_metadata.st_uid,
+            "mode": helper_metadata.st_mode,
+            "size": helper_metadata.st_size,
+        }
+        record_contents = json.dumps(
+            record, sort_keys=True, separators=(",", ":")
+        ).encode("ascii")
+        record_descriptor = os.open(
+            "record.json",
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_CLOEXEC", 0),
+            0o600,
+            dir_fd=staging_descriptor,
+        )
+        try:
+            _write_all(record_descriptor, record_contents)
+            os.fsync(record_descriptor)
+            entries["record.json"] = _DeletionIdentity.from_stat(
+                os.fstat(record_descriptor)
+            )
+        finally:
+            os.close(record_descriptor)
+        os.fsync(staging_descriptor)
+        try:
+            _rename_at_exclusive(cache_descriptor, staging_name, record_name)
+            os.fsync(cache_descriptor)
+            return
+        except OSError as error:
+            if error.errno != errno.EEXIST:
+                raise
+            if not _discard_owned_staging(
+                cache_descriptor,
+                staging_name,
+                staging_descriptor,
+                staging_identity,
+                entries,
+            ):
+                raise OSError("concurrent cleanup staging could not be preserved")
+    finally:
+        os.close(staging_descriptor)
 
 
 def _pin_exclusive_cleanup_helper():
     source_digest = _stable_cleanup_source_digest()
     cache_path, cache_descriptor = _open_owned_cache_directory()
-    helper_name = f"exclusive-cleanup-{source_digest}"
+    record_name = f"exclusive-cleanup-record-{source_digest}"
     try:
         try:
-            os.stat(helper_name, dir_fd=cache_descriptor, follow_symlinks=False)
+            os.stat(record_name, dir_fd=cache_descriptor, follow_symlinks=False)
         except FileNotFoundError:
-            completed = subprocess.run(
-                [
-                    "/usr/bin/xcrun",
-                    "clang",
-                    "-std=c17",
-                    "-Wall",
-                    "-Wextra",
-                    "-Werror",
-                    os.fspath(_SCRIPT_DIR / "exclusive_cleanup.c"),
-                    "-o",
-                    os.fspath(cache_path / helper_name),
-                ],
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                env=_exclusive_cleanup_environment(cache_path),
-                close_fds=True,
-                timeout=EXCLUSIVE_CLEANUP_COMPILE_TIMEOUT_SECONDS,
-                check=False,
+            _publish_cleanup_helper(
+                cache_path, cache_descriptor, source_digest, record_name
             )
-            if completed.returncode != 0 or _stable_cleanup_source_digest() != source_digest:
-                raise OSError("exclusive cleanup helper compilation failed")
         descriptor = cache_descriptor
         cache_descriptor = -1
-        return _pin_cleanup_helper(cache_path, descriptor, helper_name)
+        return _pin_cleanup_helper(
+            cache_path, descriptor, record_name, source_digest
+        )
     finally:
         if cache_descriptor >= 0:
             os.close(cache_descriptor)
@@ -785,10 +1084,17 @@ def _stable_empty_task_root(task_root):
     return second is not None and second == first
 
 
-def _invoke_exclusive_cleanup_helper(task_root, helper):
-    if not helper.validate():
+def _name_is_absent_at(descriptor, name):
+    try:
+        os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+        return False
+    except FileNotFoundError:
+        return True
+    except OSError:
         return False
 
+
+def _invoke_exclusive_cleanup_helper(task_root, helper):
     root_metadata = os.fstat(task_root.descriptor)
     parent_metadata = os.fstat(task_root.parent_descriptor)
     quarantine = f".pickvia-finalize-{secrets.token_hex(16)}"
@@ -801,6 +1107,8 @@ def _invoke_exclusive_cleanup_helper(task_root, helper):
         *_exclusive_cleanup_identity_arguments(root_metadata),
         *_exclusive_cleanup_identity_arguments(parent_metadata),
     ]
+    if not helper.validate():
+        return False
     completed = subprocess.run(
         arguments,
         stdin=subprocess.DEVNULL,
@@ -812,7 +1120,24 @@ def _invoke_exclusive_cleanup_helper(task_root, helper):
         timeout=EXCLUSIVE_CLEANUP_TIMEOUT_SECONDS,
         check=False,
     )
-    return completed.returncode == 0
+    if completed.returncode != 0:
+        return False
+    try:
+        current_root = os.fstat(task_root.descriptor)
+        current_parent = os.fstat(task_root.parent_descriptor)
+        return (
+            _DirectoryIdentity.from_stat(current_root)
+            == _DirectoryIdentity.from_stat(root_metadata)
+            and _DirectoryIdentity.from_stat(current_parent)
+            == _DirectoryIdentity.from_stat(parent_metadata)
+            and _name_is_absent_at(
+                task_root.parent_descriptor, task_root.path.name
+            )
+            and _name_is_absent_at(task_root.parent_descriptor, quarantine)
+            and os.listdir(task_root.descriptor) == []
+        )
+    except OSError:
+        return False
 
 
 def _finalize_empty_task_root_exclusively(task_root):

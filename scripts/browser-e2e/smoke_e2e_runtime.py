@@ -2,6 +2,7 @@
 
 import argparse
 import ctypes
+import errno
 import hashlib
 import os
 import pathlib
@@ -9,6 +10,7 @@ import selectors
 import signal
 import stat
 import subprocess
+import sys
 import time
 
 import pickvia_e2e_driver as driver
@@ -24,6 +26,30 @@ class _SmokeProcessGroupAmbiguous(SmokePolicyError):
 
 class _UnpinnedProcessError(_SmokeProcessGroupAmbiguous):
     pass
+
+
+_SMOKE_STAGES = frozenset(
+    {
+        "validate-session",
+        "pin-application",
+        "create-root",
+        "compile-helper",
+        "launch-application",
+        "run-route-helper",
+        "read-status",
+        "terminate-application",
+        "privacy-audit",
+        "finalize-root",
+    }
+)
+
+
+class _SmokeStageFailure(SmokePolicyError):
+    def __init__(self, stage):
+        if stage not in _SMOKE_STAGES:
+            raise ValueError("invalid smoke supervision stage")
+        super().__init__(stage)
+        self.stage = stage
 
 
 _ALLOWED_POLICY_ENVIRONMENT_KEYS = frozenset(
@@ -614,7 +640,11 @@ class ExactProcess:
         try:
             members = self._group_snapshot(self.pid)
         except (OSError, SmokePolicyError):
-            return "ambiguous"
+            return (
+                "absent"
+                if self._group_is_absent_fallback() is True
+                else "ambiguous"
+            )
         if not members:
             return "absent"
         expected_start = (
@@ -633,8 +663,12 @@ class ExactProcess:
         try:
             self._signal_group(self.pid, 0)
             return False
-        except (OSError, ProcessLookupError):
+        except ProcessLookupError:
             return True
+        except OSError as error:
+            if error.errno == errno.ESRCH:
+                return True
+            return None
 
     def _wait_for_group_absence(self, timeout):
         deadline = time.monotonic() + timeout
@@ -793,8 +827,11 @@ def _read_smoke_status(descriptor, timeout):
 
 def _run_missing_target_smoke(application, helper_source, session_nonce):
     if not driver._SESSION_PATTERN.fullmatch(session_nonce):
-        raise SmokePolicyError("invalid smoke session")
-    pinned_app = PinnedApplication.open(application)
+        raise _SmokeStageFailure("validate-session")
+    try:
+        pinned_app = PinnedApplication.open(application)
+    except (OSError, SmokePolicyError) as error:
+        raise _SmokeStageFailure("pin-application") from error
     owner = driver._TaskRootOwner()
     task_root = None
     status_descriptor = None
@@ -806,13 +843,16 @@ def _run_missing_target_smoke(application, helper_source, session_nonce):
     interrupted_during_cleanup = False
     route_bytes = b"https://127.0.0.1/pickvia-e2e-smoke"
     signal_guard = driver._SignalGuard().install()
+    stage = "create-root"
     try:
         task_root = driver._make_task_root(owner)
         task_root.create_fifo("status.fifo")
         status_descriptor = task_root.open_fifo("status.fifo")
         helper = task_root.child_path("open_with_app")
+        stage = "compile-helper"
         if not _compile_smoke_helper(helper_source, helper, task_root):
             raise SmokePolicyError("smoke helper compilation failed")
+        stage = "launch-application"
         if not pinned_app.validate():
             raise SmokePolicyError("application changed before launch")
         environment = _smoke_environment(task_root, session_nonce)
@@ -824,6 +864,7 @@ def _run_missing_target_smoke(application, helper_source, session_nonce):
         process_groups_absent = False
         if not pinned_app.validate():
             raise SmokePolicyError("application changed during launch")
+        stage = "run-route-helper"
         if not _run_smoke_helper(
             helper, pinned_app.path, app_process.pid, task_root
         ):
@@ -833,8 +874,10 @@ def _run_missing_target_smoke(application, helper_source, session_nonce):
             + session_nonce.encode("ascii")
             + b'"}'
         )
+        stage = "read-status"
         if _read_smoke_status(status_descriptor, 10) != expected:
             raise SmokePolicyError("unexpected smoke status")
+        stage = "terminate-application"
         if not app_process.terminate_bounded(term_timeout=4, kill_timeout=2):
             raise SmokePolicyError("smoke application cleanup failed")
         process_groups_absent = app_process._group_state() == "absent"
@@ -842,17 +885,23 @@ def _run_missing_target_smoke(application, helper_source, session_nonce):
             raise SmokePolicyError("smoke application process group survived")
         os.close(status_descriptor)
         status_descriptor = None
+        stage = "privacy-audit"
         if not task_root.audit_regular_files(route_bytes):
             raise SmokePolicyError("smoke task root failed privacy audit")
         signal_guard.begin_cleanup()
+        stage = "finalize-root"
         finalized = owner.cleanup()
         if not finalized:
             raise SmokePolicyError("smoke task root finalization failed")
         completed = True
-    except _SmokeProcessGroupAmbiguous:
+    except _SmokeProcessGroupAmbiguous as error:
         auxiliary_group_ambiguous = True
         process_groups_absent = False
+        raise _SmokeStageFailure(stage) from error
+    except _SmokeStageFailure:
         raise
+    except (OSError, SmokePolicyError) as error:
+        raise _SmokeStageFailure(stage) from error
     finally:
         signal_guard.begin_cleanup()
         try:
@@ -878,7 +927,7 @@ def _run_missing_target_smoke(application, helper_source, session_nonce):
             interrupted_during_cleanup = bool(signal_guard.received_during_cleanup)
             signal_guard.restore()
     if interrupted_during_cleanup:
-        raise SmokePolicyError("smoke cleanup interrupted")
+        raise _SmokeStageFailure("finalize-root")
     return completed
 
 
@@ -1045,6 +1094,12 @@ def _main(arguments=None):
         finally:
             preferences.close()
         return 0
+    except _SmokeStageFailure as error:
+        print(
+            f"E2E smoke supervision stage failed: {error.stage}",
+            file=sys.stderr,
+        )
+        return 1
     except (driver._DriverInterrupted, OSError, SmokePolicyError, SystemExit):
         return 1
 

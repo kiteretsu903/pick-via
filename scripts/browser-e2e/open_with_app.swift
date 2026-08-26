@@ -4,9 +4,9 @@ import Darwin
 import Foundation
 
 private let maximumInputBytes = 4_096
-private let maximumRegistrationChecks = 20
+private let maximumRegistrationChecks = 50
 private let registrationCheckDelay: TimeInterval = 0.1
-private let maximumOpenAttempts = 3
+private let maximumOpenAttempts = 10
 private let openRetryDelay: TimeInterval = 0.15
 
 struct RunningApplicationIdentity: Sendable {
@@ -26,6 +26,12 @@ struct ExpectedRunningApplicationIdentity: Sendable {
       && candidate.bundleIdentifier == bundleIdentifier
       && candidate.canonicalBundleURL == canonicalBundleURL
   }
+}
+
+enum BoundedOpenFailure: Equatable, Sendable {
+  case openErrorsExhausted
+  case identityMismatch
+  case noAttempts
 }
 
 enum ExactApplicationRegistrationPolicy {
@@ -67,6 +73,7 @@ final class BoundedOpenCoordinator: @unchecked Sendable {
   private var handledAttemptID: Int?
   private var started = false
   private var finished = false
+  private var failure: BoundedOpenFailure?
   private var attempt: OpenAttempt?
   private var finalCompletion: FinalCompletion?
 
@@ -98,6 +105,12 @@ final class BoundedOpenCoordinator: @unchecked Sendable {
     runAttempt()
   }
 
+  func failureReason() -> BoundedOpenFailure? {
+    lock.lock()
+    defer { lock.unlock() }
+    return failure
+  }
+
   private func runAttempt() {
     var attemptToRun: OpenAttempt?
     var attemptID = 0
@@ -111,6 +124,7 @@ final class BoundedOpenCoordinator: @unchecked Sendable {
       handledAttemptID = nil
       attemptToRun = attempt
     } else {
+      failure = .noAttempts
       completionToCall = finishLocked()
     }
     lock.unlock()
@@ -149,10 +163,14 @@ final class BoundedOpenCoordinator: @unchecked Sendable {
 
     if error == nil {
       result = expectedApplication.matches(application)
+      if !result {
+        failure = .identityMismatch
+      }
       completionToCall = finishLocked()
     } else if attemptCount < maximumAttempts {
       shouldRetry = true
     } else {
+      failure = .openErrorsExhausted
       completionToCall = finishLocked()
     }
     lock.unlock()
@@ -312,7 +330,15 @@ final class BoundedOpenCoordinator: @unchecked Sendable {
         }
       },
       completion: { succeeded in
-        exit(succeeded ? EXIT_SUCCESS : EXIT_FAILURE)
+        if succeeded {
+          exit(EXIT_SUCCESS)
+        }
+        switch coordinator.failureReason() {
+        case .identityMismatch:
+          fail("open identity mismatch")
+        case .openErrorsExhausted, .noAttempts, nil:
+          fail("open unavailable")
+        }
       }
     )
     dispatchMain()

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import errno
+import io
 import os
 import pathlib
 import shutil
@@ -15,6 +17,37 @@ import smoke_e2e_runtime as runtime
 
 
 class SmokeCompilerTests(unittest.TestCase):
+    def test_cli_launch_failure_reports_only_sanitized_stage(self):
+        stderr = io.StringIO()
+        with mock.patch.dict(
+            os.environ,
+            {
+                "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+                "LANG": "en_US.UTF-8",
+                "LC_CTYPE": "UTF-8",
+            },
+            clear=True,
+        ), mock.patch.object(
+            runtime,
+            "_run_missing_target_smoke",
+            side_effect=runtime._SmokeStageFailure("compile-helper"),
+        ), mock.patch.object(runtime.sys, "stderr", stderr):
+            status = runtime._main(
+                [
+                    "launch-app",
+                    "/private/tmp/private-app-name.app",
+                    "/private/tmp/private-helper-name.swift",
+                    "smoke_session_0123456789",
+                ]
+            )
+
+        self.assertEqual(status, 1)
+        self.assertEqual(
+            stderr.getvalue(),
+            "E2E smoke supervision stage failed: compile-helper\n",
+        )
+        self.assertNotIn("private", stderr.getvalue())
+
     def test_cli_launch_app_delegates_to_exact_smoke_supervision(self):
         with mock.patch.dict(
             os.environ,
@@ -474,6 +507,53 @@ class PreferenceSnapshotTests(unittest.TestCase):
 
 
 class ExactProcessTests(unittest.TestCase):
+    def test_failed_group_snapshot_confirms_absence_only_with_esrch_probe(self):
+        probes = []
+
+        def signal_group(process_group, signal_number):
+            probes.append((process_group, signal_number))
+            raise ProcessLookupError(errno.ESRCH, "process group is absent")
+
+        process = runtime.ExactProcess.for_test(
+            pid=4242,
+            poll=lambda: 0,
+            wait=lambda timeout: 0,
+            identity=lambda pid: None,
+            signal_group=signal_group,
+            process_group=lambda pid: pid,
+            expected_identity="original",
+            group_snapshot=lambda pid: (_ for _ in ()).throw(
+                runtime.SmokePolicyError("group snapshot unavailable")
+            ),
+        )
+
+        self.assertEqual(process._group_state(), "absent")
+        self.assertEqual(probes, [(4242, 0)])
+
+    def test_failed_group_snapshot_with_permission_error_remains_ambiguous(self):
+        signals = []
+
+        def signal_group(process_group, signal_number):
+            signals.append((process_group, signal_number))
+            raise PermissionError(errno.EPERM, "group inspection denied")
+
+        process = runtime.ExactProcess.for_test(
+            pid=4242,
+            poll=lambda: 0,
+            wait=lambda timeout: 0,
+            identity=lambda pid: None,
+            signal_group=signal_group,
+            process_group=lambda pid: pid,
+            expected_identity="original",
+            group_snapshot=lambda pid: (_ for _ in ()).throw(
+                runtime.SmokePolicyError("group snapshot unavailable")
+            ),
+        )
+
+        self.assertEqual(process._group_state(), "ambiguous")
+        self.assertFalse(process.terminate_bounded(term_timeout=0, kill_timeout=0))
+        self.assertEqual(signals, [(4242, 0), (4242, 0)])
+
     def test_reused_unpinned_group_leader_is_never_signaled(self):
         expected = pathlib.Path("/usr/bin/true").resolve()
         replacement = runtime.driver.ProcessIdentity(

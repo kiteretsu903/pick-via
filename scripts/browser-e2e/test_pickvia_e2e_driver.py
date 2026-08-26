@@ -71,8 +71,10 @@ class DriverFixture:
     ):
         if proof_deadline_phase not in {
             None,
+            "helper-started",
             "helper-and-browser",
             "helper-and-receipt",
+            "helper-exited",
             "complete-proof",
         }:
             raise ValueError("unknown proof deadline phase")
@@ -443,6 +445,9 @@ server.server_close()
             self._proof_clock_deferred_elapsed += time.monotonic() - started
 
     def _proof_phase_is_ready(self):
+        helper_started = any(
+            kind == "exact-app-helper" for kind in self.launched_kinds
+        )
         helper_succeeded = any(
             kind == "exact-app-helper" and process.poll() == 0
             for kind, process in zip(self.launched_kinds, self.launched_processes)
@@ -450,6 +455,8 @@ server.server_close()
         browser_started = self.browser_pid_file.exists()
         receipt_delivered = (self.fixture_root / "receipt-delivered").exists()
         return {
+            "helper-started": helper_started,
+            "helper-exited": helper_succeeded,
             "helper-and-browser": helper_succeeded and browser_started,
             "helper-and-receipt": helper_succeeded and receipt_delivered,
             "complete-proof": (
@@ -788,7 +795,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
         observed = []
 
         def record_run(arguments, *args, **kwargs):
-            if pathlib.Path(arguments[0]).name.startswith("exclusive-cleanup-"):
+            if len(arguments) == 13 and arguments[3] == pinned.path.name:
                 observed.append(("root-empty", os.listdir(pinned.descriptor)))
             observed.append((tuple(map(os.fspath, arguments)), dict(kwargs)))
             return real_run(arguments, *args, **kwargs)
@@ -815,7 +822,8 @@ class PickViaE2EDriverTests(unittest.TestCase):
             call
             for call in observed
             if isinstance(call[0], tuple)
-            and pathlib.Path(call[0][0]).name.startswith("exclusive-cleanup-")
+            and len(call[0]) == 13
+            and call[0][3] == pinned.path.name
         ]
         self.assertEqual(len(helper_calls), 1)
         self.assertIn(("root-empty", []), observed)
@@ -829,7 +837,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
         self.assertTrue(helper_arguments[3].startswith("pickvia-e2e-"))
         self.assertTrue(helper_arguments[4].startswith(".pickvia-finalize-"))
         self.assertEqual(
-            pathlib.Path(helper_arguments[0]).parent.name,
+            pathlib.Path(helper_arguments[0]).parent.parent.name,
             "browser-e2e-tools",
         )
 
@@ -856,6 +864,113 @@ class PickViaE2EDriverTests(unittest.TestCase):
             pinned.close()
             if pinned.path.exists():
                 shutil.rmtree(pinned.path)
+
+    def test_poisoned_cached_helper_is_rejected_and_owned_root_is_preserved(self):
+        cache_repository = pathlib.Path(
+            tempfile.mkdtemp(prefix="pickvia-cleanup-cache-fixture-", dir="/private/tmp")
+        )
+        pinned = self._make_task_root()
+        owner = driver._TaskRootOwner()
+        owner.register(pinned)
+        try:
+            with mock.patch.object(
+                driver,
+                "_cleanup_cache_repository",
+                return_value=cache_repository,
+            ):
+                helper = driver._pin_exclusive_cleanup_helper()
+                helper.close()
+                records = list(
+                    (cache_repository / ".build-e2e" / "browser-e2e-tools").glob(
+                        "exclusive-cleanup-*"
+                    )
+                )
+                self.assertEqual(len(records), 1)
+                cached_executable = records[0] / "helper"
+                cached_executable.unlink()
+                shutil.copyfile("/usr/bin/true", cached_executable)
+                cached_executable.chmod(0o700)
+                self.assertFalse(owner.cleanup())
+            self.assertIs(owner.root, pinned)
+            self.assertTrue(pinned.path.is_dir())
+        finally:
+            pinned.close()
+            if pinned.path.exists():
+                shutil.rmtree(pinned.path)
+            shutil.rmtree(cache_repository)
+
+    def test_false_exit_zero_helper_fails_postcondition_and_preserves_root(self):
+        pinned = self._make_task_root()
+        owner = driver._TaskRootOwner()
+        owner.register(pinned)
+        helper = mock.Mock(path=pathlib.Path("/usr/bin/true"))
+        helper.validate.return_value = True
+        try:
+            with mock.patch.object(
+                driver, "_pin_exclusive_cleanup_helper", return_value=helper
+            ):
+                self.assertFalse(owner.cleanup())
+            self.assertIs(owner.root, pinned)
+            self.assertTrue(pinned.path.is_dir())
+            self.assertEqual(list(pinned.path.iterdir()), [])
+        finally:
+            pinned.close()
+            if pinned.path.exists():
+                shutil.rmtree(pinned.path)
+
+    def test_concurrent_cache_publish_never_deletes_unknown_staging_entry(self):
+        cache_repository = pathlib.Path(
+            tempfile.mkdtemp(prefix="pickvia-cleanup-cache-race-", dir="/private/tmp")
+        )
+        try:
+            with mock.patch.object(
+                driver,
+                "_cleanup_cache_repository",
+                return_value=cache_repository,
+            ):
+                source_digest = driver._stable_cleanup_source_digest()
+                cache_path, cache_descriptor = driver._open_owned_cache_directory()
+
+                def collide_with_unknown(descriptor, staging_name, _record_name):
+                    staging_descriptor = os.open(
+                        staging_name,
+                        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                        dir_fd=descriptor,
+                    )
+                    try:
+                        unknown = os.open(
+                            "unknown-must-survive",
+                            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                            0o600,
+                            dir_fd=staging_descriptor,
+                        )
+                        os.close(unknown)
+                    finally:
+                        os.close(staging_descriptor)
+                    raise FileExistsError(errno.EEXIST, "injected collision")
+
+                try:
+                    with mock.patch.object(
+                        driver,
+                        "_rename_at_exclusive",
+                        side_effect=collide_with_unknown,
+                    ):
+                        with self.assertRaises(OSError):
+                            driver._publish_cleanup_helper(
+                                cache_path,
+                                cache_descriptor,
+                                source_digest,
+                                f"exclusive-cleanup-record-{source_digest}",
+                            )
+                    staging = list(cache_path.glob(".exclusive-cleanup-staging-*"))
+                    self.assertEqual(len(staging), 1)
+                    self.assertTrue((staging[0] / "unknown-must-survive").is_file())
+                    self.assertTrue((staging[0] / "helper").is_file())
+                    self.assertTrue((staging[0] / "record.json").is_file())
+                finally:
+                    os.close(cache_descriptor)
+        finally:
+            shutil.rmtree(cache_repository)
 
     def test_file_added_between_empty_passes_blocks_native_helper(self):
         pinned = self._make_task_root()
@@ -1495,7 +1610,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
         real_run = subprocess.run
 
         def replace_after_exclusive_rename(arguments, *args, **kwargs):
-            if pathlib.Path(arguments[0]).name.startswith("exclusive-cleanup-"):
+            if len(arguments) == 13 and arguments[3] == pinned.path.name:
                 quarantine = pathlib.Path("/private/tmp") / arguments[4]
                 pinned.path.rename(quarantine)
                 pinned.path.mkdir(mode=0o700)
@@ -2127,7 +2242,11 @@ time.sleep(3.25)
             self.assertNotIn(str(fixture.browser_app), helper_argv)
 
     def test_fake_chain_cannot_select_or_receive_without_helper_delivery_to_e2e(self):
-        with DriverFixture(helper_delivers_to_app=False, timeout=0.25) as fixture:
+        with DriverFixture(
+            helper_delivers_to_app=False,
+            timeout=0.25,
+            proof_deadline_phase="helper-exited",
+        ) as fixture:
             result = fixture.run()
             self.assertEqual(result.exit_code, driver.DRIVER_TIMEOUT)
             self.assertFalse(result.report["token_received"])
@@ -2606,7 +2725,11 @@ time.sleep(3.25)
                 self.assertEqual(fixture.run().exit_code, driver.DRIVER_INVALID_RECEIPT)
 
     def test_hanging_route_delivery_is_helper_timeout_and_closes_children(self):
-        with DriverFixture(app_hangs=True, timeout=0.25) as fixture:
+        with DriverFixture(
+            app_hangs=True,
+            timeout=0.25,
+            proof_deadline_phase="helper-started",
+        ) as fixture:
             result = fixture.run()
             self.assertEqual(result.exit_code, driver.DRIVER_HELPER_FAILURE)
             self.assertEqual(result.report["outcome"], "helper-exit-timeout")
@@ -2896,6 +3019,29 @@ enum OpenWithAppPolicyTestMain {
     precondition(registrationSnapshots == 4)
     precondition(registrationDelays == 3)
 
+    var coldRegistrationSnapshots = 0
+    var coldRegistrationDelays = 0
+    let coldRegistered = ExactApplicationRegistrationPolicy.wait(
+      expected: expected,
+      maximumChecks: maximumRegistrationChecks,
+      delayInterval: 0,
+      snapshot: {
+        coldRegistrationSnapshots += 1
+        guard coldRegistrationSnapshots == 25 else { return [] }
+        return [
+          RunningApplicationIdentity(
+            processIdentifier: 4242,
+            bundleIdentifier: "dev.bozhenpeng.PickVia.E2E",
+            canonicalBundleURL: expectedURL
+          )
+        ]
+      },
+      delay: { _ in coldRegistrationDelays += 1 }
+    )
+    precondition(coldRegistered)
+    precondition(coldRegistrationSnapshots == 25)
+    precondition(coldRegistrationDelays == 24)
+
     var absentSnapshots = 0
     var absentDelays = 0
     let absent = ExactApplicationRegistrationPolicy.wait(
@@ -2934,6 +3080,7 @@ enum OpenWithAppPolicyTestMain {
     precondition(lifetimeSnapshot.0 == 2)
     precondition(lifetimeSnapshot.1 == 1)
     precondition(lifetimeSnapshot.2 == [false])
+    precondition(retainedCoordinator?.failureReason() == .openErrorsExhausted)
 
     let concurrentResults = ResultBox()
     let concurrentDone = DispatchSemaphore(value: 0)
@@ -2979,6 +3126,40 @@ enum OpenWithAppPolicyTestMain {
     precondition(concurrentSnapshot.1 == 1)
     precondition(concurrentSnapshot.2 == [true])
 
+    let coldOpenResults = ResultBox()
+    let coldOpen = BoundedOpenCoordinator(
+      expectedApplication: expected,
+      maximumAttempts: maximumOpenAttempts,
+      retryDelay: 0,
+      scheduleRetry: { _, action in
+        coldOpenResults.recordDelay(action: action)
+        action()
+      }
+    )
+    coldOpen.start(
+      attempt: { completion in
+        let attemptNumber = coldOpenResults.recordAttempt()
+        if attemptNumber < 7 {
+          completion(nil, ControlledOpenError())
+        } else {
+          completion(
+            RunningApplicationIdentity(
+              processIdentifier: 4242,
+              bundleIdentifier: "dev.bozhenpeng.PickVia.E2E",
+              canonicalBundleURL: expectedURL
+            ),
+            nil
+          )
+        }
+      },
+      completion: coldOpenResults.recordCompletion
+    )
+    let coldOpenSnapshot = coldOpenResults.snapshot()
+    precondition(coldOpenSnapshot.0 == 7)
+    precondition(coldOpenSnapshot.1 == 6)
+    precondition(coldOpenSnapshot.2 == [true])
+    precondition(coldOpen.failureReason() == nil)
+
     let wrongReturnResults = ResultBox()
     let wrongReturn = BoundedOpenCoordinator(
       expectedApplication: expected,
@@ -3003,6 +3184,7 @@ enum OpenWithAppPolicyTestMain {
     precondition(wrongReturnSnapshot.0 == 1)
     precondition(wrongReturnSnapshot.1 == 0)
     precondition(wrongReturnSnapshot.2 == [false])
+    precondition(wrongReturn.failureReason() == .identityMismatch)
   }
 }
 
