@@ -151,6 +151,7 @@ class DriverFixture:
         self._proof_clock_base = None
         self._proof_clock_phase_start = None
         self._proof_clock_escape = None
+        self._proof_clock_deferred_elapsed = 0.0
         self._fixture_child_identities = {}
 
     def __enter__(self):
@@ -422,14 +423,24 @@ server.server_close()
         if self._proof_phase_is_ready():
             if self._proof_clock_phase_start is None:
                 self._proof_clock_phase_start = now
-            return self._proof_clock_base + (
-                now - self._proof_clock_phase_start
+            return (
+                self._proof_clock_base
+                + self._proof_clock_deferred_elapsed
+                + (now - self._proof_clock_phase_start)
             )
         if now >= self._proof_clock_escape:
             return self._proof_clock_base + self.timeout + (
                 now - self._proof_clock_escape
             )
         return self._proof_clock_base
+
+    def _sleep_after_proof(self, seconds):
+        if not self._proof_phase_is_ready():
+            raise AssertionError("proof clock advanced before proof completion")
+        started = time.monotonic()
+        time.sleep(seconds)
+        if self._proof_clock_phase_start is None:
+            self._proof_clock_deferred_elapsed += time.monotonic() - started
 
     def _proof_phase_is_ready(self):
         helper_succeeded = any(
@@ -2684,7 +2695,7 @@ time.sleep(3.25)
             original = fixture._terminate_browser
 
             def delayed_termination(identity, executable, deadline=None):
-                time.sleep(1.1)
+                fixture._sleep_after_proof(1.1)
                 return original(identity, executable, deadline)
 
             result = fixture.run(
@@ -2703,6 +2714,19 @@ time.sleep(3.25)
                 result.report["total_elapsed_seconds"],
                 1.0 + driver.BROWSER_CLEANUP_GRACE_SECONDS,
             )
+
+    def test_fixture_proof_clock_captures_cleanup_before_next_sample(self):
+        fixture = DriverFixture(
+            timeout=1.0,
+            proof_deadline_phase="complete-proof",
+        )
+        self.addCleanup(fixture._remove_tree, fixture.fixture_root)
+        with mock.patch.object(fixture, "_proof_phase_is_ready", return_value=False):
+            started = fixture._monotonic()
+        with mock.patch.object(fixture, "_proof_phase_is_ready", return_value=True):
+            fixture._sleep_after_proof(0.02)
+            finished = fixture._monotonic()
+        self.assertGreaterEqual(finished - started, 0.015)
 
     def test_driver_closes_every_owned_child_pipe(self):
         with DriverFixture() as fixture:
