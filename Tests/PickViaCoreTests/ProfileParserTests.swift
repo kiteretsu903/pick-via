@@ -36,6 +36,30 @@ struct ProfileParserTests {
     #expect(profiles.first { $0.identifier == "Profile 1" }?.isDefault == false)
   }
 
+  @Test func chromiumCustomRootAssignsDirectProfileDirectoryURLs() throws {
+    let root = URL(fileURLWithPath: "/private/tmp/pickvia-e2e/profiles/chrome", isDirectory: true)
+
+    let profiles = try ChromiumProfileParser.parse(
+      data: fixtureData("chromium-local-state.json"),
+      baseDirectory: root
+    )
+
+    #expect(
+      profiles.map(\.directoryURL) == [
+        root.appending(path: "Default", directoryHint: .isDirectory),
+        root.appending(path: "Profile 1", directoryHint: .isDirectory),
+      ])
+  }
+
+  @Test func chromiumCustomRootRejectsNonAbsoluteBaseDirectory() {
+    #expect(throws: ChromiumProfileParserError.invalidBaseDirectory) {
+      try ChromiumProfileParser.parse(
+        data: fixtureData("chromium-local-state.json"),
+        baseDirectory: URL(string: "relative/chrome")!
+      )
+    }
+  }
+
   @Test func firefoxResolvesRelativeAndAbsolutePaths() throws {
     let baseDirectory = URL(fileURLWithPath: "/Users/example/Firefox", isDirectory: true)
     let profiles = try FirefoxProfileParser.parse(

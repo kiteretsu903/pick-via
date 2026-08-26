@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 import Foundation
 
 public enum LaunchPlan: Equatable, Sendable {
@@ -394,6 +395,18 @@ public struct BrowserLauncher: Sendable {
         guard let profile = options.profileIdentifier, !profile.isEmpty else {
           throw Self.launchFailure
         }
+        if let profileLaunchPath = options.profileLaunchPath {
+          guard
+            target.origin == .detected,
+            let root = validatedChromiumProfileRoot(
+              profileLaunchPath: profileLaunchPath,
+              profileIdentifier: profile
+            )
+          else {
+            throw Self.launchFailure
+          }
+          arguments.append("--user-data-dir=\(root.path)")
+        }
         arguments.append("\(profileArgument)\(profile)")
       }
       if options.mode == .private {
@@ -433,6 +446,39 @@ public struct BrowserLauncher: Sendable {
       arguments.append(url.absoluteString)
       return .executable(application: executable, arguments: arguments)
     }
+  }
+
+  private func validatedChromiumProfileRoot(
+    profileLaunchPath: String,
+    profileIdentifier: String
+  ) -> URL? {
+    guard
+      (profileLaunchPath as NSString).isAbsolutePath,
+      !profileIdentifier.isEmpty,
+      !profileIdentifier.contains("/"),
+      profileIdentifier != ".",
+      profileIdentifier != ".."
+    else { return nil }
+
+    let profile = URL(fileURLWithPath: profileLaunchPath, isDirectory: true).standardizedFileURL
+    let root = profile.deletingLastPathComponent().standardizedFileURL
+    guard
+      profile.lastPathComponent == profileIdentifier,
+      profile.deletingLastPathComponent().path == root.path,
+      root.appending(path: profileIdentifier, directoryHint: .isDirectory).standardizedFileURL.path
+        == profile.path,
+      Self.physicalType(at: root) == S_IFDIR,
+      Self.physicalType(at: profile) == S_IFDIR,
+      Self.physicalType(at: root.appending(path: "Local State")) == S_IFREG
+    else { return nil }
+    return root
+  }
+
+  private static func physicalType(at url: URL) -> mode_t? {
+    guard url.isFileURL else { return nil }
+    var status = stat()
+    guard url.path.withCString({ lstat($0, &status) }) == 0 else { return nil }
+    return status.st_mode & mode_t(S_IFMT)
   }
 
   private func trustedExecutable(applicationURL: URL, relativePath: String) -> URL? {

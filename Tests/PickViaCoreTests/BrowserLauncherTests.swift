@@ -165,6 +165,161 @@ struct BrowserLauncherTests {
     #expect(arguments == ["--profile-directory=Profile 1", "https://example.com/a?x=1"])
   }
 
+  @Test func chromiumCustomRootPlanPinsUserDataDirectoryBeforeProfileSelector() throws {
+    try withChromiumProfileRoot { root, profile in
+      let plan = try testLauncher().makePlan(
+        url: url,
+        application: application(family: .chromium),
+        target: target(
+          family: .chromium,
+          profile: profile.lastPathComponent,
+          profileLaunchPath: profile.path
+        )
+      )
+
+      guard case .executable(_, let arguments) = plan else {
+        Issue.record("Expected executable launch plan")
+        return
+      }
+      #expect(
+        arguments == [
+          "--user-data-dir=\(root.path)",
+          "--profile-directory=PickVia E2E",
+          url.absoluteString,
+        ])
+    }
+  }
+
+  @Test func chromiumCustomRootRejectsMissingLocalState() throws {
+    try withChromiumProfileRoot(includeLocalState: false) { _, profile in
+      #expect(throws: LaunchFailure.self) {
+        try testLauncher().makePlan(
+          url: url,
+          application: application(family: .chromium),
+          target: target(
+            family: .chromium,
+            profile: profile.lastPathComponent,
+            profileLaunchPath: profile.path
+          )
+        )
+      }
+    }
+  }
+
+  @Test func chromiumCustomRootRejectsIdentifierLeafMismatch() throws {
+    try withChromiumProfileRoot { _, profile in
+      #expect(throws: LaunchFailure.self) {
+        try testLauncher().makePlan(
+          url: url,
+          application: application(family: .chromium),
+          target: target(
+            family: .chromium,
+            profile: "Other Profile",
+            profileLaunchPath: profile.path
+          )
+        )
+      }
+    }
+  }
+
+  @Test func chromiumCustomRootRejectsProfileSymlink() throws {
+    let fileManager = FileManager.default
+    let container = fileManager.temporaryDirectory.appending(
+      path: "PickViaChromiumSymlinkTests-\(UUID().uuidString)",
+      directoryHint: .isDirectory
+    )
+    defer { try? fileManager.removeItem(at: container) }
+    let root = container.appending(path: "root", directoryHint: .isDirectory)
+    let realProfile = container.appending(path: "real-profile", directoryHint: .isDirectory)
+    let profile = root.appending(path: "PickVia E2E", directoryHint: .isDirectory)
+    try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: realProfile, withIntermediateDirectories: true)
+    try Data("{}".utf8).write(to: root.appending(path: "Local State"))
+    try fileManager.createSymbolicLink(at: profile, withDestinationURL: realProfile)
+
+    #expect(throws: LaunchFailure.self) {
+      try testLauncher().makePlan(
+        url: url,
+        application: application(family: .chromium),
+        target: target(
+          family: .chromium,
+          profile: "PickVia E2E",
+          profileLaunchPath: profile.path
+        )
+      )
+    }
+  }
+
+  @Test func chromiumCustomRootRejectsRootSymlink() throws {
+    let fileManager = FileManager.default
+    let container = fileManager.temporaryDirectory.appending(
+      path: "PickViaChromiumRootSymlinkTests-\(UUID().uuidString)",
+      directoryHint: .isDirectory
+    )
+    defer { try? fileManager.removeItem(at: container) }
+    let physicalRoot = container.appending(path: "physical", directoryHint: .isDirectory)
+    let root = container.appending(path: "root", directoryHint: .isDirectory)
+    let physicalProfile = physicalRoot.appending(
+      path: "PickVia E2E", directoryHint: .isDirectory)
+    try fileManager.createDirectory(at: physicalProfile, withIntermediateDirectories: true)
+    try Data("{}".utf8).write(to: physicalRoot.appending(path: "Local State"))
+    try fileManager.createSymbolicLink(at: root, withDestinationURL: physicalRoot)
+
+    #expect(throws: LaunchFailure.self) {
+      try testLauncher().makePlan(
+        url: url,
+        application: application(family: .chromium),
+        target: target(
+          family: .chromium,
+          profile: "PickVia E2E",
+          profileLaunchPath: root.appending(path: "PickVia E2E").path
+        )
+      )
+    }
+  }
+
+  @Test func chromiumCustomRootRejectsLocalStateSymlink() throws {
+    try withChromiumProfileRoot(includeLocalState: false) { root, profile in
+      let external = root.deletingLastPathComponent().appending(
+        path: "PickViaLocalState-\(UUID().uuidString)")
+      defer { try? FileManager.default.removeItem(at: external) }
+      try Data("{}".utf8).write(to: external)
+      try FileManager.default.createSymbolicLink(
+        at: root.appending(path: "Local State"),
+        withDestinationURL: external
+      )
+
+      #expect(throws: LaunchFailure.self) {
+        try testLauncher().makePlan(
+          url: url,
+          application: application(family: .chromium),
+          target: target(
+            family: .chromium,
+            profile: profile.lastPathComponent,
+            profileLaunchPath: profile.path
+          )
+        )
+      }
+    }
+  }
+
+  @Test func chromiumCustomRootRejectsManualInjectedLaunchPath() throws {
+    try withChromiumProfileRoot { _, profile in
+      #expect(throws: LaunchFailure.self) {
+        try testLauncher().makePlan(
+          url: url,
+          application: application(family: .chromium),
+          target: target(
+            family: .chromium,
+            profile: profile.lastPathComponent,
+            profileLaunchPath: profile.path,
+            origin: .manual
+          )
+        )
+      }
+    }
+  }
+
   @Test(arguments: [ProfileEvidenceField.displayName, .identity, .launchPath])
   func chromiumRejectsProfileEvidenceWithoutIdentifier(field: ProfileEvidenceField) {
     #expect(throws: LaunchFailure.self) {
@@ -1510,6 +1665,24 @@ struct BrowserLauncherTests {
 
 private let applicationURL = URL(fileURLWithPath: "/Applications/Browser.app", isDirectory: true)
 private let executableURL = applicationURL.appending(path: "Contents/MacOS/Browser")
+
+private func withChromiumProfileRoot(
+  includeLocalState: Bool = true,
+  _ body: (URL, URL) throws -> Void
+) throws {
+  let fileManager = FileManager.default
+  let root = fileManager.temporaryDirectory.resolvingSymlinksInPath().appending(
+    path: "PickViaChromiumProfileTests-\(UUID().uuidString)",
+    directoryHint: .isDirectory
+  )
+  defer { try? fileManager.removeItem(at: root) }
+  let profile = root.appending(path: "PickVia E2E", directoryHint: .isDirectory)
+  try fileManager.createDirectory(at: profile, withIntermediateDirectories: true)
+  if includeLocalState {
+    try Data("{}".utf8).write(to: root.appending(path: "Local State"))
+  }
+  try body(root, profile)
+}
 
 struct ChannelLaunchExpectation: Sendable {
   let bundleIdentifier: String

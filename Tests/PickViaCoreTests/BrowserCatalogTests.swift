@@ -1226,6 +1226,17 @@ struct BrowserCatalogTests {
 
     #expect(result.browsers.first?.metadataStatus == .loaded)
     #expect(result.browsers.first?.profiles.map(\.identifier) == ["Default", "Profile 1"])
+    #expect(
+      result.browsers.first?.profiles.map(\.directoryURL?.path) == [
+        grantedRoot.appending(path: "Default", directoryHint: .isDirectory).path,
+        grantedRoot.appending(path: "Profile 1", directoryHint: .isDirectory).path,
+      ])
+    let reconciled = catalog.reconcile(discovered: result.browsers, with: .initial)
+    #expect(
+      reconciled.targets.first { $0.profileIdentifier == "Profile 1" && $0.mode == .normal }?
+        .profileLaunchPath
+        == grantedRoot.appending(path: "Profile 1", directoryHint: .isDirectory).path
+    )
     #expect(fileSystem.readURLs == [marker])
     #expect(access.endedBundleIdentifiers == ["com.google.Chrome"])
   }

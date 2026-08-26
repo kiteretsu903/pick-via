@@ -560,7 +560,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
       case .none, .safariShortcut:
         return ([], .notApplicable)
       case .chromium:
-        return (try ChromiumProfileParser.parse(data: data), .loaded)
+        return (try ChromiumProfileParser.parse(data: data, baseDirectory: root), .loaded)
       case .firefox:
         guard let text = String(data: data, encoding: .utf8) else {
           return ([], .metadataDamaged)

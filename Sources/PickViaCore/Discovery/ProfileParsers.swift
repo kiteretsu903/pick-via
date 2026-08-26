@@ -25,6 +25,17 @@ public struct DiscoveredProfile: Equatable, Sendable {
 
 public enum ChromiumProfileParser {
   public static func parse(data: Data) throws -> [DiscoveredProfile] {
+    try parse(data: data, baseDirectory: nil)
+  }
+
+  public static func parse(data: Data, baseDirectory: URL) throws -> [DiscoveredProfile] {
+    guard baseDirectory.isFileURL, (baseDirectory.path as NSString).isAbsolutePath else {
+      throw ChromiumProfileParserError.invalidBaseDirectory
+    }
+    return try parse(data: data, baseDirectory: Optional(baseDirectory.standardizedFileURL))
+  }
+
+  private static func parse(data: Data, baseDirectory: URL?) throws -> [DiscoveredProfile] {
     let value = try JSONSerialization.jsonObject(with: data)
     guard
       let root = value as? [String: Any],
@@ -46,12 +57,19 @@ public enum ChromiumProfileParser {
       return DiscoveredProfile(
         identifier: identifier,
         displayName: displayName,
-        directoryURL: nil,
+        directoryURL: baseDirectory?.appending(
+          path: identifier,
+          directoryHint: .isDirectory
+        ),
         isDefault: identifier == "Default"
       )
     }
     .sorted { $0.identifier < $1.identifier }
   }
+}
+
+public enum ChromiumProfileParserError: Error, Equatable, Sendable {
+  case invalidBaseDirectory
 }
 
 public enum FirefoxProfileParser {
