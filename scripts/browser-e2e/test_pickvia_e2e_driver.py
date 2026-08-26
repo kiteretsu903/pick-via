@@ -2635,6 +2635,78 @@ time.sleep(3.25)
             for _, contents in fixture.regular_file_snapshots:
                 self.assertNotIn(route_bytes, contents)
 
+    def test_optional_profile_grant_manifest_is_fixed_closed_and_path_private(self):
+        relative_root = "profiles/edge-e2e"
+        with DriverFixture() as fixture:
+            result = fixture.run(
+                config_overrides={
+                    "profile_strategy": "chromium",
+                    "profile_relative_root": relative_root,
+                }
+            )
+
+            self.assertEqual(result.exit_code, driver.DRIVER_SUCCESS)
+            manifests = [
+                contents
+                for name, contents in fixture.regular_file_snapshots
+                if name == "profile-grant.json"
+            ]
+            self.assertEqual(len(manifests), 1)
+            self.assertEqual(
+                json.loads(manifests[0]),
+                {
+                    "schemaVersion": 1,
+                    "bundleIdentifier": "com.microsoft.edgemac",
+                    "strategy": "chromium",
+                    "relativeRoot": relative_root,
+                },
+            )
+            encoded_root = relative_root.encode("utf-8")
+            self.assertNotIn(encoded_root, result.stdout)
+            self.assertNotIn(encoded_root, result.stderr)
+            self.assertNotIn(encoded_root, result.status_line)
+            for _, argv in fixture.observed_argv:
+                self.assertNotIn(relative_root, "\0".join(argv))
+            for _, environment in fixture.observed_environment:
+                self.assertNotIn(encoded_root, b"\0".join(environment))
+
+    def test_profile_grant_controls_must_be_paired_and_relative(self):
+        invalid = (
+            {"profile_strategy": "chromium"},
+            {"profile_relative_root": "profiles/edge-e2e"},
+            {
+                "profile_strategy": "unsupported",
+                "profile_relative_root": "profiles/edge-e2e",
+            },
+            {"profile_strategy": "chromium", "profile_relative_root": ""},
+            {
+                "profile_strategy": "chromium",
+                "profile_relative_root": "/private/tmp/external",
+            },
+            {
+                "profile_strategy": "chromium",
+                "profile_relative_root": "profiles/../../external",
+            },
+        )
+        for overrides in invalid:
+            with self.subTest(overrides=overrides), DriverFixture() as fixture:
+                result = fixture.run(config_overrides=overrides)
+                self.assertEqual(result.exit_code, driver.DRIVER_USAGE)
+                self.assertEqual(fixture.launched_kinds, [])
+
+    def test_omitted_profile_grant_creates_no_manifest_or_environment_key(self):
+        with DriverFixture() as fixture:
+            result = fixture.run()
+            self.assertEqual(result.exit_code, driver.DRIVER_SUCCESS)
+            self.assertNotIn(
+                "profile-grant.json",
+                [name for name, _ in fixture.regular_file_snapshots],
+            )
+            for _, environment in fixture.observed_environment:
+                self.assertFalse(
+                    any(b"PROFILE_GRANT" in item for item in environment)
+                )
+
     def test_e2e_app_uses_exact_task_root_as_fixed_user_home_without_url_leak(self):
         with DriverFixture() as fixture:
             result = fixture.run()

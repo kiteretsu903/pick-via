@@ -443,6 +443,10 @@
       let control = E2EControl.load(environment: environment)
 
       XCTAssertEqual(control, expectedLoadedControl)
+      XCTAssertEqual(
+        control?.profileGrantManifest,
+        supportRoot.appending(path: "profile-grant.json")
+      )
     }
 
     func testLoaderRejectsEveryMissingEmptyOrWhitespaceOnlyRequiredValue() {

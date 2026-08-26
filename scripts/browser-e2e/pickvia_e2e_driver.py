@@ -91,6 +91,7 @@ _PROVENANCE_OUTCOMES = frozenset(
     {"launch-observed", "launch-unproven", "launch-error"}
 )
 _PROVENANCE_MECHANISMS = frozenset({"process", "workspace", "duckduckgo"})
+_PROFILE_STRATEGIES = frozenset({"chromium", "firefox"})
 _DEFERRED_SIGNALS = frozenset(
     {signal.SIGINT, signal.SIGTERM, signal.SIGHUP}
 )
@@ -109,6 +110,8 @@ class DriverConfig:
     session_nonce: str
     timeout: float = 30.0
     route_count: int = 1
+    profile_strategy: Optional[str] = None
+    profile_relative_root: Optional[str] = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -467,6 +470,40 @@ class _PinnedTaskRoot:
         except BaseException:
             os.close(descriptor)
             raise
+
+    def write_regular_file(self, name, contents):
+        path = self.child_path(name)
+        if not isinstance(contents, bytes) or len(contents) > MAXIMUM_PROTOCOL_LINE_BYTES:
+            raise ValueError("invalid task-root file contents")
+        descriptor = os.open(
+            name,
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+            dir_fd=self.descriptor,
+        )
+        try:
+            _write_all(descriptor, contents)
+            os.fchmod(descriptor, 0o600)
+            os.fsync(descriptor)
+            opened = os.fstat(descriptor)
+            named = os.stat(name, dir_fd=self.descriptor, follow_symlinks=False)
+            if (
+                not stat.S_ISREG(opened.st_mode)
+                or _EntryIdentity.from_stat(opened) != _EntryIdentity.from_stat(named)
+                or opened.st_uid != os.getuid()
+                or opened.st_dev != self.identity.device
+                or stat.S_IMODE(opened.st_mode) != 0o600
+                or opened.st_nlink != 1
+                or opened.st_size != len(contents)
+                or path.parent != self.require_current()
+            ):
+                raise OSError("task-root file identity changed")
+        finally:
+            os.close(descriptor)
 
     def _is_owned_fifo(self, metadata):
         return (
@@ -1928,6 +1965,8 @@ def _validated_config(config, browser_binding_checker):
         return None
     if _SESSION_PATTERN.fullmatch(config.session_nonce) is None:
         return None
+    if not _valid_profile_grant_config(config):
+        return None
     try:
         timeout = min(float(config.timeout), MAXIMUM_TIMEOUT_SECONDS)
     except (TypeError, ValueError):
@@ -1949,6 +1988,42 @@ def _validated_config(config, browser_binding_checker):
         config.bundle_identifier,
     )
     return timeout, e2e_app, e2e_executable, browser_executable
+
+
+def _valid_profile_grant_config(config):
+    strategy = config.profile_strategy
+    relative_root = config.profile_relative_root
+    if strategy is None and relative_root is None:
+        return True
+    if strategy not in _PROFILE_STRATEGIES or not _valid_nonempty(relative_root, 1_024):
+        return False
+    if relative_root.startswith("/"):
+        return False
+    pure = pathlib.PurePosixPath(relative_root)
+    return (
+        pure.as_posix() == relative_root
+        and pure.parts
+        and pure.parts != (".",)
+        and all(part not in {"", ".", ".."} for part in pure.parts)
+    )
+
+
+def _profile_grant_manifest(config):
+    if config.profile_strategy is None:
+        return None
+    return (
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "bundleIdentifier": config.bundle_identifier,
+                "strategy": config.profile_strategy,
+                "relativeRoot": config.profile_relative_root,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        + b"\n"
+    )
 
 
 def _validate_browser_binding(browser_app, browser_executable, bundle_identifier):
@@ -3306,6 +3381,11 @@ def run_driver(config, dependencies=None):
         )
         baseline_authoritative = True
         task_root = _make_task_root(task_root_owner)
+        profile_grant_manifest = _profile_grant_manifest(config)
+        if profile_grant_manifest is not None:
+            task_root.write_regular_file(
+                "profile-grant.json", profile_grant_manifest
+            )
         task_root.create_fifo("status.fifo")
         task_root.create_fifo("provenance.fifo")
         fifo = task_root.child_path("status.fifo")
@@ -3715,6 +3795,8 @@ def main(argv=None):
     parser.add_argument("--session", required=True)
     parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--route-count", type=int, default=1)
+    parser.add_argument("--profile-strategy", choices=("chromium", "firefox"))
+    parser.add_argument("--profile-relative-root")
     arguments = parser.parse_args(argv)
     result = run_driver(
         DriverConfig(
@@ -3728,6 +3810,8 @@ def main(argv=None):
             session_nonce=arguments.session,
             timeout=arguments.timeout,
             route_count=arguments.route_count,
+            profile_strategy=arguments.profile_strategy,
+            profile_relative_root=arguments.profile_relative_root,
         )
     )
     sys.stdout.buffer.write(result.stdout)

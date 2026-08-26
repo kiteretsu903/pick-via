@@ -24,6 +24,10 @@
     let statusFIFO: URL
     let provenanceFIFO: URL
 
+    var profileGrantManifest: URL {
+      applicationSupportDirectory.appending(path: "profile-grant.json")
+    }
+
     static func load(environment: [String: String]) -> E2EControl? {
       load(
         environment: environment,

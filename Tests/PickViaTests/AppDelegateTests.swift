@@ -38,6 +38,21 @@ final class AppDelegateTests: XCTestCase {
         )
       )
     }
+
+    func testE2EProfileGrantInstallerUsesSharedCoordinatorBeforeCatalogConstruction() throws {
+      let sources = try String(
+        contentsOf: repositoryRoot.appending(path: "Sources/PickVia/App/AppDelegate.swift"),
+        encoding: .utf8
+      )
+      let installRange = try XCTUnwrap(
+        sources.range(of: "E2EProfileGrantInstaller.installIfPresent"))
+      let catalogRange = try XCTUnwrap(
+        sources.range(of: "E2EApplicationEnvironment.browserCatalog")
+      )
+
+      XCTAssertLessThan(installRange.lowerBound, catalogRange.lowerBound)
+      XCTAssertTrue(sources.contains("coordinator: profileAccessCoordinator"))
+    }
   #endif
 
   func testBecomingActiveRefreshesDefaultHandlerStatusAndRetriesProfileAccess() throws {
@@ -436,10 +451,6 @@ final class AppDelegateTests: XCTestCase {
   }
 
   private func infoPlistURLSchemes() throws -> [String] {
-    let repositoryRoot = URL(fileURLWithPath: #filePath)
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
     let data = try Data(contentsOf: repositoryRoot.appending(path: "Support/Info.plist"))
     let plist = try XCTUnwrap(
       try PropertyListSerialization.propertyList(
@@ -450,6 +461,13 @@ final class AppDelegateTests: XCTestCase {
     )
     let urlTypes = try XCTUnwrap(plist["CFBundleURLTypes"] as? [[String: Any]])
     return urlTypes.flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }
+  }
+
+  private var repositoryRoot: URL {
+    URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
   }
 }
 

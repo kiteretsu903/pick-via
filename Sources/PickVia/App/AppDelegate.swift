@@ -192,6 +192,18 @@ extension AppModel {
     let configStore = JSONConfigStore(directory: applicationSupportDirectory)
     let profileAccessStore = JSONProfileAccessStore(directory: applicationSupportDirectory)
     let profileAccessCoordinator = ProfileAccessCoordinator(store: profileAccessStore)
+    #if PICKVIA_E2E_AUTOMATION
+      do {
+        try E2EProfileGrantInstaller.installIfPresent(
+          control: e2eControl,
+          descriptors: BrowserDescriptor.supported,
+          coordinator: profileAccessCoordinator
+        )
+      } catch {
+        E2EControlFailure.terminateProcess()
+        preconditionFailure("E2E profile-grant termination returned unexpectedly")
+      }
+    #endif
     let profileRootValidator = BrowserProfileRootValidator()
     let profileAccessFolderSelector = ProfileAccessFolderSelector()
     let profileAccessSelectionCoordinator = ProfileAccessWizardSelectionCoordinator(
