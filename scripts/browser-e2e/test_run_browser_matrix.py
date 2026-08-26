@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import contextlib
+import hashlib
 import io
 import json
 import pathlib
@@ -306,9 +307,10 @@ class MatrixRunnerTests(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertEqual(dependencies.max_active_drivers, 1)
         sessions = [call["session"] for call in dependencies.driver_calls]
+        self.assertEqual(len(sessions), len(set(sessions)))
         self.assertTrue(
             all(
-                len(set(sessions[index : index + 3])) == 1
+                len(set(sessions[index : index + 3])) == 3
                 for index in range(0, len(sessions), 3)
             )
         )
@@ -400,6 +402,9 @@ class MatrixRunnerTests(unittest.TestCase):
         valid = {
             "schemaVersion": 1,
             "session": expectation.session,
+            "sessionHashes": [
+                hashlib.sha256(expectation.session.encode("ascii")).hexdigest()
+            ],
             "request": expectation.request,
             "bundleIdentifier": expectation.bundle_identifier,
             "targetID": expectation.target_id,
@@ -425,6 +430,7 @@ class MatrixRunnerTests(unittest.TestCase):
             "stateProofs": [
                 {
                     "state": expectation.state,
+                    "session": expectation.session,
                     "request": expectation.request,
                     "outcome": "selected",
                     "receipt": True,
@@ -445,6 +451,10 @@ class MatrixRunnerTests(unittest.TestCase):
         mutations = (
             lambda report: report.pop("request"),
             lambda report: report.update(session="wrong_session_012345"),
+            lambda report: report.update(sessionHashes=["0" * 64]),
+            lambda report: report["stateProofs"][0].update(
+                session="forged_session_012345"
+            ),
             lambda report: report.update(request="wrong_request_012345"),
             lambda report: report.update(bundleIdentifier="com.example.Wrong"),
             lambda report: report.update(targetID="com.microsoft.edgemac||private"),
@@ -463,7 +473,7 @@ class MatrixRunnerTests(unittest.TestCase):
         )
         for mutate in mutations:
             with self.subTest(mutate=mutate):
-                candidate = dict(valid)
+                candidate = json.loads(json.dumps(valid))
                 mutate(candidate)
                 with self.assertRaises(matrix.DriverProofError):
                     matrix.validate_driver_report(candidate, 0, expectation)
@@ -507,7 +517,11 @@ class MatrixRunnerTests(unittest.TestCase):
         cells = matrix.plan_cells(
             matrix.load_manifest(self.write_manifest()), lambda _application: True
         )[:3]
-        session = "session_0123456789abcdef"
+        sessions = (
+            "session_cold_0123456789",
+            "session_running_01234567",
+            "session_reopen_012345678",
+        )
         requests = (
             "request_cold_0123456789",
             "request_running_01234567",
@@ -515,7 +529,7 @@ class MatrixRunnerTests(unittest.TestCase):
         )
         dependencies = FakeDependencies()
         valid = dependencies.sequence_report(
-            cells, session, requests, "e" * 64, "b" * 64
+            cells, sessions, requests, "e" * 64, "b" * 64
         )
         expectations = tuple(
             matrix.DriverProofExpectation(
@@ -530,7 +544,7 @@ class MatrixRunnerTests(unittest.TestCase):
                 e2e_app_identity="e" * 64,
                 browser_app_identity="b" * 64,
             )
-            for cell, request in zip(cells, requests)
+            for cell, session, request in zip(cells, sessions, requests)
         )
         self.assertEqual(
             matrix.validate_driver_sequence_report(valid, 0, expectations),
@@ -540,6 +554,10 @@ class MatrixRunnerTests(unittest.TestCase):
             lambda report: report["stateProofs"][1].update(
                 request="forged_request_0000"
             ),
+            lambda report: report["stateProofs"][1].update(
+                session="forged_session_0000"
+            ),
+            lambda report: report.update(sessionHashes=["0" * 64] * 3),
             lambda report: report["stateProofs"][1].update(processStartSeconds=99),
             lambda report: report["stateProofs"][1].update(
                 processStartMicroseconds=1_000_000
@@ -601,6 +619,91 @@ class MatrixRunnerTests(unittest.TestCase):
             ):
                 matrix.validate_driver_sequence_report(candidate, 10, expectations)
 
+        receipt_failure = json.loads(json.dumps(valid))
+        receipt_failure["stateProofs"] = receipt_failure["stateProofs"][:2]
+        receipt_failure["stateProofs"][-1].update(
+            outcome="receipt-timeout",
+            receipt=False,
+        )
+        receipt_failure.update(
+            outcome="receipt-timeout",
+            token_received=False,
+            exact_browser_process_identity=True,
+            launch_provenance="launch-observed",
+        )
+        self.assertEqual(
+            matrix.validate_driver_sequence_report(
+                receipt_failure,
+                matrix.browser_driver.DRIVER_RECEIPT_TIMEOUT,
+                expectations,
+            ),
+            (
+                ("PASS", "proven-route"),
+                ("FAIL", "product-receipt-failure"),
+                ("NOT RUN", "blocked-after-sequence-failure"),
+            ),
+        )
+        for mutate, return_code in (
+            (lambda report: report.update(token_received=True), 12),
+            (lambda report: report.update(exact_browser_process_identity=False), 12),
+            (lambda report: report.update(launch_provenance="none"), 12),
+            (lambda report: None, 10),
+        ):
+            candidate = json.loads(json.dumps(receipt_failure))
+            mutate(candidate)
+            with (
+                self.subTest(receipt_failure_mutation=mutate),
+                self.assertRaises(matrix.DriverProofError),
+            ):
+                matrix.validate_driver_sequence_report(
+                    candidate, return_code, expectations
+                )
+
+        for refusal_outcome in (
+            "target-disabled",
+            "target-missing",
+            "target-mode-mismatch",
+        ):
+            refusal = json.loads(json.dumps(valid))
+            refusal["stateProofs"] = refusal["stateProofs"][:1]
+            refusal["stateProofs"][0].update(
+                outcome=refusal_outcome,
+                receipt=False,
+                browserIdentity=False,
+                provenance="none",
+                processIdentifier=None,
+                processStartSeconds=None,
+                processStartMicroseconds=None,
+            )
+            refusal.update(
+                outcome=refusal_outcome,
+                token_received=False,
+                exact_browser_process_identity=False,
+                launch_provenance="none",
+            )
+            with self.subTest(refusal_outcome=refusal_outcome):
+                self.assertEqual(
+                    matrix.validate_driver_sequence_report(
+                        refusal,
+                        matrix.browser_driver.DRIVER_SELECTION_REJECTED,
+                        expectations,
+                    ),
+                    (
+                        ("UNSUPPORTED", "catalog-capability-refused"),
+                        ("NOT RUN", "blocked-after-sequence-refusal"),
+                        ("NOT RUN", "blocked-after-sequence-refusal"),
+                    ),
+                )
+
+        incoherent_refusal = json.loads(json.dumps(refusal))
+        incoherent_refusal["stateProofs"][0]["browserIdentity"] = True
+        with self.assertRaises(matrix.DriverProofError):
+            matrix.validate_driver_sequence_report(
+                incoherent_refusal,
+                matrix.browser_driver.DRIVER_SELECTION_REJECTED,
+                expectations,
+            )
+
     def test_edge_pilot_failure_stops_and_marks_later_cells_not_run(self):
         chrome = self.edge_application(
             bundleIdentifier="com.google.Chrome",
@@ -624,6 +727,70 @@ class MatrixRunnerTests(unittest.TestCase):
         )
         self.assertEqual(dependencies.max_active_drivers, 1)
 
+    def test_edge_pilot_receipt_failure_is_product_fail_and_stops(self):
+        dependencies = FakeDependencies(
+            receipt_fail_on=("com.microsoft.edgemac", "running")
+        )
+        result = matrix.execute_matrix(
+            matrix.load_manifest(self.write_manifest()),
+            self.root / "output",
+            dependencies=dependencies,
+        )
+        self.assertEqual(result.exit_code, matrix.MATRIX_PRODUCT_FAILURE)
+        self.assertEqual(
+            [(record["result"], record["detail"]) for record in result.records[:3]],
+            [
+                ("PASS", "proven-route"),
+                ("FAIL", "product-receipt-failure"),
+                ("NOT RUN", "blocked-after-sequence-failure"),
+            ],
+        )
+
+    def test_catalog_refusal_is_unsupported_and_nonpilot_matrix_continues(self):
+        chrome = self.edge_application(
+            bundleIdentifier="com.google.Chrome",
+            applicationPath="/Applications/Google Chrome.app",
+            executableRelativePath="Contents/MacOS/Google Chrome",
+        )
+        dependencies = FakeDependencies(
+            unsupported_on=("com.google.Chrome", "normal", "cold")
+        )
+        result = matrix.execute_matrix(
+            matrix.load_manifest(
+                self.write_manifest([chrome, self.edge_application()])
+            ),
+            self.root / "output",
+            dependencies=dependencies,
+        )
+        chrome_records = [
+            record
+            for record in result.records
+            if record["bundleIdentifier"] == "com.google.Chrome"
+        ]
+        self.assertEqual(chrome_records[0]["result"], "UNSUPPORTED")
+        self.assertEqual(chrome_records[0]["detail"], "catalog-capability-refused")
+        self.assertEqual(chrome_records[0]["driverOutcome"], "target-missing")
+        self.assertEqual(
+            [record["result"] for record in chrome_records[1:3]],
+            ["NOT RUN", "NOT RUN"],
+        )
+        self.assertTrue(
+            any(record["result"] == "PASS" for record in chrome_records[3:])
+        )
+        self.assertEqual(result.exit_code, matrix.MATRIX_SUCCESS)
+
+    def test_edge_pilot_catalog_refusal_blocks_without_product_failure(self):
+        dependencies = FakeDependencies(
+            unsupported_on=("com.microsoft.edgemac", "normal", "cold")
+        )
+        result = matrix.execute_matrix(
+            matrix.load_manifest(self.write_manifest()),
+            self.root / "output",
+            dependencies=dependencies,
+        )
+        self.assertEqual(result.records[0]["result"], "UNSUPPORTED")
+        self.assertEqual(result.exit_code, matrix.MATRIX_BLOCKED)
+
     def test_harness_ambiguity_stops_without_becoming_capability_evidence(self):
         dependencies = FakeDependencies(ambiguous_on=("com.microsoft.edgemac", "cold"))
         result = matrix.execute_matrix(
@@ -646,6 +813,9 @@ class MatrixRunnerTests(unittest.TestCase):
         self.assertEqual(result.exit_code, matrix.MATRIX_BLOCKED)
         self.assertEqual(result.records[0]["result"], "NOT RUN")
         self.assertEqual(result.records[0]["provenance"], "none")
+        self.assertTrue(
+            all(record["sessionHash"] == "not-invoked" for record in result.records)
+        )
 
     def test_profile_cells_request_one_isolated_driver_owned_root(self):
         dependencies = FakeDependencies()
@@ -685,7 +855,6 @@ class MatrixRunnerTests(unittest.TestCase):
         for forbidden in (
             "/Applications/",
             "/private/tmp/",
-            "session",
             "token",
             "fifo",
             "pid",
@@ -694,6 +863,11 @@ class MatrixRunnerTests(unittest.TestCase):
         records = [json.loads(line) for line in evidence.splitlines()]
         self.assertEqual(records[0]["recordType"], "run")
         self.assertTrue(all("recordHash" in record for record in records))
+        session_hashes = [record["sessionHash"] for record in records[1:]]
+        self.assertTrue(all(len(value) == 64 for value in session_hashes))
+        self.assertEqual(len(session_hashes), len(set(session_hashes)))
+        for call in first_dependencies.driver_calls:
+            self.assertNotIn(call["session"], evidence)
 
         resumed_dependencies = FakeDependencies()
         resumed = matrix.execute_matrix(
@@ -770,6 +944,48 @@ class MatrixRunnerTests(unittest.TestCase):
                 resume=True,
             )
 
+    def test_resume_rejects_rehashed_reused_or_forged_session_hash(self):
+        for case in ("reused", "forged"):
+            output = self.root / case
+            matrix.execute_matrix(
+                matrix.load_manifest(self.write_manifest()),
+                output,
+                dependencies=FakeDependencies(),
+            )
+            evidence_path = output / "evidence.jsonl"
+            records = [
+                json.loads(line)
+                for line in evidence_path.read_text(encoding="utf-8").splitlines()
+            ]
+            records[2]["sessionHash"] = (
+                records[1]["sessionHash"] if case == "reused" else "z" * 64
+            )
+            previous = "0" * 64
+            for record in records:
+                record["previousHash"] = previous
+                unhashed = dict(record)
+                unhashed.pop("recordHash", None)
+                record["recordHash"] = matrix._digest_json(unhashed)
+                previous = record["recordHash"]
+            evidence_path.write_text(
+                "\n".join(
+                    json.dumps(record, separators=(",", ":"), sort_keys=True)
+                    for record in records
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            with (
+                self.subTest(case=case),
+                self.assertRaises(matrix.MatrixResumeError),
+            ):
+                matrix.execute_matrix(
+                    matrix.load_manifest(self.manifest_path),
+                    output,
+                    dependencies=FakeDependencies(),
+                    resume=True,
+                )
+
     def test_dry_run_lists_only_installed_non_safari_cells_without_mutation(self):
         dependencies = FakeDependencies()
         manifest = matrix.load_manifest(
@@ -794,6 +1010,8 @@ class FakeDependencies:
         fail_on=None,
         ambiguous_on=None,
         blocked_bundles=frozenset(),
+        receipt_fail_on=None,
+        unsupported_on=None,
         raise_on=None,
         unsafe_outcome=None,
         unsafe_version=None,
@@ -803,6 +1021,8 @@ class FakeDependencies:
         self.fail_on = fail_on
         self.ambiguous_on = ambiguous_on
         self.blocked_bundles = set(blocked_bundles)
+        self.receipt_fail_on = receipt_fail_on
+        self.unsupported_on = unsupported_on
         self.raise_on = raise_on
         self.unsafe_outcome = unsafe_outcome
         self.unsafe_version = unsafe_version
@@ -838,7 +1058,7 @@ class FakeDependencies:
         self,
         _pinned_app,
         group,
-        session,
+        sessions,
         requests,
         profile_relative_root,
         e2e_app_identity,
@@ -851,7 +1071,7 @@ class FakeDependencies:
                 (item.bundle_identifier, item.state) == self.raise_on for item in group
             ):
                 raise RuntimeError("synthetic secret /private/tmp/driver")
-            for item, request in zip(group, requests):
+            for item, session, request in zip(group, sessions, requests):
                 self.driver_calls.append(
                     {
                         "bundle_identifier": item.bundle_identifier,
@@ -866,7 +1086,7 @@ class FakeDependencies:
                     }
                 )
             report = self.sequence_report(
-                group, session, requests, e2e_app_identity, browser_app_identity
+                group, sessions, requests, e2e_app_identity, browser_app_identity
             )
             ambiguous_index = next(
                 (
@@ -911,6 +1131,56 @@ class FakeDependencies:
                     launch_provenance="launch-error",
                 )
                 return report, 10
+            receipt_failure_index = next(
+                (
+                    index
+                    for index, item in enumerate(group)
+                    if (item.bundle_identifier, item.state) == self.receipt_fail_on
+                ),
+                None,
+            )
+            if receipt_failure_index is not None:
+                report["stateProofs"] = report["stateProofs"][
+                    : receipt_failure_index + 1
+                ]
+                report["stateProofs"][-1].update(
+                    outcome="receipt-timeout",
+                    receipt=False,
+                )
+                report.update(
+                    outcome="receipt-timeout",
+                    token_received=False,
+                    exact_browser_process_identity=True,
+                    launch_provenance="launch-observed",
+                )
+                return report, matrix.browser_driver.DRIVER_RECEIPT_TIMEOUT
+            unsupported_index = next(
+                (
+                    index
+                    for index, item in enumerate(group)
+                    if (item.bundle_identifier, item.capability, item.state)
+                    == self.unsupported_on
+                ),
+                None,
+            )
+            if unsupported_index is not None:
+                report["stateProofs"] = report["stateProofs"][: unsupported_index + 1]
+                report["stateProofs"][-1].update(
+                    outcome="target-missing",
+                    receipt=False,
+                    browserIdentity=False,
+                    provenance="none",
+                    processIdentifier=None,
+                    processStartSeconds=None,
+                    processStartMicroseconds=None,
+                )
+                report.update(
+                    outcome="target-missing",
+                    token_received=False,
+                    exact_browser_process_identity=False,
+                    launch_provenance="none",
+                )
+                return report, matrix.browser_driver.DRIVER_SELECTION_REJECTED
             if self.unsafe_outcome is not None:
                 report["outcome"] = self.unsafe_outcome
                 return report, 14
@@ -923,7 +1193,7 @@ class FakeDependencies:
             self.active_drivers -= 1
 
     def sequence_report(
-        self, group, session, requests, e2e_app_identity, browser_app_identity
+        self, group, sessions, requests, e2e_app_identity, browser_app_identity
     ):
         cell = group[0]
         target_id = (
@@ -933,7 +1203,11 @@ class FakeDependencies:
         )
         return {
             "schemaVersion": 1,
-            "session": session,
+            "session": sessions[0],
+            "sessionHashes": [
+                hashlib.sha256(session.encode("ascii")).hexdigest()
+                for session in sessions
+            ],
             "request": requests[0],
             "bundleIdentifier": cell.bundle_identifier,
             "targetID": target_id,
@@ -959,6 +1233,7 @@ class FakeDependencies:
             "stateProofs": [
                 {
                     "state": item.state,
+                    "session": session,
                     "request": request,
                     "outcome": "selected",
                     "receipt": True,
@@ -970,7 +1245,7 @@ class FakeDependencies:
                     "processStartMicroseconds": 2,
                     "routeElapsedSeconds": 0.1,
                 }
-                for item, request in zip(group, requests)
+                for item, session, request in zip(group, sessions, requests)
             ],
         }
 

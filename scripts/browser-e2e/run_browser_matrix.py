@@ -271,12 +271,14 @@ _REQUIRED_APPLICATIONS = {
     ),
 }
 _SAFE_VERSION = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._+()-]{0,127}\Z")
+_SAFE_HASH = re.compile(r"\A[0-9a-f]{64}\Z")
 _SAFE_DRIVER_OUTCOMES = frozenset(
     {
         "selected",
         "launch-error",
         "receipt-timeout",
         "target-disabled",
+        "target-missing",
         "target-mode-mismatch",
         "identity-ambiguous",
         "identity-inspection-error",
@@ -315,6 +317,7 @@ _SAFE_DETAILS = frozenset(
         "edge-pilot-failed",
         "build-blocker",
         "blocked-after-sequence-failure",
+        "blocked-after-sequence-refusal",
     }
 )
 _CELL_REQUIRED_KEYS = frozenset(
@@ -334,6 +337,7 @@ _CELL_REQUIRED_KEYS = frozenset(
         "receipt",
         "e2eIdentity",
         "browserIdentity",
+        "sessionHash",
         "previousHash",
         "recordHash",
     }
@@ -386,6 +390,7 @@ _DRIVER_REPORT_KEYS = frozenset(
     {
         "schemaVersion",
         "session",
+        "sessionHashes",
         "request",
         "bundleIdentifier",
         "targetID",
@@ -414,6 +419,7 @@ _DRIVER_REPORT_KEYS = frozenset(
 _STATE_PROOF_KEYS = frozenset(
     {
         "state",
+        "session",
         "request",
         "outcome",
         "receipt",
@@ -426,6 +432,10 @@ _STATE_PROOF_KEYS = frozenset(
         "routeElapsedSeconds",
     }
 )
+
+
+def _session_hash(session):
+    return hashlib.sha256(session.encode("ascii")).hexdigest()
 
 
 def _valid_process_generation_proof(proof):
@@ -445,6 +455,7 @@ def validate_driver_report(report, return_code, expected):
     exact_fields = {
         "schemaVersion": 1,
         "session": expected.session,
+        "sessionHashes": [_session_hash(expected.session)],
         "request": expected.request,
         "bundleIdentifier": expected.bundle_identifier,
         "capability": expected.capability,
@@ -484,6 +495,7 @@ def validate_driver_report(report, return_code, expected):
         not isinstance(state_proof, dict)
         or set(state_proof) != _STATE_PROOF_KEYS
         or state_proof["state"] != expected.state
+        or state_proof["session"] != expected.session
         or state_proof["request"] != expected.request
         or state_proof["outcome"] != report["outcome"]
         or state_proof["receipt"] != report["token_received"]
@@ -570,7 +582,7 @@ def validate_driver_report(report, return_code, expected):
 
 
 def validate_driver_sequence_report(report, return_code, expectations):
-    if len(expectations) != 3:
+    if len(expectations) != 3 or len({item.session for item in expectations}) != 3:
         raise DriverProofError("sequence expectation mismatch")
     first = expectations[0]
     if not isinstance(report, dict) or set(report) != _DRIVER_REPORT_KEYS:
@@ -578,6 +590,7 @@ def validate_driver_sequence_report(report, return_code, expectations):
     exact = {
         "schemaVersion": 1,
         "session": first.session,
+        "sessionHashes": [_session_hash(item.session) for item in expectations],
         "request": first.request,
         "bundleIdentifier": first.bundle_identifier,
         "capability": first.capability,
@@ -644,6 +657,7 @@ def validate_driver_sequence_report(report, return_code, expectations):
             not isinstance(proof, dict)
             or set(proof) != _STATE_PROOF_KEYS
             or proof.get("state") != expectation.state
+            or proof.get("session") != expectation.session
             or proof.get("request") != expectation.request
             or proof.get("e2eIdentity") is not True
             or type(proof.get("routeElapsedSeconds")) not in {int, float}
@@ -683,6 +697,39 @@ def validate_driver_sequence_report(report, return_code, expectations):
         ):
             results.append(("FAIL", "product-route-failure"))
             break
+        if (
+            proof.get("outcome") == "receipt-timeout"
+            and proof.get("receipt") is False
+            and proof.get("browserIdentity") is True
+            and proof.get("provenance") == "launch-observed"
+            and _valid_process_generation_proof(proof)
+        ):
+            generations.append(
+                (
+                    proof["processIdentifier"],
+                    proof["processStartSeconds"],
+                    proof["processStartMicroseconds"],
+                )
+            )
+            results.append(("FAIL", "product-receipt-failure"))
+            break
+        if (
+            proof.get("outcome")
+            in {"target-disabled", "target-missing", "target-mode-mismatch"}
+            and proof.get("receipt") is False
+            and proof.get("browserIdentity") is False
+            and proof.get("provenance") == "none"
+            and all(
+                proof.get(key) is None
+                for key in (
+                    "processIdentifier",
+                    "processStartSeconds",
+                    "processStartMicroseconds",
+                )
+            )
+        ):
+            results.append(("UNSUPPORTED", "catalog-capability-refused"))
+            break
         raise DriverProofError("sequence state proof incoherent")
     if report["total_elapsed_seconds"] + 0.00001 < sum(
         proof["routeElapsedSeconds"] for proof in proofs
@@ -701,7 +748,7 @@ def validate_driver_sequence_report(report, return_code, expectations):
             or report["launch_provenance"] != "launch-observed"
         ):
             raise DriverProofError("sequence success mismatch")
-    elif results and results[-1][0] == "FAIL":
+    elif results and results[-1] == ("FAIL", "product-route-failure"):
         if (
             return_code != browser_driver.DRIVER_SELECTION_REJECTED
             or report["outcome"] != "launch-error"
@@ -710,10 +757,38 @@ def validate_driver_sequence_report(report, return_code, expectations):
             or report["launch_provenance"] not in {"none", "launch-error"}
         ):
             raise DriverProofError("sequence product failure mismatch")
+    elif results and results[-1] == ("FAIL", "product-receipt-failure"):
+        if (
+            return_code != browser_driver.DRIVER_RECEIPT_TIMEOUT
+            or report["outcome"] != "receipt-timeout"
+            or report["token_received"] is not False
+            or report["exact_browser_process_identity"] is not True
+            or report["launch_provenance"] != "launch-observed"
+        ):
+            raise DriverProofError("sequence product receipt failure mismatch")
+    elif results and results[-1] == (
+        "UNSUPPORTED",
+        "catalog-capability-refused",
+    ):
+        if (
+            return_code != browser_driver.DRIVER_SELECTION_REJECTED
+            or report["outcome"]
+            not in {"target-disabled", "target-missing", "target-mode-mismatch"}
+            or report["outcome"] != proofs[-1]["outcome"]
+            or report["token_received"] is not False
+            or report["exact_browser_process_identity"] is not False
+            or report["launch_provenance"] != "none"
+        ):
+            raise DriverProofError("sequence capability refusal mismatch")
     else:
         raise DriverProofError("incomplete sequence proof")
+    blocked_detail = (
+        "blocked-after-sequence-refusal"
+        if results[-1][0] == "UNSUPPORTED"
+        else "blocked-after-sequence-failure"
+    )
     while len(results) < 3:
-        results.append(("NOT RUN", "blocked-after-sequence-failure"))
+        results.append(("NOT RUN", blocked_detail))
     return tuple(results)
 
 
@@ -1154,6 +1229,7 @@ def _read_resume(path, manifest, cells):
         raise MatrixResumeError("run manifest mismatch")
     previous_hash = "0" * 64
     completed = []
+    seen_session_hashes = set()
     for index, record in enumerate(records):
         observed_hash = record.get("recordHash")
         unhashed = dict(record)
@@ -1196,8 +1272,15 @@ def _read_resume(path, manifest, cells):
                 type(record.get(key)) is not bool
                 for key in ("receipt", "e2eIdentity", "browserIdentity")
             )
+            or record.get("sessionHash") != "not-invoked"
+            and _SAFE_HASH.fullmatch(record.get("sessionHash", "")) is None
         ):
             raise MatrixResumeError("completed cell mismatch")
+        session_hash = record["sessionHash"]
+        if session_hash != "not-invoked":
+            if session_hash in seen_session_hashes:
+                raise MatrixResumeError("reused session hash")
+            seen_session_hashes.add(session_hash)
         completed.append(record)
     return records, completed
 
@@ -1252,6 +1335,12 @@ def _sanitized_record(cell, version, report, result, detail):
     )
     provenance = report.get("launch_provenance", "none")
     safe_provenance = provenance if provenance in _SAFE_PROVENANCE else "invalid"
+    session_hash = report.get("session_hash", "not-invoked")
+    safe_session_hash = (
+        session_hash
+        if isinstance(session_hash, str) and _SAFE_HASH.fullmatch(session_hash)
+        else "not-invoked"
+    )
     return {
         "recordType": "cell",
         "schemaVersion": 1,
@@ -1268,6 +1357,7 @@ def _sanitized_record(cell, version, report, result, detail):
         "receipt": report.get("token_received") is True,
         "e2eIdentity": report.get("exact_process_identity") is True,
         "browserIdentity": report.get("exact_browser_process_identity") is True,
+        "sessionHash": safe_session_hash,
         **timings,
     }
 
@@ -1422,7 +1512,7 @@ def execute_matrix(manifest, output, *, dependencies=None, resume=False):
                 _write_records(evidence_path, chained_records)
                 offset += 3
                 continue
-            session = secrets.token_hex(24)
+            sessions = tuple(secrets.token_hex(24) for _ in _STATES)
             requests = tuple(secrets.token_hex(24) for _ in _STATES)
             profile_relative_root = (
                 f"profiles/{cell.specification_hash[:24]}" if cell.has_profile else None
@@ -1431,7 +1521,7 @@ def execute_matrix(manifest, output, *, dependencies=None, resume=False):
                 report, driver_code = dependencies.run_sequence(
                     pinned_app,
                     group,
-                    session,
+                    sessions,
                     requests,
                     profile_relative_root,
                     e2e_app_identity,
@@ -1455,16 +1545,18 @@ def execute_matrix(manifest, output, *, dependencies=None, resume=False):
                         state_cell.bundle_identifier
                     ],
                 )
-                for state_cell, request in zip(group, requests)
+                for state_cell, session, request in zip(group, sessions, requests)
             )
             try:
                 sequence_results = validate_driver_sequence_report(
                     report, driver_code, expectations
                 )
+                proof_contract_valid = True
             except DriverProofError:
                 sequence_results = tuple(
                     ("NOT RUN", "harness-ambiguity") for _ in _STATES
                 )
+                proof_contract_valid = False
             proofs = report.get("stateProofs", []) if isinstance(report, dict) else []
             for index, (state_cell, (result, detail)) in enumerate(
                 zip(group, sequence_results)
@@ -1485,6 +1577,12 @@ def execute_matrix(manifest, output, *, dependencies=None, resume=False):
                     "browser_quiescence_seconds": report.get(
                         "browser_quiescence_seconds", 0.0
                     ),
+                    "session_hash": report.get("sessionHashes", [])[index]
+                    if proof_contract_valid
+                    and index < len(proofs)
+                    and isinstance(report.get("sessionHashes"), list)
+                    and index < len(report["sessionHashes"])
+                    else "not-invoked",
                 }
                 record = _sanitized_record(
                     state_cell,
@@ -1514,7 +1612,11 @@ def execute_matrix(manifest, output, *, dependencies=None, resume=False):
                     exit_code = MATRIX_BLOCKED
                     stop_detail = "blocked-after-ambiguity"
                 else:
-                    exit_code = MATRIX_PRODUCT_FAILURE
+                    exit_code = (
+                        MATRIX_PRODUCT_FAILURE
+                        if any(result == "FAIL" for result, _ in sequence_results)
+                        else MATRIX_BLOCKED
+                    )
                     stop_detail = "edge-pilot-failed"
                 remaining_tail = remaining[offset + 3 :]
                 for pending in remaining_tail:
@@ -1650,7 +1752,7 @@ class SystemDependencies:
         self,
         pinned_app,
         group,
-        session,
+        sessions,
         requests,
         profile_relative_root,
         e2e_app_identity,
@@ -1678,7 +1780,7 @@ class SystemDependencies:
             "--mechanism",
             cell.mechanism,
             "--session",
-            session,
+            sessions[0],
             "--request",
             requests[0],
             "--capability",
@@ -1694,6 +1796,8 @@ class SystemDependencies:
         ]
         for request in requests:
             arguments.extend(["--sequence-request", request])
+        for session in sessions:
+            arguments.extend(["--sequence-session", session])
         if profile_relative_root is not None:
             arguments.extend(
                 [

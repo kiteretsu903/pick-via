@@ -104,7 +104,7 @@ class DriverFixture:
         }:
             raise ValueError("unknown proof deadline phase")
         self.status_records = (
-            [{"session": "session_0123456789", "outcome": "selected"}]
+            [{"session": "$session", "outcome": "selected"}]
             if status_records is None
             else status_records
         )
@@ -329,7 +329,10 @@ if provenance_before_status:
     time.sleep(%r)
 with open(os.environ["PICKVIA_E2E_STATUS_FIFO"], "w", encoding="utf-8") as stream:
     for record in records:
-        stream.write(json.dumps(record, separators=(",", ":"), sort_keys=True) + "\\n")
+        resolved = dict(record)
+        if resolved.get("session") == "$session":
+            resolved["session"] = os.environ["PICKVIA_E2E_SESSION_NONCE"]
+        stream.write(json.dumps(resolved, separators=(",", ":"), sort_keys=True) + "\\n")
         stream.flush()
     if %r:
         time.sleep(%r)
@@ -868,8 +871,14 @@ class PickViaE2EDriverTests(unittest.TestCase):
         routed = []
         signaled = []
 
-        def route(state, request):
-            routed.append((state, request))
+        sessions = (
+            "session_cold_0000",
+            "session_running_0",
+            "session_reopen_00",
+        )
+
+        def route(state, session, request):
+            routed.append((state, session, request))
             if state == "cold":
                 live.add(cold)
                 return cold
@@ -879,6 +888,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
             return reopened
 
         proofs = driver._run_three_state_controller(
+            sessions=sessions,
             requests=("request_cold_0000", "request_running_0", "request_reopen_00"),
             route=route,
             snapshot=lambda _phase: frozenset(live),
@@ -888,7 +898,10 @@ class PickViaE2EDriverTests(unittest.TestCase):
             monotonic=SequenceClock(),
             sleep=lambda _seconds: None,
         )
-        self.assertEqual([state for state, _ in routed], ["cold", "running", "reopen"])
+        self.assertEqual(
+            [(state, session) for state, session, _ in routed],
+            list(zip(("cold", "running", "reopen"), sessions)),
+        )
         self.assertEqual(proofs, (cold, cold, reopened))
         self.assertEqual(signaled, [cold])
 
@@ -905,7 +918,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
                 routed = []
                 signaled = []
 
-                def route(state, _request):
+                def route(state, _session, _request):
                     routed.append(state)
                     if state == "cold":
                         live.add(cold)
@@ -922,6 +935,11 @@ class PickViaE2EDriverTests(unittest.TestCase):
 
                 with self.assertRaises(driver._StateSequenceError):
                     driver._run_three_state_controller(
+                        sessions=(
+                            "session_cold_0000",
+                            "session_running_0",
+                            "session_reopen_00",
+                        ),
                         requests=(
                             "request_cold_0000",
                             "request_running_0",
@@ -939,20 +957,35 @@ class PickViaE2EDriverTests(unittest.TestCase):
                     self.assertEqual(routed, [])
                 self.assertNotIn(replacement, signaled)
 
-    def test_three_state_controller_rejects_missing_or_reused_request_handoff(self):
-        for requests in (
-            (),
-            ("request_same_0000",) * 3,
-            ("request_cold_0000", "request_running_0"),
+    def test_three_state_controller_rejects_missing_or_reused_session_or_request(self):
+        valid_sessions = (
+            "session_cold_0000",
+            "session_running_0",
+            "session_reopen_00",
+        )
+        valid_requests = (
+            "request_cold_0000",
+            "request_running_0",
+            "request_reopen_00",
+        )
+        for sessions, requests in (
+            ((), valid_requests),
+            (("session_same_0000",) * 3, valid_requests),
+            (valid_sessions, ()),
+            (valid_sessions, ("request_same_0000",) * 3),
+            (valid_sessions, ("request_cold_0000", "request_running_0")),
         ):
             routed = []
             with (
-                self.subTest(requests=requests),
+                self.subTest(sessions=sessions, requests=requests),
                 self.assertRaises(driver._StateSequenceError),
             ):
                 driver._run_three_state_controller(
+                    sessions=sessions,
                     requests=requests,
-                    route=lambda state, request: routed.append((state, request)),
+                    route=lambda state, session, request: routed.append(
+                        (state, session, request)
+                    ),
                     snapshot=lambda _phase: frozenset(),
                     attest=lambda _identity: False,
                     terminate=lambda _identity: False,
@@ -967,7 +1000,7 @@ class PickViaE2EDriverTests(unittest.TestCase):
         reopened = driver.ProcessIdentity(7302, 1, 31, 1, executable)
         live = set()
 
-        def route(state, _request):
+        def route(state, _session, _request):
             if state == "cold":
                 live.add(cold)
                 return cold
@@ -982,6 +1015,11 @@ class PickViaE2EDriverTests(unittest.TestCase):
 
         with self.assertRaises(driver._StateSequenceError):
             driver._run_three_state_controller(
+                sessions=(
+                    "session_cold_0000",
+                    "session_running_0",
+                    "session_reopen_00",
+                ),
                 requests=(
                     "request_cold_0000",
                     "request_running_0",
@@ -995,6 +1033,42 @@ class PickViaE2EDriverTests(unittest.TestCase):
                 sleep=lambda _seconds: None,
             )
 
+    def test_three_state_controller_preserves_typed_route_failure_and_ownership(self):
+        executable = pathlib.Path("/Applications/Fake.app/Contents/MacOS/Fake")
+        identity = driver.ProcessIdentity(7351, 1, 35, 1, executable)
+        failure = driver._ReceiptTimeout(
+            False,
+            b"selected",
+            True,
+            frozenset({identity}),
+            "launch-observed",
+        )
+
+        def route(_state, _session, _request):
+            raise failure
+
+        with self.assertRaises(driver._ReceiptTimeout) as raised:
+            driver._run_three_state_controller(
+                sessions=(
+                    "session_cold_0000",
+                    "session_running_0",
+                    "session_reopen_00",
+                ),
+                requests=(
+                    "request_cold_0000",
+                    "request_running_0",
+                    "request_reopen_00",
+                ),
+                route=route,
+                snapshot=lambda _phase: frozenset(),
+                attest=lambda _identity: False,
+                terminate=lambda _identity: False,
+                monotonic=SequenceClock(),
+                sleep=lambda _seconds: None,
+            )
+        self.assertIs(raised.exception, failure)
+        self.assertEqual(raised.exception.owned_browsers, frozenset({identity}))
+
     def test_driver_sequence_owns_one_root_routes_three_fresh_requests_and_finalizes(
         self,
     ):
@@ -1002,6 +1076,11 @@ class PickViaE2EDriverTests(unittest.TestCase):
             "request_cold_0000",
             "request_running_0",
             "request_reopen_00",
+        )
+        sessions = (
+            "session_cold_0000",
+            "session_running_0",
+            "session_reopen_00",
         )
         with DriverFixture() as fixture:
             observed_fifos = []
@@ -1020,6 +1099,8 @@ class PickViaE2EDriverTests(unittest.TestCase):
                 config_overrides={
                     "state": "sequence",
                     "route_count": 3,
+                    "session_nonce": sessions[0],
+                    "sequence_sessions": sessions,
                     "sequence_requests": requests,
                 },
                 dependency_overrides={"before_cleanup": inspect_fifos},
@@ -1027,6 +1108,29 @@ class PickViaE2EDriverTests(unittest.TestCase):
             self.assertEqual(result.exit_code, driver.DRIVER_SUCCESS)
             self.assertEqual(len(fixture.routes), 3)
             self.assertEqual(len(set(fixture.routes)), 3)
+            route_environments = [
+                dict(item.split(b"=", 1) for item in environment)
+                for kind, environment in fixture.observed_environment
+                if kind == "e2e-app"
+            ]
+            self.assertEqual(
+                [
+                    environment[b"PICKVIA_E2E_SESSION_NONCE"].decode("ascii")
+                    for environment in route_environments
+                ],
+                list(sessions),
+            )
+            self.assertEqual(
+                result.report["sessionHashes"],
+                [
+                    hashlib.sha256(session.encode("ascii")).hexdigest()
+                    for session in sessions
+                ],
+            )
+            self.assertEqual(
+                [proof["session"] for proof in result.report["stateProofs"]],
+                list(sessions),
+            )
             self.assertEqual(len(fixture.terminated_browser_generations), 2)
             self.assertNotEqual(
                 fixture.terminated_browser_generations[0],
@@ -1055,6 +1159,12 @@ class PickViaE2EDriverTests(unittest.TestCase):
                 config_overrides={
                     "state": "sequence",
                     "route_count": 3,
+                    "session_nonce": "session_cold_0000",
+                    "sequence_sessions": (
+                        "session_cold_0000",
+                        "session_running_0",
+                        "session_reopen_00",
+                    ),
                     "sequence_requests": (
                         "request_cold_0000",
                         "request_running_0",
@@ -1067,6 +1177,183 @@ class PickViaE2EDriverTests(unittest.TestCase):
             self.assertEqual(fixture.routes, [])
             self.assertNotIn(7401, fixture.terminated_browser_pids)
             self.assertTrue(result.report["task_root_finalized"])
+
+    def test_driver_sequence_preserves_typed_failure_and_cleans_only_safe_generation(
+        self,
+    ):
+        cases = (
+            (
+                "receipt-timeout",
+                {
+                    "delivers_receipt": False,
+                    "proof_deadline_phase": "helper-and-browser",
+                    "timeout": 0.3,
+                },
+                driver.DRIVER_RECEIPT_TIMEOUT,
+            ),
+            (
+                "helper-exit-timeout",
+                {
+                    "helper_hangs_after_delivery": True,
+                    "proof_deadline_phase": "receipt-delivered",
+                    "timeout": 2.0,
+                },
+                driver.DRIVER_HELPER_FAILURE,
+            ),
+            (
+                "invalid-receipt",
+                {"probe_kind": "wrong-token"},
+                driver.DRIVER_INVALID_RECEIPT,
+            ),
+        )
+        for expected_outcome, fixture_options, expected_exit in cases:
+            with (
+                self.subTest(expected_outcome=expected_outcome),
+                DriverFixture(**fixture_options) as fixture,
+            ):
+                result = fixture.run(
+                    config_overrides={
+                        "state": "sequence",
+                        "route_count": 3,
+                        "session_nonce": "session_cold_0000",
+                        "sequence_sessions": (
+                            "session_cold_0000",
+                            "session_running_0",
+                            "session_reopen_00",
+                        ),
+                        "sequence_requests": (
+                            "request_cold_0000",
+                            "request_running_0",
+                            "request_reopen_00",
+                        ),
+                    }
+                )
+                self.assertEqual(result.exit_code, expected_exit)
+                self.assertEqual(result.report["outcome"], expected_outcome)
+                self.assertTrue(result.report["exact_browser_process_identity"])
+                self.assertEqual(result.report["launch_provenance"], "launch-observed")
+                self.assertEqual(len(result.report["stateProofs"]), 1)
+                safe_proof = result.report["stateProofs"][0]
+                self.assertTrue(safe_proof["browserIdentity"])
+                self.assertEqual(safe_proof["provenance"], "launch-observed")
+                self.assertGreater(safe_proof["processIdentifier"], 0)
+                self.assertEqual(len(fixture.terminated_browser_generations), 1)
+                self.assertTrue(result.report["cleanup_success"])
+                self.assertTrue(result.report["task_root_finalized"])
+                self.assertFalse(fixture.task_root.exists())
+                if expected_outcome == "receipt-timeout":
+                    proof = safe_proof
+                    self.assertEqual(proof["state"], "cold")
+                    self.assertEqual(proof["session"], "session_cold_0000")
+                    self.assertEqual(proof["request"], "request_cold_0000")
+                    self.assertEqual(proof["outcome"], "receipt-timeout")
+                    self.assertFalse(proof["receipt"])
+                    self.assertTrue(proof["browserIdentity"])
+                    self.assertEqual(proof["provenance"], "launch-observed")
+                    self.assertGreater(proof["processIdentifier"], 0)
+                for pid in fixture.terminated_browser_pids:
+                    with self.assertRaises(ProcessLookupError):
+                        os.kill(pid, 0)
+
+    def test_driver_sequence_identity_timeout_has_no_cleanup_authority_or_signal(self):
+        with DriverFixture(
+            receipt_without_browser=True,
+            spawn_browser=False,
+            timeout=1.0,
+            proof_deadline_phase="helper-and-receipt",
+        ) as fixture:
+            result = fixture.run(
+                config_overrides={
+                    "state": "sequence",
+                    "route_count": 3,
+                    "session_nonce": "session_cold_0000",
+                    "sequence_sessions": (
+                        "session_cold_0000",
+                        "session_running_0",
+                        "session_reopen_00",
+                    ),
+                    "sequence_requests": (
+                        "request_cold_0000",
+                        "request_running_0",
+                        "request_reopen_00",
+                    ),
+                }
+            )
+            self.assertEqual(result.exit_code, driver.DRIVER_BROWSER_IDENTITY_TIMEOUT)
+            self.assertEqual(result.report["outcome"], "browser-identity-timeout")
+            self.assertEqual(fixture.terminated_browser_pids, [])
+            self.assertTrue(result.report["cleanup_success"])
+            self.assertFalse(fixture.task_root.exists())
+
+    def test_driver_sequence_cleanup_failure_overrides_helper_primary_outcome(self):
+        with DriverFixture(
+            helper_hangs_after_delivery=True,
+            proof_deadline_phase="receipt-delivered",
+            browser_survives_termination=True,
+            timeout=2.0,
+        ) as fixture:
+            result = fixture.run(
+                config_overrides={
+                    "state": "sequence",
+                    "route_count": 3,
+                    "session_nonce": "session_cold_0000",
+                    "sequence_sessions": (
+                        "session_cold_0000",
+                        "session_running_0",
+                        "session_reopen_00",
+                    ),
+                    "sequence_requests": (
+                        "request_cold_0000",
+                        "request_running_0",
+                        "request_reopen_00",
+                    ),
+                }
+            )
+            self.assertEqual(result.exit_code, driver.DRIVER_CLEANUP_FAILURE)
+            self.assertEqual(result.report["outcome"], "cleanup-error")
+            self.assertFalse(result.report["cleanup_success"])
+            self.assertTrue(result.report["task_root_finalized"])
+
+    def test_driver_sequence_preserves_exact_catalog_refusal_as_unsupported_proof(self):
+        for refusal in ("target-disabled", "target-missing", "target-mode-mismatch"):
+            with (
+                self.subTest(refusal=refusal),
+                DriverFixture(
+                    status_records=[{"session": "$session", "outcome": refusal}],
+                    spawn_browser=False,
+                ) as fixture,
+            ):
+                result = fixture.run(
+                    config_overrides={
+                        "state": "sequence",
+                        "route_count": 3,
+                        "session_nonce": "session_cold_0000",
+                        "sequence_sessions": (
+                            "session_cold_0000",
+                            "session_running_0",
+                            "session_reopen_00",
+                        ),
+                        "sequence_requests": (
+                            "request_cold_0000",
+                            "request_running_0",
+                            "request_reopen_00",
+                        ),
+                    }
+                )
+                self.assertEqual(result.exit_code, driver.DRIVER_SELECTION_REJECTED)
+                self.assertEqual(result.report["outcome"], refusal)
+                self.assertFalse(result.report["token_received"])
+                self.assertFalse(result.report["exact_browser_process_identity"])
+                self.assertEqual(result.report["launch_provenance"], "none")
+                self.assertEqual(len(result.report["stateProofs"]), 1)
+                proof = result.report["stateProofs"][0]
+                self.assertEqual(proof["outcome"], refusal)
+                self.assertEqual(proof["session"], "session_cold_0000")
+                self.assertFalse(proof["browserIdentity"])
+                self.assertIsNone(proof["processIdentifier"])
+                self.assertEqual(fixture.terminated_browser_pids, [])
+                self.assertTrue(result.report["cleanup_success"])
+                self.assertFalse(fixture.task_root.exists())
 
     def _metadata_on_device(self, metadata, device):
         return types.SimpleNamespace(
@@ -4030,6 +4317,7 @@ time.sleep(3.25)
                 set(result.report),
                 {
                     "session",
+                    "sessionHashes",
                     "schemaVersion",
                     "request",
                     "bundleIdentifier",

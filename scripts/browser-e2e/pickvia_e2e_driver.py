@@ -117,6 +117,7 @@ class DriverConfig:
     state: str = "cold"
     e2e_app_identity: str = "0" * 64
     browser_app_identity: str = "0" * 64
+    sequence_sessions: tuple = ()
     sequence_requests: tuple = ()
 
 
@@ -1665,63 +1666,62 @@ class _StateSequenceError(Exception):
 
 
 def _run_three_state_controller(
-    *, requests, route, snapshot, attest, terminate, monotonic, sleep
+    *, sessions, requests, route, snapshot, attest, terminate, monotonic, sleep
 ):
     def exactly_generation(values, expected):
         values = tuple(values)
         return len(values) == 1 and values[0].generation_key == expected.generation_key
 
     if (
-        not isinstance(requests, tuple)
+        not isinstance(sessions, tuple)
+        or len(sessions) != 3
+        or len(set(sessions)) != 3
+        or any(_SESSION_PATTERN.fullmatch(session) is None for session in sessions)
+        or not isinstance(requests, tuple)
         or len(requests) != 3
         or len(set(requests)) != 3
         or any(_SESSION_PATTERN.fullmatch(request) is None for request in requests)
     ):
         raise _StateSequenceError
-    try:
-        if snapshot("baseline"):
-            raise _StateSequenceError
+    if snapshot("baseline"):
+        raise _StateSequenceError
 
-        cold = route("cold", requests[0])
-        cold_snapshot = frozenset(snapshot("cold"))
-        if not exactly_generation(cold_snapshot, cold) or not attest(cold):
-            raise _StateSequenceError
+    cold = route("cold", sessions[0], requests[0])
+    cold_snapshot = frozenset(snapshot("cold"))
+    if not exactly_generation(cold_snapshot, cold) or not attest(cold):
+        raise _StateSequenceError
 
-        running = route("running", requests[1])
-        running_snapshot = frozenset(snapshot("running"))
-        if (
-            running.generation_key != cold.generation_key
-            or not exactly_generation(running_snapshot, cold)
-            or not attest(cold)
-        ):
-            raise _StateSequenceError
+    running = route("running", sessions[1], requests[1])
+    running_snapshot = frozenset(snapshot("running"))
+    if (
+        running.generation_key != cold.generation_key
+        or not exactly_generation(running_snapshot, cold)
+        or not attest(cold)
+    ):
+        raise _StateSequenceError
 
-        if not attest(cold):
+    if not attest(cold):
+        raise _StateSequenceError
+    if terminate(cold) is not True:
+        raise _StateSequenceError
+    absence_deadline = monotonic() + BROWSER_QUIESCENCE_SECONDS
+    while True:
+        if snapshot("reopen-absence"):
             raise _StateSequenceError
-        if terminate(cold) is not True:
-            raise _StateSequenceError
-        absence_deadline = monotonic() + BROWSER_QUIESCENCE_SECONDS
-        while True:
-            if snapshot("reopen-absence"):
-                raise _StateSequenceError
-            now = monotonic()
-            if now >= absence_deadline:
-                break
-            sleep(min(BROWSER_QUIESCENCE_POLL_SECONDS, absence_deadline - now))
+        now = monotonic()
+        if now >= absence_deadline:
+            break
+        sleep(min(BROWSER_QUIESCENCE_POLL_SECONDS, absence_deadline - now))
 
-        reopened = route("reopen", requests[2])
-        reopened_snapshot = frozenset(snapshot("reopen"))
-        if (
-            reopened.generation_key == cold.generation_key
-            or not exactly_generation(reopened_snapshot, reopened)
-            or not attest(reopened)
-        ):
-            raise _StateSequenceError
-        return cold, running, reopened
-    except _StateSequenceError:
-        raise
-    except Exception as error:
-        raise _StateSequenceError from error
+    reopened = route("reopen", sessions[2], requests[2])
+    reopened_snapshot = frozenset(snapshot("reopen"))
+    if (
+        reopened.generation_key == cold.generation_key
+        or not exactly_generation(reopened_snapshot, reopened)
+        or not attest(reopened)
+    ):
+        raise _StateSequenceError
+    return cold, running, reopened
 
 
 class _StatusProtocolError(_ProtocolError):
@@ -1970,6 +1970,7 @@ class _OwnedProcesses:
 def _empty_result(exit_code):
     report = {
         "session": "invalid",
+        "sessionHashes": [],
         "schemaVersion": 1,
         "request": "invalid",
         "bundleIdentifier": "invalid",
@@ -2006,9 +2007,15 @@ def _failure_result(config, exit_code, outcome):
     session = getattr(config, "session_nonce", "invalid")
     if not isinstance(session, str) or _SESSION_PATTERN.fullmatch(session) is None:
         session = "invalid"
+    session_hashes = (
+        [hashlib.sha256(session.encode("ascii")).hexdigest()]
+        if session != "invalid"
+        else []
+    )
     report = {
         "schemaVersion": 1,
         "session": session,
+        "sessionHashes": session_hashes,
         "request": getattr(config, "request_nonce", "invalid"),
         "bundleIdentifier": getattr(config, "bundle_identifier", "invalid"),
         "targetID": getattr(config, "target_id", "invalid"),
@@ -2079,6 +2086,14 @@ def _validated_config(config, browser_binding_checker):
     if config.state == "sequence":
         if (
             config.route_count != 3
+            or not isinstance(config.sequence_sessions, tuple)
+            or len(config.sequence_sessions) != 3
+            or len(set(config.sequence_sessions)) != 3
+            or config.session_nonce != config.sequence_sessions[0]
+            or any(
+                _SESSION_PATTERN.fullmatch(session) is None
+                for session in config.sequence_sessions
+            )
             or not isinstance(config.sequence_requests, tuple)
             or len(config.sequence_requests) != 3
             or len(set(config.sequence_requests)) != 3
@@ -2088,7 +2103,9 @@ def _validated_config(config, browser_binding_checker):
             )
         ):
             return None
-    elif config.route_count != 1 or config.sequence_requests:
+    elif (
+        config.route_count != 1 or config.sequence_sessions or config.sequence_requests
+    ):
         return None
     if not all(
         isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value)
@@ -2865,6 +2882,16 @@ def _helper_cleanup_authority(status_sequence, provenance_owned):
     return provenance_owned
 
 
+def _safe_failure_provenance(error):
+    explicit = getattr(error, "launch_provenance", "none")
+    if explicit != "none":
+        return explicit
+    owned = frozenset(getattr(error, "owned_browsers", ()))
+    if getattr(error, "browser_identity", False) and len(owned) == 1:
+        return "launch-observed"
+    return "none"
+
+
 def _wait_for_proof(
     processes,
     fifo_descriptor,
@@ -3615,7 +3642,7 @@ def run_driver(config, dependencies=None):
         elif not _physical_executable(pathlib.Path(helper_executable)):
             raise _HelperError
 
-        def perform_route(state, request_nonce):
+        def perform_route(state, session_nonce, request_nonce):
             nonlocal app, cleanup_ok, exact_e2e_identity
             nonlocal fifo_descriptor, provenance_descriptor, route_delivery_attempted
             route_started = dependencies.monotonic()
@@ -3654,7 +3681,7 @@ def run_driver(config, dependencies=None):
                     "PICKVIA_E2E_TARGET_ID": target_id,
                     "PICKVIA_E2E_BUNDLE_ID": config.bundle_identifier,
                     "PICKVIA_E2E_MODE": config.mode,
-                    "PICKVIA_E2E_SESSION_NONCE": config.session_nonce,
+                    "PICKVIA_E2E_SESSION_NONCE": session_nonce,
                     "PICKVIA_E2E_REQUEST_NONCE": request_nonce,
                     "PICKVIA_E2E_SUPPORT_DIR": os.fspath(task_root.require_current()),
                     "PICKVIA_E2E_STATUS_FIFO": os.fspath(fifo),
@@ -3690,26 +3717,75 @@ def run_driver(config, dependencies=None):
                 helper.stdin.close()
             except OSError as error:
                 raise _HelperError from error
-            proof = _wait_for_proof(
-                processes,
-                fifo_descriptor,
-                provenance_descriptor,
-                receiver,
-                helper,
-                app,
-                config.session_nonce,
-                request_nonce,
-                target_id,
-                config.bundle_identifier,
-                config.mode,
-                config.expected_mechanism,
-                token,
-                pathlib.Path(config.browser_app),
-                browser_executable,
-                preexisting_browsers,
-                dependencies,
-                route_deadline,
-            )
+            try:
+                proof = _wait_for_proof(
+                    processes,
+                    fifo_descriptor,
+                    provenance_descriptor,
+                    receiver,
+                    helper,
+                    app,
+                    session_nonce,
+                    request_nonce,
+                    target_id,
+                    config.bundle_identifier,
+                    config.mode,
+                    config.expected_mechanism,
+                    token,
+                    pathlib.Path(config.browser_app),
+                    browser_executable,
+                    preexisting_browsers,
+                    dependencies,
+                    route_deadline,
+                )
+            except (
+                _ReceiptTimeout,
+                _BrowserIdentityTimeout,
+                _HelperExitTimeout,
+                _HelperError,
+                _StatusProtocolError,
+                _ReceiptProtocolError,
+            ) as error:
+                failure_outcome = (
+                    "receipt-timeout"
+                    if isinstance(error, _ReceiptTimeout)
+                    else "browser-identity-timeout"
+                    if isinstance(error, _BrowserIdentityTimeout)
+                    else "helper-exit-timeout"
+                    if isinstance(error, _HelperExitTimeout)
+                    else "helper-error"
+                    if isinstance(error, _HelperError)
+                    else "invalid-status"
+                    if isinstance(error, _StatusProtocolError)
+                    else "invalid-receipt"
+                )
+                safe_owned = frozenset(getattr(error, "owned_browsers", ()))
+                failure_provenance = _safe_failure_provenance(error)
+                identity = (
+                    next(iter(safe_owned))
+                    if error.browser_identity
+                    and failure_provenance == "launch-observed"
+                    and len(safe_owned) == 1
+                    else None
+                )
+                state_proofs.append(
+                    [
+                        state,
+                        session_nonce,
+                        request_nonce,
+                        _WaitResult(
+                            failure_outcome,
+                            error.token_received,
+                            error.status_line,
+                            error.browser_identity,
+                            safe_owned,
+                            failure_provenance,
+                        ),
+                        identity,
+                        max(dependencies.monotonic() - route_started, 0.0),
+                    ]
+                )
+                raise
             cleanup_ok = dependencies.fifo_closer(fifo_descriptor) and cleanup_ok
             fifo_descriptor = None
             cleanup_ok = dependencies.fifo_closer(provenance_descriptor) and cleanup_ok
@@ -3721,6 +3797,7 @@ def run_driver(config, dependencies=None):
             state_proofs.append(
                 [
                     state,
+                    session_nonce,
                     request_nonce,
                     proof,
                     None,
@@ -3743,7 +3820,7 @@ def run_driver(config, dependencies=None):
             ):
                 raise _StateSequenceError
             identity = next(iter(proof.owned_browser_identities))
-            state_proofs[-1][3] = identity
+            state_proofs[-1][4] = identity
             owned_browsers.add(identity)
             return identity
 
@@ -3783,6 +3860,7 @@ def run_driver(config, dependencies=None):
                 )
 
             _run_three_state_controller(
+                sessions=config.sequence_sessions,
                 requests=config.sequence_requests,
                 route=perform_route,
                 snapshot=sequence_snapshot,
@@ -3791,10 +3869,10 @@ def run_driver(config, dependencies=None):
                 monotonic=dependencies.quiescence_monotonic,
                 sleep=dependencies.quiescence_sleep,
             )
-            final_proof = state_proofs[-1][2]
+            final_proof = state_proofs[-1][3]
         else:
-            perform_route(config.state, config.request_nonce)
-            final_proof = state_proofs[-1][2]
+            perform_route(config.state, config.session_nonce, config.request_nonce)
+            final_proof = state_proofs[-1][3]
         outcome = final_proof.outcome
         received = final_proof.token_received
         status_line = final_proof.status_line
@@ -3825,16 +3903,33 @@ def run_driver(config, dependencies=None):
         status_line = error.status_line
         exact_browser_identity = error.browser_identity
         owned_browsers.update(error.owned_browsers)
-        launch_provenance = error.launch_provenance
+        launch_provenance = _safe_failure_provenance(error)
         exit_code = DRIVER_HELPER_FAILURE
     except _StateSequenceError:
+        failed_proof = state_proofs[-1][3] if state_proofs else None
         if (
-            state_proofs
-            and state_proofs[-1][2].outcome == "launch-error"
-            and state_proofs[-1][2].launch_provenance in {"none", "launch-error"}
+            failed_proof is not None
+            and failed_proof.outcome == "launch-error"
+            and failed_proof.launch_provenance in {"none", "launch-error"}
         ):
             outcome = "launch-error"
-            launch_provenance = state_proofs[-1][2].launch_provenance
+            received = failed_proof.token_received
+            status_line = failed_proof.status_line
+            launch_provenance = failed_proof.launch_provenance
+            exit_code = DRIVER_SELECTION_REJECTED
+        elif (
+            failed_proof is not None
+            and failed_proof.outcome
+            in {"target-disabled", "target-missing", "target-mode-mismatch"}
+            and failed_proof.token_received is False
+            and failed_proof.exact_browser_identity is False
+            and failed_proof.launch_provenance == "none"
+            and not failed_proof.owned_browser_identities
+        ):
+            outcome = failed_proof.outcome
+            received = False
+            status_line = failed_proof.status_line
+            launch_provenance = "none"
             exit_code = DRIVER_SELECTION_REJECTED
         else:
             outcome = "state-sequence-error"
@@ -3863,6 +3958,7 @@ def run_driver(config, dependencies=None):
         status_line = error.status_line
         exact_browser_identity = error.browser_identity
         owned_browsers.update(error.owned_browsers)
+        launch_provenance = _safe_failure_provenance(error)
         exit_code = DRIVER_INVALID_STATUS
     except _ReceiptProtocolError as error:
         outcome = "invalid-receipt"
@@ -3870,6 +3966,7 @@ def run_driver(config, dependencies=None):
         status_line = error.status_line
         exact_browser_identity = error.browser_identity
         owned_browsers.update(error.owned_browsers)
+        launch_provenance = _safe_failure_provenance(error)
         exit_code = DRIVER_INVALID_RECEIPT
     except _ProvenanceProtocolError as error:
         outcome = "provenance-error"
@@ -3888,6 +3985,7 @@ def run_driver(config, dependencies=None):
         status_line = error.status_line
         exact_browser_identity = error.browser_identity
         owned_browsers.update(error.owned_browsers)
+        launch_provenance = _safe_failure_provenance(error)
         exit_code = DRIVER_HELPER_FAILURE
     except _IdentityError:
         outcome = "identity-error"
@@ -4060,22 +4158,27 @@ def run_driver(config, dependencies=None):
         elif signal_guard.received_during_cleanup:
             outcome = "cleanup-interrupted"
             exit_code = DRIVER_CLEANUP_FAILURE
-        elif not cleanup_ok and exit_code not in {
-            DRIVER_INVALID_STATUS,
-            DRIVER_INVALID_RECEIPT,
-            DRIVER_HELPER_FAILURE,
-            DRIVER_PROVENANCE_FAILURE,
-        }:
+        elif not cleanup_ok and (
+            config.state == "sequence"
+            or exit_code
+            not in {
+                DRIVER_INVALID_STATUS,
+                DRIVER_INVALID_RECEIPT,
+                DRIVER_HELPER_FAILURE,
+                DRIVER_PROVENANCE_FAILURE,
+            }
+        ):
             outcome = "cleanup-error"
             exit_code = DRIVER_CLEANUP_FAILURE
         signal_guard.restore()
 
     total_elapsed = max(dependencies.monotonic() - started, 0.0)
     state_proof_reports = []
-    for state, request, proof, identity, route_elapsed in state_proofs:
+    for state, session, request, proof, identity, route_elapsed in state_proofs:
         state_proof_reports.append(
             {
                 "state": state,
+                "session": session,
                 "request": request,
                 "outcome": proof.outcome,
                 "receipt": proof.token_received,
@@ -4095,6 +4198,14 @@ def run_driver(config, dependencies=None):
     report = {
         "schemaVersion": 1,
         "session": config.session_nonce,
+        "sessionHashes": [
+            hashlib.sha256(session.encode("ascii")).hexdigest()
+            for session in (
+                config.sequence_sessions
+                if config.state == "sequence"
+                else (config.session_nonce,)
+            )
+        ],
         "request": config.request_nonce,
         "bundleIdentifier": config.bundle_identifier,
         "targetID": target_id,
@@ -4164,6 +4275,7 @@ def main(argv=None):
     parser.add_argument("--e2e-app-identity", default="0" * 64)
     parser.add_argument("--browser-app-identity", default="0" * 64)
     parser.add_argument("--sequence-request", action="append", default=[])
+    parser.add_argument("--sequence-session", action="append", default=[])
     parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--route-count", type=int, default=1)
     parser.add_argument("--profile-strategy", choices=("chromium", "firefox"))
@@ -4192,6 +4304,7 @@ def main(argv=None):
             state=arguments.state,
             e2e_app_identity=arguments.e2e_app_identity,
             browser_app_identity=arguments.browser_app_identity,
+            sequence_sessions=tuple(arguments.sequence_session),
             sequence_requests=tuple(arguments.sequence_request),
         )
     )
