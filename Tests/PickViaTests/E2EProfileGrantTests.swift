@@ -282,6 +282,31 @@
       }
     }
 
+    func testRejectsRealCoordinatorAccessThatRefreshedAStaleBookmark() throws {
+      let fixture = try makeChromiumFixture()
+      let store = StaleProfileGrantStore()
+      let codec = StaleProfileGrantBookmarkCodec(root: fixture.root)
+      let resourceAccess = StaleProfileGrantResourceAccess()
+      let coordinator = ProfileAccessCoordinator(
+        store: store,
+        bookmarkCodec: codec,
+        resourceAccess: resourceAccess
+      )
+
+      XCTAssertThrowsError(
+        try E2EProfileGrantInstaller.installIfPresent(
+          control: fixture.control,
+          descriptors: [fixture.descriptor],
+          coordinator: coordinator
+        )
+      )
+      XCTAssertEqual(codec.makeBookmarkCallCount, 2)
+      XCTAssertEqual(codec.resolveCallCount, 1)
+      XCTAssertEqual(store.savedBookmarks.count, 2)
+      XCTAssertEqual(resourceAccess.startedRoots, [fixture.root])
+      XCTAssertEqual(resourceAccess.stoppedRoots, [fixture.root])
+    }
+
     func testRejectsManifestSymlinkAndPermissiveManifestMode() throws {
       let fixture = try makeChromiumFixture()
       let manifest = fixture.control.profileGrantManifest
@@ -485,7 +510,8 @@
         state: .granted,
         lease: ProfileRootLease(root: accessRoot) { [weak self] in
           self?.endedLeaseRoots.append(accessRoot)
-        }
+        },
+        provenance: persistence == .persistent ? .persistentBookmark : .currentSessionGrant
       )
     }
 
@@ -502,5 +528,59 @@
     }
 
     func removeGrant(for bundleIdentifier: String) throws {}
+  }
+
+  private final class StaleProfileGrantStore: ProfileAccessStoring, @unchecked Sendable {
+    private var bookmark: Data?
+    private(set) var savedBookmarks: [Data] = []
+
+    func bookmark(for bundleIdentifier: String) throws -> Data? {
+      bookmark
+    }
+
+    func save(_ bookmark: Data, for bundleIdentifier: String) throws {
+      self.bookmark = bookmark
+      savedBookmarks.append(bookmark)
+    }
+
+    func remove(for bundleIdentifier: String) throws {
+      bookmark = nil
+    }
+  }
+
+  private final class StaleProfileGrantBookmarkCodec: ProfileBookmarkCoding, @unchecked Sendable {
+    private let root: URL
+    private(set) var makeBookmarkCallCount = 0
+    private(set) var resolveCallCount = 0
+
+    init(root: URL) {
+      self.root = root
+    }
+
+    func makeReadOnlyBookmark(for root: URL) throws -> Data {
+      makeBookmarkCallCount += 1
+      return Data("bookmark-\(makeBookmarkCallCount)".utf8)
+    }
+
+    func resolve(_ bookmark: Data) throws -> ResolvedProfileBookmark {
+      resolveCallCount += 1
+      return ResolvedProfileBookmark(root: root, isStale: true)
+    }
+  }
+
+  private final class StaleProfileGrantResourceAccess: SecurityScopedResourceAccessing,
+    @unchecked Sendable
+  {
+    private(set) var startedRoots: [URL] = []
+    private(set) var stoppedRoots: [URL] = []
+
+    func startAccessing(_ url: URL) -> Bool {
+      startedRoots.append(url)
+      return true
+    }
+
+    func stopAccessing(_ url: URL) {
+      stoppedRoots.append(url)
+    }
   }
 #endif

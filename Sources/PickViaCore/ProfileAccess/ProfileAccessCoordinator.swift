@@ -79,13 +79,26 @@ public enum ProfileRootAccessState: Equatable, Sendable {
   case revoked
 }
 
+public enum ProfileRootAccessProvenance: Equatable, Sendable {
+  case none
+  case currentSessionGrant
+  case persistentBookmark
+  case refreshedPersistentBookmark
+}
+
 public struct ProfileRootAccessResult: Sendable {
   public let state: ProfileRootAccessState
   public let lease: ProfileRootLease?
+  public let provenance: ProfileRootAccessProvenance
 
-  public init(state: ProfileRootAccessState, lease: ProfileRootLease?) {
+  public init(
+    state: ProfileRootAccessState,
+    lease: ProfileRootLease?,
+    provenance: ProfileRootAccessProvenance = .none
+  ) {
     self.state = state
     self.lease = lease
+    self.provenance = provenance
   }
 }
 
@@ -216,7 +229,8 @@ public final class ProfileAccessCoordinator: ProfileAccessManaging, @unchecked S
       let didStart = resourceAccess.startAccessing(root)
       return ProfileRootAccessResult(
         state: .granted,
-        lease: makeLease(root: root, stopsScopedAccess: didStart)
+        lease: makeLease(root: root, stopsScopedAccess: didStart),
+        provenance: .currentSessionGrant
       )
     }
   }
@@ -234,16 +248,21 @@ public final class ProfileAccessCoordinator: ProfileAccessManaging, @unchecked S
   ) -> ProfileRootAccessResult {
     do {
       let resolved = try bookmarkCodec.resolve(bookmark)
+      let provenance: ProfileRootAccessProvenance
       if resolved.isStale {
         let refreshed = try bookmarkCodec.makeReadOnlyBookmark(for: resolved.root)
         try store.save(refreshed, for: bundleIdentifier)
+        provenance = .refreshedPersistentBookmark
+      } else {
+        provenance = .persistentBookmark
       }
       guard resourceAccess.startAccessing(resolved.root) else {
         return ProfileRootAccessResult(state: .revoked, lease: nil)
       }
       return ProfileRootAccessResult(
         state: .granted,
-        lease: makeLease(root: resolved.root, stopsScopedAccess: true)
+        lease: makeLease(root: resolved.root, stopsScopedAccess: true),
+        provenance: provenance
       )
     } catch {
       return ProfileRootAccessResult(state: .revoked, lease: nil)

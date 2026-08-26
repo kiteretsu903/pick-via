@@ -11,6 +11,7 @@ struct ProfileAccessCoordinatorTests {
     let result = harness.coordinator.beginAccess(for: chromeBundleIdentifier)
 
     #expect(result.state == .missing)
+    #expect(result.provenance == .none)
     #expect(result.lease == nil)
     #expect(harness.scope.started.isEmpty)
   }
@@ -24,6 +25,7 @@ struct ProfileAccessCoordinatorTests {
     defer { lease.end() }
 
     #expect(result.state == .granted)
+    #expect(result.provenance == .persistentBookmark)
     #expect(lease.root == root)
     #expect(harness.scope.started == [root])
   }
@@ -34,6 +36,7 @@ struct ProfileAccessCoordinatorTests {
     let result = harness.coordinator.beginAccess(for: chromeBundleIdentifier)
 
     #expect(result.state == .revoked)
+    #expect(result.provenance == .none)
     #expect(result.lease == nil)
     #expect(harness.scope.started.isEmpty)
   }
@@ -45,6 +48,7 @@ struct ProfileAccessCoordinatorTests {
     let result = harness.coordinator.beginAccess(for: chromeBundleIdentifier)
 
     #expect(result.state == .revoked)
+    #expect(result.provenance == .none)
     #expect(result.lease == nil)
     #expect(harness.scope.stopped.isEmpty)
   }
@@ -61,6 +65,7 @@ struct ProfileAccessCoordinatorTests {
     #expect(harness.store.saved.first?.bundleIdentifier == chromeBundleIdentifier)
     #expect(harness.store.saved.first?.bookmark == Data("refreshed".utf8))
     #expect(result.state == .granted)
+    #expect(result.provenance == .refreshedPersistentBookmark)
   }
 
   @Test func successfulOperationStopsScopedAccessExactlyOnce() throws {
@@ -159,6 +164,7 @@ struct ProfileAccessCoordinatorTests {
     #expect(persistence == .currentSessionOnly)
     #expect(harness.coordinator.persistence(for: chromeBundleIdentifier) == .currentSessionOnly)
     #expect(result.state == .granted)
+    #expect(result.provenance == .currentSessionGrant)
     #expect(lease.root == root)
     #expect(harness.store.saved.isEmpty)
     #expect(harness.scope.stopped.isEmpty)

@@ -103,6 +103,11 @@
         throw E2EProfileGrantError.grantUnavailable
       }
       defer { lease.end() }
+      let expectedProvenance: ProfileRootAccessProvenance =
+        persistence == .persistent ? .persistentBookmark : .currentSessionGrant
+      guard access.provenance == expectedProvenance else {
+        throw E2EProfileGrantError.grantUnavailable
+      }
       guard lease.root.standardizedFileURL == rootURL.standardizedFileURL else {
         throw E2EProfileGrantError.grantUnavailable
       }
