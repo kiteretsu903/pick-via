@@ -414,16 +414,10 @@ private struct ScreenshotFixture {
       path: "/Applications/Safari.app"
     )
     let chrome = Self.browser(
-      "com.google.Chrome",
-      name: "Google Chrome",
+      "com.google.Chrome.dev",
+      name: "Google Chrome Dev",
       family: .chromium,
-      path: "/Applications/Google Chrome.app"
-    )
-    let chromium = Self.browser(
-      "org.chromium.Chromium",
-      name: "Chromium",
-      family: .chromium,
-      path: "/Applications/Chromium.app"
+      path: "/Applications/Google Chrome Dev.app"
     )
     let edge = Self.browser(
       "com.microsoft.edgemac",
@@ -448,6 +442,13 @@ private struct ScreenshotFixture {
       name: "Firefox",
       family: .firefox,
       path: "/Applications/Firefox.app"
+    )
+
+    let firefoxNightly = Self.browser(
+      "org.mozilla.nightly",
+      name: "Firefox Nightly",
+      family: .firefox,
+      path: "/Applications/Firefox Nightly.app"
     )
 
     let appleMail = Self.mail(
@@ -478,17 +479,17 @@ private struct ScreenshotFixture {
       path: "/Applications/zoom.us.app"
     )
 
-    let browsers = [safari, chrome, chromium, edge, brave, vivaldi, firefox]
+    let browsers = [safari, chrome, edge, brave, vivaldi, firefox, firefoxNightly]
     mailApplications = [appleMail, outlook, openIn, thunderbird, zoom]
     applications = browsers + mailApplications
 
     let samples: [(RoutedApplication, String, String?)] = [
       (chrome, "Client Work", "Work"),
-      (chromium, "Experiments", "Lab"),
       (edge, "Team", "Organization"),
       (brave, "Personal", "Personal"),
       (vivaldi, "Projects", "Projects"),
       (firefox, "Research Lab", "Research"),
+      (firefoxNightly, "Experiments", "Experiments"),
       (safari, "Default", nil),
     ]
     settingsTargets = samples.enumerated().map { index, sample in
@@ -501,25 +502,22 @@ private struct ScreenshotFixture {
       )
     }
 
-    browserChooserApplications = [chrome, brave, firefox, safari]
+    browserChooserApplications = [chrome, firefox, firefoxNightly, safari]
     browserChooserTargets = [
       Self.browserTarget(
         application: chrome, label: "Personal", profile: "Personal", mode: .normal, order: 0),
       Self.browserTarget(
-        application: chrome, label: "School", profile: "School", mode: .normal, order: 1),
+        application: chrome, label: "Work", profile: "Work", mode: .normal, order: 1),
       Self.browserTarget(
-        application: chrome, label: "Work", profile: "Work", mode: .normal, order: 2),
+        application: firefox, label: "Default", profile: nil, mode: .normal, order: 2),
       Self.browserTarget(
-        application: brave, label: "Default", profile: nil, mode: .normal, order: 3),
+        application: firefox, label: "Research", profile: "Research", mode: .normal, order: 3),
       Self.browserTarget(
-        application: brave, label: "Private", profile: nil, mode: .private, order: 4),
+        application: firefoxNightly, label: "Default", profile: nil, mode: .normal, order: 4),
       Self.browserTarget(
-        application: firefox, label: "Research", profile: "Research", mode: .normal, order: 5),
+        application: firefoxNightly, label: "Private", profile: nil, mode: .private, order: 5),
       Self.browserTarget(
-        application: firefox, label: "Research Private", profile: "Research", mode: .private,
-        order: 6),
-      Self.browserTarget(
-        application: safari, label: "Safari", profile: nil, mode: .normal, order: 7),
+        application: safari, label: "Safari", profile: nil, mode: .normal, order: 6),
     ]
     mailTargets = mailApplications.enumerated().map { index, application in
       RouteTarget(

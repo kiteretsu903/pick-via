@@ -6,6 +6,7 @@ public struct DiscoveredBrowser: Equatable, Sendable {
   public let profiles: [DiscoveredProfile]
   public let metadataStatus: ProfileMetadataStatus
   let profileMetadataUsesSavedGrant: Bool
+  let profilesUsedByOtherEditions: [DiscoveredProfile]
   public let privateModeIsAvailable: Bool
   public let routingCapabilities: BrowserRoutingCapabilities?
 
@@ -31,6 +32,7 @@ public struct DiscoveredBrowser: Equatable, Sendable {
     profiles: [DiscoveredProfile],
     metadataStatus: ProfileMetadataStatus,
     profileMetadataUsesSavedGrant: Bool,
+    profilesUsedByOtherEditions: [DiscoveredProfile] = [],
     privateModeIsAvailable: Bool,
     routingCapabilities: BrowserRoutingCapabilities?
   ) {
@@ -38,6 +40,7 @@ public struct DiscoveredBrowser: Equatable, Sendable {
     self.profiles = profiles
     self.metadataStatus = metadataStatus
     self.profileMetadataUsesSavedGrant = profileMetadataUsesSavedGrant
+    self.profilesUsedByOtherEditions = profilesUsedByOtherEditions
     self.privateModeIsAvailable = privateModeIsAvailable
     self.routingCapabilities =
       routingCapabilities
@@ -240,6 +243,22 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     var nextSortOrder = (browserTargets.map(\.sortOrder).max() ?? -1) + 1
     var reconciled: [RouteTarget] = []
     var consumedExistingIDs = Set<RouteTarget.ID>()
+    for browser in discovered {
+      for target in browserTargets
+      where target.applicationID == browser.application.id
+        && target.origin == .detected
+      {
+        if browser.profilesUsedByOtherEditions.contains(where: { profile in
+          target.profileIdentity == profile.identifier
+            || (target.profileLaunchPath != nil
+              && target.profileLaunchPath == profile.directoryURL?.path)
+            || (target.profileIdentity == nil
+              && target.profileIdentifier == profile.launchIdentifier)
+        }) {
+          consumedExistingIDs.insert(target.id)
+        }
+      }
+    }
 
     for browser in discovered {
       let candidates = targetCandidates(for: browser)
@@ -511,13 +530,14 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
         applicationURL.appending(path: $0)
       }
     )
-    let metadata = readProfiles(for: descriptor)
+    let metadata = readProfiles(for: descriptor, applicationURL: applicationURL)
     return (
       DiscoveredBrowser(
         application: application,
         profiles: metadata.profiles,
         metadataStatus: metadata.status,
         profileMetadataUsesSavedGrant: metadata.usesSavedGrant,
+        profilesUsedByOtherEditions: metadata.excluded,
         privateModeIsAvailable: privateModeIsAvailable,
         routingCapabilities: BrowserRoutingCapabilities(descriptor: descriptor)
       ),
@@ -526,16 +546,18 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
   }
 
   private func readProfiles(
-    for descriptor: BrowserDescriptor
+    for descriptor: BrowserDescriptor,
+    applicationURL: URL
   ) -> (
     profiles: [DiscoveredProfile],
     status: ProfileMetadataStatus,
-    usesSavedGrant: Bool
+    usesSavedGrant: Bool,
+    excluded: [DiscoveredProfile]
   ) {
     let profileRoot: String
     switch descriptor.profileStrategy {
     case .none, .safariShortcut:
-      return ([], .notApplicable, false)
+      return ([], .notApplicable, false, [])
     case .chromium(let root), .firefox(let root):
       profileRoot = root
     }
@@ -546,9 +568,9 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     let access = profileRootAccess.beginAccess(for: descriptor.bundleIdentifier)
     switch access.state {
     case .revoked:
-      return ([], .accessRevoked, false)
+      return ([], .accessRevoked, false, [])
     case .granted:
-      guard let lease = access.lease else { return ([], .accessRevoked, false) }
+      guard let lease = access.lease else { return ([], .accessRevoked, false, []) }
       defer { lease.end() }
       let metadata = readProfiles(
         at: lease.root,
@@ -562,15 +584,57 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
         case .currentSessionGrant, .persistentBookmark, .refreshedPersistentBookmark:
           true
         }
-      return (metadata.profiles, metadata.status, usesSavedGrant)
+      let partition = partitionFirefoxProfiles(
+        metadata.profiles, descriptor: descriptor, applicationURL: applicationURL)
+      return (partition.included, metadata.status, usesSavedGrant, partition.excluded)
     case .missing:
       let metadata = readProfiles(
         at: conventionalRoot,
         for: descriptor,
         usesSavedGrant: false
       )
-      return (metadata.profiles, metadata.status, false)
+      let partition = partitionFirefoxProfiles(
+        metadata.profiles, descriptor: descriptor, applicationURL: applicationURL)
+      return (partition.included, metadata.status, false, partition.excluded)
     }
+  }
+
+  // Firefox editions share profiles.ini. Associate initialized profiles using the
+  // application path Firefox itself recorded, never the editable profile name.
+  private func partitionFirefoxProfiles(
+    _ profiles: [DiscoveredProfile],
+    descriptor: BrowserDescriptor,
+    applicationURL: URL
+  ) -> (included: [DiscoveredProfile], excluded: [DiscoveredProfile]) {
+    guard case .firefox = descriptor.profileStrategy else { return (profiles, []) }
+    var included: [DiscoveredProfile] = []
+    var excluded: [DiscoveredProfile] = []
+    for profile in profiles {
+      guard let directory = profile.directoryURL else {
+        included.append(profile)
+        continue
+      }
+      let marker = directory.appending(path: "compatibility.ini")
+      let owner =
+        fileSystem.fileExists(at: marker)
+        ? (try? fileSystem.read(from: marker)).flatMap(FirefoxProfileAssociation.applicationURL)
+        : nil
+      if let owner, owner.standardizedFileURL.path != applicationURL.standardizedFileURL.path,
+        descriptors.contains(where: { other in
+          guard other.bundleIdentifier != descriptor.bundleIdentifier,
+            case .firefox = other.profileStrategy,
+            let otherURL = applicationLocator.applicationURL(
+              forBundleIdentifier: other.bundleIdentifier)
+          else { return false }
+          return otherURL.standardizedFileURL.path == owner.standardizedFileURL.path
+        })
+      {
+        excluded.append(profile)
+      } else {
+        included.append(profile)
+      }
+    }
+    return (included, excluded)
   }
 
   private func readProfiles(

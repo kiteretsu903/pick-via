@@ -4,6 +4,52 @@ import Testing
 @testable import PickViaCore
 
 struct ProfileParserTests {
+  @Test func firefoxPreservesPhysicalTemporaryPathForLaunchValidation() throws {
+    let root = URL(
+      fileURLWithPath: "/private/tmp/pickvia-firefox-path-\(UUID().uuidString)",
+      isDirectory: true
+    )
+    let profile = root.appending(path: "PickVia E2E", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let parsed = try FirefoxProfileParser.parse(
+      text: """
+        [Profile0]
+        Name=PickVia E2E
+        IsRelative=1
+        Path=./PickVia E2E
+        [InstallTest]
+        Default=./PickVia E2E
+        """,
+      baseDirectory: root
+    )
+    let discovered = try #require(parsed.first)
+    let directory = try #require(discovered.directoryURL)
+    #expect(directory.path == profile.path)
+    #expect(discovered.isDefault)
+    #expect(
+      FoundationBrowserProfileLaunchPathValidator().firefoxValidation(profile: directory) != nil
+    )
+
+    let alias = root.appending(path: "Alias", directoryHint: .isDirectory)
+    try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: profile)
+    let aliased = try FirefoxProfileParser.parse(
+      text: """
+        [Profile0]
+        Name=Alias
+        IsRelative=1
+        Path=Alias
+        """,
+      baseDirectory: root
+    )
+    let aliasDirectory = try #require(aliased.first?.directoryURL)
+    #expect(aliasDirectory.path == alias.path)
+    #expect(
+      FoundationBrowserProfileLaunchPathValidator().firefoxValidation(profile: aliasDirectory)
+        == nil
+    )
+  }
+
   @Test func chromiumParsesInfoCacheAndSkipsMalformedEntriesInStableOrder() throws {
     let profiles = try ChromiumProfileParser.parse(data: fixtureData("chromium-local-state.json"))
 

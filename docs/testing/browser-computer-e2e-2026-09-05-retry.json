@@ -1,0 +1,78 @@
+{
+  "scope": "Seven previously failed cells",
+  "strictSignatureChecksUsed": false,
+  "passCount": 7,
+  "pendingCount": 0,
+  "cells": [
+    {
+      "browser": "Brave Browser Beta",
+      "mode": "normal",
+      "state": "cold",
+      "version": "152.1.95.96",
+      "status": "PASS",
+      "receipt": 192,
+      "requestID": "B7F9CA58-2DC6-45CE-AEF8-6C5E49F0F309",
+      "receivedAt": "2026-09-06T06:17:58.346954+00:00"
+    },
+    {
+      "browser": "Brave Browser Beta",
+      "mode": "normal",
+      "state": "running",
+      "version": "152.1.95.96",
+      "status": "PASS",
+      "receipt": 195,
+      "requestID": "DC7BBA20-C2C6-4760-8D5F-5B0A8C98076C",
+      "receivedAt": "2026-09-06T06:17:58.351060+00:00"
+    },
+    {
+      "browser": "Brave Browser Nightly",
+      "mode": "profile",
+      "state": "cold",
+      "version": "153.1.97.8",
+      "status": "PASS",
+      "receipt": 198,
+      "requestID": "BC4A33D8-AD87-46E8-BE9D-07F805C3AB86",
+      "receivedAt": "2026-09-06T06:33:35.612045+00:00"
+    },
+    {
+      "browser": "Brave Browser Nightly",
+      "mode": "profile",
+      "state": "running",
+      "version": "153.1.97.8",
+      "status": "PASS",
+      "receipt": 199,
+      "requestID": "AAEEA039-B60A-495A-B9DF-110DEB2E70A3",
+      "receivedAt": "2026-09-06T06:35:08.721773+00:00"
+    },
+    {
+      "browser": "Firefox",
+      "mode": "profile",
+      "state": "cold",
+      "version": "154.0.1",
+      "status": "PASS",
+      "receipt": 200,
+      "requestID": "E675676C-A504-4523-A1D1-4F657B805CD6",
+      "receivedAt": "2026-09-06T06:57:40.409962+00:00"
+    },
+    {
+      "browser": "Firefox Developer Edition",
+      "mode": "profile",
+      "state": "cold",
+      "version": "156.0",
+      "status": "PASS",
+      "receipt": 196,
+      "requestID": "2FB514A3-6C7B-4EF2-9FDD-62A072CFC5DC",
+      "receivedAt": "2026-09-06T06:22:17.527473+00:00"
+    },
+    {
+      "browser": "Firefox Nightly",
+      "mode": "profile",
+      "state": "cold",
+      "version": "157.0a1",
+      "status": "PASS",
+      "receipt": 197,
+      "requestID": "65D64E04-04C4-4F9F-91EE-0366DCE66628",
+      "receivedAt": "2026-09-06T06:26:38.148805+00:00"
+    }
+  ]
+}

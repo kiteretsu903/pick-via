@@ -327,9 +327,14 @@ enum AppComposition {
       ordinary: any ChooserPresenting,
       e2eControl: E2EControl,
       profileGrant: E2EValidatedProfileGrant? = nil,
-      statusWriter: any E2EStatusWriting
+      statusWriter: any E2EStatusWriting,
+      environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> any ChooserPresenting {
-      E2EChooserPresenter(
+      // Manual Computer Use runs retain E2E storage isolation but exercise the real chooser.
+      if environment["PICKVIA_E2E_MANUAL_UI"] == "1" {
+        return ordinary
+      }
+      return E2EChooserPresenter(
         base: ordinary,
         control: e2eControl,
         profileGrant: profileGrant,

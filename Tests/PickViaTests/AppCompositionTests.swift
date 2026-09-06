@@ -70,10 +70,28 @@ final class AppCompositionTests: XCTestCase {
       let composition = AppComposition.makeChooser(
         ordinary: CompositionChooserSpy(),
         e2eControl: CompositionE2EFixtures.control,
-        statusWriter: CompositionE2EStatusWriterSpy()
+        statusWriter: CompositionE2EStatusWriterSpy(),
+        environment: [:]
       )
 
       XCTAssertTrue(composition is E2EChooserPresenter)
+    }
+
+    func testManualE2ECompositionUsesInteractiveChooserOnlyWithExplicitOptIn() {
+      let ordinary = CompositionChooserSpy()
+      for value in ["0", "true", "1"] {
+        let composition = AppComposition.makeChooser(
+          ordinary: ordinary,
+          e2eControl: CompositionE2EFixtures.control,
+          statusWriter: CompositionE2EStatusWriterSpy(),
+          environment: ["PICKVIA_E2E_MANUAL_UI": value]
+        )
+        if value == "1" {
+          XCTAssertTrue((composition as AnyObject) === ordinary)
+        } else {
+          XCTAssertTrue(composition is E2EChooserPresenter)
+        }
+      }
     }
 
     func testE2ECatalogUsesIsolatedHomeWhenProfileGrantIsMissing() throws {

@@ -19,7 +19,7 @@ screenshots, release highlights, and the [changelog](https://kiteretsu903.github
 
 ## Download
 
-**[Download PickVia v1.3 for macOS](https://github.com/kiteretsu903/pick-via/releases/latest)**
+**[Download PickVia v1.4 for macOS](https://github.com/kiteretsu903/pick-via/releases/latest)**
 
 PickVia requires **macOS 14 Sonoma or later** on **Apple Silicon** and handles
 HTTP, HTTPS, and `mailto:` links.
@@ -47,7 +47,7 @@ Settings.
 
 ## Install
 
-1. Download and open `PickVia-v1.3.dmg` from the
+1. Download and open `PickVia-v1.4.dmg` from the
    [GitHub release](https://github.com/kiteretsu903/pick-via/releases/latest).
 2. Drag **PickVia** to the **Applications** folder shown in the installer.
 3. Open **PickVia** from Applications and follow the welcome flow.
@@ -58,7 +58,7 @@ Settings.
 
 ### First launch and Gatekeeper
 
-PickVia v1.3 is ad-hoc signed and not notarized. macOS may block the first
+PickVia v1.4 is ad-hoc signed and not notarized. macOS may block the first
 launch of the downloaded app. If you downloaded it from the GitHub release and
 choose to trust it:
 
@@ -79,18 +79,35 @@ Apple documents this Gatekeeper override and its security implications in
 
 ## Browser support
 
-| Browser family | Profiles | Normal | Private |
+| Browser / editions | Profiles | Normal | Private window |
 |---|---:|---:|---:|
-| Safari | No | Yes | No |
+| Safari, Safari Technology Preview | No | Yes | No |
 | DuckDuckGo | No | Yes | Yes* |
-| Chrome, Chrome Beta, Chromium, Edge, Brave, Vivaldi | Yes | Yes | Yes |
-| Firefox | Yes | Yes | Yes |
+| Chrome Stable / Beta / Dev / Canary, Chromium | Yes | Yes | Yes |
+| Edge Stable / Beta / Dev / Canary | Yes | Yes | Yes |
+| Brave Stable / Beta / Nightly | Yes | Yes | Yes |
+| Vivaldi Stable / Snapshot | Yes | Yes | Yes |
+| Firefox Stable / Developer Edition / Nightly | Yes | Yes | Yes |
+| Opera, Arc, Orion | No | Yes | No |
 
 \* DuckDuckGo Private uses isolated, disposable state and is supported only by
 official direct-download builds; it requires neither a DuckDuckGo extension nor Accessibility access.
 
-Safari has one normal target; Chromium-family browsers and Firefox keep a
-Default target without profile access, while granting access adds discovered profiles.
+Each installed edition appears as a separate browser with its own name and icon.
+Firefox profiles associated with another installed edition are excluded from that
+browser's profile list. Association follows Firefox's recorded application path;
+profiles with missing or unrecognized metadata retain the existing fallback and
+may appear under more than one edition.
+
+Browser-level Default targets work without profile access; granting access adds
+discovered profiles. Private windows are browser-level choices: combining a
+specific profile with private mode is not supported. Opera, Arc, and Orion
+currently offer normal app-level routing only.
+
+The table describes supported routes, not exhaustive verification of every browser
+version and startup state. See the [Computer E2E report](docs/testing/browser-computer-e2e-2026-09-05.md)
+and [seven-case retry](docs/testing/browser-computer-e2e-2026-09-05-retry.md) for
+observed results and remaining coverage limits.
 
 ## Mail support
 

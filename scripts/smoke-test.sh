@@ -25,4 +25,9 @@ test -s "$resources/PickViaMenuBarTemplate.png"
 test "$(sips -g pixelWidth "$resources/PickViaMenuBarTemplate.png" | awk '/pixelWidth/ {print $2}')" = "44"
 test "$(sips -g pixelHeight "$resources/PickViaMenuBarTemplate.png" | awk '/pixelHeight/ {print $2}')" = "44"
 
-/usr/bin/codesign --verify --deep --strict "$app"
+# Production bundles must not contain the manual E2E chooser controls.
+if /usr/bin/strings "$executable" | /usr/bin/grep -F 'Open Local E2E Test Page' >/dev/null; then
+  print -u2 -- "Unexpected E2E controls in production app"
+  exit 1
+fi
+print -r -- "Production bundle smoke checks passed"

@@ -151,7 +151,9 @@ public enum FirefoxProfileParser {
         throw FirefoxProfileParserError.malformedProfileSection
       }
 
-      let normalizedURL = directoryURL.standardizedFileURL
+      // Normalize URL components without rewriting physical macOS paths such as
+      // /private/tmp to /tmp; the launcher validates the physical path itself.
+      let normalizedURL = directoryURL.standardized
       return ParsedFirefoxProfile(
         identifier: FirefoxProfileIdentity.identifier(for: normalizedURL),
         displayName: name,
@@ -214,7 +216,7 @@ public enum FirefoxProfileParser {
     baseDirectory: URL
   ) -> URL? {
     guard !path.isEmpty, !(path as NSString).isAbsolutePath else { return nil }
-    return baseDirectory.appending(path: path, directoryHint: .isDirectory).standardizedFileURL
+    return baseDirectory.appending(path: path, directoryHint: .isDirectory).standardized
   }
 }
 

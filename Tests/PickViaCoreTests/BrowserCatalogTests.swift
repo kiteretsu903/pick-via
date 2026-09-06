@@ -4,6 +4,48 @@ import Testing
 @testable import PickViaCore
 
 struct BrowserCatalogTests {
+  @Test func firefoxEditionsOnlyPresentTheirAssociatedProfilesAndRemoveOldDuplicates() throws {
+    let descriptors = BrowserDescriptor.supported.filter { $0.family == .firefox }
+    let root = URL(fileURLWithPath: "/home/Library/Application Support/Firefox", isDirectory: true)
+    var files: [URL: Data] = [:]
+    var apps: [String: URL] = [:]
+    var ini = ""
+    for (index, descriptor) in descriptors.enumerated() {
+      let app = URL(
+        fileURLWithPath: "/Applications/\(descriptor.displayName).app", isDirectory: true)
+      apps[descriptor.bundleIdentifier] = app
+      // Deliberately identical, renamed profile labels: names cannot identify editions.
+      ini += "[Profile\(index)]\nName=Work\nIsRelative=1\nPath=Profiles/p\(index)\n"
+      files[root.appending(path: "Profiles/p\(index)/compatibility.ini")] = Data(
+        "[Compatibility]\nLastPlatformDir=\(app.path)/Contents/Resources\n".utf8)
+    }
+    files[root.appending(path: "profiles.ini")] = Data(ini.utf8)
+    let locator = StubApplicationLocator(applications: apps)
+    let catalog = BrowserCatalog(
+      descriptors: descriptors, applicationLocator: locator,
+      fileSystem: DiscoveryFileSystem(files: files), homeDirectory: URL(fileURLWithPath: "/home"))
+    let discovered = try catalog.scan()
+    #expect(discovered.count == 3)
+    for (index, browser) in discovered.enumerated() {
+      #expect(browser.profiles.count == 1)
+      #expect(browser.profiles.first?.directoryURL?.lastPathComponent == "p\(index)")
+    }
+    let oldCatalog = BrowserCatalog(
+      descriptors: descriptors, applicationLocator: locator,
+      fileSystem: DiscoveryFileSystem(files: [root.appending(path: "profiles.ini"): Data(ini.utf8)]
+      ),
+      homeDirectory: URL(fileURLWithPath: "/home"))
+    let old = oldCatalog.reconcile(
+      discovered: try oldCatalog.scan(),
+      with: PickViaConfig(
+        schemaVersion: PickViaConfig.currentSchemaVersion, applications: [], targets: []))
+    #expect(old.targets.filter { $0.profileIdentifier != nil }.count == 9)
+    let updated = catalog.reconcile(discovered: discovered, with: old)
+    #expect(updated.targets.filter { $0.profileIdentifier != nil }.count == 3)
+    #expect(updated.targets.filter { $0.profileIdentifier == nil }.count == 6)
+    #expect(updated.targets.allSatisfy { $0.availability == .available })
+  }
+
   @Test func supportedDescriptorsContainExactlyTheApprovedBrowsers() {
     #expect(
       BrowserDescriptor.supported.map(\.displayName) == [
