@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">Изворна macOS апликација за избор начина отварања веза</p><h1>Не отварајте<br />везе у<br /><em>погрешном прегледачу или профилу.</em></h1></div>
-          <div class="hero-intro"><p>PickVia пита пре отварања сваке веб-везе или везе за е-пошту, тако да веб-везе одлазе у изабрани прегледач или профил, а везе за е-пошту у жељену апликацију за е-пошту.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">Преузми v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Дајте PickVia звездицу на GitHub-у"><span aria-hidden="true">★</span> Звездица на GitHub-у</a></div><p class="subline">macOS 14+ · Apple Silicon · Бесплатно и отвореног изворног кода</p></div>
+          <div class="hero-intro"><p>PickVia пита пре отварања сваке веб-везе или везе за е-пошту, тако да веб-везе одлазе у изабрани прегледач или профил, а везе за е-пошту у жељену апликацију за е-пошту.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Преузми v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Дајте PickVia звездицу на GitHub-у"><span aria-hidden="true">★</span> Звездица на GitHub-у</a></div><p class="subline">macOS 14+ · Apple Silicon · Бесплатно и отвореног изворног кода</p></div>
         </div>
         <p class="screenshot-note">Снимци екрана приказују енглески интерфејс.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="PickVia прозор за избор прегледача са профилима прегледача, приватним опцијама и пречицама на тастатури" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Подесите своје опције</p><h2>Подесите једном.<br /><em>Бирајте брзо.</em></h2><p>Једном подесите уобичајене профиле прегледача и апликације за е-пошту, па поређајте опције које највише користите.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="Подешавања прегледача у апликацији PickVia са прегледачима и примерима профила" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Отворите следећу везу<br />на правом <em>месту.</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">Преузми за macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Икона апликације PickVia" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Отворите следећу везу<br />на правом <em>месту.</em></h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Преузми за macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Икона апликације PickVia" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Затвори" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Инсталирај на Mac</h2>
+        <ol class="install-steps"><li>Преузмите и отворите DMG датотеку.</li><li>Превуците <strong>PickVia</strong> у <strong>Апликације</strong>.</li><li>Покушајте једном да отворите апликацију. Ако је macOS блокира, отворите <strong>Системска подешавања → Приватност &amp; безбедност</strong> и изаберите <strong>Ипак отвори</strong>.</li></ol>
+        <details><summary>Ако се „Ипак отвори“ не појави</summary><p>Након премештања апликације у Апликације, отворите Терминал и покрените:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Копирај" data-copied-label="Копирано" data-copy-failed-label="Копирање није успело; означите и ручно копирајте команду.">Копирај</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Преузми за macOS <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">Ако вам помаже, дајте пројекту звездицу на GitHub-у <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · MIT лиценца</span><span><a href="changelog.html">Дневник измена</a> · <a href="privacy.html">Приватност</a> · <a href="terms.html">Услови</a> · <a href="https://github.com/kiteretsu903/pick-via">Изворни код на GitHub-у <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

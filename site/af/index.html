@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">'n Inheemse skakelkieser vir macOS</p><h1>Hou op om<br />skakels in die<br /><em>verkeerde blaaier of profiel oop te maak.</em></h1></div>
-          <div class="hero-intro"><p>PickVia vra voordat elke web- of e-posskakel oopmaak, sodat webskakels na die blaaier of profiel gaan wat jy kies en e-posskakels na die e-postoepassing wat jy bedoel het.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">Laai v1.5.1 af <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Gee PickVia &#x27;n ster op GitHub"><span aria-hidden="true">★</span> Gee 'n ster op GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Gratis &amp; oopbron</p></div>
+          <div class="hero-intro"><p>PickVia vra voordat elke web- of e-posskakel oopmaak, sodat webskakels na die blaaier of profiel gaan wat jy kies en e-posskakels na die e-postoepassing wat jy bedoel het.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Laai v1.5.1 af <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Gee PickVia &#x27;n ster op GitHub"><span aria-hidden="true">★</span> Gee 'n ster op GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Gratis &amp; oopbron</p></div>
         </div>
         <p class="screenshot-note">Skermskote wys die Engelse koppelvlak.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="PickVia se blaaierkeusevenster met blaaierprofiele, privaat teikens en sleutelbordkortpaaie" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Stel jou keuses op</p><h2>Stel een keer op.<br /><em>Kies vinnig.</em></h2><p>Stel jou gewone blaaierprofiele en e-postoepassings een keer op en herrangskik dan die teikens wat jy die meeste gebruik.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="PickVia se blaaierinstellings met blaaiers en profielvoorbeelde" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Maak die volgende skakel<br />op die regte <em>plek oop.</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">Laai af vir macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="PickVia-toepassingsikoon" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Maak die volgende skakel<br />op die regte <em>plek oop.</em></h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Laai af vir macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="PickVia-toepassingsikoon" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Maak toe" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Installeer op Mac</h2>
+        <ol class="install-steps"><li>Laai die DMG af en maak dit oop.</li><li>Sleep <strong>PickVia</strong> na <strong>Toepassings</strong>.</li><li>Probeer die toepassing een keer oopmaak. As macOS dit blokkeer, maak <strong>Stelselinstellings → Privaatheid &amp; Sekuriteit</strong> oop en kies <strong>Maak tog oop</strong>.</li></ol>
+        <details><summary>As “Maak tog oop” nie verskyn nie</summary><p>Nadat jy die toepassing na Toepassings geskuif het, maak Terminal oop en voer uit:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Kopieer" data-copied-label="Gekopieer" data-copy-failed-label="Kopiëring het misluk; kies en kopieer die opdrag handmatig.">Kopieer</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Laai af vir macOS <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">As dit help, gee die projek 'n ster op GitHub <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · MIT-lisensie</span><span><a href="changelog.html">Veranderingslogboek</a> · <a href="privacy.html">Privaatheid</a> · <a href="terms.html">Voorwaardes</a> · <a href="https://github.com/kiteretsu903/pick-via">Bronkode op GitHub <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

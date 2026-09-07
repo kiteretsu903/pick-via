@@ -53,7 +53,7 @@
   "index.p.002": "macOS සඳහා ස්වදේශීය සබැඳි තේරීම් යෙදුමක්",
   "index.h1.001": "සබැඳි<br />වැරදි බ්‍රවුසරයෙන් හෝ පැතිකඩෙන්<br /><em>විවෘත කිරීම නවත්වන්න.</em>",
   "index.p.003": "PickVia සෑම වෙබ් හෝ ඊමේල් සබැඳියක්ම විවෘත කිරීමට පෙර විමසයි. එබැවින් වෙබ් සබැඳි ඔබ තෝරන බ්‍රවුසරය හෝ පැතිකඩ වෙතත්, තැපැල් සබැඳි ඔබ අදහස් කළ ඊමේල් යෙදුම වෙතත් යොමු වේ.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1 බාගන්න <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub හි තරුවක් දෙන්න</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 බාගන්න <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub හි තරුවක් දෙන්න</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · නොමිලේ &amp; විවෘත මූලාශ්‍ර",
   "index.p.005": "තිර රූපවල දැක්වෙන්නේ ඉංග්‍රීසි අතුරුමුහුණතයි.",
   "index.p.006": "01 / විවෘත කිරීමට පෙර තෝරන්න",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "අනුවාදය 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">සම්පූර්ණ නිකුතු සටහන් <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 බාගන්න <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>2026 සැප්තැම්බර් 06</strong><span class=\"release-current\">වත්මන් නිකුතුව</span>",
-  "release.v1_5_1.summary": "DuckDuckGo පුද්ගලික ප්‍රකාරයේ අනුවාද සීමාව ඉවත් කරන ලදී, භාෂා තේරීම ඉහළ තීරුවට ගෙන යන ලදී, සහ මුල් පිටුවේ භාෂා දැනුම්දීම ඉවත් කරන ලදී."
+  "release.v1_5_1.summary": "DuckDuckGo පුද්ගලික ප්‍රකාරයේ අනුවාද සීමාව ඉවත් කරන ලදී, භාෂා තේරීම ඉහළ තීරුවට ගෙන යන ලදී, සහ මුල් පිටුවේ භාෂා දැනුම්දීම ඉවත් කරන ලදී.",
+  "download.close": "වසන්න",
+  "download.title": "Mac හි ස්ථාපනය කරන්න",
+  "download.steps": "<li>DMG බාගෙන විවෘත කරන්න.</li><li><strong>PickVia</strong> යෙදුම <strong>Applications</strong> වෙත ඇද දමන්න.</li><li>යෙදුම එක් වරක් විවෘත කිරීමට උත්සාහ කරන්න. macOS එය අවහිර කළහොත් <strong>පද්ධති සැකසුම් → පෞද්ගලිකත්වය &amp; ආරක්ෂාව</strong> විවෘත කර <strong>කෙසේ හෝ විවෘත කරන්න</strong> තෝරන්න.</li>",
+  "download.fallback": "“කෙසේ හෝ විවෘත කරන්න” නොපෙන්වන්නේ නම්",
+  "download.terminal": "යෙදුම Applications වෙත ගෙන ගිය පසු Terminal විවෘත කර මෙය ධාවනය කරන්න:",
+  "download.copy": "පිටපත් කරන්න",
+  "download.copied": "පිටපත් කළා",
+  "download.copyFailed": "පිටපත් කිරීම අසාර්ථකයි; විධානය තෝරා අතින් පිටපත් කරන්න.",
+  "download.star": "ප්‍රයෝජනවත් නම් GitHub හි ව්‍යාපෘතියට තරුවක් දෙන්න <span aria-hidden=\"true\">↗</span>"
 }

@@ -53,7 +53,7 @@
   "index.p.002": "macOS үшін жасалған сілтеме таңдағыш",
   "index.h1.001": "Сілтемелерді<br />қате браузерде не профильде<br /><em>ашуды доғарыңыз.</em>",
   "index.p.003": "PickVia әр веб немесе пошта сілтемесі ашылар алдында сұрайды: веб-сілтемелер сіз таңдаған браузерге не профильге, ал пошта сілтемелері қалаған пошта қолданбасына жіберіледі.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1 жүктеу <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub сайтында жұлдызша беру</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 жүктеу <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub сайтында жұлдызша беру</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Тегін және ашық кодты",
   "index.p.005": "Скриншоттарда ағылшын интерфейсі көрсетілген.",
   "index.p.006": "01 / Ашылмай тұрып таңдаңыз",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "1.5.1 нұсқасы",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Толық шығарылым жазбалары <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 жүктеу <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>2026 ЖЫЛҒЫ 6 ҚЫРКҮЙЕК</strong><span class=\"release-current\">Қазіргі шығарылым</span>",
-  "release.v1_5_1.summary": "DuckDuckGo жеке режиміне қойылған нұсқа шектеуі алынып тасталды, тіл таңдағыш жоғарғы жолаққа көшірілді және басты беттегі тіл туралы хабарлама жойылды."
+  "release.v1_5_1.summary": "DuckDuckGo жеке режиміне қойылған нұсқа шектеуі алынып тасталды, тіл таңдағыш жоғарғы жолаққа көшірілді және басты беттегі тіл туралы хабарлама жойылды.",
+  "download.close": "Жабу",
+  "download.title": "Mac жүйесіне орнату",
+  "download.steps": "<li>DMG файлын жүктеп алып, ашыңыз.</li><li><strong>PickVia</strong> қолданбасын <strong>Қолданбалар</strong> қалтасына сүйреңіз.</li><li>Қолданбаны бір рет ашып көріңіз. macOS бұғаттаса, <strong>Жүйе параметрлері → Құпиялық және қауіпсіздік</strong> бөлімін ашып, <strong>Сонда да ашу</strong> тармағын таңдаңыз.</li>",
+  "download.fallback": "«Сонда да ашу» көрсетілмесе",
+  "download.terminal": "Қолданбаны Қолданбалар қалтасына көшіргеннен кейін Терминалды ашып, мынаны орындаңыз:",
+  "download.copy": "Көшіру",
+  "download.copied": "Көшірілді",
+  "download.copyFailed": "Көшіру сәтсіз аяқталды; пәрменді қолмен таңдап, көшіріңіз.",
+  "download.star": "Пайдалы болса, GitHub-та жобаға жұлдызша қойыңыз <span aria-hidden=\"true\">↗</span>"
 }

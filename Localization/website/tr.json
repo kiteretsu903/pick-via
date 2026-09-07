@@ -53,7 +53,7 @@
   "index.p.002": "macOS için yerel bir bağlantı seçicisi",
   "index.h1.001": "Bağlantıları<br />artık<br /><em>yanlış tarayıcıda veya profilde açmayın.</em>",
   "index.p.003": "PickVia, her web veya e-posta bağlantısını açmadan önce sorar. Böylece web bağlantıları seçtiğiniz tarayıcıya veya profile, e-posta bağlantıları ise istediğiniz e-posta uygulamasına gider.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1'ü indir <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub'da yıldız ver</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1'ü indir <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub'da yıldız ver</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Ücretsiz &amp; açık kaynak",
   "index.p.005": "Ekran görüntüleri İngilizce arayüzü gösterir.",
   "index.p.006": "01 / Açılmadan önce seçin",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Sürüm 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Tüm sürüm notları <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1'ü indir <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 EYL 2026</strong><span class=\"release-current\">Güncel sürüm</span>",
-  "release.v1_5_1.summary": "DuckDuckGo özel modundaki sürüm kısıtlaması kaldırıldı, dil seçici üst çubuğa taşındı ve ana sayfadaki dil bildirimi kaldırıldı."
+  "release.v1_5_1.summary": "DuckDuckGo özel modundaki sürüm kısıtlaması kaldırıldı, dil seçici üst çubuğa taşındı ve ana sayfadaki dil bildirimi kaldırıldı.",
+  "download.close": "Kapat",
+  "download.title": "Mac'e yükleme",
+  "download.steps": "<li>DMG'yi indirip açın.</li><li><strong>PickVia</strong>'ı <strong>Uygulamalar</strong> klasörüne sürükleyin.</li><li>Uygulamayı bir kez açmayı deneyin. macOS engellerse <strong>Sistem Ayarları → Gizlilik &amp; Güvenlik</strong> bölümünü açıp <strong>Yine de Aç</strong>'ı seçin.</li>",
+  "download.fallback": "“Yine de Aç” görünmüyorsa",
+  "download.terminal": "Uygulamayı Uygulamalar klasörüne taşıdıktan sonra Terminal'i açıp şu komutu çalıştırın:",
+  "download.copy": "Kopyala",
+  "download.copied": "Kopyalandı",
+  "download.copyFailed": "Kopyalama başarısız; komutu seçip elle kopyalayın.",
+  "download.star": "İşinize yaradıysa projeye GitHub'da yıldız verin <span aria-hidden=\"true\">↗</span>"
 }

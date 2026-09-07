@@ -53,7 +53,7 @@
   "index.p.002": "Kichaguzi cha viungo kilichoundwa mahsusi kwa macOS",
   "index.h1.001": "Acha kufungua<br />viungo katika<br /><em>kivinjari au wasifu usio sahihi.</em>",
   "index.p.003": "PickVia huuliza kabla ya kufungua kila kiungo cha wavuti au barua pepe, ili viungo vya wavuti viende kwenye kivinjari au wasifu unaochagua na viungo vya barua pepe viende kwenye programu uliyokusudia.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Pakua v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Toa nyota kwenye GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Pakua v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Toa nyota kwenye GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Bila malipo &amp; msimbo wazi",
   "index.p.005": "Picha za skrini zinaonyesha kiolesura cha Kiingereza.",
   "index.p.006": "01 / Chagua kabla ya kufungua",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Toleo 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Maelezo yote ya toleo <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Pakua v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 SEP 2026</strong><span class=\"release-current\">Toleo la sasa</span>",
-  "release.v1_5_1.summary": "Ondoa kizuizi cha toleo kwa hali ya faragha ya DuckDuckGo, hamishia kiteuzi cha lugha kwenye upau wa juu, na uondoe arifa ya lugha kwenye ukurasa wa mwanzo."
+  "release.v1_5_1.summary": "Ondoa kizuizi cha toleo kwa hali ya faragha ya DuckDuckGo, hamishia kiteuzi cha lugha kwenye upau wa juu, na uondoe arifa ya lugha kwenye ukurasa wa mwanzo.",
+  "download.close": "Funga",
+  "download.title": "Sakinisha kwenye Mac",
+  "download.steps": "<li>Pakua na ufungue DMG.</li><li>Buruta <strong>PickVia</strong> hadi <strong>Applications</strong>.</li><li>Jaribu kufungua programu mara moja. macOS ikiizuia, fungua <strong>Mipangilio ya Mfumo → Faragha &amp; Usalama</strong> na uchague <strong>Fungua Hata Hivyo</strong>.</li>",
+  "download.fallback": "Ikiwa “Fungua Hata Hivyo” haionekani",
+  "download.terminal": "Baada ya kuhamishia programu kwenye Applications, fungua Terminal na uendeshe:",
+  "download.copy": "Nakili",
+  "download.copied": "Imenakiliwa",
+  "download.copyFailed": "Kunakili kumeshindikana; chagua na unakili amri mwenyewe.",
+  "download.star": "Ikikusaidia, ipe mradi nyota kwenye GitHub <span aria-hidden=\"true\">↗</span>"
 }

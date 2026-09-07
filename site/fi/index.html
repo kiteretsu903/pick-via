@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">Natiivi linkkivalitsin macOS:lle</p><h1>Älä enää avaa<br />linkkejä<br /><em>väärässä selaimessa tai profiilissa.</em></h1></div>
-          <div class="hero-intro"><p>PickVia kysyy ennen jokaisen verkko- tai sähköpostilinkin avaamista, jotta verkkolinkit avautuvat valitsemassasi selaimessa tai profiilissa ja sähköpostilinkit haluamassasi sähköpostiapissa.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">Lataa v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Anna PickVialle tähti GitHubissa"><span aria-hidden="true">★</span> Anna tähti GitHubissa</a></div><p class="subline">macOS 14+ · Apple Silicon · Maksuton &amp; avoin lähdekoodi</p></div>
+          <div class="hero-intro"><p>PickVia kysyy ennen jokaisen verkko- tai sähköpostilinkin avaamista, jotta verkkolinkit avautuvat valitsemassasi selaimessa tai profiilissa ja sähköpostilinkit haluamassasi sähköpostiapissa.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Lataa v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Anna PickVialle tähti GitHubissa"><span aria-hidden="true">★</span> Anna tähti GitHubissa</a></div><p class="subline">macOS 14+ · Apple Silicon · Maksuton &amp; avoin lähdekoodi</p></div>
         </div>
         <p class="screenshot-note">Kuvakaappaukset esittävät englanninkielistä käyttöliittymää.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="PickVian selainvalitsin, jossa näkyvät selainprofiilit, yksityiset kohteet ja näppäinoikotiet" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Määritä valintasi</p><h2>Määritä kerran.<br /><em>Valitse nopeasti.</em></h2><p>Määritä tavalliset selainprofiilisi ja sähköpostiapit kerran ja järjestä sitten eniten käyttämäsi kohteet.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="PickVian selainasetukset, joissa näkyvät selaimet ja esimerkkiprofiilit" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Avaa seuraava linkki<br />oikeassa <em>paikassa.</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">Lataa macOS:lle <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="PickVian appikuvake" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Avaa seuraava linkki<br />oikeassa <em>paikassa.</em></h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Lataa macOS:lle <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="PickVian appikuvake" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Sulje" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Asenna Maciin</h2>
+        <ol class="install-steps"><li>Lataa ja avaa DMG.</li><li>Vedä <strong>PickVia</strong> kansioon <strong>Apit</strong>.</li><li>Yritä avata sovellus kerran. Jos macOS estää sen, avaa <strong>Järjestelmäasetukset → Tietosuoja &amp; suojaus</strong> ja valitse <strong>Avaa silti</strong>.</li></ol>
+        <details><summary>Jos Avaa silti ei näy</summary><p>Kun olet siirtänyt sovelluksen Apit-kansioon, avaa Pääte ja suorita:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Kopioi" data-copied-label="Kopioitu" data-copy-failed-label="Kopiointi epäonnistui; valitse ja kopioi komento käsin.">Kopioi</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Lataa macOS:lle <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">Jos tästä on apua, anna projektille tähti GitHubissa <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · MIT-lisenssi</span><span><a href="changelog.html">Muutosloki</a> · <a href="privacy.html">Tietosuoja</a> · <a href="terms.html">Ehdot</a> · <a href="https://github.com/kiteretsu903/pick-via">Lähdekoodi GitHubissa <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

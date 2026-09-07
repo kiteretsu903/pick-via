@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">App na ginawa para sa macOS para pumili ng destinasyon ng link</p><h1>Itigil ang pagbubukas<br />ng mga link sa<br /><em>maling browser o profile.</em></h1></div>
-          <div class="hero-intro"><p>Nagtatanong ang PickVia bago buksan ang bawat link sa web o email, kaya mapupunta ang mga link sa web sa browser o profile na pinili mo at ang mga mail link sa email app na balak mong gamitin.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">I-download ang v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Lagyan ng star ang PickVia sa GitHub"><span aria-hidden="true">★</span> Lagyan ng star sa GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Libre at bukas ang source code</p></div>
+          <div class="hero-intro"><p>Nagtatanong ang PickVia bago buksan ang bawat link sa web o email, kaya mapupunta ang mga link sa web sa browser o profile na pinili mo at ang mga mail link sa email app na balak mong gamitin.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">I-download ang v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Lagyan ng star ang PickVia sa GitHub"><span aria-hidden="true">★</span> Lagyan ng star sa GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Libre at bukas ang source code</p></div>
         </div>
         <p class="screenshot-note">Ipinapakita ng mga screenshot ang English na interface.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="Window ng pagpili ng browser ng PickVia na nagpapakita ng mga profile ng browser, pribadong destinasyon, at keyboard shortcut" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / I-set up ang mga pagpipilian</p><h2>I-configure nang isang beses.<br /><em>Pumili nang mabilis.</em></h2><p>I-configure nang isang beses ang karaniwan mong mga profile ng browser at mail app, pagkatapos ay ayusin ang mga destinasyong pinakamadalas mong gamitin.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="Mga setting ng browser ng PickVia na may mga browser at halimbawang profile" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Buksan ang susunod na link<br />sa tamang <em>lugar.</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">I-download para sa macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Icon ng app na PickVia" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Buksan ang susunod na link<br />sa tamang <em>lugar.</em></h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">I-download para sa macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Icon ng app na PickVia" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Isara" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">I-install sa Mac</h2>
+        <ol class="install-steps"><li>I-download at buksan ang DMG.</li><li>I-drag ang <strong>PickVia</strong> papunta sa <strong>Applications</strong>.</li><li>Subukang buksan ang app nang isang beses. Kung bina-block ito ng macOS, buksan ang <strong>Mga Setting ng System → Privacy &amp; Seguridad</strong> at piliin ang <strong>Buksan Pa Rin</strong>.</li></ol>
+        <details><summary>Kung hindi lumalabas ang “Buksan Pa Rin”</summary><p>Pagkatapos ilipat ang app sa Applications, buksan ang Terminal at patakbuhin:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Kopyahin" data-copied-label="Nakopya" data-copy-failed-label="Nabigong kopyahin; piliin at kopyahin ang command nang manu-mano.">Kopyahin</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">I-download para sa macOS <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">Kung nakatutulong ito, bigyan ang proyekto ng star sa GitHub <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · Lisensyang MIT</span><span><a href="changelog.html">Talaan ng mga Pagbabago</a> · <a href="privacy.html">Privacy</a> · <a href="terms.html">Mga Tuntunin</a> · <a href="https://github.com/kiteretsu903/pick-via">Source code sa GitHub <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

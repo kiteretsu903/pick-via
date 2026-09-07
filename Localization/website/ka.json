@@ -53,7 +53,7 @@
   "index.p.002": "macOS-ისთვის შექმნილი ბმულის ამრჩევი",
   "index.h1.001": "შეწყვიტეთ ბმულების<br />გახსნა არასწორ<br /><em>ბრაუზერში ან პროფილში.</em>",
   "index.p.003": "PickVia ყოველი ვებბმულის ან ელფოსტის ბმულის გახსნამდე გეკითხებათ, რათა ვებბმულები არჩეულ ბრაუზერში ან პროფილში გადავიდეს, ხოლო საფოსტო ბმულები — სასურველ საფოსტო აპში.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1-ის ჩამოტვირთვა <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> ვარსკვლავი GitHub-ზე</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1-ის ჩამოტვირთვა <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> ვარსკვლავი GitHub-ზე</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · უფასო და ღია კოდით",
   "index.p.005": "ეკრანის სურათები ინგლისურ ინტერფეისს აჩვენებს.",
   "index.p.006": "01 / აირჩიეთ გახსნამდე",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "ვერსია 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">გამოშვების სრული შენიშვნები <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1-ის ჩამოტვირთვა <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 სექ 2026</strong><span class=\"release-current\">მიმდინარე გამოშვება</span>",
-  "release.v1_5_1.summary": "მოიხსნა DuckDuckGo-ს პირადი რეჟიმის ვერსიის შეზღუდვა, ენის ამრჩევი გადავიდა ზედა ზოლში და მთავარი გვერდიდან წაიშალა ენების შესახებ შეტყობინება."
+  "release.v1_5_1.summary": "მოიხსნა DuckDuckGo-ს პირადი რეჟიმის ვერსიის შეზღუდვა, ენის ამრჩევი გადავიდა ზედა ზოლში და მთავარი გვერდიდან წაიშალა ენების შესახებ შეტყობინება.",
+  "download.close": "დახურვა",
+  "download.title": "Mac-ზე დაყენება",
+  "download.steps": "<li>ჩამოტვირთეთ და გახსენით DMG.</li><li>გადაიტანეთ <strong>PickVia</strong> საქაღალდეში <strong>Applications</strong>.</li><li>ერთხელ სცადეთ აპის გახსნა. თუ macOS დაბლოკავს, გახსენით <strong>სისტემის პარამეტრები → კონფიდენციალურობა &amp; უსაფრთხოება</strong> და აირჩიეთ <strong>მაინც გახსნა</strong>.</li>",
+  "download.fallback": "თუ „მაინც გახსნა“ არ ჩანს",
+  "download.terminal": "აპის Applications-ში გადატანის შემდეგ გახსენით Terminal და შეასრულეთ:",
+  "download.copy": "კოპირება",
+  "download.copied": "დაკოპირებულია",
+  "download.copyFailed": "კოპირება ვერ მოხერხდა; მონიშნეთ და ხელით დააკოპირეთ ბრძანება.",
+  "download.star": "თუ გამოგადგათ, მიანიჭეთ პროექტს ვარსკვლავი GitHub-ზე <span aria-hidden=\"true\">↗</span>"
 }

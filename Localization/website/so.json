@@ -53,7 +53,7 @@
   "index.p.002": "Doore xiriiriyeyaal oo si gaar ah loogu sameeyay macOS",
   "index.h1.001": "Jooji inaad<br />xiriiriyeyaasha ku furto<br /><em>biraawsar ama borofayl qaldan.</em>",
   "index.p.003": "PickVia wuxuu ku weydiiyaa ka hor inta uusan furin xiriiriye web ama iimayl, si xiriiriyeyaasha webku ugu tagaan biraawsarka ama borofaylka aad doorato, kuwa iimaylkuna abka aad damacsanayd.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Soo dejiso v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Xiddig ku sii GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Soo dejiso v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Xiddig ku sii GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Bilaash &amp; il-furan",
   "index.p.005": "Sawirrada shaashaddu waxay muujiyaan muuqaalka Ingiriisiga.",
   "index.p.006": "01 / Dooro ka hor furitaanka",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Nooca 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Qoraallada sii-deynta oo dhan <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Soo dejiso v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 SEBTEMBAR 2026</strong><span class=\"release-current\">Sii-deynta hadda</span>",
-  "release.v1_5_1.summary": "Waxaa laga saaray xaddidaadda nooca ee habka gaarka ah ee DuckDuckGo, xulashada luqadda waxaa loo raray baarka sare, waxaana bogga hore laga saaray ogeysiiska luqadaha."
+  "release.v1_5_1.summary": "Waxaa laga saaray xaddidaadda nooca ee habka gaarka ah ee DuckDuckGo, xulashada luqadda waxaa loo raray baarka sare, waxaana bogga hore laga saaray ogeysiiska luqadaha.",
+  "download.close": "Xidh",
+  "download.title": "Ku rakib Mac",
+  "download.steps": "<li>Soo dejiso oo fur DMG-ga.</li><li>U jiid <strong>PickVia</strong> galka <strong>Applications</strong>.</li><li>Isku day inaad abka hal mar furto. Haddii macOS xannibo, fur <strong>Dejinta nidaamka → Asturnaanta iyo ammaanka</strong> oo dooro <strong>Si kastaba fur</strong>.</li>",
+  "download.fallback": "Haddii “Si kastaba fur” aanu muuqan",
+  "download.terminal": "Ka dib markaad abka u wareejiso Applications, fur Terminal oo socodsii:",
+  "download.copy": "Nuqul ka samee",
+  "download.copied": "Waa la nuquliyey",
+  "download.copyFailed": "Nuqul samayntu way fashilantay; dooro amarka oo gacanta ku nuquli.",
+  "download.star": "Haddii uu ku caawiyo, mashruuca xiddig ku sii GitHub <span aria-hidden=\"true\">↗</span>"
 }

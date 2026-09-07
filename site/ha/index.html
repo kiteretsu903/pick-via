@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">Mai zaɓin hanyar haɗi da aka gina don macOS</p><h1>Daina buɗe<br />hanyoyin haɗi a<br /><em>burauza ko bayanin martaba marar dacewa.</em></h1></div>
-          <div class="hero-intro"><p>PickVia yana tambaya kafin kowace hanyar haɗin yanar gizo ko imel ta buɗe, domin hanyoyin yanar gizo su je burauza ko bayanin martabar da ka zaɓa, kuma hanyoyin imel su je manhajar imel da ka nufa.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">Sauke v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Ba PickVia tauraro a GitHub"><span aria-hidden="true">★</span> Ba da tauraro a GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Kyauta kuma buɗaɗɗiyar lambar tushe</p></div>
+          <div class="hero-intro"><p>PickVia yana tambaya kafin kowace hanyar haɗin yanar gizo ko imel ta buɗe, domin hanyoyin yanar gizo su je burauza ko bayanin martabar da ka zaɓa, kuma hanyoyin imel su je manhajar imel da ka nufa.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Sauke v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Ba PickVia tauraro a GitHub"><span aria-hidden="true">★</span> Ba da tauraro a GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Kyauta kuma buɗaɗɗiyar lambar tushe</p></div>
         </div>
         <p class="screenshot-note">Hotunan allo suna nuna fuskar amfani ta Turanci.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="Taga zaɓin burauza na PickVia mai nuna bayanan martabar burauza, wuraren sirri da gajerun hanyoyin madannai" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Saita zaɓuɓɓukanka</p><h2>Saita sau ɗaya.<br /><em>Zaɓi da sauri.</em></h2><p>Saita bayanan martabar burauza da manhajojin imel da ka saba amfani da su sau ɗaya, sannan ka sake jera wuraren buɗewa da ka fi amfani da su.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="Saitunan burauza na PickVia tare da burauzai da misalan bayanan martaba" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Buɗe hanyar haɗi ta gaba<br />a <em>wurin</em> da ya dace.</h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">Sauke don macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Alamar manhajar PickVia" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Buɗe hanyar haɗi ta gaba<br />a <em>wurin</em> da ya dace.</h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Sauke don macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Alamar manhajar PickVia" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Rufe" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Shigar a Mac</h2>
+        <ol class="install-steps"><li>Sauke kuma buɗe DMG.</li><li>Ja <strong>PickVia</strong> zuwa <strong>Manhajoji</strong>.</li><li>Gwada buɗe manhajar sau ɗaya. Idan macOS ya hana ta, buɗe <strong>Saitunan tsarin → Sirri &amp; Tsaro</strong> kuma zaɓi <strong>Buɗe duk da haka</strong>.</li></ol>
+        <details><summary>Idan “Buɗe duk da haka” bai bayyana ba</summary><p>Bayan ka matsar da manhajar zuwa Manhajoji, buɗe Terminal kuma gudanar da:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Kwafi" data-copied-label="An kwafa" data-copy-failed-label="An kasa kwafi; zaɓi kuma kwafi umarnin da hannu.">Kwafi</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Sauke don macOS <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">Idan yana taimaka maka, ba wa aikin tauraro a GitHub <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · Lasisin MIT</span><span><a href="changelog.html">Tarihin Sauye-sauye</a> · <a href="privacy.html">Sirri</a> · <a href="terms.html">Sharuɗɗa</a> · <a href="https://github.com/kiteretsu903/pick-via">Lambar tushe a GitHub <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

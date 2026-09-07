@@ -53,7 +53,7 @@
   "index.p.002": "macOS 네이티브 링크 선택 앱",
   "index.h1.001": "링크를<br />잘못된 브라우저나 프로필로<br /><em>여는 일은 이제 그만.</em>",
   "index.p.003": "PickVia는 각 웹 링크나 이메일 링크를 열기 전에 물어봅니다. 웹 링크는 선택한 브라우저나 프로필로, 메일 링크는 의도한 이메일 앱으로 연결됩니다.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1 다운로드 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub에서 별 주기</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 다운로드 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub에서 별 주기</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · 무료 &amp; 오픈 소스",
   "index.p.005": "스크린샷은 영어 인터페이스를 보여 줍니다.",
   "index.p.006": "01 / 열기 전에 선택하세요",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "버전 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">전체 릴리스 노트 <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 다운로드 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>2026년 9월 6일</strong><span class=\"release-current\">현재 릴리스</span>",
-  "release.v1_5_1.summary": "DuckDuckGo 비공개 모드의 버전 제한을 제거하고, 언어 선택기를 상단 바로 옮기고, 홈페이지의 언어 안내를 제거했습니다."
+  "release.v1_5_1.summary": "DuckDuckGo 비공개 모드의 버전 제한을 제거하고, 언어 선택기를 상단 바로 옮기고, 홈페이지의 언어 안내를 제거했습니다.",
+  "download.close": "닫기",
+  "download.title": "Mac에 설치",
+  "download.steps": "<li>DMG를 다운로드하고 여세요.</li><li><strong>PickVia</strong>를 <strong>응용 프로그램</strong>으로 드래그하세요.</li><li>앱을 한 번 열어 보세요. macOS가 차단하면 <strong>시스템 설정 → 개인정보 보호 및 보안</strong>에서 <strong>확인 없이 열기</strong>를 선택하세요.</li>",
+  "download.fallback": "‘확인 없이 열기’가 나타나지 않는 경우",
+  "download.terminal": "앱을 응용 프로그램으로 옮긴 다음 터미널을 열어 실행하세요:",
+  "download.copy": "복사",
+  "download.copied": "복사됨",
+  "download.copyFailed": "복사하지 못했습니다. 명령을 선택하여 직접 복사하세요.",
+  "download.star": "도움이 되었다면 GitHub에서 별표를 주세요 <span aria-hidden=\"true\">↗</span>"
 }

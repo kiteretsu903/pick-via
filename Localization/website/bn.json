@@ -53,7 +53,7 @@
   "index.p.002": "macOS-এর জন্য তৈরি একটি লিঙ্ক নির্বাচক",
   "index.h1.001": "ভুল ব্রাউজার বা প্রোফাইলে<br />লিঙ্ক খোলা<br /><em>বন্ধ করুন।</em>",
   "index.p.003": "প্রতিটি ওয়েব বা ইমেইল লিঙ্ক খোলার আগে PickVia জিজ্ঞেস করে, যাতে ওয়েব লিঙ্ক আপনার বেছে নেওয়া ব্রাউজার বা প্রোফাইলে এবং মেইল লিঙ্ক আপনার কাঙ্ক্ষিত ইমেইল অ্যাপে যায়।",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1 ডাউনলোড করুন <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub-এ স্টার দিন</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 ডাউনলোড করুন <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub-এ স্টার দিন</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · বিনামূল্যে ও ওপেন সোর্স",
   "index.p.005": "স্ক্রিনশটে ইংরেজি ইন্টারফেস দেখানো হয়েছে।",
   "index.p.006": "01 / খোলার আগে বেছে নিন",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "সংস্করণ 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">সম্পূর্ণ রিলিজ নোট <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 ডাউনলোড করুন <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 সেপ্টেম্বর 2026</strong><span class=\"release-current\">বর্তমান রিলিজ</span>",
-  "release.v1_5_1.summary": "DuckDuckGo-এর ব্যক্তিগত মোডের সংস্করণ-সংক্রান্ত বিধিনিষেধ সরানো হয়েছে, ভাষা নির্বাচক উপরের বারে সরানো হয়েছে এবং হোমপেজের ভাষা-সংক্রান্ত বিজ্ঞপ্তি সরানো হয়েছে।"
+  "release.v1_5_1.summary": "DuckDuckGo-এর ব্যক্তিগত মোডের সংস্করণ-সংক্রান্ত বিধিনিষেধ সরানো হয়েছে, ভাষা নির্বাচক উপরের বারে সরানো হয়েছে এবং হোমপেজের ভাষা-সংক্রান্ত বিজ্ঞপ্তি সরানো হয়েছে।",
+  "download.close": "বন্ধ করুন",
+  "download.title": "Mac-এ ইনস্টল করুন",
+  "download.steps": "<li>DMG ডাউনলোড করে খুলুন।</li><li><strong>PickVia</strong>-কে <strong>Applications</strong>-এ টেনে আনুন।</li><li>একবার অ্যাপ খোলার চেষ্টা করুন। macOS বাধা দিলে <strong>System Settings → Privacy &amp; Security</strong> খুলে <strong>Open Anyway</strong> বেছে নিন।</li>",
+  "download.fallback": "“Open Anyway” না দেখালে",
+  "download.terminal": "অ্যাপটি Applications-এ সরানোর পর Terminal খুলে চালান:",
+  "download.copy": "কপি করুন",
+  "download.copied": "কপি হয়েছে",
+  "download.copyFailed": "কপি ব্যর্থ হয়েছে; কমান্ডটি নিজে নির্বাচন করে কপি করুন।",
+  "download.star": "কাজে লাগলে GitHub-এ প্রকল্পটিকে স্টার দিন <span aria-hidden=\"true\">↗</span>"
 }

@@ -53,7 +53,7 @@
   "index.p.002": "macOS کے لیے مقامی لنک انتخاب کار",
   "index.h1.001": "لنکس کو<br />اب نہ کھولیں<br /><em>غلط براؤزر یا پروفائل میں۔</em>",
   "index.p.003": "PickVia ہر ویب یا ای میل لنک کھلنے سے پہلے پوچھتا ہے، تاکہ ویب لنکس آپ کے منتخب براؤزر یا پروفائل میں اور میل لنکس آپ کی مطلوبہ میل ایپ میں کھلیں۔",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1 ڈاؤن لوڈ کریں <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub پر ستارہ دیں</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 ڈاؤن لوڈ کریں <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub پر ستارہ دیں</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · مفت اور اوپن سورس",
   "index.p.005": "اسکرین شاٹس انگریزی انٹرفیس دکھاتے ہیں۔",
   "index.p.006": "01 / کھلنے سے پہلے منتخب کریں",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "ورژن 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">مکمل ریلیز نوٹس <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 ڈاؤن لوڈ کریں <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>6 ستمبر 2026</strong><span class=\"release-current\">موجودہ ریلیز</span>",
-  "release.v1_5_1.summary": "DuckDuckGo کے نجی موڈ کی ورژن پابندی ہٹا دی گئی ہے، زبان کا انتخاب کرنے والا کنٹرول اوپر کی پٹی میں منتقل کر دیا گیا ہے، اور ہوم پیج سے زبانوں کا نوٹس ہٹا دیا گیا ہے۔"
+  "release.v1_5_1.summary": "DuckDuckGo کے نجی موڈ کی ورژن پابندی ہٹا دی گئی ہے، زبان کا انتخاب کرنے والا کنٹرول اوپر کی پٹی میں منتقل کر دیا گیا ہے، اور ہوم پیج سے زبانوں کا نوٹس ہٹا دیا گیا ہے۔",
+  "download.close": "بند کریں",
+  "download.title": "Mac پر نصب کریں",
+  "download.steps": "<li>DMG ڈاؤن لوڈ کر کے کھولیں۔</li><li><strong>PickVia</strong> کو <strong>Applications</strong> میں کھینچیں۔</li><li>ایک بار ایپ کھولنے کی کوشش کریں۔ اگر macOS روکے تو <strong>سسٹم ترتیبات → رازداری &amp; سلامتی</strong> کھولیں اور <strong>پھر بھی کھولیں</strong> منتخب کریں۔</li>",
+  "download.fallback": "اگر ”پھر بھی کھولیں“ ظاہر نہ ہو",
+  "download.terminal": "ایپ کو Applications میں منتقل کرنے کے بعد Terminal کھولیں اور چلائیں:",
+  "download.copy": "کاپی کریں",
+  "download.copied": "کاپی ہو گیا",
+  "download.copyFailed": "کاپی نہیں ہو سکی؛ کمانڈ منتخب کر کے دستی طور پر کاپی کریں۔",
+  "download.star": "اگر فائدہ ہو تو منصوبے کو GitHub پر ستارہ دیں <span aria-hidden=\"true\">↗</span>"
 }

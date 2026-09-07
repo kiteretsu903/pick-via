@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">Uhlelo lokukhetha indlela yokuvula izixhumanisi olwakhelwe i-macOS</p><h1>Yeka ukuvula<br />izixhumanisi<br /><em>esipheqululini noma kuphrofayela engafanele.</em></h1></div>
-          <div class="hero-intro"><p>I-PickVia iyabuza ngaphambi kokuvula isixhumanisi ngasinye sewebhu noma se-imeyili, ukuze izixhumanisi zewebhu ziye esipheqululini noma kuphrofayela oyikhethayo, nezixhumanisi ze-imeyili ziye ohlelweni lwe-imeyili obuhlose ukulusebenzisa.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">Landa i-v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Nikeza i-PickVia inkanyezi ku-GitHub"><span aria-hidden="true">★</span> Nikeza inkanyezi ku-GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Kumahhala futhi kunekhodi yomthombo evulekile</p></div>
+          <div class="hero-intro"><p>I-PickVia iyabuza ngaphambi kokuvula isixhumanisi ngasinye sewebhu noma se-imeyili, ukuze izixhumanisi zewebhu ziye esipheqululini noma kuphrofayela oyikhethayo, nezixhumanisi ze-imeyili ziye ohlelweni lwe-imeyili obuhlose ukulusebenzisa.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Landa i-v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Nikeza i-PickVia inkanyezi ku-GitHub"><span aria-hidden="true">★</span> Nikeza inkanyezi ku-GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Kumahhala futhi kunekhodi yomthombo evulekile</p></div>
         </div>
         <p class="screenshot-note">Izithombe zesikrini zibonisa isixhumi esibonakalayo sesiNgisi.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="Iwindi lokukhetha isiphequluli le-PickVia elibonisa amaphrofayela esiphequluli, izinketho eziyimfihlo nezinqamuleli zekhibhodi" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Setha izinketho zakho</p><h2>Setha kanye.<br /><em>Khetha ngokushesha.</em></h2><p>Setha amaphrofayela esiphequluli nezinhlelo ze-imeyili ojwayele ukuzisebenzisa kanye, bese uhlela izinketho ozisebenzisa kakhulu.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="Izilungiselelo zeziphequluli ze-PickVia ezineziphequluli nezibonelo zamaphrofayela" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Vula isixhumanisi esilandelayo<br />endaweni <em>efanele.</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">Landa okwe-macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Isithonjana sohlelo lwe-PickVia" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Vula isixhumanisi esilandelayo<br />endaweni <em>efanele.</em></h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Landa okwe-macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Isithonjana sohlelo lwe-PickVia" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Vala" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Faka ku-Mac</h2>
+        <ol class="install-steps"><li>Landa bese uvula i-DMG.</li><li>Hudulela i-<strong>PickVia</strong> ku-<strong>Izinhlelo Zokusebenza</strong>.</li><li>Zama ukuvula uhlelo kanye. Uma i-macOS iluvimba, vula <strong>Izilungiselelo Zesistimu → Ubumfihlo &amp; Ukuphepha</strong> bese ukhetha <strong>Vula Noma Kunjalo</strong>.</li></ol>
+        <details><summary>Uma “Vula Noma Kunjalo” kungaveli</summary><p>Ngemva kokuhambisa uhlelo ku-Izinhlelo Zokusebenza, vula i-Terminal bese usebenzisa:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Kopisha" data-copied-label="Kukopishiwe" data-copy-failed-label="Ukukopisha kuhlulekile; khetha bese ukopisha umyalo ngesandla.">Kopisha</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Landa okwe-macOS <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">Uma ikusiza, nikeza iphrojekthi inkanyezi ku-GitHub <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · Ilayisensi ye-MIT</span><span><a href="changelog.html">Umlando wezinguquko</a> · <a href="privacy.html">Ubumfihlo</a> · <a href="terms.html">Imigomo</a> · <a href="https://github.com/kiteretsu903/pick-via">Ikhodi yomthombo ku-GitHub <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

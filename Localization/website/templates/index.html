@@ -140,8 +140,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">{{index.p.015}}</p><h2>{{index.h2.003}}</h2><p>{{index.p.016}}</p></div><div class="settings-window"><img src="assets/settings.png" alt="{{index.alt.003}}" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">{{index.p.017}}</p><h2>{{index.h2.004}}</h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">{{index.a.005}}</a></div><img src="assets/icon.png" alt="{{index.alt.004}}" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">{{index.p.017}}</p><h2>{{index.h2.004}}</h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">{{index.a.005}}</a></div><img src="assets/icon.png" alt="{{index.alt.004}}" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="{{download.close}}" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">{{download.title}}</h2>
+        <ol class="install-steps">{{download.steps}}</ol>
+        <details><summary>{{download.fallback}}</summary><p>{{download.terminal}}</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="{{download.copy}}" data-copied-label="{{download.copied}}" data-copy-failed-label="{{download.copyFailed}}">{{download.copy}}</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">{{index.a.005}}</a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">{{download.star}}</a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>{{index.span.001}}</span><span>{{index.span.002}}</span></footer>
   </body>
 </html>

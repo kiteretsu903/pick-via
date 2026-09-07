@@ -53,7 +53,7 @@
   "index.p.002": "Công cụ chọn ứng dụng mở liên kết gốc cho macOS",
   "index.h1.001": "Đừng mở<br />liên kết trong<br /><em>sai trình duyệt hoặc hồ sơ nữa.</em>",
   "index.p.003": "PickVia hỏi trước khi mở mỗi liên kết web hoặc email, để liên kết web tới trình duyệt hay hồ sơ bạn chọn và liên kết email tới ứng dụng thư bạn định dùng.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Tải v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Tặng sao trên GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Tải v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Tặng sao trên GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Miễn phí và mã nguồn mở",
   "index.p.005": "Ảnh chụp màn hình hiển thị giao diện tiếng Anh.",
   "index.p.006": "01 / Chọn trước khi mở",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Phiên bản 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Ghi chú phát hành đầy đủ <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Tải v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 THÁNG 9 2026</strong><span class=\"release-current\">Bản phát hành hiện tại</span>",
-  "release.v1_5_1.summary": "Gỡ bỏ giới hạn phiên bản đối với chế độ riêng tư của DuckDuckGo, chuyển bộ chọn ngôn ngữ lên thanh trên cùng và xóa thông báo về ngôn ngữ trên trang chủ."
+  "release.v1_5_1.summary": "Gỡ bỏ giới hạn phiên bản đối với chế độ riêng tư của DuckDuckGo, chuyển bộ chọn ngôn ngữ lên thanh trên cùng và xóa thông báo về ngôn ngữ trên trang chủ.",
+  "download.close": "Đóng",
+  "download.title": "Cài trên Mac",
+  "download.steps": "<li>Tải xuống và mở DMG.</li><li>Kéo <strong>PickVia</strong> vào <strong>Ứng dụng</strong>.</li><li>Thử mở ứng dụng một lần. Nếu macOS chặn, mở <strong>Cài đặt hệ thống → Quyền riêng tư &amp; Bảo mật</strong> rồi chọn <strong>Vẫn mở</strong>.</li>",
+  "download.fallback": "Nếu không thấy “Vẫn mở”",
+  "download.terminal": "Sau khi chuyển ứng dụng vào Ứng dụng, mở Terminal và chạy:",
+  "download.copy": "Sao chép",
+  "download.copied": "Đã sao chép",
+  "download.copyFailed": "Sao chép thất bại; hãy chọn và sao chép lệnh thủ công.",
+  "download.star": "Nếu hữu ích, hãy tặng dự án một sao trên GitHub <span aria-hidden=\"true\">↗</span>"
 }

@@ -53,7 +53,7 @@
   "index.p.002": "កម្មវិធីជ្រើសរើសវិធីបើកតំណដើមសម្រាប់ macOS",
   "index.h1.001": "ឈប់បើក<br />តំណក្នុង<br /><em>កម្មវិធីរុករក ឬប្រវត្តិរូបខុស។</em>",
   "index.p.003": "PickVia សួរមុនបើកតំណគេហទំព័រ ឬអ៊ីមែលនីមួយៗ ដូច្នេះតំណគេហទំព័រទៅកម្មវិធីរុករក ឬប្រវត្តិរូបដែលអ្នកជ្រើសរើស ហើយតំណអ៊ីមែលទៅកម្មវិធីអ៊ីមែលដែលអ្នកចង់ប្រើ។",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">ទាញយក v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> ដាក់ផ្កាយលើ GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">ទាញយក v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> ដាក់ផ្កាយលើ GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · ឥតគិតថ្លៃ និងប្រភពបើកចំហ",
   "index.p.005": "រូបថតអេក្រង់បង្ហាញចំណុចប្រទាក់ភាសាអង់គ្លេស។",
   "index.p.006": "01 / ជ្រើសរើសមុនបើក",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "កំណែ 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">កំណត់ចំណាំការចេញផ្សាយពេញលេញ <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">ទាញយក v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 កញ្ញា 2026</strong><span class=\"release-current\">កំណែចេញផ្សាយបច្ចុប្បន្ន</span>",
-  "release.v1_5_1.summary": "បានលុបការកំណត់កំណែសម្រាប់មុខងារឯកជនរបស់ DuckDuckGo ផ្លាស់ទីឧបករណ៍ជ្រើសរើសភាសាទៅរបារខាងលើ និងលុបសេចក្តីជូនដំណឹងអំពីភាសាចេញពីទំព័រដើម។"
+  "release.v1_5_1.summary": "បានលុបការកំណត់កំណែសម្រាប់មុខងារឯកជនរបស់ DuckDuckGo ផ្លាស់ទីឧបករណ៍ជ្រើសរើសភាសាទៅរបារខាងលើ និងលុបសេចក្តីជូនដំណឹងអំពីភាសាចេញពីទំព័រដើម។",
+  "download.close": "បិទ",
+  "download.title": "ដំឡើងលើ Mac",
+  "download.steps": "<li>ទាញយក ហើយបើក DMG។</li><li>អូស <strong>PickVia</strong> ទៅក្នុង <strong>កម្មវិធី</strong>។</li><li>សាកល្បងបើកកម្មវិធីមួយដង។ ប្រសិនបើ macOS រារាំងវា សូមបើក <strong>ការកំណត់ប្រព័ន្ធ → ឯកជនភាព &amp; សុវត្ថិភាព</strong> ហើយជ្រើសរើស <strong>បើកទោះជាយ៉ាងណា</strong>។</li>",
+  "download.fallback": "ប្រសិនបើ «បើកទោះជាយ៉ាងណា» មិនបង្ហាញ",
+  "download.terminal": "ក្រោយផ្លាស់ទីកម្មវិធីទៅក្នុង កម្មវិធី សូមបើក Terminal ហើយដំណើរការ៖",
+  "download.copy": "ចម្លង",
+  "download.copied": "បានចម្លង",
+  "download.copyFailed": "ការចម្លងបរាជ័យ។ ជ្រើសរើស ហើយចម្លងពាក្យបញ្ជាដោយដៃ។",
+  "download.star": "បើវាមានប្រយោជន៍ សូមដាក់ផ្កាយឱ្យគម្រោងនៅ GitHub <span aria-hidden=\"true\">↗</span>"
 }

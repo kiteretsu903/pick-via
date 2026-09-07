@@ -29,3 +29,17 @@ Settings width accounts for translated chooser-size labels measured in the curre
 Runtime tests cover registry completeness, primary-only system fallback, aliases, script/region/extension resolution, nonrecursive interpolation, and English resilience. Catalog validation must still report missing resources even though runtime fallback is resilient. Native UI language selection, quit/reopen persistence, open-disclosure updates, and screenshots are separate evidence and must be recorded with the exact tested app build.
 
 Translations and review provenance live alongside the catalogs in `Localization/review`. AI review is the linguistic review used in this rollout; it is not native-speaker review.
+
+### Website download dialog
+
+The homepage download links open a native HTML dialog with installation steps,
+a direct DMG link, and an optional GitHub star link. The links keep their direct
+download destination when JavaScript or dialog support is unavailable. Escape,
+the close button, and backdrop clicks dismiss the dialog and return focus to
+the initiating link. The fallback command uses the installed PickVia app path.
+
+`download.*` messages reuse the corresponding E-Ink Assistant website translations
+for all 80 locales, with the product name adapted to PickVia. Templates and
+`site/assets/localization.js` own behavior; locale catalogs own visible text and
+copy feedback. Update the two template DMG links and the hero link in each
+catalog when changing the downloadable release.

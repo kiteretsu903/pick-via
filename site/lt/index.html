@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">Specialiai macOS sukurta nuorodų pasirinkimo programa</p><h1>Nebeatidarykite<br />nuorodų<br /><em>netinkamoje naršyklėje ar profilyje.</em></h1></div>
-          <div class="hero-intro"><p>PickVia paklausia prieš atidarydama kiekvieną žiniatinklio ar pašto nuorodą, todėl žiniatinklio nuorodos atidaromos pasirinktoje naršyklėje ar profilyje, o pašto nuorodos — norimoje pašto programoje.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">Atsisiųsti v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Skirkite PickVia žvaigždutę GitHub"><span aria-hidden="true">★</span> Skirti žvaigždutę GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Nemokama &amp; atvirojo kodo</p></div>
+          <div class="hero-intro"><p>PickVia paklausia prieš atidarydama kiekvieną žiniatinklio ar pašto nuorodą, todėl žiniatinklio nuorodos atidaromos pasirinktoje naršyklėje ar profilyje, o pašto nuorodos — norimoje pašto programoje.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Atsisiųsti v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Skirkite PickVia žvaigždutę GitHub"><span aria-hidden="true">★</span> Skirti žvaigždutę GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Nemokama &amp; atvirojo kodo</p></div>
         </div>
         <p class="screenshot-note">Ekrano nuotraukose rodoma angliška sąsaja.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="PickVia naršyklės pasirinkimo langas su naršyklės profiliais, privačiomis paskirties vietomis ir klavišų kombinacijomis" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Nustatykite pasirinkimus</p><h2>Nustatykite kartą.<br /><em>Rinkitės greitai.</em></h2><p>Vieną kartą sukonfigūruokite įprastus naršyklės profilius ir pašto programas, tada perrikiuokite dažniausiai naudojamas paskirties vietas.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="PickVia naršyklių nustatymai su naršyklėmis ir profilių pavyzdžiais" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Kitą nuorodą atidarykite<br /><em>tinkamoje vietoje.</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">Atsisiųsti macOS skirtą versiją <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="PickVia programos piktograma" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Kitą nuorodą atidarykite<br /><em>tinkamoje vietoje.</em></h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Atsisiųsti macOS skirtą versiją <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="PickVia programos piktograma" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Užverti" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Diegimas Mac kompiuteryje</h2>
+        <ol class="install-steps"><li>Atsisiųskite ir atverkite DMG.</li><li>Nuvilkite <strong>PickVia</strong> į <strong>Applications</strong>.</li><li>Vieną kartą pabandykite atverti programą. Jei macOS ją blokuoja, atverkite <strong>Sistemos nuostatos → Privatumas &amp; sauga</strong> ir pasirinkite <strong>Vis tiek atverti</strong>.</li></ol>
+        <details><summary>Jei parinktis „Vis tiek atverti“ nerodoma</summary><p>Perkėlę programą į Applications, atverkite Terminal ir vykdykite:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Kopijuoti" data-copied-label="Nukopijuota" data-copy-failed-label="Nepavyko nukopijuoti; pažymėkite ir nukopijuokite komandą rankiniu būdu.">Kopijuoti</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Atsisiųsti macOS skirtą versiją <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">Jei naudinga, skirkite projektui žvaigždutę GitHub <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · MIT licencija</span><span><a href="changelog.html">Pakeitimų žurnalas</a> · <a href="privacy.html">Privatumas</a> · <a href="terms.html">Sąlygos</a> · <a href="https://github.com/kiteretsu903/pick-via">Pirminis kodas GitHub <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

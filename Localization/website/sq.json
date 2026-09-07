@@ -53,7 +53,7 @@
   "index.p.002": "Aplikacion i ndërtuar për macOS për zgjedhjen e destinacionit të lidhjeve",
   "index.h1.001": "Mos i hapni më<br />lidhjet në<br /><em>shfletuesin apo profilin e gabuar.</em>",
   "index.p.003": "PickVia pyet para se të hapet çdo lidhje uebi ose emaili, që lidhjet e uebit të shkojnë te shfletuesi ose profili që zgjidhni dhe lidhjet e postës te aplikacioni i emailit që kishit ndër mend.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Shkarko v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Jepni një yll në GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Shkarko v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Jepni një yll në GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Falas dhe me kod të hapur",
   "index.p.005": "Pamjet e ekranit tregojnë ndërfaqen në anglisht.",
   "index.p.006": "01 / Zgjidhni para se të hapet",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Versioni 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Shënimet e plota të publikimit <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Shkarko v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>6 SHTATOR 2026</strong><span class=\"release-current\">Publikimi aktual</span>",
-  "release.v1_5_1.summary": "Hiqet kufizimi i versionit për mënyrën private të DuckDuckGo, përzgjedhësi i gjuhës zhvendoset në shiritin e sipërm dhe hiqet njoftimi për gjuhët nga faqja kryesore."
+  "release.v1_5_1.summary": "Hiqet kufizimi i versionit për mënyrën private të DuckDuckGo, përzgjedhësi i gjuhës zhvendoset në shiritin e sipërm dhe hiqet njoftimi për gjuhët nga faqja kryesore.",
+  "download.close": "Mbyll",
+  "download.title": "Instalo në Mac",
+  "download.steps": "<li>Shkarkoni dhe hapni DMG-në.</li><li>Tërhiqeni <strong>PickVia</strong> te <strong>Aplikacionet</strong>.</li><li>Provoni ta hapni aplikacionin një herë. Nëse macOS e bllokon, hapni <strong>Cilësimet e sistemit → Privatësia &amp; siguria</strong> dhe zgjidhni <strong>Hap gjithsesi</strong>.</li>",
+  "download.fallback": "Nëse “Hap gjithsesi” nuk shfaqet",
+  "download.terminal": "Pasi ta zhvendosni aplikacionin te Aplikacionet, hapni Terminal dhe ekzekutoni:",
+  "download.copy": "Kopjo",
+  "download.copied": "U kopjua",
+  "download.copyFailed": "Kopjimi dështoi; zgjidhni dhe kopjoni komandën manualisht.",
+  "download.star": "Nëse ju ndihmon, jepini projektit një yll në GitHub <span aria-hidden=\"true\">↗</span>"
 }

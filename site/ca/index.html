@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">Un selector d’enllaços natiu per al macOS</p><h1>Deixeu d’obrir<br />enllaços amb<br /><em>el navegador o el perfil equivocat.</em></h1></div>
-          <div class="hero-intro"><p>El PickVia pregunta abans d’obrir cada enllaç web o de correu, perquè els enllaços web vagin al navegador o al perfil que trieu i els de correu a l’app de correu que volíeu fer servir.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">Baixa la v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Doneu una estrella al PickVia al GitHub"><span aria-hidden="true">★</span> Dona-li una estrella al GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Gratuït i de codi obert</p></div>
+          <div class="hero-intro"><p>El PickVia pregunta abans d’obrir cada enllaç web o de correu, perquè els enllaços web vagin al navegador o al perfil que trieu i els de correu a l’app de correu que volíeu fer servir.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Baixa la v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Doneu una estrella al PickVia al GitHub"><span aria-hidden="true">★</span> Dona-li una estrella al GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Gratuït i de codi obert</p></div>
         </div>
         <p class="screenshot-note">Les captures mostren la interfície en anglès.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="Selector de navegadors del PickVia amb perfils de navegador, opcions privades i dreceres de teclat" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Configureu les vostres opcions</p><h2>Configureu-ho una vegada.<br /><em>Trieu de pressa.</em></h2><p>Configureu una vegada els perfils de navegador i les apps de correu habituals, i ordeneu les opcions que més feu servir.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="Configuració de navegadors del PickVia amb navegadors i exemples de perfils" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Obriu el proper enllaç<br />al lloc <em>adequat.</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">Baixa per al macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Icona de l’app PickVia" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Obriu el proper enllaç<br />al lloc <em>adequat.</em></h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Baixa per al macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Icona de l’app PickVia" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Tanca" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Instal·la al Mac</h2>
+        <ol class="install-steps"><li>Descarrega i obre el DMG.</li><li>Arrossega <strong>PickVia</strong> a <strong>Aplicacions</strong>.</li><li>Prova d'obrir l'app una vegada. Si macOS la bloqueja, obre <strong>Configuració del Sistema → Privacitat &amp; Seguretat</strong> i selecciona <strong>Obre igualment</strong>.</li></ol>
+        <details><summary>Si no apareix «Obre igualment»</summary><p>Després de moure l'app a Aplicacions, obre el Terminal i executa:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Copia" data-copied-label="Copiat" data-copy-failed-label="No s&#x27;ha pogut copiar; selecciona i copia l&#x27;ordre manualment.">Copia</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Baixa per al macOS <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">Si et resulta útil, dona una estrella al projecte a GitHub <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · Llicència MIT</span><span><a href="changelog.html">Registre de canvis</a> · <a href="privacy.html">Privacitat</a> · <a href="terms.html">Condicions</a> · <a href="https://github.com/kiteretsu903/pick-via">Codi font al GitHub <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

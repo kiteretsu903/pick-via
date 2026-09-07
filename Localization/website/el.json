@@ -53,7 +53,7 @@
   "index.p.002": "Εγγενές εργαλείο επιλογής προορισμού συνδέσμων για macOS",
   "index.h1.001": "Σταματήστε να ανοίγετε<br />συνδέσμους σε<br /><em>λάθος πρόγραμμα περιήγησης ή προφίλ.</em>",
   "index.p.003": "Το PickVia ρωτά πριν ανοίξει κάθε σύνδεσμος ιστού ή email, ώστε οι σύνδεσμοι ιστού να πηγαίνουν στο πρόγραμμα περιήγησης ή προφίλ που επιλέγετε και οι σύνδεσμοι email στην εφαρμογή που θέλετε.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Λήψη v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Αστέρι στο GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Λήψη v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Αστέρι στο GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Δωρεάν και ανοικτού κώδικα",
   "index.p.005": "Τα στιγμιότυπα οθόνης δείχνουν την αγγλική διεπαφή.",
   "index.p.006": "01 / Επιλέξτε πριν ανοίξει",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Έκδοση 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Πλήρεις σημειώσεις έκδοσης <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Λήψη v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 ΣΕΠ 2026</strong><span class=\"release-current\">Τρέχουσα έκδοση</span>",
-  "release.v1_5_1.summary": "Κατάργηση του περιορισμού έκδοσης για την ιδιωτική λειτουργία του DuckDuckGo, μεταφορά του επιλογέα γλώσσας στην επάνω γραμμή και αφαίρεση της ειδοποίησης γλωσσών από την αρχική σελίδα."
+  "release.v1_5_1.summary": "Κατάργηση του περιορισμού έκδοσης για την ιδιωτική λειτουργία του DuckDuckGo, μεταφορά του επιλογέα γλώσσας στην επάνω γραμμή και αφαίρεση της ειδοποίησης γλωσσών από την αρχική σελίδα.",
+  "download.close": "Κλείσιμο",
+  "download.title": "Εγκατάσταση σε Mac",
+  "download.steps": "<li>Κατεβάστε και ανοίξτε το DMG.</li><li>Σύρετε το <strong>PickVia</strong> στις <strong>Εφαρμογές</strong>.</li><li>Δοκιμάστε να ανοίξετε την εφαρμογή μία φορά. Αν το macOS την αποκλείσει, ανοίξτε <strong>Ρυθμίσεις συστήματος → Απόρρητο &amp; ασφάλεια</strong> και επιλέξτε <strong>Άνοιγμα οπωσδήποτε</strong>.</li>",
+  "download.fallback": "Αν δεν εμφανίζεται το «Άνοιγμα οπωσδήποτε»",
+  "download.terminal": "Αφού μεταφέρετε την εφαρμογή στις Εφαρμογές, ανοίξτε το Τερματικό και εκτελέστε:",
+  "download.copy": "Αντιγραφή",
+  "download.copied": "Αντιγράφηκε",
+  "download.copyFailed": "Η αντιγραφή απέτυχε· επιλέξτε και αντιγράψτε την εντολή χειροκίνητα.",
+  "download.star": "Αν σας βοηθά, δώστε αστέρι στο έργο στο GitHub <span aria-hidden=\"true\">↗</span>"
 }

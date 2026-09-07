@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">Roghnóir nasc dúchasach do macOS</p><h1>Ná hoscail<br />naisc sa<br /><em>bhrabhsálaí nó sa phróifíl mhícheart.</em></h1></div>
-          <div class="hero-intro"><p>Fiafraíonn PickVia díot sula n-osclaítear gach nasc gréasáin nó ríomhphoist, ionas go dtéann naisc ghréasáin chuig an mbrabhsálaí nó an phróifíl a roghnaíonn tú agus naisc ríomhphoist chuig an aip a bhí i gceist agat.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">Íoslódáil v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Tabhair réalta do PickVia ar GitHub"><span aria-hidden="true">★</span> Tabhair réalta ar GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Saor in aisce agus foinse oscailte</p></div>
+          <div class="hero-intro"><p>Fiafraíonn PickVia díot sula n-osclaítear gach nasc gréasáin nó ríomhphoist, ionas go dtéann naisc ghréasáin chuig an mbrabhsálaí nó an phróifíl a roghnaíonn tú agus naisc ríomhphoist chuig an aip a bhí i gceist agat.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Íoslódáil v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Tabhair réalta do PickVia ar GitHub"><span aria-hidden="true">★</span> Tabhair réalta ar GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Saor in aisce agus foinse oscailte</p></div>
         </div>
         <p class="screenshot-note">Léiríonn na gabhálacha scáileáin an comhéadan Béarla.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="Roghnóir brabhsálaí PickVia ag taispeáint próifílí brabhsálaí, spriocanna príobháideacha agus aicearraí méarchláir" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Socraigh do roghanna</p><h2>Cumraigh uair amháin.<br /><em>Roghnaigh go tapa.</em></h2><p>Cumraigh do ghnáthphróifílí brabhsálaí agus aipeanna ríomhphoist uair amháin, ansin athordaigh na spriocanna is minice a úsáideann tú.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="Socruithe brabhsálaí PickVia le brabhsálaithe agus samplaí próifílí" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Oscail an chéad nasc eile<br />san <em>áit cheart.</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">Íoslódáil do macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Deilbhín aip PickVia" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Oscail an chéad nasc eile<br />san <em>áit cheart.</em></h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Íoslódáil do macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Deilbhín aip PickVia" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Dún" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Suiteáil ar Mac</h2>
+        <ol class="install-steps"><li>Íoslódáil agus oscail an DMG.</li><li>Tarraing <strong>PickVia</strong> isteach in <strong>Feidhmchláir</strong>.</li><li>Déan iarracht an aip a oscailt uair amháin. Má chuireann macOS bac uirthi, oscail <strong>Socruithe Córais → Príobháideachas &amp; Slándáil</strong> agus roghnaigh <strong>Oscail Mar Sin Féin</strong>.</li></ol>
+        <details><summary>Mura bhfuil “Oscail Mar Sin Féin” le feiceáil</summary><p>Tar éis duit an aip a bhogadh go Feidhmchláir, oscail Terminal agus rith:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Cóipeáil" data-copied-label="Cóipeáilte" data-copy-failed-label="Theip ar an gcóipeáil; roghnaigh agus cóipeáil an t-ordú de láimh.">Cóipeáil</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Íoslódáil do macOS <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">Má chuidíonn sé leat, tabhair réalta don tionscadal ar GitHub <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · Ceadúnas MIT</span><span><a href="changelog.html">Loga athruithe</a> · <a href="privacy.html">Príobháideachas</a> · <a href="terms.html">Téarmaí</a> · <a href="https://github.com/kiteretsu903/pick-via">Cód foinse ar GitHub <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

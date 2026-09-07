@@ -53,7 +53,7 @@
   "index.p.002": "Olùyàn ìjápọ̀ abínibí fún macOS",
   "index.h1.001": "Dá ṣíṣí ìjápọ̀<br />nínú aṣàwákiri<br /><em>tàbí prófáìlì tí kò tọ́ dúró.</em>",
   "index.p.003": "PickVia ń béèrè kí ìjápọ̀ wẹ́ẹ̀bù tàbí ímeèlì kọ̀ọ̀kan tó ṣí, kí àwọn ìjápọ̀ wẹ́ẹ̀bù lọ sí aṣàwákiri tàbí prófáìlì tí o yàn, kí àwọn ìjápọ̀ ímeèlì sì lọ sí ìṣàfilọ́lẹ̀ ímeèlì tí o fẹ́.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Ṣe ìgbàsílẹ̀ v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Fún ní ìràwọ̀ lórí GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Ṣe ìgbàsílẹ̀ v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Fún ní ìràwọ̀ lórí GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Ọ̀fẹ́ àti orísun ṣíṣí",
   "index.p.005": "Àwọn àwòrán ojú ìbòjú fi ojú ìṣàfilọ́lẹ̀ Gẹ̀ẹ́sì hàn.",
   "index.p.006": "01 / Yan kí ó tó ṣí",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Ẹ̀yà 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Àlàyé ìtújáde kíkún <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Ṣe ìgbàsílẹ̀ v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 OṢÙ KẸSÀN-ÁN 2026</strong><span class=\"release-current\">Ẹ̀yà lọ́wọ́lọ́wọ́</span>",
-  "release.v1_5_1.summary": "A ti yọ ààlà ẹ̀yà fún ipò àṣírí DuckDuckGo kúrò, a ti gbé àṣàyàn èdè sí ọ̀pá òkè, a sì ti yọ ìfitónilétí èdè kúrò ní ojú ìwé àkọ́kọ́."
+  "release.v1_5_1.summary": "A ti yọ ààlà ẹ̀yà fún ipò àṣírí DuckDuckGo kúrò, a ti gbé àṣàyàn èdè sí ọ̀pá òkè, a sì ti yọ ìfitónilétí èdè kúrò ní ojú ìwé àkọ́kọ́.",
+  "download.close": "Pa dé",
+  "download.title": "Fi sórí Mac",
+  "download.steps": "<li>Ṣe ìgbàsílẹ̀ DMG, kí o sì ṣí i.</li><li>Fa <strong>PickVia</strong> sínú <strong>Applications</strong>.</li><li>Gbìyànjú láti ṣí ohun èlò lẹ́ẹ̀kan. Bí macOS bá dí i, ṣí <strong>System Settings → Privacy &amp; Security</strong> kí o sì yan <strong>Open Anyway</strong>.</li>",
+  "download.fallback": "Bí “Open Anyway” kò bá hàn",
+  "download.terminal": "Lẹ́yìn tí o bá gbé ohun èlò sínú Applications, ṣí Terminal kí o sì ṣiṣẹ́:",
+  "download.copy": "Daakọ",
+  "download.copied": "A ti daakọ",
+  "download.copyFailed": "Dídaakọ kùnà; yan àṣẹ náà kí o sì daakọ rẹ̀ lọ́wọ́.",
+  "download.star": "Bí ó bá ràn ọ́ lọ́wọ́, fi ìràwọ̀ fún iṣẹ́ náà lórí GitHub <span aria-hidden=\"true\">↗</span>"
 }

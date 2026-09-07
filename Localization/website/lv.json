@@ -53,7 +53,7 @@
   "index.p.002": "Vietējs saišu izvēles rīks macOS",
   "index.h1.001": "Pārtrauciet atvērt<br />saites<br /><em>nepareizajā pārlūkā vai profilā.</em>",
   "index.p.003": "PickVia jautā pirms katras tīmekļa vai e-pasta saites atvēršanas, lai tīmekļa saites nonāktu izvēlētajā pārlūkā vai profilā, bet e-pasta saites — iecerētajā pasta lietotnē.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Lejupielādēt v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Pievienot zvaigznīti GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Lejupielādēt v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Pievienot zvaigznīti GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Bezmaksas un ar atvērto pirmkodu",
   "index.p.005": "Ekrānuzņēmumos redzama saskarne angļu valodā.",
   "index.p.006": "01 / Izvēlieties pirms atvēršanas",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Versija 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Pilnas laidiena piezīmes <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Lejupielādēt v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06. SEPT. 2026</strong><span class=\"release-current\">Pašreizējais laidiens</span>",
-  "release.v1_5_1.summary": "Noņem DuckDuckGo privātā režīma versijas ierobežojumu, pārvieto valodas izvēlni uz augšējo joslu un noņem valodu paziņojumu no sākumlapas."
+  "release.v1_5_1.summary": "Noņem DuckDuckGo privātā režīma versijas ierobežojumu, pārvieto valodas izvēlni uz augšējo joslu un noņem valodu paziņojumu no sākumlapas.",
+  "download.close": "Aizvērt",
+  "download.title": "Instalēt Mac datorā",
+  "download.steps": "<li>Lejupielādējiet un atveriet DMG.</li><li>Ievelciet <strong>PickVia</strong> mapē <strong>Applications</strong>.</li><li>Vienreiz mēģiniet atvērt lietotni. Ja macOS to bloķē, atveriet <strong>Sistēmas iestatījumi → Konfidencialitāte &amp; drošība</strong> un izvēlieties <strong>Atvērt tik un tā</strong>.</li>",
+  "download.fallback": "Ja “Atvērt tik un tā” neparādās",
+  "download.terminal": "Pēc lietotnes pārvietošanas uz Applications atveriet Terminal un izpildiet:",
+  "download.copy": "Kopēt",
+  "download.copied": "Nokopēts",
+  "download.copyFailed": "Kopēšana neizdevās; atlasiet un kopējiet komandu manuāli.",
+  "download.star": "Ja noder, piešķiriet projektam zvaigzni vietnē GitHub <span aria-hidden=\"true\">↗</span>"
 }

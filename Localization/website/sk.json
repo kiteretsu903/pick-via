@@ -53,7 +53,7 @@
   "index.p.002": "Natívny nástroj na výber cieľa odkazov pre macOS",
   "index.h1.001": "Prestaňte otvárať<br />odkazy v<br /><em>nesprávnom prehliadači alebo profile.</em>",
   "index.p.003": "PickVia sa opýta pred otvorením každého webového alebo e-mailového odkazu, takže webové odkazy smerujú do vybraného prehliadača či profilu a e-mailové odkazy do zamýšľanej poštovej aplikácie.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Stiahnuť v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Pridať hviezdičku na GitHube</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Stiahnuť v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Pridať hviezdičku na GitHube</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Zadarmo a s otvoreným zdrojovým kódom",
   "index.p.005": "Snímky obrazovky zobrazujú anglické rozhranie.",
   "index.p.006": "01 / Vyberte pred otvorením",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Verzia 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Úplné poznámky k vydaniu <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Stiahnuť v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06. SEP 2026</strong><span class=\"release-current\">Aktuálne vydanie</span>",
-  "release.v1_5_1.summary": "Odstránené obmedzenie verzie pre súkromný režim DuckDuckGo, výber jazyka presunutý do hornej lišty a odstránené oznámenie o jazykoch z domovskej stránky."
+  "release.v1_5_1.summary": "Odstránené obmedzenie verzie pre súkromný režim DuckDuckGo, výber jazyka presunutý do hornej lišty a odstránené oznámenie o jazykoch z domovskej stránky.",
+  "download.close": "Zavrieť",
+  "download.title": "Inštalácia na Mac",
+  "download.steps": "<li>Stiahnite a otvorte DMG.</li><li>Presuňte <strong>PickVia</strong> do priečinka <strong>Aplikácie</strong>.</li><li>Skúste aplikáciu raz otvoriť. Ak ju macOS zablokuje, otvorte <strong>Systémové nastavenia → Súkromie a bezpečnosť</strong> a vyberte <strong>Aj tak otvoriť</strong>.</li>",
+  "download.fallback": "Ak sa možnosť „Aj tak otvoriť“ nezobrazí",
+  "download.terminal": "Po presunutí aplikácie do priečinka Aplikácie otvorte Terminál a spustite:",
+  "download.copy": "Kopírovať",
+  "download.copied": "Skopírované",
+  "download.copyFailed": "Kopírovanie zlyhalo; označte a skopírujte príkaz ručne.",
+  "download.star": "Ak vám pomáha, pridajte projektu hviezdičku na GitHub <span aria-hidden=\"true\">↗</span>"
 }

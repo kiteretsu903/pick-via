@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">Nativní výběr cíle odkazů pro macOS</p><h1>Přestaňte otevírat<br />odkazy v<br /><em>nesprávném prohlížeči nebo profilu.</em></h1></div>
-          <div class="hero-intro"><p>PickVia se zeptá před otevřením každého webového nebo e-mailového odkazu. Webové odkazy tak zamíří do vybraného prohlížeče či profilu a e-mailové odkazy do zamýšlené poštovní aplikace.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">Stáhnout v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Přidejte PickVia hvězdičku na GitHubu"><span aria-hidden="true">★</span> Přidat hvězdičku na GitHubu</a></div><p class="subline">macOS 14+ · Apple Silicon · Zdarma a s otevřeným zdrojovým kódem</p></div>
+          <div class="hero-intro"><p>PickVia se zeptá před otevřením každého webového nebo e-mailového odkazu. Webové odkazy tak zamíří do vybraného prohlížeče či profilu a e-mailové odkazy do zamýšlené poštovní aplikace.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Stáhnout v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Přidejte PickVia hvězdičku na GitHubu"><span aria-hidden="true">★</span> Přidat hvězdičku na GitHubu</a></div><p class="subline">macOS 14+ · Apple Silicon · Zdarma a s otevřeným zdrojovým kódem</p></div>
         </div>
         <p class="screenshot-note">Snímky obrazovky ukazují anglické rozhraní.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="Výběr prohlížeče PickVia zobrazující profily prohlížečů, soukromé cíle a klávesové zkratky" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Nastavte si možnosti</p><h2>Nastavte jednou.<br /><em>Vybírejte rychle.</em></h2><p>Jednou nastavte své obvyklé profily prohlížečů a poštovní aplikace a pak seřaďte nejpoužívanější cíle.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="Nastavení prohlížečů PickVia s prohlížeči a příklady profilů" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Otevřete další odkaz<br />na správném <em>místě.</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">Stáhnout pro macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Ikona aplikace PickVia" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Otevřete další odkaz<br />na správném <em>místě.</em></h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Stáhnout pro macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Ikona aplikace PickVia" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Zavřít" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Instalace na Mac</h2>
+        <ol class="install-steps"><li>Stáhněte a otevřete DMG.</li><li>Přetáhněte <strong>PickVia</strong> do složky <strong>Aplikace</strong>.</li><li>Zkuste aplikaci jednou otevřít. Pokud ji macOS zablokuje, otevřete <strong>Nastavení systému → Soukromí &amp; zabezpečení</strong> a vyberte <strong>Přesto otevřít</strong>.</li></ol>
+        <details><summary>Pokud se možnost „Přesto otevřít“ nezobrazí</summary><p>Po přesunutí aplikace do složky Aplikace otevřete Terminál a spusťte:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Kopírovat" data-copied-label="Zkopírováno" data-copy-failed-label="Kopírování se nezdařilo; vyberte a zkopírujte příkaz ručně.">Kopírovat</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Stáhnout pro macOS <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">Pokud vám pomáhá, dejte projektu hvězdičku na GitHubu <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · Licence MIT</span><span><a href="changelog.html">Přehled změn</a> · <a href="privacy.html">Soukromí</a> · <a href="terms.html">Podmínky</a> · <a href="https://github.com/kiteretsu903/pick-via">Zdrojový kód na GitHubu <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">Kichaguzi cha viungo kilichoundwa mahsusi kwa macOS</p><h1>Acha kufungua<br />viungo katika<br /><em>kivinjari au wasifu usio sahihi.</em></h1></div>
-          <div class="hero-intro"><p>PickVia huuliza kabla ya kufungua kila kiungo cha wavuti au barua pepe, ili viungo vya wavuti viende kwenye kivinjari au wasifu unaochagua na viungo vya barua pepe viende kwenye programu uliyokusudia.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">Pakua v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Ipe PickVia nyota kwenye GitHub"><span aria-hidden="true">★</span> Toa nyota kwenye GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Bila malipo &amp; msimbo wazi</p></div>
+          <div class="hero-intro"><p>PickVia huuliza kabla ya kufungua kila kiungo cha wavuti au barua pepe, ili viungo vya wavuti viende kwenye kivinjari au wasifu unaochagua na viungo vya barua pepe viende kwenye programu uliyokusudia.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Pakua v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Ipe PickVia nyota kwenye GitHub"><span aria-hidden="true">★</span> Toa nyota kwenye GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Bila malipo &amp; msimbo wazi</p></div>
         </div>
         <p class="screenshot-note">Picha za skrini zinaonyesha kiolesura cha Kiingereza.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="Dirisha la kuchagua kivinjari la PickVia likionyesha wasifu wa vivinjari, malengwa ya faragha na njia za mkato za kibodi" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Sanidi chaguo zako</p><h2>Sanidi mara moja.<br /><em>Chagua haraka.</em></h2><p>Sanidi mara moja wasifu wa vivinjari na programu za barua pepe unazotumia mara kwa mara, kisha panga upya malengwa unayotumia zaidi.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="Mipangilio ya vivinjari ya PickVia yenye vivinjari na mifano ya wasifu" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Fungua kiungo kinachofuata<br />mahali <em>sahihi.</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">Pakua kwa macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Aikoni ya programu ya PickVia" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Fungua kiungo kinachofuata<br />mahali <em>sahihi.</em></h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Pakua kwa macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Aikoni ya programu ya PickVia" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Funga" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Sakinisha kwenye Mac</h2>
+        <ol class="install-steps"><li>Pakua na ufungue DMG.</li><li>Buruta <strong>PickVia</strong> hadi <strong>Applications</strong>.</li><li>Jaribu kufungua programu mara moja. macOS ikiizuia, fungua <strong>Mipangilio ya Mfumo → Faragha &amp; Usalama</strong> na uchague <strong>Fungua Hata Hivyo</strong>.</li></ol>
+        <details><summary>Ikiwa “Fungua Hata Hivyo” haionekani</summary><p>Baada ya kuhamishia programu kwenye Applications, fungua Terminal na uendeshe:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Nakili" data-copied-label="Imenakiliwa" data-copy-failed-label="Kunakili kumeshindikana; chagua na unakili amri mwenyewe.">Nakili</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Pakua kwa macOS <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">Ikikusaidia, ipe mradi nyota kwenye GitHub <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · Leseni ya MIT</span><span><a href="changelog.html">Mabadiliko</a> · <a href="privacy.html">Faragha</a> · <a href="terms.html">Masharti</a> · <a href="https://github.com/kiteretsu903/pick-via">Msimbo chanzo kwenye GitHub <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

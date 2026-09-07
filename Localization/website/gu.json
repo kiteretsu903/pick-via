@@ -53,7 +53,7 @@
   "index.p.002": "macOS માટે મૂળ લિંક પસંદગી સાધન",
   "index.h1.001": "લિંક<br />ખોટા બ્રાઉઝર કે પ્રોફાઇલમાં<br /><em>ખોલવાનું બંધ કરો.</em>",
   "index.p.003": "PickVia દરેક વેબ કે ઈમેઇલ લિંક ખૂલતાં પહેલાં પૂછે છે, જેથી વેબ લિંક તમે પસંદ કરેલા બ્રાઉઝર કે પ્રોફાઇલમાં અને મેઇલ લિંક તમારી ઇચ્છિત ઈમેઇલ ઍપમાં જાય.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1 ડાઉનલોડ કરો <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub પર સ્ટાર આપો</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 ડાઉનલોડ કરો <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub પર સ્ટાર આપો</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · મફત અને ઓપન સોર્સ",
   "index.p.005": "સ્ક્રીનશૉટ અંગ્રેજી ઇન્ટરફેસ બતાવે છે.",
   "index.p.006": "01 / ખૂલે તે પહેલાં પસંદ કરો",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "આવૃત્તિ 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">સંપૂર્ણ રિલીઝ નોંધો <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 ડાઉનલોડ કરો <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 સપ્ટેમ્બર 2026</strong><span class=\"release-current\">હાલની રિલીઝ</span>",
-  "release.v1_5_1.summary": "DuckDuckGoના ખાનગી મોડ માટેનો આવૃત્તિ પ્રતિબંધ દૂર કરે છે, ભાષા પસંદગીકારને ઉપરની પટ્ટીમાં ખસેડે છે અને મુખ્ય પૃષ્ઠ પરથી ભાષાઓ અંગેની સૂચના દૂર કરે છે."
+  "release.v1_5_1.summary": "DuckDuckGoના ખાનગી મોડ માટેનો આવૃત્તિ પ્રતિબંધ દૂર કરે છે, ભાષા પસંદગીકારને ઉપરની પટ્ટીમાં ખસેડે છે અને મુખ્ય પૃષ્ઠ પરથી ભાષાઓ અંગેની સૂચના દૂર કરે છે.",
+  "download.close": "બંધ કરો",
+  "download.title": "Mac પર ઇન્સ્ટૉલ કરો",
+  "download.steps": "<li>DMG ડાઉનલોડ કરીને ખોલો.</li><li><strong>PickVia</strong> ને <strong>Applications</strong> માં ખેંચો.</li><li>એક વાર ઍપ ખોલવાનો પ્રયાસ કરો. macOS રોકે તો <strong>સિસ્ટમ સેટિંગ્સ → ગોપનીયતા &amp; સુરક્ષા</strong> ખોલો અને <strong>તેમ છતાં ખોલો</strong> પસંદ કરો.</li>",
+  "download.fallback": "જો “તેમ છતાં ખોલો” ન દેખાય",
+  "download.terminal": "ઍપને Applications માં ખસેડ્યા પછી Terminal ખોલો અને ચલાવો:",
+  "download.copy": "કૉપિ કરો",
+  "download.copied": "કૉપિ થયું",
+  "download.copyFailed": "કૉપિ થઈ શક્યું નહીં; આદેશ પસંદ કરીને જાતે કૉપિ કરો.",
+  "download.star": "મદદરૂપ થાય તો GitHub પર પ્રોજેક્ટને સ્ટાર આપો <span aria-hidden=\"true\">↗</span>"
 }

@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">macOS için yerel bir bağlantı seçicisi</p><h1>Bağlantıları<br />artık<br /><em>yanlış tarayıcıda veya profilde açmayın.</em></h1></div>
-          <div class="hero-intro"><p>PickVia, her web veya e-posta bağlantısını açmadan önce sorar. Böylece web bağlantıları seçtiğiniz tarayıcıya veya profile, e-posta bağlantıları ise istediğiniz e-posta uygulamasına gider.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">v1.5.1'ü indir <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="GitHub&#x27;da PickVia&#x27;ya yıldız verin"><span aria-hidden="true">★</span> GitHub'da yıldız ver</a></div><p class="subline">macOS 14+ · Apple Silicon · Ücretsiz &amp; açık kaynak</p></div>
+          <div class="hero-intro"><p>PickVia, her web veya e-posta bağlantısını açmadan önce sorar. Böylece web bağlantıları seçtiğiniz tarayıcıya veya profile, e-posta bağlantıları ise istediğiniz e-posta uygulamasına gider.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">v1.5.1'ü indir <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="GitHub&#x27;da PickVia&#x27;ya yıldız verin"><span aria-hidden="true">★</span> GitHub'da yıldız ver</a></div><p class="subline">macOS 14+ · Apple Silicon · Ücretsiz &amp; açık kaynak</p></div>
         </div>
         <p class="screenshot-note">Ekran görüntüleri İngilizce arayüzü gösterir.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="Tarayıcı profillerini, özel hedefleri ve klavye kestirmelerini gösteren PickVia tarayıcı seçim penceresi" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Seçeneklerinizi ayarlayın</p><h2>Bir kez ayarlayın.<br /><em>Hızlıca seçin.</em></h2><p>Sık kullandığınız tarayıcı profillerini ve e-posta uygulamalarını bir kez ayarlayın, ardından en çok kullandığınız hedefleri sıralayın.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="Tarayıcıları ve profil örneklerini gösteren PickVia tarayıcı ayarları" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Sonraki bağlantıyı<br />doğru <em>yerde</em> açın.</h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">macOS için indir <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="PickVia uygulama simgesi" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Sonraki bağlantıyı<br />doğru <em>yerde</em> açın.</h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">macOS için indir <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="PickVia uygulama simgesi" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Kapat" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Mac'e yükleme</h2>
+        <ol class="install-steps"><li>DMG'yi indirip açın.</li><li><strong>PickVia</strong>'ı <strong>Uygulamalar</strong> klasörüne sürükleyin.</li><li>Uygulamayı bir kez açmayı deneyin. macOS engellerse <strong>Sistem Ayarları → Gizlilik &amp; Güvenlik</strong> bölümünü açıp <strong>Yine de Aç</strong>'ı seçin.</li></ol>
+        <details><summary>“Yine de Aç” görünmüyorsa</summary><p>Uygulamayı Uygulamalar klasörüne taşıdıktan sonra Terminal'i açıp şu komutu çalıştırın:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Kopyala" data-copied-label="Kopyalandı" data-copy-failed-label="Kopyalama başarısız; komutu seçip elle kopyalayın.">Kopyala</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">macOS için indir <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">İşinize yaradıysa projeye GitHub'da yıldız verin <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · MIT Lisansı</span><span><a href="changelog.html">Değişiklik Günlüğü</a> · <a href="privacy.html">Gizlilik</a> · <a href="terms.html">Koşullar</a> · <a href="https://github.com/kiteretsu903/pick-via">GitHub'da kaynak kodu <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

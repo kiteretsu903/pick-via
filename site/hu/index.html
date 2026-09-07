@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">Natív hivatkozásválasztó macOS rendszerre</p><h1>Ne a rossz<br />böngészőben<br /><em>vagy profilban nyíljanak meg a hivatkozások.</em></h1></div>
-          <div class="hero-intro"><p>A PickVia minden webes vagy e-mail-hivatkozás megnyitása előtt rákérdez a célra: a webhivatkozások a kiválasztott böngészőbe vagy profilba, az e-mail-hivatkozások pedig a kívánt levelezőalkalmazásba kerülnek.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">v1.5.1 letöltése <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Adjon csillagot a PickVia alkalmazásnak a GitHubon"><span aria-hidden="true">★</span> Csillag a GitHubon</a></div><p class="subline">macOS 14+ · Apple Silicon · Ingyenes és nyílt forráskódú</p></div>
+          <div class="hero-intro"><p>A PickVia minden webes vagy e-mail-hivatkozás megnyitása előtt rákérdez a célra: a webhivatkozások a kiválasztott böngészőbe vagy profilba, az e-mail-hivatkozások pedig a kívánt levelezőalkalmazásba kerülnek.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">v1.5.1 letöltése <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Adjon csillagot a PickVia alkalmazásnak a GitHubon"><span aria-hidden="true">★</span> Csillag a GitHubon</a></div><p class="subline">macOS 14+ · Apple Silicon · Ingyenes és nyílt forráskódú</p></div>
         </div>
         <p class="screenshot-note">A képernyőképek az angol felületet mutatják.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="A PickVia böngészőválasztója böngészőprofilokkal, privát célokkal és billentyűparancsokkal" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Állítsa be a lehetőségeket</p><h2>Állítsa be egyszer.<br /><em>Válasszon gyorsan.</em></h2><p>Állítsa be egyszer a szokásos böngészőprofilokat és levelezőalkalmazásokat, majd rendezze át a leggyakrabban használt célokat.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="A PickVia böngészőbeállításai böngészőkkel és profilpéldákkal" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>A következő hivatkozás<br />a megfelelő <em>helyen</em> nyíljon meg.</h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">Letöltés macOS rendszerre <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="A PickVia alkalmazásikonja" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>A következő hivatkozás<br />a megfelelő <em>helyen</em> nyíljon meg.</h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Letöltés macOS rendszerre <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="A PickVia alkalmazásikonja" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Bezárás" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Telepítés Macre</h2>
+        <ol class="install-steps"><li>Töltse le és nyissa meg a DMG-t.</li><li>Húzza az <strong>PickVia</strong> alkalmazást az <strong>Alkalmazások</strong> mappába.</li><li>Próbálja meg egyszer megnyitni az alkalmazást. Ha a macOS letiltja, nyissa meg a <strong>Rendszerbeállítások → Adatvédelem és biztonság</strong> részt, és válassza a <strong>Megnyitás mindenképpen</strong> lehetőséget.</li></ol>
+        <details><summary>Ha nem jelenik meg a „Megnyitás mindenképpen”</summary><p>Miután az alkalmazást az Alkalmazások mappába helyezte, nyissa meg a Terminált, és futtassa:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Másolás" data-copied-label="Másolva" data-copy-failed-label="A másolás nem sikerült; jelölje ki és másolja ki kézzel a parancsot.">Másolás</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Letöltés macOS rendszerre <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">Ha hasznos, adjon csillagot a projektnek a GitHubon <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · MIT-licenc</span><span><a href="changelog.html">Változásnapló</a> · <a href="privacy.html">Adatvédelem</a> · <a href="terms.html">Feltételek</a> · <a href="https://github.com/kiteretsu903/pick-via">Forráskód a GitHubon <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

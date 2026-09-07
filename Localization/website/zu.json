@@ -53,7 +53,7 @@
   "index.p.002": "Uhlelo lokukhetha indlela yokuvula izixhumanisi olwakhelwe i-macOS",
   "index.h1.001": "Yeka ukuvula<br />izixhumanisi<br /><em>esipheqululini noma kuphrofayela engafanele.</em>",
   "index.p.003": "I-PickVia iyabuza ngaphambi kokuvula isixhumanisi ngasinye sewebhu noma se-imeyili, ukuze izixhumanisi zewebhu ziye esipheqululini noma kuphrofayela oyikhethayo, nezixhumanisi ze-imeyili ziye ohlelweni lwe-imeyili obuhlose ukulusebenzisa.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Landa i-v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Nikeza inkanyezi ku-GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Landa i-v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Nikeza inkanyezi ku-GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Kumahhala futhi kunekhodi yomthombo evulekile",
   "index.p.005": "Izithombe zesikrini zibonisa isixhumi esibonakalayo sesiNgisi.",
   "index.p.006": "01 / Khetha ngaphambi kokuvula",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Inguqulo 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Amanothi aphelele okukhishwa <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Landa i-v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 Septhemba 2026</strong><span class=\"release-current\">Ukukhishwa kwamanje</span>",
-  "release.v1_5_1.summary": "Kususwe umkhawulo wenguqulo yemodi eyimfihlo ye-DuckDuckGo, isikhethi solimi sihanjiswe kubha ephezulu, futhi kwasuswa isaziso solimi ekhasini lasekhaya."
+  "release.v1_5_1.summary": "Kususwe umkhawulo wenguqulo yemodi eyimfihlo ye-DuckDuckGo, isikhethi solimi sihanjiswe kubha ephezulu, futhi kwasuswa isaziso solimi ekhasini lasekhaya.",
+  "download.close": "Vala",
+  "download.title": "Faka ku-Mac",
+  "download.steps": "<li>Landa bese uvula i-DMG.</li><li>Hudulela i-<strong>PickVia</strong> ku-<strong>Izinhlelo Zokusebenza</strong>.</li><li>Zama ukuvula uhlelo kanye. Uma i-macOS iluvimba, vula <strong>Izilungiselelo Zesistimu → Ubumfihlo &amp; Ukuphepha</strong> bese ukhetha <strong>Vula Noma Kunjalo</strong>.</li>",
+  "download.fallback": "Uma “Vula Noma Kunjalo” kungaveli",
+  "download.terminal": "Ngemva kokuhambisa uhlelo ku-Izinhlelo Zokusebenza, vula i-Terminal bese usebenzisa:",
+  "download.copy": "Kopisha",
+  "download.copied": "Kukopishiwe",
+  "download.copyFailed": "Ukukopisha kuhlulekile; khetha bese ukopisha umyalo ngesandla.",
+  "download.star": "Uma ikusiza, nikeza iphrojekthi inkanyezi ku-GitHub <span aria-hidden=\"true\">↗</span>"
 }

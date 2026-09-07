@@ -53,7 +53,7 @@
   "index.p.002": "ตัวเลือกลิงก์แบบเนทีฟสำหรับ macOS",
   "index.h1.001": "เลิกเปิดลิงก์<br />ในเบราว์เซอร์<br /><em>หรือโปรไฟล์ที่ผิด</em>",
   "index.p.003": "PickVia จะถามก่อนเปิดแต่ละลิงก์เว็บหรืออีเมล เพื่อให้ลิงก์เว็บไปยังเบราว์เซอร์หรือโปรไฟล์ที่คุณเลือก และลิงก์อีเมลไปยังแอปอีเมลที่คุณตั้งใจใช้",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">ดาวน์โหลด v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> ให้ดาวบน GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">ดาวน์โหลด v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> ให้ดาวบน GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · ฟรีและโอเพนซอร์ส",
   "index.p.005": "ภาพหน้าจอแสดงอินเทอร์เฟซภาษาอังกฤษ",
   "index.p.006": "01 / เลือกก่อนเปิด",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "เวอร์ชัน 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">บันทึกประจำรุ่นฉบับเต็ม <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">ดาวน์โหลด v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 ก.ย. ค.ศ. 2026</strong><span class=\"release-current\">รุ่นปัจจุบัน</span>",
-  "release.v1_5_1.summary": "ยกเลิกข้อจำกัดเวอร์ชันสำหรับโหมดส่วนตัวของ DuckDuckGo ย้ายตัวเลือกภาษาไปไว้ที่แถบด้านบน และนำข้อความแจ้งเกี่ยวกับภาษาออกจากหน้าแรก"
+  "release.v1_5_1.summary": "ยกเลิกข้อจำกัดเวอร์ชันสำหรับโหมดส่วนตัวของ DuckDuckGo ย้ายตัวเลือกภาษาไปไว้ที่แถบด้านบน และนำข้อความแจ้งเกี่ยวกับภาษาออกจากหน้าแรก",
+  "download.close": "ปิด",
+  "download.title": "ติดตั้งบน Mac",
+  "download.steps": "<li>ดาวน์โหลดและเปิด DMG</li><li>ลาก <strong>PickVia</strong> ไปที่ <strong>แอปพลิเคชัน</strong></li><li>ลองเปิดแอปหนึ่งครั้ง หาก macOS บล็อก ให้เปิด <strong>การตั้งค่าระบบ → ความเป็นส่วนตัวและความปลอดภัย</strong> แล้วเลือก <strong>เปิดต่อไป</strong></li>",
+  "download.fallback": "หากไม่พบ “เปิดต่อไป”",
+  "download.terminal": "หลังย้ายแอปไปที่แอปพลิเคชัน ให้เปิด Terminal แล้วเรียกใช้:",
+  "download.copy": "คัดลอก",
+  "download.copied": "คัดลอกแล้ว",
+  "download.copyFailed": "คัดลอกไม่สำเร็จ โปรดเลือกและคัดลอกคำสั่งด้วยตนเอง",
+  "download.star": "หากมีประโยชน์ โปรดให้ดาวโครงการบน GitHub <span aria-hidden=\"true\">↗</span>"
 }

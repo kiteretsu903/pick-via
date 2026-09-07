@@ -53,7 +53,7 @@
   "index.p.002": "Specialiai macOS sukurta nuorodų pasirinkimo programa",
   "index.h1.001": "Nebeatidarykite<br />nuorodų<br /><em>netinkamoje naršyklėje ar profilyje.</em>",
   "index.p.003": "PickVia paklausia prieš atidarydama kiekvieną žiniatinklio ar pašto nuorodą, todėl žiniatinklio nuorodos atidaromos pasirinktoje naršyklėje ar profilyje, o pašto nuorodos — norimoje pašto programoje.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Atsisiųsti v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Skirti žvaigždutę GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Atsisiųsti v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Skirti žvaigždutę GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Nemokama &amp; atvirojo kodo",
   "index.p.005": "Ekrano nuotraukose rodoma angliška sąsaja.",
   "index.p.006": "01 / Pasirinkite prieš atidarydami",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Versija 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Visos laidos pastabos <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Atsisiųsti v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>2026 M. RUGSĖJO 06 D.</strong><span class=\"release-current\">Dabartinė laida</span>",
-  "release.v1_5_1.summary": "Pašalintas „DuckDuckGo“ privataus režimo versijos apribojimas, kalbos parinkiklis perkeltas į viršutinę juostą, o kalbų pranešimas pašalintas iš pagrindinio puslapio."
+  "release.v1_5_1.summary": "Pašalintas „DuckDuckGo“ privataus režimo versijos apribojimas, kalbos parinkiklis perkeltas į viršutinę juostą, o kalbų pranešimas pašalintas iš pagrindinio puslapio.",
+  "download.close": "Užverti",
+  "download.title": "Diegimas Mac kompiuteryje",
+  "download.steps": "<li>Atsisiųskite ir atverkite DMG.</li><li>Nuvilkite <strong>PickVia</strong> į <strong>Applications</strong>.</li><li>Vieną kartą pabandykite atverti programą. Jei macOS ją blokuoja, atverkite <strong>Sistemos nuostatos → Privatumas &amp; sauga</strong> ir pasirinkite <strong>Vis tiek atverti</strong>.</li>",
+  "download.fallback": "Jei parinktis „Vis tiek atverti“ nerodoma",
+  "download.terminal": "Perkėlę programą į Applications, atverkite Terminal ir vykdykite:",
+  "download.copy": "Kopijuoti",
+  "download.copied": "Nukopijuota",
+  "download.copyFailed": "Nepavyko nukopijuoti; pažymėkite ir nukopijuokite komandą rankiniu būdu.",
+  "download.star": "Jei naudinga, skirkite projektui žvaigždutę GitHub <span aria-hidden=\"true\">↗</span>"
 }

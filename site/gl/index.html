@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">Un selector de ligazóns nativo para macOS</p><h1>Deixa de abrir<br />ligazóns no<br /><em>navegador ou perfil equivocado.</em></h1></div>
-          <div class="hero-intro"><p>PickVia pregunta antes de abrir cada ligazón web ou de correo, para que as ligazóns web vaian ao navegador ou perfil que escollas e as de correo á aplicación que querías usar.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">Descargar v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Dálle unha estrela a PickVia en GitHub"><span aria-hidden="true">★</span> Dar unha estrela en GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Gratuíto e de código aberto</p></div>
+          <div class="hero-intro"><p>PickVia pregunta antes de abrir cada ligazón web ou de correo, para que as ligazóns web vaian ao navegador ou perfil que escollas e as de correo á aplicación que querías usar.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Descargar v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Dálle unha estrela a PickVia en GitHub"><span aria-hidden="true">★</span> Dar unha estrela en GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Gratuíto e de código aberto</p></div>
         </div>
         <p class="screenshot-note">As capturas mostran a interface en inglés.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="Selector de navegador de PickVia que mostra perfís de navegador, destinos privados e atallos de teclado" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Configura as túas opcións</p><h2>Configura unha vez.<br /><em>Escolle axiña.</em></h2><p>Configura unha vez os teus perfís de navegador e aplicacións de correo habituais e despois reordena os destinos que máis usas.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="Axustes de navegador de PickVia con navegadores e perfís de exemplo" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Abre a seguinte ligazón<br />no lugar <em>axeitado.</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">Descargar para macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Icona da aplicación PickVia" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Abre a seguinte ligazón<br />no lugar <em>axeitado.</em></h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Descargar para macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Icona da aplicación PickVia" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Pechar" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Instalar no Mac</h2>
+        <ol class="install-steps"><li>Descarga e abre o DMG.</li><li>Arrastra <strong>PickVia</strong> a <strong>Aplicacións</strong>.</li><li>Proba a abrir a aplicación unha vez. Se macOS a bloquea, abre <strong>Axustes do sistema → Privacidade &amp; seguridade</strong> e selecciona <strong>Abrir igualmente</strong>.</li></ol>
+        <details><summary>Se non aparece «Abrir igualmente»</summary><p>Despois de mover a aplicación a Aplicacións, abre Terminal e executa:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Copiar" data-copied-label="Copiado" data-copy-failed-label="Non se puido copiar; selecciona e copia a orde manualmente.">Copiar</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Descargar para macOS <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">Se che axuda, dálle unha estrela ao proxecto en GitHub <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · Licenza MIT</span><span><a href="changelog.html">Rexistro de cambios</a> · <a href="privacy.html">Privacidade</a> · <a href="terms.html">Condicións</a> · <a href="https://github.com/kiteretsu903/pick-via">Código fonte en GitHub <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

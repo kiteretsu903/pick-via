@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">App nattiva ta’ macOS għall-għażla tad-destinazzjoni tal-links</p><h1>Tibqax tiftaħ<br />il-links fil-<br /><em>brawżer jew profil ħażin.</em></h1></div>
-          <div class="hero-intro"><p>PickVia jistaqsi qabel jinfetaħ kull link tal-web jew tal-email, sabiex il-links tal-web imorru għall-brawżer jew profil li tagħżel u l-links tal-posta għall-app tal-email li kellek f’moħħok.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">Niżżel v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Agħti stilla lil PickVia fuq GitHub"><span aria-hidden="true">★</span> Agħti stilla fuq GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · B’xejn u b’sors miftuħ</p></div>
+          <div class="hero-intro"><p>PickVia jistaqsi qabel jinfetaħ kull link tal-web jew tal-email, sabiex il-links tal-web imorru għall-brawżer jew profil li tagħżel u l-links tal-posta għall-app tal-email li kellek f’moħħok.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Niżżel v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Agħti stilla lil PickVia fuq GitHub"><span aria-hidden="true">★</span> Agħti stilla fuq GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · B’xejn u b’sors miftuħ</p></div>
         </div>
         <p class="screenshot-note">L-istampi tal-iskrin juru l-interfaċċa bl-Ingliż.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="It-tieqa tal-għażla tal-brawżer ta’ PickVia li turi profili tal-brawżer, destinazzjonijiet privati u shortcuts tat-tastiera" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Issettja l-għażliet tiegħek</p><h2>Ikkonfigura darba.<br /><em>Agħżel malajr.</em></h2><p>Ikkonfigura l-profili tal-brawżer u l-apps tal-posta tas-soltu tiegħek darba, imbagħad irranġa d-destinazzjonijiet li tuża l-aktar.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="Settings tal-brawżer ta’ PickVia bi brawżers u eżempji ta’ profili" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Iftaħ il-link li jmiss<br />fil-<em>post it-tajjeb.</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">Niżżel għal macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Ikona tal-app PickVia" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Iftaħ il-link li jmiss<br />fil-<em>post it-tajjeb.</em></h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Niżżel għal macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Ikona tal-app PickVia" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Agħlaq" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Installa fuq Mac</h2>
+        <ol class="install-steps"><li>Niżżel u iftaħ id-DMG.</li><li>Iġbed <strong>PickVia</strong> għal <strong>Applications</strong>.</li><li>Ipprova iftaħ l-app darba. Jekk macOS jimblokkaha, iftaħ <strong>Settings tas-Sistema → Privatezza &amp; Sigurtà</strong> u agħżel <strong>Iftaħ Xorta Waħda</strong>.</li></ol>
+        <details><summary>Jekk “Iftaħ Xorta Waħda” ma jidhirx</summary><p>Wara li tmexxi l-app għal Applications, iftaħ Terminal u ħaddem:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Ikkopja" data-copied-label="Ikkopjat" data-copy-failed-label="L-ikkopjar falla; agħżel u kkopja l-kmand manwalment.">Ikkopja</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Niżżel għal macOS <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">Jekk jgħinek, agħti stilla lill-proġett fuq GitHub <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · Liċenzja MIT</span><span><a href="changelog.html">Reġistru tal-Bidliet</a> · <a href="privacy.html">Privatezza</a> · <a href="terms.html">Termini</a> · <a href="https://github.com/kiteretsu903/pick-via">Kodiċi sors fuq GitHub <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

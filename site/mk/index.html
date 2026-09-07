@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">Избирач на врски изработен за macOS</p><h1>Престанете да отворате<br />врски во<br /><em>погрешен прелистувач или профил.</em></h1></div>
-          <div class="hero-intro"><p>PickVia прашува пред отворањето на секоја веб-врска или врска за е-пошта, така што веб-врските одат во избраниот прелистувач или профил, а врските за пошта во апликацијата што сте ја намениле.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">Преземи v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Дајте му ѕвезда на PickVia на GitHub"><span aria-hidden="true">★</span> Дај ѕвезда на GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Бесплатно и со отворен код</p></div>
+          <div class="hero-intro"><p>PickVia прашува пред отворањето на секоја веб-врска или врска за е-пошта, така што веб-врските одат во избраниот прелистувач или профил, а врските за пошта во апликацијата што сте ја намениле.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Преземи v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Дајте му ѕвезда на PickVia на GitHub"><span aria-hidden="true">★</span> Дај ѕвезда на GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Бесплатно и со отворен код</p></div>
         </div>
         <p class="screenshot-note">Сликите од екранот го прикажуваат англискиот интерфејс.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="Избирачот на прелистувач на PickVia прикажува профили на прелистувачи, приватни цели и кратенки на тастатурата" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Поставете ги вашите избори</p><h2>Поставете еднаш.<br /><em>Избирајте брзо.</em></h2><p>Поставете ги вообичаените профили на прелистувачи и апликации за пошта еднаш, а потоа подредете ги целите што ги користите најмногу.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="Поставки за прелистувачи на PickVia со прелистувачи и примери за профили" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Отворете ја следната врска<br />на вистинското <em>место.</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">Преземи за macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Икона на апликацијата PickVia" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Отворете ја следната врска<br />на вистинското <em>место.</em></h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Преземи за macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Икона на апликацијата PickVia" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Затвори" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Инсталирај на Mac</h2>
+        <ol class="install-steps"><li>Преземете го и отворете го DMG.</li><li>Повлечете го <strong>PickVia</strong> во <strong>Апликации</strong>.</li><li>Обидете се еднаш да ја отворите апликацијата. Ако macOS ја блокира, отворете <strong>Системски поставки → Приватност &amp; безбедност</strong> и изберете <strong>Сепак отвори</strong>.</li></ol>
+        <details><summary>Ако „Сепак отвори“ не се појави</summary><p>Откако ќе ја преместите апликацијата во Апликации, отворете Терминал и извршете:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Копирај" data-copied-label="Копирано" data-copy-failed-label="Копирањето не успеа; изберете ја и копирајте ја командата рачно.">Копирај</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Преземи за macOS <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">Ако ви помага, дајте му ѕвезда на проектот на GitHub <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · Лиценца MIT</span><span><a href="changelog.html">Дневник на промени</a> · <a href="privacy.html">Приватност</a> · <a href="terms.html">Услови</a> · <a href="https://github.com/kiteretsu903/pick-via">Изворен код на GitHub <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

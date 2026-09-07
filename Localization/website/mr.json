@@ -53,7 +53,7 @@
   "index.p.002": "macOS साठी नेटिव्ह लिंक निवड ॲप",
   "index.h1.001": "लिंक<br />चुकीच्या ब्राउझरमध्ये किंवा<br /><em>प्रोफाइलमध्ये उघडणे थांबवा.</em>",
   "index.p.003": "PickVia प्रत्येक वेब किंवा ईमेल लिंक उघडण्यापूर्वी विचारते, त्यामुळे वेब लिंक तुम्ही निवडलेल्या ब्राउझर किंवा प्रोफाइलमध्ये आणि ईमेल लिंक तुम्हाला हव्या असलेल्या ईमेल ॲपमध्ये जातात.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1 डाउनलोड करा <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub वर स्टार द्या</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 डाउनलोड करा <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub वर स्टार द्या</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · मोफत आणि मुक्त स्रोत",
   "index.p.005": "स्क्रीनशॉटमध्ये इंग्रजी इंटरफेस दाखवला आहे.",
   "index.p.006": "01 / उघडण्यापूर्वी निवडा",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "आवृत्ती 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">संपूर्ण प्रकाशन नोंदी <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 डाउनलोड करा <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 सप्टेंबर 2026</strong><span class=\"release-current\">सध्याचे प्रकाशन</span>",
-  "release.v1_5_1.summary": "DuckDuckGo च्या खाजगी मोडवरील आवृत्तीचे बंधन काढले, भाषा निवडण्याचा पर्याय वरच्या पट्टीत हलवला आणि मुख्यपृष्ठावरील भाषांबद्दलची सूचना काढली."
+  "release.v1_5_1.summary": "DuckDuckGo च्या खाजगी मोडवरील आवृत्तीचे बंधन काढले, भाषा निवडण्याचा पर्याय वरच्या पट्टीत हलवला आणि मुख्यपृष्ठावरील भाषांबद्दलची सूचना काढली.",
+  "download.close": "बंद करा",
+  "download.title": "Mac वर इन्स्टॉल करा",
+  "download.steps": "<li>DMG डाउनलोड करून उघडा.</li><li><strong>PickVia</strong> ला <strong>अनुप्रयोग</strong> फोल्डरमध्ये ड्रॅग करा.</li><li>ॲप एकदा उघडून पाहा. macOS ने अडवल्यास <strong>सिस्टम सेटिंग्ज → गोपनीयता &amp; सुरक्षितता</strong> उघडा आणि <strong>तरीही उघडा</strong> निवडा.</li>",
+  "download.fallback": "“तरीही उघडा” दिसत नसल्यास",
+  "download.terminal": "ॲप अनुप्रयोग फोल्डरमध्ये हलवल्यानंतर टर्मिनल उघडा आणि हा आदेश चालवा:",
+  "download.copy": "कॉपी करा",
+  "download.copied": "कॉपी केले",
+  "download.copyFailed": "कॉपी करता आले नाही; आदेश निवडून स्वतः कॉपी करा.",
+  "download.star": "उपयोगी वाटल्यास GitHub वर प्रकल्पाला स्टार द्या <span aria-hidden=\"true\">↗</span>"
 }

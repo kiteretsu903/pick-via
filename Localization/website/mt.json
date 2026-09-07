@@ -53,7 +53,7 @@
   "index.p.002": "App nattiva ta’ macOS għall-għażla tad-destinazzjoni tal-links",
   "index.h1.001": "Tibqax tiftaħ<br />il-links fil-<br /><em>brawżer jew profil ħażin.</em>",
   "index.p.003": "PickVia jistaqsi qabel jinfetaħ kull link tal-web jew tal-email, sabiex il-links tal-web imorru għall-brawżer jew profil li tagħżel u l-links tal-posta għall-app tal-email li kellek f’moħħok.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Niżżel v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Agħti stilla fuq GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Niżżel v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Agħti stilla fuq GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · B’xejn u b’sors miftuħ",
   "index.p.005": "L-istampi tal-iskrin juru l-interfaċċa bl-Ingliż.",
   "index.p.006": "01 / Agħżel qabel jinfetaħ",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Verżjoni 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Noti sħaħ tar-rilaxx <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Niżżel v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>6 SETTEMBRU 2026</strong><span class=\"release-current\">Rilaxx attwali</span>",
-  "release.v1_5_1.summary": "Tneħħiet ir-restrizzjoni tal-verżjoni għall-modalità privata ta’ DuckDuckGo, is-selettur tal-lingwa tmexxa lejn l-istrixxa ta’ fuq, u tneħħa l-avviż tal-lingwi mill-paġna ewlenija."
+  "release.v1_5_1.summary": "Tneħħiet ir-restrizzjoni tal-verżjoni għall-modalità privata ta’ DuckDuckGo, is-selettur tal-lingwa tmexxa lejn l-istrixxa ta’ fuq, u tneħħa l-avviż tal-lingwi mill-paġna ewlenija.",
+  "download.close": "Agħlaq",
+  "download.title": "Installa fuq Mac",
+  "download.steps": "<li>Niżżel u iftaħ id-DMG.</li><li>Iġbed <strong>PickVia</strong> għal <strong>Applications</strong>.</li><li>Ipprova iftaħ l-app darba. Jekk macOS jimblokkaha, iftaħ <strong>Settings tas-Sistema → Privatezza &amp; Sigurtà</strong> u agħżel <strong>Iftaħ Xorta Waħda</strong>.</li>",
+  "download.fallback": "Jekk “Iftaħ Xorta Waħda” ma jidhirx",
+  "download.terminal": "Wara li tmexxi l-app għal Applications, iftaħ Terminal u ħaddem:",
+  "download.copy": "Ikkopja",
+  "download.copied": "Ikkopjat",
+  "download.copyFailed": "L-ikkopjar falla; agħżel u kkopja l-kmand manwalment.",
+  "download.star": "Jekk jgħinek, agħti stilla lill-proġett fuq GitHub <span aria-hidden=\"true\">↗</span>"
 }

@@ -53,7 +53,7 @@
   "index.p.002": "macOS uchun yaratilgan havola tanlash ilovasi",
   "index.h1.001": "Havolalarni<br />noto‘g‘ri brauzer yoki<br /><em>profilda ochishni bas qiling.</em>",
   "index.p.003": "PickVia har bir veb yoki pochta havolasini ochishdan oldin so‘raydi. Shu sababli veb-havolalar siz tanlagan brauzer yoki profilga, pochta havolalari esa siz xohlagan pochta ilovasiga boradi.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1 ni yuklab olish <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub saytida yulduzcha bering</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 ni yuklab olish <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub saytida yulduzcha bering</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Bepul va ochiq manbali",
   "index.p.005": "Skrinshotlarda inglizcha interfeys ko‘rsatilgan.",
   "index.p.006": "01 / Ochilishidan oldin tanlang",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "1.5.1 versiya",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">To‘liq reliz qaydlari <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 ni yuklab olish <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>2026-YIL 6-SENTABR</strong><span class=\"release-current\">Joriy reliz</span>",
-  "release.v1_5_1.summary": "DuckDuckGo maxfiy rejimining versiya cheklovi olib tashlandi, til tanlash boshqaruvi yuqori panelga ko‘chirildi va bosh sahifadagi tillar haqidagi bildirishnoma olib tashlandi."
+  "release.v1_5_1.summary": "DuckDuckGo maxfiy rejimining versiya cheklovi olib tashlandi, til tanlash boshqaruvi yuqori panelga ko‘chirildi va bosh sahifadagi tillar haqidagi bildirishnoma olib tashlandi.",
+  "download.close": "Yopish",
+  "download.title": "Mac’ga o‘rnatish",
+  "download.steps": "<li>DMG’ni yuklab oling va oching.</li><li><strong>PickVia</strong>’ni <strong>Applications</strong> jildiga sudrang.</li><li>Ilovani bir marta ochishga urinib ko‘ring. macOS to‘ssa, <strong>Tizim sozlamalari → Maxfiylik &amp; xavfsizlik</strong>’ni ochib, <strong>Baribir ochish</strong>’ni tanlang.</li>",
+  "download.fallback": "“Baribir ochish” ko‘rinmasa",
+  "download.terminal": "Ilovani Applications jildiga ko‘chirgach, Terminal’ni oching va bajaring:",
+  "download.copy": "Nusxalash",
+  "download.copied": "Nusxalandi",
+  "download.copyFailed": "Nusxalab bo‘lmadi; buyruqni tanlab, qo‘lda nusxalang.",
+  "download.star": "Foydasi tegsa, GitHub’da loyihaga yulduzcha bering <span aria-hidden=\"true\">↗</span>"
 }

@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">Нативен инструмент за избор при отваряне на връзки за macOS</p><h1>Край на връзките,<br />отворени в<br /><em>грешния браузър или профил.</em></h1></div>
-          <div class="hero-intro"><p>PickVia пита преди отварянето на всяка уеб или имейл връзка, така че уеб връзките отиват в избрания браузър или профил, а имейл връзките — в желаното приложение за поща.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">Изтегляне на v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Дайте звезда на PickVia в GitHub"><span aria-hidden="true">★</span> Звезда в GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Безплатен и с отворен код</p></div>
+          <div class="hero-intro"><p>PickVia пита преди отварянето на всяка уеб или имейл връзка, така че уеб връзките отиват в избрания браузър или профил, а имейл връзките — в желаното приложение за поща.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Изтегляне на v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Дайте звезда на PickVia в GitHub"><span aria-hidden="true">★</span> Звезда в GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Безплатен и с отворен код</p></div>
         </div>
         <p class="screenshot-note">Снимките показват интерфейса на английски.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="Прозорецът за избор на браузър на PickVia показва профили, поверителни цели и клавишни комбинации" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Настройте възможностите си за избор</p><h2>Настройте веднъж.<br /><em>Избирайте бързо.</em></h2><p>Настройте веднъж обичайните си профили на браузъри и приложения за поща, след което подредете най-често използваните цели.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="Настройки за браузъри на PickVia с браузъри и примерни профили" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Отворете следващата връзка<br />на правилното <em>място.</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">Изтегляне за macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Икона на приложението PickVia" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Отворете следващата връзка<br />на правилното <em>място.</em></h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Изтегляне за macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Икона на приложението PickVia" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Затваряне" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Инсталиране на Mac</h2>
+        <ol class="install-steps"><li>Изтеглете и отворете DMG.</li><li>Плъзнете <strong>PickVia</strong> в <strong>Приложения</strong>.</li><li>Опитайте да отворите приложението веднъж. Ако macOS го блокира, отворете <strong>Системни настройки → Поверителност &amp; сигурност</strong> и изберете <strong>Отваряне въпреки това</strong>.</li></ol>
+        <details><summary>Ако „Отваряне въпреки това“ не се появява</summary><p>След като преместите приложението в Приложения, отворете Terminal и изпълнете:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Копиране" data-copied-label="Копирано" data-copy-failed-label="Копирането е неуспешно; изберете и копирайте командата ръчно.">Копиране</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Изтегляне за macOS <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">Ако ви е полезно, дайте звезда на проекта в GitHub <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · Лиценз MIT</span><span><a href="changelog.html">Промени</a> · <a href="privacy.html">Поверителност</a> · <a href="terms.html">Условия</a> · <a href="https://github.com/kiteretsu903/pick-via">Изходен код в GitHub <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

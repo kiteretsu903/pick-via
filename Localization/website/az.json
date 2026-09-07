@@ -53,7 +53,7 @@
   "index.p.002": "macOS üçün yerli keçid seçicisi",
   "index.h1.001": "Keçidləri<br />açmağı dayandırın<br /><em>yanlış brauzer və ya profildə.</em>",
   "index.p.003": "PickVia hər veb və ya e-poçt keçidi açılmadan əvvəl soruşur ki, veb keçidləri seçdiyiniz brauzer və ya profilə, poçt keçidləri isə istədiyiniz e-poçt tətbiqinə getsin.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1 endir <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub-da ulduz verin</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 endir <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub-da ulduz verin</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Pulsuz və açıq mənbəli",
   "index.p.005": "Ekran görüntüləri ingiliscə interfeysi göstərir.",
   "index.p.006": "01 / Açılmadan əvvəl seçin",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Versiya 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Tam buraxılış qeydləri <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 endir <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 SENTYABR 2026</strong><span class=\"release-current\">Cari buraxılış</span>",
-  "release.v1_5_1.summary": "DuckDuckGo-nun məxfi rejimi üçün versiya məhdudiyyəti aradan qaldırıldı, dil seçicisi yuxarı panelə köçürüldü və ana səhifədəki dil bildirişi silindi."
+  "release.v1_5_1.summary": "DuckDuckGo-nun məxfi rejimi üçün versiya məhdudiyyəti aradan qaldırıldı, dil seçicisi yuxarı panelə köçürüldü və ana səhifədəki dil bildirişi silindi.",
+  "download.close": "Bağla",
+  "download.title": "Mac-də quraşdırma",
+  "download.steps": "<li>DMG-ni endirin və açın.</li><li><strong>PickVia</strong>-ı <strong>Applications</strong> qovluğuna sürükləyin.</li><li>Tətbiqi bir dəfə açmağa çalışın. macOS bloklayarsa, <strong>Sistem ayarları → Məxfilik və təhlükəsizlik</strong> bölməsini açın və <strong>Yenə də aç</strong> seçin.</li>",
+  "download.fallback": "“Yenə də aç” görünmürsə",
+  "download.terminal": "Tətbiqi Applications qovluğuna köçürdükdən sonra Terminal-ı açın və icra edin:",
+  "download.copy": "Kopyala",
+  "download.copied": "Kopyalandı",
+  "download.copyFailed": "Kopyalama alınmadı; əmri seçib əl ilə kopyalayın.",
+  "download.star": "Faydalıdırsa, layihəyə GitHub-da ulduz verin <span aria-hidden=\"true\">↗</span>"
 }

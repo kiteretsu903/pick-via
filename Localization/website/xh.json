@@ -53,7 +53,7 @@
   "index.p.002": "Isikhethi samakhonkco esakhelwe i-macOS ngqo",
   "index.h1.001": "Yeka ukuvula<br />amakhonkco<br /><em>kwisikhangeli okanye kwiprofayile engafanelekanga.</em>",
   "index.p.003": "IPickVia iyabuza ngaphambi kokuvula ikhonkco ngalinye lewebhu okanye le-imeyile, ukuze amakhonkco ewebhu aye kwisikhangeli okanye kwiprofayile oyikhethayo kwaye awe-imeyile aye kwi-app obufuna ukuyisebenzisa.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Khuphela v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Nika inkwenkwezi kwiGitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Khuphela v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Nika inkwenkwezi kwiGitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Isimahla kwaye ikhowudi ivulekile",
   "index.p.005": "Imifanekiso yesikrini ibonisa ujongano lwesiNgesi.",
   "index.p.006": "01 / Khetha ngaphambi kokuvula",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Uguqulelo 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Amanqaku apheleleyo oguqulelo <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Khuphela v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 SEPTEMBA 2026</strong><span class=\"release-current\">Uguqulelo lwangoku</span>",
-  "release.v1_5_1.summary": "Isusa umda wenguqulelo kwimowudi yabucala ye-DuckDuckGo, ihambisa isikhethi solwimi kwibar ephezulu, ize isuse isaziso seelwimi kwiphepha lasekhaya."
+  "release.v1_5_1.summary": "Isusa umda wenguqulelo kwimowudi yabucala ye-DuckDuckGo, ihambisa isikhethi solwimi kwibar ephezulu, ize isuse isaziso seelwimi kwiphepha lasekhaya.",
+  "download.close": "Vala",
+  "download.title": "Faka kwiMac",
+  "download.steps": "<li>Khuphela uze uvule iDMG.</li><li>Tsala <strong>PickVia</strong> uye ku<strong>Applications</strong>.</li><li>Zama ukuvula i-app kube kanye. Ukuba imacOS iyayivimba, vula <strong>Iisetingi zenkqubo → Ubumfihlo &amp; Nokhuseleko</strong> uze ukhethe <strong>Vula nangona kunjalo</strong>.</li>",
+  "download.fallback": "Ukuba “Vula nangona kunjalo” ayibonakali",
+  "download.terminal": "Emva kokusa i-app kuApplications, vula iTerminal uze usebenzise:",
+  "download.copy": "Khuphela umbhalo",
+  "download.copied": "Umbhalo ukhutshelwe",
+  "download.copyFailed": "Ukukhuphela umbhalo akuphumelelanga; khetha uze ukope umyalelo ngesandla.",
+  "download.star": "Ukuba iyanceda, nika iprojekthi inkwenkwezi kwiGitHub <span aria-hidden=\"true\">↗</span>"
 }

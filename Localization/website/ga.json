@@ -53,7 +53,7 @@
   "index.p.002": "Roghnóir nasc dúchasach do macOS",
   "index.h1.001": "Ná hoscail<br />naisc sa<br /><em>bhrabhsálaí nó sa phróifíl mhícheart.</em>",
   "index.p.003": "Fiafraíonn PickVia díot sula n-osclaítear gach nasc gréasáin nó ríomhphoist, ionas go dtéann naisc ghréasáin chuig an mbrabhsálaí nó an phróifíl a roghnaíonn tú agus naisc ríomhphoist chuig an aip a bhí i gceist agat.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Íoslódáil v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Tabhair réalta ar GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Íoslódáil v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Tabhair réalta ar GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Saor in aisce agus foinse oscailte",
   "index.p.005": "Léiríonn na gabhálacha scáileáin an comhéadan Béarla.",
   "index.p.006": "01 / Roghnaigh sula n-osclaítear é",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Leagan 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Nótaí eisiúna iomlána <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Íoslódáil v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>6 MEÁN FÓMHAIR 2026</strong><span class=\"release-current\">Eisiúint reatha</span>",
-  "release.v1_5_1.summary": "Baineadh an srian leagain de mhód príobháideach DuckDuckGo, bogadh an roghnóir teanga go dtí an barra uachtarach, agus baineadh an fógra teanga den leathanach baile."
+  "release.v1_5_1.summary": "Baineadh an srian leagain de mhód príobháideach DuckDuckGo, bogadh an roghnóir teanga go dtí an barra uachtarach, agus baineadh an fógra teanga den leathanach baile.",
+  "download.close": "Dún",
+  "download.title": "Suiteáil ar Mac",
+  "download.steps": "<li>Íoslódáil agus oscail an DMG.</li><li>Tarraing <strong>PickVia</strong> isteach in <strong>Feidhmchláir</strong>.</li><li>Déan iarracht an aip a oscailt uair amháin. Má chuireann macOS bac uirthi, oscail <strong>Socruithe Córais → Príobháideachas &amp; Slándáil</strong> agus roghnaigh <strong>Oscail Mar Sin Féin</strong>.</li>",
+  "download.fallback": "Mura bhfuil “Oscail Mar Sin Féin” le feiceáil",
+  "download.terminal": "Tar éis duit an aip a bhogadh go Feidhmchláir, oscail Terminal agus rith:",
+  "download.copy": "Cóipeáil",
+  "download.copied": "Cóipeáilte",
+  "download.copyFailed": "Theip ar an gcóipeáil; roghnaigh agus cóipeáil an t-ordú de láimh.",
+  "download.star": "Má chuidíonn sé leat, tabhair réalta don tionscadal ar GitHub <span aria-hidden=\"true\">↗</span>"
 }

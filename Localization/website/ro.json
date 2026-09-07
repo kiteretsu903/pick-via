@@ -53,7 +53,7 @@
   "index.p.002": "Un selector nativ de linkuri pentru macOS",
   "index.h1.001": "Nu mai deschideți<br />linkurile în<br /><em>browserul sau profilul greșit.</em>",
   "index.p.003": "PickVia vă întreabă înainte de a deschide fiecare link web sau de e-mail, astfel încât linkurile web să ajungă în browserul sau profilul ales, iar linkurile de e-mail în aplicația dorită.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Descărcați v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Acordați o stea pe GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Descărcați v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Acordați o stea pe GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Gratuit &amp; cu sursă deschisă",
   "index.p.005": "Capturile de ecran prezintă interfața în engleză.",
   "index.p.006": "01 / Alegeți înainte de deschidere",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Versiunea 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Notele complete ale versiunii <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Descărcați v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 SEP 2026</strong><span class=\"release-current\">Versiunea actuală</span>",
-  "release.v1_5_1.summary": "Elimină restricția de versiune pentru modul privat DuckDuckGo, mută selectorul de limbă în bara de sus și elimină anunțul despre limbi de pe pagina principală."
+  "release.v1_5_1.summary": "Elimină restricția de versiune pentru modul privat DuckDuckGo, mută selectorul de limbă în bara de sus și elimină anunțul despre limbi de pe pagina principală.",
+  "download.close": "Închide",
+  "download.title": "Instalare pe Mac",
+  "download.steps": "<li>Descărcați și deschideți DMG-ul.</li><li>Trageți <strong>PickVia</strong> în <strong>Aplicații</strong>.</li><li>Încercați să deschideți aplicația o dată. Dacă macOS o blochează, deschideți <strong>Configurări sistem → Intimitate &amp; securitate</strong> și selectați <strong>Deschide oricum</strong>.</li>",
+  "download.fallback": "Dacă „Deschide oricum” nu apare",
+  "download.terminal": "După mutarea aplicației în Aplicații, deschideți Terminal și executați:",
+  "download.copy": "Copiază",
+  "download.copied": "Copiat",
+  "download.copyFailed": "Copierea a eșuat; selectați și copiați comanda manual.",
+  "download.star": "Dacă vă este util, acordați proiectului o stea pe GitHub <span aria-hidden=\"true\">↗</span>"
 }

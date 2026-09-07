@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">macOS 原生連結選擇器</p><h1>別再讓連結<br />開啟在錯誤的<br /><em>瀏覽器或設定檔中。</em></h1></div>
-          <div class="hero-intro"><p>PickVia 會在每個網頁或電子郵件連結開啟前詢問，讓網頁連結前往你選擇的瀏覽器或設定檔，郵件連結則交給你想用的郵件應用程式。</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">下載 v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="在 GitHub 上給 PickVia 一顆星"><span aria-hidden="true">★</span> 在 GitHub 上給星</a></div><p class="subline">macOS 14+ · Apple Silicon · 免費且開放原始碼</p></div>
+          <div class="hero-intro"><p>PickVia 會在每個網頁或電子郵件連結開啟前詢問，讓網頁連結前往你選擇的瀏覽器或設定檔，郵件連結則交給你想用的郵件應用程式。</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">下載 v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="在 GitHub 上給 PickVia 一顆星"><span aria-hidden="true">★</span> 在 GitHub 上給星</a></div><p class="subline">macOS 14+ · Apple Silicon · 免費且開放原始碼</p></div>
         </div>
         <p class="screenshot-note">螢幕截圖顯示的是英文介面。</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="PickVia 瀏覽器選擇器，顯示瀏覽器設定檔、私密目標及鍵盤快速鍵" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / 設定你的選項</p><h2>一次設定。<br /><em>快速選擇。</em></h2><p>一次設定常用的瀏覽器設定檔與郵件應用程式，再將最常使用的目標重新排序。</p></div><div class="settings-window"><img src="../assets/settings.png" alt="PickVia 瀏覽器設定，顯示瀏覽器與設定檔範例" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>讓下一個連結<br />開啟在合適的<em>地方。</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">下載 macOS 版 <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="PickVia 應用程式圖示" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>讓下一個連結<br />開啟在合適的<em>地方。</em></h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">下載 macOS 版 <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="PickVia 應用程式圖示" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="關閉" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">在 Mac 上安裝</h2>
+        <ol class="install-steps"><li>下載並開啟 DMG。</li><li>將 <strong>PickVia</strong> 拖入<strong>應用程式</strong>。</li><li>先嘗試開啟 App 一次。如果 macOS 阻擋開啟，請前往<strong>系統設定 → 隱私權與安全性</strong>，然後選擇<strong>強制打開</strong>。</li></ol>
+        <details><summary>如果未出現「強制打開」</summary><p>將 App 移至「應用程式」後，開啟「終端機」並執行：</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="拷貝" data-copied-label="已拷貝" data-copy-failed-label="拷貝失敗；請手動選取並拷貝指令。">拷貝</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">下載 macOS 版 <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">如果對你有幫助，歡迎在 GitHub 上加星支持 <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · MIT 授權條款</span><span><a href="changelog.html">更新紀錄</a> · <a href="privacy.html">隱私權</a> · <a href="terms.html">條款</a> · <a href="https://github.com/kiteretsu903/pick-via">GitHub 上的原始碼 <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

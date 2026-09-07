@@ -53,7 +53,7 @@
   "index.p.002": "macOS-erako esteka-hautatzaile natiboa",
   "index.h1.001": "Utzi estekak<br />okerreko arakatzailean edo profilean<br /><em>irekitzeari.</em>",
   "index.p.003": "PickVia-k web- edo posta-esteka bakoitza ireki aurretik galdetzen du; horrela, web-estekak aukeratzen duzun arakatzaile edo profilera doaz, eta posta-estekak nahi zenuen posta-aplikaziora.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Deskargatu v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Eman izar bat GitHub-en</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Deskargatu v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Eman izar bat GitHub-en</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Doakoa &amp; kode irekikoa",
   "index.p.005": "Pantaila-argazkiek ingelesezko interfazea erakusten dute.",
   "index.p.006": "01 / Aukeratu ireki aurretik",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "1.5.1 bertsioa",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Argitalpen-ohar osoak <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Deskargatu v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>2026KO IRAILAK 06</strong><span class=\"release-current\">Uneko argitalpena</span>",
-  "release.v1_5_1.summary": "DuckDuckGo-ren modu pribatuaren bertsio-murrizketa kendu da, hizkuntza-hautatzailea goiko barrara eraman da eta hasierako orriko hizkuntzei buruzko oharra kendu da."
+  "release.v1_5_1.summary": "DuckDuckGo-ren modu pribatuaren bertsio-murrizketa kendu da, hizkuntza-hautatzailea goiko barrara eraman da eta hasierako orriko hizkuntzei buruzko oharra kendu da.",
+  "download.close": "Itxi",
+  "download.title": "Instalatu Mac-en",
+  "download.steps": "<li>Deskargatu eta ireki DMGa.</li><li>Arrastatu <strong>PickVia</strong> <strong>Applications</strong> karpetara.</li><li>Saiatu aplikazioa behin irekitzen. macOSek blokeatzen badu, ireki <strong>Sistemaren ezarpenak → Pribatutasuna eta segurtasuna</strong> eta hautatu <strong>Ireki hala ere</strong>.</li>",
+  "download.fallback": "«Ireki hala ere» agertzen ez bada",
+  "download.terminal": "Aplikazioa Applications karpetara mugitu ondoren, ireki Terminal eta exekutatu:",
+  "download.copy": "Kopiatu",
+  "download.copied": "Kopiatuta",
+  "download.copyFailed": "Ezin izan da kopiatu; hautatu eta kopiatu komandoa eskuz.",
+  "download.star": "Lagungarria bada, eman izarra proiektuari GitHub-en <span aria-hidden=\"true\">↗</span>"
 }

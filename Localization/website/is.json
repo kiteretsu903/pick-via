@@ -53,7 +53,7 @@
   "index.p.002": "Tenglavalgluggi smíðaður fyrir macOS",
   "index.h1.001": "Hættu að opna<br />tengla í<br /><em>röngum vafra eða sniði.</em>",
   "index.p.003": "PickVia spyr áður en hver vef- eða pósttengill opnast, svo veftenglar fara í vafrann eða sniðið sem þú velur og pósttenglar í póstforritið sem þú ætlaðir að nota.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Sækja v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Gefa stjörnu á GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Sækja v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Gefa stjörnu á GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Ókeypis og opinn hugbúnaður",
   "index.p.005": "Skjámyndir sýna enska viðmótið.",
   "index.p.006": "01 / Veldu áður en tengillinn opnast",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Útgáfa 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Allar útgáfuupplýsingar <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Sækja v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>6. SEPTEMBER 2026</strong><span class=\"release-current\">Núverandi útgáfa</span>",
-  "release.v1_5_1.summary": "Fjarlægir útgáfutakmörkun einkahams í DuckDuckGo, færir tungumálavalið í efstu stikuna og fjarlægir tungumálatilkynninguna af forsíðunni."
+  "release.v1_5_1.summary": "Fjarlægir útgáfutakmörkun einkahams í DuckDuckGo, færir tungumálavalið í efstu stikuna og fjarlægir tungumálatilkynninguna af forsíðunni.",
+  "download.close": "Loka",
+  "download.title": "Setja upp á Mac",
+  "download.steps": "<li>Sæktu og opnaðu DMG-skrána.</li><li>Dragðu <strong>PickVia</strong> í <strong>Applications</strong>.</li><li>Prófaðu að opna forritið einu sinni. Ef macOS hindrar það skaltu opna <strong>Kerfisstillingar → Persónuvernd og öryggi</strong> og velja <strong>Opna samt</strong>.</li>",
+  "download.fallback": "Ef „Opna samt“ birtist ekki",
+  "download.terminal": "Eftir að þú hefur fært forritið í Applications skaltu opna Terminal og keyra:",
+  "download.copy": "Afrita",
+  "download.copied": "Afritað",
+  "download.copyFailed": "Afritun mistókst; veldu og afritaðu skipunina handvirkt.",
+  "download.star": "Ef þetta hjálpar, gefðu verkefninu stjörnu á GitHub <span aria-hidden=\"true\">↗</span>"
 }

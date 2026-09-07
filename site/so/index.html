@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">Doore xiriiriyeyaal oo si gaar ah loogu sameeyay macOS</p><h1>Jooji inaad<br />xiriiriyeyaasha ku furto<br /><em>biraawsar ama borofayl qaldan.</em></h1></div>
-          <div class="hero-intro"><p>PickVia wuxuu ku weydiiyaa ka hor inta uusan furin xiriiriye web ama iimayl, si xiriiriyeyaasha webku ugu tagaan biraawsarka ama borofaylka aad doorato, kuwa iimaylkuna abka aad damacsanayd.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">Soo dejiso v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="PickVia xiddig ku sii GitHub"><span aria-hidden="true">★</span> Xiddig ku sii GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Bilaash &amp; il-furan</p></div>
+          <div class="hero-intro"><p>PickVia wuxuu ku weydiiyaa ka hor inta uusan furin xiriiriye web ama iimayl, si xiriiriyeyaasha webku ugu tagaan biraawsarka ama borofaylka aad doorato, kuwa iimaylkuna abka aad damacsanayd.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Soo dejiso v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="PickVia xiddig ku sii GitHub"><span aria-hidden="true">★</span> Xiddig ku sii GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Bilaash &amp; il-furan</p></div>
         </div>
         <p class="screenshot-note">Sawirrada shaashaddu waxay muujiyaan muuqaalka Ingiriisiga.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="Daaqadda doorashada biraawsarka PickVia oo muujinaysa borofayllo biraawsar, meelo gaar ah oo lagu furo iyo furayaasha gaaban ee kiiboodhka" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Deji doorashooyinkaaga</p><h2>Hal mar qaabee.<br /><em>Si dhakhso ah u dooro.</em></h2><p>Hal mar qaabee borofayllada biraawsarka iyo ababka iimaylka ee aad caadaysatay, dabadeed kala hormari meelaha aad inta badan ku furto.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="Dejimaha biraawsarka PickVia oo leh biraawsarro iyo tusaalooyin borofayl" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Ku fur xiriiriyaha xiga<br /><em>meesha saxda ah.</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">U soo dejiso macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Astaanta abka PickVia" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Ku fur xiriiriyaha xiga<br /><em>meesha saxda ah.</em></h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">U soo dejiso macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Astaanta abka PickVia" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Xidh" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Ku rakib Mac</h2>
+        <ol class="install-steps"><li>Soo dejiso oo fur DMG-ga.</li><li>U jiid <strong>PickVia</strong> galka <strong>Applications</strong>.</li><li>Isku day inaad abka hal mar furto. Haddii macOS xannibo, fur <strong>Dejinta nidaamka → Asturnaanta iyo ammaanka</strong> oo dooro <strong>Si kastaba fur</strong>.</li></ol>
+        <details><summary>Haddii “Si kastaba fur” aanu muuqan</summary><p>Ka dib markaad abka u wareejiso Applications, fur Terminal oo socodsii:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Nuqul ka samee" data-copied-label="Waa la nuquliyey" data-copy-failed-label="Nuqul samayntu way fashilantay; dooro amarka oo gacanta ku nuquli.">Nuqul ka samee</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">U soo dejiso macOS <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">Haddii uu ku caawiyo, mashruuca xiddig ku sii GitHub <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · Shatiga MIT</span><span><a href="changelog.html">Isbeddellada</a> · <a href="privacy.html">Asturnaanta</a> · <a href="terms.html">Shuruudaha</a> · <a href="https://github.com/kiteretsu903/pick-via">Koodhka asalka ee GitHub <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

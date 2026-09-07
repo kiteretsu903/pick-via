@@ -53,7 +53,7 @@
   "index.p.002": "Ngwa nhọrọ njikọ e wuru maka macOS",
   "index.h1.001": "Kwụsị imepe<br />njikọ n'ime<br /><em>ihe nchọgharị ma ọ bụ profaịlụ na-ezighi ezi.</em>",
   "index.p.003": "PickVia na-ajụ tupu njikọ weebụ ma ọ bụ ozi ịntanetị ọ bụla emeghe, ka njikọ weebụ gaa n'ihe nchọgharị ma ọ bụ profaịlụ ị họọrọ, njikọ ozi agaakwa na ngwa ozi ị chọrọ.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Budata v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Nye kpakpando na GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Budata v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Nye kpakpando na GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · N'efu ma bụrụ isi koodu mepere emepe",
   "index.p.005": "Foto ihuenyo na-egosi ihu Bekee.",
   "index.p.006": "01 / Họrọ tupu o meghee",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Ụdị 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Ihe ndetu ntọhapụ zuru ezu <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Budata v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 SEPTEMBA 2026</strong><span class=\"release-current\">Ntọhapụ ugbu a</span>",
-  "release.v1_5_1.summary": "Ewepụla mmachi ụdị maka ọnọdụ nzuzo DuckDuckGo, ebufere nhọrọ asụsụ gaa n'ogwe elu, ma wepụ ọkwa asụsụ n'ihu ụlọ."
+  "release.v1_5_1.summary": "Ewepụla mmachi ụdị maka ọnọdụ nzuzo DuckDuckGo, ebufere nhọrọ asụsụ gaa n'ogwe elu, ma wepụ ọkwa asụsụ n'ihu ụlọ.",
+  "download.close": "Mechie",
+  "download.title": "Wụnye na Mac",
+  "download.steps": "<li>Budata ma meghee DMG.</li><li>Dọrọ <strong>PickVia</strong> tinye na <strong>Applications</strong>.</li><li>Gbalịa imeghe ngwa ahụ otu ugboro. Ọ bụrụ na macOS egbochi ya, meghee <strong>Ntọala sistemụ → Nzuzo &amp; nchebe</strong> ma họrọ <strong>Meghee n’agbanyeghị nke ahụ</strong>.</li>",
+  "download.fallback": "Ọ bụrụ na “Meghee n’agbanyeghị nke ahụ” apụtaghị",
+  "download.terminal": "Mgbe ị kwagara ngwa ahụ na Applications, meghee Terminal ma mee iwu a:",
+  "download.copy": "Detuo",
+  "download.copied": "E detuola ya",
+  "download.copyFailed": "Enweghị ike idetu; họrọ iwu ahụ ma detuo ya n’onwe gị.",
+  "download.star": "Ọ bụrụ na ọ baara gị uru, nye ọrụ a kpakpando na GitHub <span aria-hidden=\"true\">↗</span>"
 }

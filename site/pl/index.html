@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">Natywne narzędzie wyboru aplikacji do łączy dla macOS</p><h1>Nie otwieraj już<br />łączy w<br /><em>niewłaściwej przeglądarce lub profilu.</em></h1></div>
-          <div class="hero-intro"><p>PickVia pyta przed otwarciem każdego łącza internetowego lub e-mail, dzięki czemu łącza internetowe trafiają do wybranej przeglądarki lub profilu, a pocztowe do zamierzonej aplikacji e-mail.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">Pobierz v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Daj PickVia gwiazdkę na GitHubie"><span aria-hidden="true">★</span> Daj gwiazdkę na GitHubie</a></div><p class="subline">macOS 14+ · Apple Silicon · Bezpłatna &amp; otwarty kod źródłowy</p></div>
+          <div class="hero-intro"><p>PickVia pyta przed otwarciem każdego łącza internetowego lub e-mail, dzięki czemu łącza internetowe trafiają do wybranej przeglądarki lub profilu, a pocztowe do zamierzonej aplikacji e-mail.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Pobierz v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Daj PickVia gwiazdkę na GitHubie"><span aria-hidden="true">★</span> Daj gwiazdkę na GitHubie</a></div><p class="subline">macOS 14+ · Apple Silicon · Bezpłatna &amp; otwarty kod źródłowy</p></div>
         </div>
         <p class="screenshot-note">Zrzuty ekranu pokazują angielski interfejs.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="Okno wyboru przeglądarki PickVia pokazujące profile przeglądarek, cele prywatne i skróty klawiszowe" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Skonfiguruj swoje opcje</p><h2>Skonfiguruj raz.<br /><em>Wybieraj szybko.</em></h2><p>Raz skonfiguruj swoje zwykłe profile przeglądarek i aplikacje pocztowe, a następnie uporządkuj najczęściej używane cele.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="Ustawienia przeglądarek PickVia z przeglądarkami i przykładowymi profilami" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Otwórz następne łącze<br />we właściwym <em>miejscu.</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">Pobierz dla macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Ikona aplikacji PickVia" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Otwórz następne łącze<br />we właściwym <em>miejscu.</em></h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Pobierz dla macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Ikona aplikacji PickVia" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Zamknij" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Instalacja na Macu</h2>
+        <ol class="install-steps"><li>Pobierz i otwórz DMG.</li><li>Przeciągnij <strong>PickVia</strong> do folderu <strong>Aplikacje</strong>.</li><li>Spróbuj raz otworzyć aplikację. Jeśli macOS ją zablokuje, otwórz <strong>Ustawienia systemowe → Prywatność &amp; ochrona</strong> i wybierz <strong>Otwórz mimo to</strong>.</li></ol>
+        <details><summary>Jeśli opcja „Otwórz mimo to” się nie pojawia</summary><p>Po przeniesieniu aplikacji do folderu Aplikacje otwórz Terminal i uruchom:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Kopiuj" data-copied-label="Skopiowano" data-copy-failed-label="Kopiowanie nie powiodło się; zaznacz i skopiuj polecenie ręcznie.">Kopiuj</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Pobierz dla macOS <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">Jeśli aplikacja Ci pomaga, daj projektowi gwiazdkę na GitHub <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · Licencja MIT</span><span><a href="changelog.html">Historia zmian</a> · <a href="privacy.html">Prywatność</a> · <a href="terms.html">Warunki</a> · <a href="https://github.com/kiteretsu903/pick-via">Kod źródłowy na GitHubie <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

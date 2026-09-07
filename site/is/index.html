@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">Tenglavalgluggi smíðaður fyrir macOS</p><h1>Hættu að opna<br />tengla í<br /><em>röngum vafra eða sniði.</em></h1></div>
-          <div class="hero-intro"><p>PickVia spyr áður en hver vef- eða pósttengill opnast, svo veftenglar fara í vafrann eða sniðið sem þú velur og pósttenglar í póstforritið sem þú ætlaðir að nota.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">Sækja v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Gefa PickVia stjörnu á GitHub"><span aria-hidden="true">★</span> Gefa stjörnu á GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Ókeypis og opinn hugbúnaður</p></div>
+          <div class="hero-intro"><p>PickVia spyr áður en hver vef- eða pósttengill opnast, svo veftenglar fara í vafrann eða sniðið sem þú velur og pósttenglar í póstforritið sem þú ætlaðir að nota.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Sækja v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Gefa PickVia stjörnu á GitHub"><span aria-hidden="true">★</span> Gefa stjörnu á GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Ókeypis og opinn hugbúnaður</p></div>
         </div>
         <p class="screenshot-note">Skjámyndir sýna enska viðmótið.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="Vafravalgluggi PickVia sem sýnir vafrasnið, einkamarkmið og flýtilykla" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Stilltu valkostina þína</p><h2>Stilltu einu sinni.<br /><em>Veldu hratt.</em></h2><p>Stilltu algengustu vafrasniðin og póstforritin einu sinni og endurraðaðu síðan markmiðunum sem þú notar mest.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="Vafrastillingar PickVia með vöfrum og sýnidæmum um snið" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Opnaðu næsta tengil<br />á réttum <em>stað.</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">Sækja fyrir macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Forritstákn PickVia" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Opnaðu næsta tengil<br />á réttum <em>stað.</em></h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Sækja fyrir macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Forritstákn PickVia" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Loka" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Setja upp á Mac</h2>
+        <ol class="install-steps"><li>Sæktu og opnaðu DMG-skrána.</li><li>Dragðu <strong>PickVia</strong> í <strong>Applications</strong>.</li><li>Prófaðu að opna forritið einu sinni. Ef macOS hindrar það skaltu opna <strong>Kerfisstillingar → Persónuvernd og öryggi</strong> og velja <strong>Opna samt</strong>.</li></ol>
+        <details><summary>Ef „Opna samt“ birtist ekki</summary><p>Eftir að þú hefur fært forritið í Applications skaltu opna Terminal og keyra:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Afrita" data-copied-label="Afritað" data-copy-failed-label="Afritun mistókst; veldu og afritaðu skipunina handvirkt.">Afrita</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Sækja fyrir macOS <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">Ef þetta hjálpar, gefðu verkefninu stjörnu á GitHub <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · MIT-leyfi</span><span><a href="changelog.html">Breytingaskrá</a> · <a href="privacy.html">Persónuvernd</a> · <a href="terms.html">Skilmálar</a> · <a href="https://github.com/kiteretsu903/pick-via">Frumkóði á GitHub <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

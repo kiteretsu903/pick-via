@@ -53,7 +53,7 @@
   "index.p.002": "'n Inheemse skakelkieser vir macOS",
   "index.h1.001": "Hou op om<br />skakels in die<br /><em>verkeerde blaaier of profiel oop te maak.</em>",
   "index.p.003": "PickVia vra voordat elke web- of e-posskakel oopmaak, sodat webskakels na die blaaier of profiel gaan wat jy kies en e-posskakels na die e-postoepassing wat jy bedoel het.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Laai v1.5.1 af <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Gee 'n ster op GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Laai v1.5.1 af <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Gee 'n ster op GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Gratis &amp; oopbron",
   "index.p.005": "Skermskote wys die Engelse koppelvlak.",
   "index.p.006": "01 / Kies voordat dit oopmaak",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Weergawe 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Volledige vrystellingsnotas <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Laai v1.5.1 af <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 SEP 2026</strong><span class=\"release-current\">Huidige vrystelling</span>",
-  "release.v1_5_1.summary": "Die weergawebeperking vir DuckDuckGo se privaatmodus is verwyder, die taalkieser is na die boonste balk geskuif, en die taalkennisgewing op die tuisblad is verwyder."
+  "release.v1_5_1.summary": "Die weergawebeperking vir DuckDuckGo se privaatmodus is verwyder, die taalkieser is na die boonste balk geskuif, en die taalkennisgewing op die tuisblad is verwyder.",
+  "download.close": "Maak toe",
+  "download.title": "Installeer op Mac",
+  "download.steps": "<li>Laai die DMG af en maak dit oop.</li><li>Sleep <strong>PickVia</strong> na <strong>Toepassings</strong>.</li><li>Probeer die toepassing een keer oopmaak. As macOS dit blokkeer, maak <strong>Stelselinstellings → Privaatheid &amp; Sekuriteit</strong> oop en kies <strong>Maak tog oop</strong>.</li>",
+  "download.fallback": "As “Maak tog oop” nie verskyn nie",
+  "download.terminal": "Nadat jy die toepassing na Toepassings geskuif het, maak Terminal oop en voer uit:",
+  "download.copy": "Kopieer",
+  "download.copied": "Gekopieer",
+  "download.copyFailed": "Kopiëring het misluk; kies en kopieer die opdrag handmatig.",
+  "download.star": "As dit help, gee die projek 'n ster op GitHub <span aria-hidden=\"true\">↗</span>"
 }

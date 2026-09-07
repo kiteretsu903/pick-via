@@ -53,7 +53,7 @@
   "index.p.002": "Un selector d’enllaços natiu per al macOS",
   "index.h1.001": "Deixeu d’obrir<br />enllaços amb<br /><em>el navegador o el perfil equivocat.</em>",
   "index.p.003": "El PickVia pregunta abans d’obrir cada enllaç web o de correu, perquè els enllaços web vagin al navegador o al perfil que trieu i els de correu a l’app de correu que volíeu fer servir.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Baixa la v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Dona-li una estrella al GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Baixa la v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Dona-li una estrella al GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Gratuït i de codi obert",
   "index.p.005": "Les captures mostren la interfície en anglès.",
   "index.p.006": "01 / Trieu abans d’obrir",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Versió 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Notes completes de la versió <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Baixa la v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 SET 2026</strong><span class=\"release-current\">Versió actual</span>",
-  "release.v1_5_1.summary": "S’ha eliminat la restricció de versió del mode privat de DuckDuckGo, s’ha mogut el selector d’idioma a la barra superior i s’ha eliminat l’avís d’idiomes de la pàgina d’inici."
+  "release.v1_5_1.summary": "S’ha eliminat la restricció de versió del mode privat de DuckDuckGo, s’ha mogut el selector d’idioma a la barra superior i s’ha eliminat l’avís d’idiomes de la pàgina d’inici.",
+  "download.close": "Tanca",
+  "download.title": "Instal·la al Mac",
+  "download.steps": "<li>Descarrega i obre el DMG.</li><li>Arrossega <strong>PickVia</strong> a <strong>Aplicacions</strong>.</li><li>Prova d'obrir l'app una vegada. Si macOS la bloqueja, obre <strong>Configuració del Sistema → Privacitat &amp; Seguretat</strong> i selecciona <strong>Obre igualment</strong>.</li>",
+  "download.fallback": "Si no apareix «Obre igualment»",
+  "download.terminal": "Després de moure l'app a Aplicacions, obre el Terminal i executa:",
+  "download.copy": "Copia",
+  "download.copied": "Copiat",
+  "download.copyFailed": "No s'ha pogut copiar; selecciona i copia l'ordre manualment.",
+  "download.star": "Si et resulta útil, dona una estrella al projecte a GitHub <span aria-hidden=\"true\">↗</span>"
 }

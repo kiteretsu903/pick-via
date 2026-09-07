@@ -53,7 +53,7 @@
   "index.p.002": "Բնիկ հղումների ընտրիչ macOS-ի համար",
   "index.h1.001": "Այլևս մի բացեք<br />հղումները սխալ<br /><em>դիտարկիչում կամ պրոֆիլում։</em>",
   "index.p.003": "PickVia-ն հարցնում է յուրաքանչյուր վեբ կամ նամակի հղում բացելուց առաջ, որպեսզի վեբ հղումները գնան ձեր ընտրած դիտարկիչին կամ պրոֆիլին, իսկ նամակների հղումները՝ ձեր նախատեսած փոստային հավելվածին։",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Ներբեռնել v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Աստղ տալ GitHub-ում</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Ներբեռնել v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Աստղ տալ GitHub-ում</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Անվճար և բաց կոդով",
   "index.p.005": "Էկրանակադրերը ցույց են տալիս անգլերեն միջերեսը։",
   "index.p.006": "01 / Ընտրեք բացելուց առաջ",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Տարբերակ 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Թողարկման ամբողջական նշումներ <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Ներբեռնել v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 ՍԵՊ 2026</strong><span class=\"release-current\">Ընթացիկ թողարկում</span>",
-  "release.v1_5_1.summary": "Հեռացվել է DuckDuckGo-ի մասնավոր ռեժիմի տարբերակի սահմանափակումը, լեզվի ընտրիչը տեղափոխվել է վերին վահանակ, իսկ գլխավոր էջի լեզուների մասին ծանուցումը հեռացվել է։"
+  "release.v1_5_1.summary": "Հեռացվել է DuckDuckGo-ի մասնավոր ռեժիմի տարբերակի սահմանափակումը, լեզվի ընտրիչը տեղափոխվել է վերին վահանակ, իսկ գլխավոր էջի լեզուների մասին ծանուցումը հեռացվել է։",
+  "download.close": "Փակել",
+  "download.title": "Տեղադրել Mac-ում",
+  "download.steps": "<li>Ներբեռնեք և բացեք DMG-ն։</li><li>Քաշեք <strong>PickVia</strong>-ը <strong>Applications</strong> պանակ։</li><li>Փորձեք մեկ անգամ բացել հավելվածը։ Եթե macOS-ն արգելափակում է այն, բացեք <strong>Համակարգի կարգավորումներ → Գաղտնիություն և անվտանգություն</strong> և ընտրեք <strong>Ամեն դեպքում բացել</strong>։</li>",
+  "download.fallback": "Եթե «Ամեն դեպքում բացել» տարբերակը չի երևում",
+  "download.terminal": "Հավելվածը Applications տեղափոխելուց հետո բացեք Terminal-ը և գործարկեք՝",
+  "download.copy": "Պատճենել",
+  "download.copied": "Պատճենված է",
+  "download.copyFailed": "Պատճենումը չհաջողվեց․ ընտրեք և ձեռքով պատճենեք հրամանը։",
+  "download.star": "Եթե այն օգնում է, աստղ տվեք նախագծին GitHub-ում <span aria-hidden=\"true\">↗</span>"
 }

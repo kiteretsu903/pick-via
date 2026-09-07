@@ -53,7 +53,7 @@
   "index.p.002": "Dewisydd dolenni brodorol ar gyfer macOS",
   "index.h1.001": "Peidiwch ag agor<br />dolenni yn<br /><em>y porwr neu'r proffil anghywir mwyach.</em>",
   "index.p.003": "Mae PickVia yn gofyn cyn agor pob dolen we neu e-bost, fel bod dolenni gwe'n mynd i'r porwr neu'r proffil o'ch dewis a dolenni e-bost i'r ap e-bost a fwriadwyd gennych.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Lawrlwytho v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Rhoi seren ar GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Lawrlwytho v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Rhoi seren ar GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Am ddim &amp; ffynhonnell agored",
   "index.p.005": "Mae'r sgrinluniau'n dangos y rhyngwyneb Saesneg.",
   "index.p.006": "01 / Dewiswch cyn iddo agor",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Fersiwn 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Nodiadau rhyddhau llawn <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Lawrlwytho v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 MED 2026</strong><span class=\"release-current\">Fersiwn gyfredol</span>",
-  "release.v1_5_1.summary": "Dileu’r cyfyngiad fersiwn ar fodd preifat DuckDuckGo, symud y dewisydd iaith i’r bar uchaf, a dileu’r hysbysiad am ieithoedd o’r hafan."
+  "release.v1_5_1.summary": "Dileu’r cyfyngiad fersiwn ar fodd preifat DuckDuckGo, symud y dewisydd iaith i’r bar uchaf, a dileu’r hysbysiad am ieithoedd o’r hafan.",
+  "download.close": "Cau",
+  "download.title": "Gosod ar Mac",
+  "download.steps": "<li>Llwythwch y DMG i lawr a'i agor.</li><li>Llusgwch <strong>PickVia</strong> i <strong>Rhaglenni</strong>.</li><li>Ceisiwch agor yr ap unwaith. Os yw macOS yn ei rwystro, agorwch <strong>Gosodiadau System → Preifatrwydd a Diogelwch</strong> a dewiswch <strong>Agor beth bynnag</strong>.</li>",
+  "download.fallback": "Os nad yw “Agor beth bynnag” yn ymddangos",
+  "download.terminal": "Ar ôl symud yr ap i Rhaglenni, agorwch Terminal a rhedeg:",
+  "download.copy": "Copïo",
+  "download.copied": "Wedi copïo",
+  "download.copyFailed": "Methodd y copïo; dewiswch a chopïwch y gorchymyn â llaw.",
+  "download.star": "Os yw'n helpu, rhowch seren i'r prosiect ar GitHub <span aria-hidden=\"true\">↗</span>"
 }

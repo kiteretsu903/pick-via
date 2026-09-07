@@ -53,7 +53,7 @@
   "index.p.002": "Natywne narzędzie wyboru aplikacji do łączy dla macOS",
   "index.h1.001": "Nie otwieraj już<br />łączy w<br /><em>niewłaściwej przeglądarce lub profilu.</em>",
   "index.p.003": "PickVia pyta przed otwarciem każdego łącza internetowego lub e-mail, dzięki czemu łącza internetowe trafiają do wybranej przeglądarki lub profilu, a pocztowe do zamierzonej aplikacji e-mail.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Pobierz v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Daj gwiazdkę na GitHubie</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Pobierz v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Daj gwiazdkę na GitHubie</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Bezpłatna &amp; otwarty kod źródłowy",
   "index.p.005": "Zrzuty ekranu pokazują angielski interfejs.",
   "index.p.006": "01 / Wybierz przed otwarciem",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Wersja 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Pełne informacje o wydaniu <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Pobierz v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 WRZ 2026</strong><span class=\"release-current\">Aktualne wydanie</span>",
-  "release.v1_5_1.summary": "Usunięto ograniczenie wersji dla trybu prywatnego DuckDuckGo, przeniesiono wybór języka do górnego paska i usunięto informację o językach ze strony głównej."
+  "release.v1_5_1.summary": "Usunięto ograniczenie wersji dla trybu prywatnego DuckDuckGo, przeniesiono wybór języka do górnego paska i usunięto informację o językach ze strony głównej.",
+  "download.close": "Zamknij",
+  "download.title": "Instalacja na Macu",
+  "download.steps": "<li>Pobierz i otwórz DMG.</li><li>Przeciągnij <strong>PickVia</strong> do folderu <strong>Aplikacje</strong>.</li><li>Spróbuj raz otworzyć aplikację. Jeśli macOS ją zablokuje, otwórz <strong>Ustawienia systemowe → Prywatność &amp; ochrona</strong> i wybierz <strong>Otwórz mimo to</strong>.</li>",
+  "download.fallback": "Jeśli opcja „Otwórz mimo to” się nie pojawia",
+  "download.terminal": "Po przeniesieniu aplikacji do folderu Aplikacje otwórz Terminal i uruchom:",
+  "download.copy": "Kopiuj",
+  "download.copied": "Skopiowano",
+  "download.copyFailed": "Kopiowanie nie powiodło się; zaznacz i skopiuj polecenie ręcznie.",
+  "download.star": "Jeśli aplikacja Ci pomaga, daj projektowi gwiazdkę na GitHub <span aria-hidden=\"true\">↗</span>"
 }

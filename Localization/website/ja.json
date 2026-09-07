@@ -53,7 +53,7 @@
   "index.p.002": "macOS用のネイティブリンク選択アプリ",
   "index.h1.001": "リンクを<br />意図しないブラウザや<br /><em>プロファイルで開かないために。</em>",
   "index.p.003": "PickViaはウェブリンクやメールリンクを開く前に確認します。ウェブリンクは選んだブラウザやプロファイルへ、メールリンクは使いたいメールアプリへ。",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1をダウンロード <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHubでスターを付ける</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1をダウンロード <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHubでスターを付ける</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · 無料・オープンソース",
   "index.p.005": "スクリーンショットは英語の画面です。",
   "index.p.006": "01 / 開く前に選ぶ",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "バージョン1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">リリースノート全文 <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1をダウンロード <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>2026年9月6日</strong><span class=\"release-current\">現在のリリース</span>",
-  "release.v1_5_1.summary": "DuckDuckGoのプライベートモードのバージョン制限を撤廃し、言語選択を上部バーへ移動して、ホームページの言語に関する案内を削除しました。"
+  "release.v1_5_1.summary": "DuckDuckGoのプライベートモードのバージョン制限を撤廃し、言語選択を上部バーへ移動して、ホームページの言語に関する案内を削除しました。",
+  "download.close": "閉じる",
+  "download.title": "Mac にインストール",
+  "download.steps": "<li>DMG をダウンロードして開きます。</li><li><strong>PickVia</strong> を <strong>アプリケーション</strong> にドラッグします。</li><li>まず一度アプリを開いてみてください。macOS にブロックされた場合は、<strong>システム設定 → プライバシーとセキュリティ</strong>を開き、<strong>このまま開く</strong>を選択します。</li>",
+  "download.fallback": "「このまま開く」が表示されない場合",
+  "download.terminal": "アプリを「アプリケーション」に移動した後、ターミナルを開いて次を実行します。",
+  "download.copy": "コピー",
+  "download.copied": "コピーしました",
+  "download.copyFailed": "コピーできませんでした。コマンドを選択して手動でコピーしてください。",
+  "download.star": "役に立ったら GitHub でスターを付けてください <span aria-hidden=\"true\">↗</span>"
 }

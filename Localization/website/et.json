@@ -53,7 +53,7 @@
   "index.p.002": "macOS-i jaoks loodud lingivalija",
   "index.h1.001": "Lõpeta linkide<br />avamine vales<br /><em>brauseris või profiilis.</em>",
   "index.p.003": "PickVia küsib enne iga veebi- või meililingi avamist, nii et veebilingid suunatakse valitud brauserisse või profiili ja meililingid soovitud meilirakendusse.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Laadi alla v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Anna GitHubis täht</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Laadi alla v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Anna GitHubis täht</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Tasuta ja avatud lähtekoodiga",
   "index.p.005": "Kuvatõmmised näitavad ingliskeelset liidest.",
   "index.p.006": "01 / Vali enne avamist",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Versioon 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Täielikud väljalaskemärkmed <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Laadi alla v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 SEPT 2026</strong><span class=\"release-current\">Praegune väljalase</span>",
-  "release.v1_5_1.summary": "DuckDuckGo privaatrežiimi versioonipiirang on eemaldatud, keelevalija on viidud ülaribale ja avalehe keeleteavitus on eemaldatud."
+  "release.v1_5_1.summary": "DuckDuckGo privaatrežiimi versioonipiirang on eemaldatud, keelevalija on viidud ülaribale ja avalehe keeleteavitus on eemaldatud.",
+  "download.close": "Sulge",
+  "download.title": "Paigalda Maci",
+  "download.steps": "<li>Laadi DMG alla ja ava see.</li><li>Lohista <strong>PickVia</strong> kausta <strong>Rakendused</strong>.</li><li>Proovi rakendus üks kord avada. Kui macOS selle blokeerib, ava <strong>Süsteemisätted → Privaatsus &amp; turvalisus</strong> ja vali <strong>Ava siiski</strong>.</li>",
+  "download.fallback": "Kui „Ava siiski“ ei ilmu",
+  "download.terminal": "Pärast rakenduse teisaldamist kausta Rakendused ava Terminal ja käivita:",
+  "download.copy": "Kopeeri",
+  "download.copied": "Kopeeritud",
+  "download.copyFailed": "Kopeerimine ebaõnnestus; vali ja kopeeri käsk käsitsi.",
+  "download.star": "Kui sellest on abi, lisa projektile GitHubis täht <span aria-hidden=\"true\">↗</span>"
 }

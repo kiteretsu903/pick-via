@@ -53,7 +53,7 @@
   "index.p.002": "macOS-ийн төрөлх холбоос сонгогч",
   "index.h1.001": "Холбоосыг<br />буруу хөтөч эсвэл<br /><em>профайлд нээхээ болъё.</em>",
   "index.p.003": "PickVia вэб эсвэл имэйл холбоос бүрийг нээхийн өмнө асууна. Ингэснээр вэб холбоос таны сонгосон хөтөч эсвэл профайлд, шуудангийн холбоос хүссэн шуудангийн аппд очно.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1 татах <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub дээр од өгөх</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 татах <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub дээр од өгөх</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Үнэгүй, нээлттэй эхтэй",
   "index.p.005": "Дэлгэцийн зургууд англи интерфэйсийг харуулна.",
   "index.p.006": "01 / Нээхийн өмнө сонго",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Хувилбар 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Хувилбарын бүрэн тэмдэглэл <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 татах <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>2026 ОНЫ 9 САРЫН 6</strong><span class=\"release-current\">Одоогийн хувилбар</span>",
-  "release.v1_5_1.summary": "DuckDuckGo-ийн хувийн горимын хувилбарын хязгаарлалтыг арилгаж, хэл сонгогчийг дээд мөрөнд шилжүүлж, нүүр хуудасны хэлний мэдэгдлийг хасав."
+  "release.v1_5_1.summary": "DuckDuckGo-ийн хувийн горимын хувилбарын хязгаарлалтыг арилгаж, хэл сонгогчийг дээд мөрөнд шилжүүлж, нүүр хуудасны хэлний мэдэгдлийг хасав.",
+  "download.close": "Хаах",
+  "download.title": "Mac дээр суулгах",
+  "download.steps": "<li>DMG татаж нээнэ үү.</li><li><strong>PickVia</strong>-ийг <strong>Applications</strong> руу чирнэ үү.</li><li>Аппыг нэг удаа нээж үзнэ үү. macOS хоригловол <strong>System Settings → Privacy &amp; Security</strong> руу орж <strong>Open Anyway</strong> сонгоно уу.</li>",
+  "download.fallback": "“Open Anyway” харагдахгүй бол",
+  "download.terminal": "Аппыг Applications руу зөөсөний дараа Terminal нээгээд дараахыг ажиллуулна уу:",
+  "download.copy": "Хуулах",
+  "download.copied": "Хуулсан",
+  "download.copyFailed": "Хуулж чадсангүй; командыг гараар сонгож хуулна уу.",
+  "download.star": "Хэрэг болж байвал GitHub дээр төсөлд од өгөөрэй <span aria-hidden=\"true\">↗</span>"
 }

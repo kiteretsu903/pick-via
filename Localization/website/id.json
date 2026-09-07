@@ -53,7 +53,7 @@
   "index.p.002": "Pemilih tautan native untuk macOS",
   "index.h1.001": "Jangan lagi membuka<br />tautan di<br /><em>browser atau profil yang salah.</em>",
   "index.p.003": "PickVia bertanya sebelum membuka setiap tautan web atau email, sehingga tautan web masuk ke browser atau profil pilihan Anda dan tautan email ke app email yang Anda maksud.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Unduh v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Beri bintang di GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Unduh v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Beri bintang di GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Gratis &amp; sumber terbuka",
   "index.p.005": "Tangkapan layar menampilkan antarmuka bahasa Inggris.",
   "index.p.006": "01 / Pilih sebelum terbuka",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Versi 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Catatan rilis lengkap <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Unduh v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 SEP 2026</strong><span class=\"release-current\">Rilis saat ini</span>",
-  "release.v1_5_1.summary": "Menghapus batasan versi untuk mode privat DuckDuckGo, memindahkan pemilih bahasa ke bilah atas, dan menghapus pemberitahuan bahasa dari halaman beranda."
+  "release.v1_5_1.summary": "Menghapus batasan versi untuk mode privat DuckDuckGo, memindahkan pemilih bahasa ke bilah atas, dan menghapus pemberitahuan bahasa dari halaman beranda.",
+  "download.close": "Tutup",
+  "download.title": "Pasang di Mac",
+  "download.steps": "<li>Unduh dan buka DMG.</li><li>Seret <strong>PickVia</strong> ke <strong>Aplikasi</strong>.</li><li>Coba buka aplikasi sekali. Jika macOS memblokirnya, buka <strong>Pengaturan Sistem → Privasi &amp; Keamanan</strong> dan pilih <strong>Tetap Buka</strong>.</li>",
+  "download.fallback": "Jika “Tetap Buka” tidak muncul",
+  "download.terminal": "Setelah memindahkan aplikasi ke Aplikasi, buka Terminal dan jalankan:",
+  "download.copy": "Salin",
+  "download.copied": "Disalin",
+  "download.copyFailed": "Penyalinan gagal; pilih dan salin perintah secara manual.",
+  "download.star": "Jika bermanfaat, beri bintang pada proyek di GitHub <span aria-hidden=\"true\">↗</span>"
 }

@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">Izvorni birač linkova za macOS</p><h1>Prestanite otvarati<br />linkove u<br /><em>pogrešnom pregledniku ili profilu.</em></h1></div>
-          <div class="hero-intro"><p>PickVia pita prije otvaranja svakog web linka ili linka za e-poštu, pa web linkovi idu u preglednik ili profil koji odaberete, a linkovi za e-poštu u aplikaciju koju ste namjeravali koristiti.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">Preuzmi v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Dodajte zvjezdicu aplikaciji PickVia na GitHubu"><span aria-hidden="true">★</span> Dodaj zvjezdicu na GitHubu</a></div><p class="subline">macOS 14+ · Apple Silicon · Besplatno &amp; otvorenog koda</p></div>
+          <div class="hero-intro"><p>PickVia pita prije otvaranja svakog web linka ili linka za e-poštu, pa web linkovi idu u preglednik ili profil koji odaberete, a linkovi za e-poštu u aplikaciju koju ste namjeravali koristiti.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Preuzmi v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Dodajte zvjezdicu aplikaciji PickVia na GitHubu"><span aria-hidden="true">★</span> Dodaj zvjezdicu na GitHubu</a></div><p class="subline">macOS 14+ · Apple Silicon · Besplatno &amp; otvorenog koda</p></div>
         </div>
         <p class="screenshot-note">Snimci ekrana prikazuju interfejs na engleskom jeziku.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="PickVia prozor za odabir preglednika s profilima preglednika, privatnim odredištima i prečicama na tastaturi" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Podesite svoje izbore</p><h2>Podesite jednom.<br /><em>Birajte brzo.</em></h2><p>Podesite svoje uobičajene profile preglednika i aplikacije za e-poštu jednom, a zatim poredajte odredišta koja najviše koristite.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="PickVia postavke preglednika s preglednicima i primjerima profila" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Otvorite sljedeći link<br />na pravom <em>mjestu.</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">Preuzmi za macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Ikona aplikacije PickVia" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Otvorite sljedeći link<br />na pravom <em>mjestu.</em></h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Preuzmi za macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Ikona aplikacije PickVia" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Zatvori" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Instalacija na Mac</h2>
+        <ol class="install-steps"><li>Preuzmite i otvorite DMG.</li><li>Povucite <strong>PickVia</strong> u <strong>Aplikacije</strong>.</li><li>Pokušajte jednom otvoriti aplikaciju. Ako je macOS blokira, otvorite <strong>Sistemske postavke → Privatnost &amp; sigurnost</strong> i odaberite <strong>Ipak otvori</strong>.</li></ol>
+        <details><summary>Ako se „Ipak otvori“ ne pojavi</summary><p>Nakon premještanja aplikacije u Aplikacije, otvorite Terminal i pokrenite:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Kopiraj" data-copied-label="Kopirano" data-copy-failed-label="Kopiranje nije uspjelo; odaberite i ručno kopirajte naredbu.">Kopiraj</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Preuzmi za macOS <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">Ako vam pomaže, dajte projektu zvjezdicu na GitHubu <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · MIT licenca</span><span><a href="changelog.html">Historija izmjena</a> · <a href="privacy.html">Privatnost</a> · <a href="terms.html">Uslovi</a> · <a href="https://github.com/kiteretsu903/pick-via">Izvorni kod na GitHubu <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">Aplikacion i ndërtuar për macOS për zgjedhjen e destinacionit të lidhjeve</p><h1>Mos i hapni më<br />lidhjet në<br /><em>shfletuesin apo profilin e gabuar.</em></h1></div>
-          <div class="hero-intro"><p>PickVia pyet para se të hapet çdo lidhje uebi ose emaili, që lidhjet e uebit të shkojnë te shfletuesi ose profili që zgjidhni dhe lidhjet e postës te aplikacioni i emailit që kishit ndër mend.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">Shkarko v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Jepini PickVia një yll në GitHub"><span aria-hidden="true">★</span> Jepni një yll në GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Falas dhe me kod të hapur</p></div>
+          <div class="hero-intro"><p>PickVia pyet para se të hapet çdo lidhje uebi ose emaili, që lidhjet e uebit të shkojnë te shfletuesi ose profili që zgjidhni dhe lidhjet e postës te aplikacioni i emailit që kishit ndër mend.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Shkarko v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Jepini PickVia një yll në GitHub"><span aria-hidden="true">★</span> Jepni një yll në GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Falas dhe me kod të hapur</p></div>
         </div>
         <p class="screenshot-note">Pamjet e ekranit tregojnë ndërfaqen në anglisht.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="Dritarja e zgjedhjes së shfletuesit në PickVia me profile shfletuesi, destinacione private dhe shkurtore tastiere" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Konfiguroni zgjedhjet tuaja</p><h2>Konfiguroni një herë.<br /><em>Zgjidhni shpejt.</em></h2><p>Konfiguroni një herë profilet tuaja të zakonshme të shfletuesit dhe aplikacionet e postës, pastaj renditni destinacionet që përdorni më shumë.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="Cilësimet e shfletuesit në PickVia me shfletues dhe shembuj profilesh" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Hapeni lidhjen tjetër<br />në <em>vendin e duhur.</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">Shkarko për macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Ikona e aplikacionit PickVia" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Hapeni lidhjen tjetër<br />në <em>vendin e duhur.</em></h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Shkarko për macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Ikona e aplikacionit PickVia" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Mbyll" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Instalo në Mac</h2>
+        <ol class="install-steps"><li>Shkarkoni dhe hapni DMG-në.</li><li>Tërhiqeni <strong>PickVia</strong> te <strong>Aplikacionet</strong>.</li><li>Provoni ta hapni aplikacionin një herë. Nëse macOS e bllokon, hapni <strong>Cilësimet e sistemit → Privatësia &amp; siguria</strong> dhe zgjidhni <strong>Hap gjithsesi</strong>.</li></ol>
+        <details><summary>Nëse “Hap gjithsesi” nuk shfaqet</summary><p>Pasi ta zhvendosni aplikacionin te Aplikacionet, hapni Terminal dhe ekzekutoni:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Kopjo" data-copied-label="U kopjua" data-copy-failed-label="Kopjimi dështoi; zgjidhni dhe kopjoni komandën manualisht.">Kopjo</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Shkarko për macOS <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">Nëse ju ndihmon, jepini projektit një yll në GitHub <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · Licenca MIT</span><span><a href="changelog.html">Regjistri i ndryshimeve</a> · <a href="privacy.html">Privatësia</a> · <a href="terms.html">Kushtet</a> · <a href="https://github.com/kiteretsu903/pick-via">Kodi burimor në GitHub <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

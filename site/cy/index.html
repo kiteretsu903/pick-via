@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">Dewisydd dolenni brodorol ar gyfer macOS</p><h1>Peidiwch ag agor<br />dolenni yn<br /><em>y porwr neu'r proffil anghywir mwyach.</em></h1></div>
-          <div class="hero-intro"><p>Mae PickVia yn gofyn cyn agor pob dolen we neu e-bost, fel bod dolenni gwe'n mynd i'r porwr neu'r proffil o'ch dewis a dolenni e-bost i'r ap e-bost a fwriadwyd gennych.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">Lawrlwytho v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Rhoi seren i PickVia ar GitHub"><span aria-hidden="true">★</span> Rhoi seren ar GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Am ddim &amp; ffynhonnell agored</p></div>
+          <div class="hero-intro"><p>Mae PickVia yn gofyn cyn agor pob dolen we neu e-bost, fel bod dolenni gwe'n mynd i'r porwr neu'r proffil o'ch dewis a dolenni e-bost i'r ap e-bost a fwriadwyd gennych.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Lawrlwytho v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Rhoi seren i PickVia ar GitHub"><span aria-hidden="true">★</span> Rhoi seren ar GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Am ddim &amp; ffynhonnell agored</p></div>
         </div>
         <p class="screenshot-note">Mae'r sgrinluniau'n dangos y rhyngwyneb Saesneg.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="Dewisydd porwr PickVia yn dangos proffiliau porwyr, cyrchfannau preifat a llwybrau byr bysellfwrdd" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Gosodwch eich dewisiadau</p><h2>Gosodwch unwaith.<br /><em>Dewiswch yn gyflym.</em></h2><p>Gosodwch eich proffiliau porwr a'ch apiau e-bost arferol unwaith, yna aildrefnwch y cyrchfannau rydych yn eu defnyddio fwyaf.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="Gosodiadau porwyr PickVia gyda phorwyr a phroffiliau enghreifftiol" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Agorwch y ddolen nesaf<br />yn y <em>lle cywir.</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">Lawrlwytho ar gyfer macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Eicon ap PickVia" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Agorwch y ddolen nesaf<br />yn y <em>lle cywir.</em></h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Lawrlwytho ar gyfer macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Eicon ap PickVia" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Cau" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Gosod ar Mac</h2>
+        <ol class="install-steps"><li>Llwythwch y DMG i lawr a'i agor.</li><li>Llusgwch <strong>PickVia</strong> i <strong>Rhaglenni</strong>.</li><li>Ceisiwch agor yr ap unwaith. Os yw macOS yn ei rwystro, agorwch <strong>Gosodiadau System → Preifatrwydd a Diogelwch</strong> a dewiswch <strong>Agor beth bynnag</strong>.</li></ol>
+        <details><summary>Os nad yw “Agor beth bynnag” yn ymddangos</summary><p>Ar ôl symud yr ap i Rhaglenni, agorwch Terminal a rhedeg:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Copïo" data-copied-label="Wedi copïo" data-copy-failed-label="Methodd y copïo; dewiswch a chopïwch y gorchymyn â llaw.">Copïo</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Lawrlwytho ar gyfer macOS <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">Os yw'n helpu, rhowch seren i'r prosiect ar GitHub <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · Trwydded MIT</span><span><a href="changelog.html">Newidiadau</a> · <a href="privacy.html">Preifatrwydd</a> · <a href="terms.html">Telerau</a> · <a href="https://github.com/kiteretsu903/pick-via">Cod ffynhonnell ar GitHub <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

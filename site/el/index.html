@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">Εγγενές εργαλείο επιλογής προορισμού συνδέσμων για macOS</p><h1>Σταματήστε να ανοίγετε<br />συνδέσμους σε<br /><em>λάθος πρόγραμμα περιήγησης ή προφίλ.</em></h1></div>
-          <div class="hero-intro"><p>Το PickVia ρωτά πριν ανοίξει κάθε σύνδεσμος ιστού ή email, ώστε οι σύνδεσμοι ιστού να πηγαίνουν στο πρόγραμμα περιήγησης ή προφίλ που επιλέγετε και οι σύνδεσμοι email στην εφαρμογή που θέλετε.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">Λήψη v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Δώστε ένα αστέρι στο PickVia στο GitHub"><span aria-hidden="true">★</span> Αστέρι στο GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Δωρεάν και ανοικτού κώδικα</p></div>
+          <div class="hero-intro"><p>Το PickVia ρωτά πριν ανοίξει κάθε σύνδεσμος ιστού ή email, ώστε οι σύνδεσμοι ιστού να πηγαίνουν στο πρόγραμμα περιήγησης ή προφίλ που επιλέγετε και οι σύνδεσμοι email στην εφαρμογή που θέλετε.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Λήψη v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Δώστε ένα αστέρι στο PickVia στο GitHub"><span aria-hidden="true">★</span> Αστέρι στο GitHub</a></div><p class="subline">macOS 14+ · Apple Silicon · Δωρεάν και ανοικτού κώδικα</p></div>
         </div>
         <p class="screenshot-note">Τα στιγμιότυπα οθόνης δείχνουν την αγγλική διεπαφή.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="Παράθυρο επιλογής προγράμματος περιήγησης PickVia με προφίλ περιήγησης, ιδιωτικούς προορισμούς και συντομεύσεις πληκτρολογίου" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Ρυθμίστε τις επιλογές σας</p><h2>Ρυθμίστε μία φορά.<br /><em>Επιλέξτε γρήγορα.</em></h2><p>Ρυθμίστε μία φορά τα συνηθισμένα προφίλ περιήγησης και τις εφαρμογές email σας και μετά αλλάξτε τη σειρά των προορισμών που χρησιμοποιείτε περισσότερο.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="Ρυθμίσεις προγραμμάτων περιήγησης PickVia με προγράμματα περιήγησης και παραδείγματα προφίλ" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Ανοίξτε τον επόμενο σύνδεσμο<br />στο σωστό <em>μέρος.</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">Λήψη για macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Εικονίδιο εφαρμογής PickVia" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Ανοίξτε τον επόμενο σύνδεσμο<br />στο σωστό <em>μέρος.</em></h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Λήψη για macOS <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="Εικονίδιο εφαρμογής PickVia" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Κλείσιμο" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Εγκατάσταση σε Mac</h2>
+        <ol class="install-steps"><li>Κατεβάστε και ανοίξτε το DMG.</li><li>Σύρετε το <strong>PickVia</strong> στις <strong>Εφαρμογές</strong>.</li><li>Δοκιμάστε να ανοίξετε την εφαρμογή μία φορά. Αν το macOS την αποκλείσει, ανοίξτε <strong>Ρυθμίσεις συστήματος → Απόρρητο &amp; ασφάλεια</strong> και επιλέξτε <strong>Άνοιγμα οπωσδήποτε</strong>.</li></ol>
+        <details><summary>Αν δεν εμφανίζεται το «Άνοιγμα οπωσδήποτε»</summary><p>Αφού μεταφέρετε την εφαρμογή στις Εφαρμογές, ανοίξτε το Τερματικό και εκτελέστε:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Αντιγραφή" data-copied-label="Αντιγράφηκε" data-copy-failed-label="Η αντιγραφή απέτυχε· επιλέξτε και αντιγράψτε την εντολή χειροκίνητα.">Αντιγραφή</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Λήψη για macOS <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">Αν σας βοηθά, δώστε αστέρι στο έργο στο GitHub <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · Άδεια MIT</span><span><a href="changelog.html">Ιστορικό αλλαγών</a> · <a href="privacy.html">Απόρρητο</a> · <a href="terms.html">Όροι</a> · <a href="https://github.com/kiteretsu903/pick-via">Πηγαίος κώδικας στο GitHub <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

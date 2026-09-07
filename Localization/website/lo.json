@@ -53,7 +53,7 @@
   "index.p.002": "ເຄື່ອງມືເລືອກປາຍທາງລິ້ງແບບເນທີບສຳລັບ macOS",
   "index.h1.001": "ຢຸດເປີດ<br />ລິ້ງໃນ<br /><em>ບຣາວເຊີ ຫຼື ໂປຣໄຟລ໌ທີ່ຜິດ.</em>",
   "index.p.003": "PickVia ຈະຖາມກ່ອນເປີດແຕ່ລະລິ້ງເວັບ ຫຼື ອີເມວ, ເພື່ອໃຫ້ລິ້ງເວັບໄປຫາບຣາວເຊີ ຫຼື ໂປຣໄຟລ໌ທີ່ທ່ານເລືອກ ແລະ ລິ້ງອີເມວໄປຫາແອັບອີເມວທີ່ທ່ານຕ້ອງການ.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">ດາວໂຫຼດ v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> ໃຫ້ດາວໃນ GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">ດາວໂຫຼດ v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> ໃຫ້ດາວໃນ GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · ຟຣີ ແລະ ໂອເພນຊອດ",
   "index.p.005": "ຮູບໜ້າຈໍສະແດງສ່ວນຕິດຕໍ່ພາສາອັງກິດ.",
   "index.p.006": "01 / ເລືອກກ່ອນເປີດ",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "ເວີຊັນ 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">ບັນທຶກປະຈຳລຸ້ນສະບັບເຕັມ <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">ດາວໂຫຼດ v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 ກັນຍາ 2026</strong><span class=\"release-current\">ລຸ້ນປັດຈຸບັນ</span>",
-  "release.v1_5_1.summary": "ຍົກເລີກຂໍ້ຈຳກັດເວີຊັນສຳລັບໂໝດສ່ວນຕົວຂອງ DuckDuckGo, ຍ້າຍຕົວເລືອກພາສາໄປໄວ້ໃນແຖບເທິງ ແລະລຶບຂໍ້ຄວາມແຈ້ງກ່ຽວກັບພາສາອອກຈາກໜ້າຫຼັກ."
+  "release.v1_5_1.summary": "ຍົກເລີກຂໍ້ຈຳກັດເວີຊັນສຳລັບໂໝດສ່ວນຕົວຂອງ DuckDuckGo, ຍ້າຍຕົວເລືອກພາສາໄປໄວ້ໃນແຖບເທິງ ແລະລຶບຂໍ້ຄວາມແຈ້ງກ່ຽວກັບພາສາອອກຈາກໜ້າຫຼັກ.",
+  "download.close": "ປິດ",
+  "download.title": "ຕິດຕັ້ງໃນ Mac",
+  "download.steps": "<li>ດາວໂຫຼດ ແລະ ເປີດ DMG.</li><li>ລາກ <strong>PickVia</strong> ໄປໃສ່ <strong>ແອັບພລິເຄຊັນ</strong>.</li><li>ລອງເປີດແອັບໜຶ່ງຄັ້ງ. ຖ້າ macOS ບລັອກ ໃຫ້ເປີດ <strong>ການຕັ້ງຄ່າລະບົບ → ຄວາມເປັນສ່ວນຕົວ ແລະ ຄວາມປອດໄພ</strong> ແລ້ວເລືອກ <strong>ເປີດຢູ່ດີ</strong>.</li>",
+  "download.fallback": "ຖ້າ “ເປີດຢູ່ດີ” ບໍ່ປາກົດ",
+  "download.terminal": "ຫຼັງຈາກຍ້າຍແອັບໄປໃສ່ແອັບພລິເຄຊັນ ໃຫ້ເປີດ Terminal ແລ້ວເອີ້ນໃຊ້:",
+  "download.copy": "ສຳເນົາ",
+  "download.copied": "ສຳເນົາແລ້ວ",
+  "download.copyFailed": "ສຳເນົາບໍ່ສຳເລັດ; ເລືອກ ແລະ ສຳເນົາຄຳສັ່ງເອງ.",
+  "download.star": "ຖ້າມີປະໂຫຍດ ໃຫ້ດາວໂຄງການໃນ GitHub <span aria-hidden=\"true\">↗</span>"
 }

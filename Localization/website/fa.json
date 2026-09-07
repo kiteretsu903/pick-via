@@ -53,7 +53,7 @@
   "index.p.002": "انتخابگر پیوند بومی برای macOS",
   "index.h1.001": "دیگر پیوندها را<br />در مرورگر یا<br /><em>نمایهٔ اشتباه باز نکنید.</em>",
   "index.p.003": "PickVia پیش از باز شدن هر پیوند وب یا ایمیل از شما می‌پرسد؛ بنابراین پیوندهای وب به مرورگر یا نمایهٔ انتخابی شما و پیوندهای ایمیل به برنامهٔ ایمیل موردنظرتان می‌روند.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">دانلود v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> ستاره دادن در GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">دانلود v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> ستاره دادن در GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · رایگان و متن‌باز",
   "index.p.005": "تصاویر، رابط انگلیسی را نشان می‌دهند.",
   "index.p.006": "01 / پیش از باز شدن انتخاب کنید",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "نسخهٔ 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">یادداشت‌های کامل انتشار <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">دانلود v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 سپتامبر 2026</strong><span class=\"release-current\">نسخهٔ کنونی</span>",
-  "release.v1_5_1.summary": "محدودیت نسخه برای حالت خصوصی DuckDuckGo حذف شد، انتخابگر زبان به نوار بالایی منتقل شد و اطلاعیهٔ زبان از صفحهٔ اصلی حذف شد."
+  "release.v1_5_1.summary": "محدودیت نسخه برای حالت خصوصی DuckDuckGo حذف شد، انتخابگر زبان به نوار بالایی منتقل شد و اطلاعیهٔ زبان از صفحهٔ اصلی حذف شد.",
+  "download.close": "بستن",
+  "download.title": "نصب روی Mac",
+  "download.steps": "<li>فایل DMG را دریافت و باز کنید.</li><li><strong>PickVia</strong> را به <strong>Applications</strong> بکشید.</li><li>یک بار برنامه را باز کنید. اگر macOS جلوی آن را گرفت، <strong>تنظیمات سیستم → حریم خصوصی و امنیت</strong> را باز کنید و <strong>با این حال باز شود</strong> را انتخاب کنید.</li>",
+  "download.fallback": "اگر گزینهٔ «با این حال باز شود» ظاهر نشد",
+  "download.terminal": "پس از انتقال برنامه به Applications، برنامهٔ Terminal را باز کنید و اجرا کنید:",
+  "download.copy": "کپی",
+  "download.copied": "کپی شد",
+  "download.copyFailed": "کپی انجام نشد؛ فرمان را انتخاب و به‌صورت دستی کپی کنید.",
+  "download.star": "اگر برایتان مفید است، در GitHub به پروژه ستاره بدهید <span aria-hidden=\"true\">↗</span>"
 }

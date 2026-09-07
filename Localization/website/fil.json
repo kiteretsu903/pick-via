@@ -53,7 +53,7 @@
   "index.p.002": "App na ginawa para sa macOS para pumili ng destinasyon ng link",
   "index.h1.001": "Itigil ang pagbubukas<br />ng mga link sa<br /><em>maling browser o profile.</em>",
   "index.p.003": "Nagtatanong ang PickVia bago buksan ang bawat link sa web o email, kaya mapupunta ang mga link sa web sa browser o profile na pinili mo at ang mga mail link sa email app na balak mong gamitin.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">I-download ang v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Lagyan ng star sa GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">I-download ang v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Lagyan ng star sa GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Libre at bukas ang source code",
   "index.p.005": "Ipinapakita ng mga screenshot ang English na interface.",
   "index.p.006": "01 / Pumili bago magbukas",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Bersyon 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Kumpletong tala sa release <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">I-download ang v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>6 SETYEMBRE 2026</strong><span class=\"release-current\">Kasalukuyang release</span>",
-  "release.v1_5_1.summary": "Inalis ang limitasyon sa bersyon para sa pribadong mode ng DuckDuckGo, inilipat ang pagpili ng wika sa bar sa itaas, at inalis ang paunawa tungkol sa mga wika sa pangunahing pahina."
+  "release.v1_5_1.summary": "Inalis ang limitasyon sa bersyon para sa pribadong mode ng DuckDuckGo, inilipat ang pagpili ng wika sa bar sa itaas, at inalis ang paunawa tungkol sa mga wika sa pangunahing pahina.",
+  "download.close": "Isara",
+  "download.title": "I-install sa Mac",
+  "download.steps": "<li>I-download at buksan ang DMG.</li><li>I-drag ang <strong>PickVia</strong> papunta sa <strong>Applications</strong>.</li><li>Subukang buksan ang app nang isang beses. Kung bina-block ito ng macOS, buksan ang <strong>Mga Setting ng System → Privacy &amp; Seguridad</strong> at piliin ang <strong>Buksan Pa Rin</strong>.</li>",
+  "download.fallback": "Kung hindi lumalabas ang “Buksan Pa Rin”",
+  "download.terminal": "Pagkatapos ilipat ang app sa Applications, buksan ang Terminal at patakbuhin:",
+  "download.copy": "Kopyahin",
+  "download.copied": "Nakopya",
+  "download.copyFailed": "Nabigong kopyahin; piliin at kopyahin ang command nang manu-mano.",
+  "download.star": "Kung nakatutulong ito, bigyan ang proyekto ng star sa GitHub <span aria-hidden=\"true\">↗</span>"
 }

@@ -53,7 +53,7 @@
   "index.p.002": "Mai zaɓin hanyar haɗi da aka gina don macOS",
   "index.h1.001": "Daina buɗe<br />hanyoyin haɗi a<br /><em>burauza ko bayanin martaba marar dacewa.</em>",
   "index.p.003": "PickVia yana tambaya kafin kowace hanyar haɗin yanar gizo ko imel ta buɗe, domin hanyoyin yanar gizo su je burauza ko bayanin martabar da ka zaɓa, kuma hanyoyin imel su je manhajar imel da ka nufa.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Sauke v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Ba da tauraro a GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Sauke v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Ba da tauraro a GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Kyauta kuma buɗaɗɗiyar lambar tushe",
   "index.p.005": "Hotunan allo suna nuna fuskar amfani ta Turanci.",
   "index.p.006": "01 / Zaɓi kafin ya buɗe",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Siga 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Cikakken bayanin fitarwa <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Sauke v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 SAT 2026</strong><span class=\"release-current\">Fitowar yanzu</span>",
-  "release.v1_5_1.summary": "An cire ƙuntatawar sigar yanayin sirri na DuckDuckGo, an matsar da mai zaɓin harshe zuwa sandar sama, sannan an cire sanarwar harshe daga shafin farko."
+  "release.v1_5_1.summary": "An cire ƙuntatawar sigar yanayin sirri na DuckDuckGo, an matsar da mai zaɓin harshe zuwa sandar sama, sannan an cire sanarwar harshe daga shafin farko.",
+  "download.close": "Rufe",
+  "download.title": "Shigar a Mac",
+  "download.steps": "<li>Sauke kuma buɗe DMG.</li><li>Ja <strong>PickVia</strong> zuwa <strong>Manhajoji</strong>.</li><li>Gwada buɗe manhajar sau ɗaya. Idan macOS ya hana ta, buɗe <strong>Saitunan tsarin → Sirri &amp; Tsaro</strong> kuma zaɓi <strong>Buɗe duk da haka</strong>.</li>",
+  "download.fallback": "Idan “Buɗe duk da haka” bai bayyana ba",
+  "download.terminal": "Bayan ka matsar da manhajar zuwa Manhajoji, buɗe Terminal kuma gudanar da:",
+  "download.copy": "Kwafi",
+  "download.copied": "An kwafa",
+  "download.copyFailed": "An kasa kwafi; zaɓi kuma kwafi umarnin da hannu.",
+  "download.star": "Idan yana taimaka maka, ba wa aikin tauraro a GitHub <span aria-hidden=\"true\">↗</span>"
 }

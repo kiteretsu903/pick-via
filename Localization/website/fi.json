@@ -53,7 +53,7 @@
   "index.p.002": "Natiivi linkkivalitsin macOS:lle",
   "index.h1.001": "Älä enää avaa<br />linkkejä<br /><em>väärässä selaimessa tai profiilissa.</em>",
   "index.p.003": "PickVia kysyy ennen jokaisen verkko- tai sähköpostilinkin avaamista, jotta verkkolinkit avautuvat valitsemassasi selaimessa tai profiilissa ja sähköpostilinkit haluamassasi sähköpostiapissa.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Lataa v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Anna tähti GitHubissa</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Lataa v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Anna tähti GitHubissa</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Maksuton &amp; avoin lähdekoodi",
   "index.p.005": "Kuvakaappaukset esittävät englanninkielistä käyttöliittymää.",
   "index.p.006": "01 / Valitse ennen avaamista",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Versio 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Täydelliset julkaisutiedot <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Lataa v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>6. SYYSKUUTA 2026</strong><span class=\"release-current\">Nykyinen julkaisu</span>",
-  "release.v1_5_1.summary": "DuckDuckGon yksityisen tilan versiorajoitus poistettiin, kielivalitsin siirrettiin yläpalkkiin ja etusivun kieli-ilmoitus poistettiin."
+  "release.v1_5_1.summary": "DuckDuckGon yksityisen tilan versiorajoitus poistettiin, kielivalitsin siirrettiin yläpalkkiin ja etusivun kieli-ilmoitus poistettiin.",
+  "download.close": "Sulje",
+  "download.title": "Asenna Maciin",
+  "download.steps": "<li>Lataa ja avaa DMG.</li><li>Vedä <strong>PickVia</strong> kansioon <strong>Apit</strong>.</li><li>Yritä avata sovellus kerran. Jos macOS estää sen, avaa <strong>Järjestelmäasetukset → Tietosuoja &amp; suojaus</strong> ja valitse <strong>Avaa silti</strong>.</li>",
+  "download.fallback": "Jos Avaa silti ei näy",
+  "download.terminal": "Kun olet siirtänyt sovelluksen Apit-kansioon, avaa Pääte ja suorita:",
+  "download.copy": "Kopioi",
+  "download.copied": "Kopioitu",
+  "download.copyFailed": "Kopiointi epäonnistui; valitse ja kopioi komento käsin.",
+  "download.star": "Jos tästä on apua, anna projektille tähti GitHubissa <span aria-hidden=\"true\">↗</span>"
 }

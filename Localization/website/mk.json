@@ -53,7 +53,7 @@
   "index.p.002": "Избирач на врски изработен за macOS",
   "index.h1.001": "Престанете да отворате<br />врски во<br /><em>погрешен прелистувач или профил.</em>",
   "index.p.003": "PickVia прашува пред отворањето на секоја веб-врска или врска за е-пошта, така што веб-врските одат во избраниот прелистувач или профил, а врските за пошта во апликацијата што сте ја намениле.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Преземи v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Дај ѕвезда на GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Преземи v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Дај ѕвезда на GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Бесплатно и со отворен код",
   "index.p.005": "Сликите од екранот го прикажуваат англискиот интерфејс.",
   "index.p.006": "01 / Изберете пред отворањето",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Верзија 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Целосни белешки за изданието <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Преземи v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>6 СЕПТЕМВРИ 2026</strong><span class=\"release-current\">Тековно издание</span>",
-  "release.v1_5_1.summary": "Се отстранува ограничувањето на верзијата за приватниот режим на DuckDuckGo, изборот на јазик се преместува во горната лента и се отстранува известувањето за јазиците од почетната страница."
+  "release.v1_5_1.summary": "Се отстранува ограничувањето на верзијата за приватниот режим на DuckDuckGo, изборот на јазик се преместува во горната лента и се отстранува известувањето за јазиците од почетната страница.",
+  "download.close": "Затвори",
+  "download.title": "Инсталирај на Mac",
+  "download.steps": "<li>Преземете го и отворете го DMG.</li><li>Повлечете го <strong>PickVia</strong> во <strong>Апликации</strong>.</li><li>Обидете се еднаш да ја отворите апликацијата. Ако macOS ја блокира, отворете <strong>Системски поставки → Приватност &amp; безбедност</strong> и изберете <strong>Сепак отвори</strong>.</li>",
+  "download.fallback": "Ако „Сепак отвори“ не се појави",
+  "download.terminal": "Откако ќе ја преместите апликацијата во Апликации, отворете Терминал и извршете:",
+  "download.copy": "Копирај",
+  "download.copied": "Копирано",
+  "download.copyFailed": "Копирањето не успеа; изберете ја и копирајте ја командата рачно.",
+  "download.star": "Ако ви помага, дајте му ѕвезда на проектот на GitHub <span aria-hidden=\"true\">↗</span>"
 }

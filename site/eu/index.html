@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">macOS-erako esteka-hautatzaile natiboa</p><h1>Utzi estekak<br />okerreko arakatzailean edo profilean<br /><em>irekitzeari.</em></h1></div>
-          <div class="hero-intro"><p>PickVia-k web- edo posta-esteka bakoitza ireki aurretik galdetzen du; horrela, web-estekak aukeratzen duzun arakatzaile edo profilera doaz, eta posta-estekak nahi zenuen posta-aplikaziora.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">Deskargatu v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Eman PickVia-ri izar bat GitHub-en"><span aria-hidden="true">★</span> Eman izar bat GitHub-en</a></div><p class="subline">macOS 14+ · Apple Silicon · Doakoa &amp; kode irekikoa</p></div>
+          <div class="hero-intro"><p>PickVia-k web- edo posta-esteka bakoitza ireki aurretik galdetzen du; horrela, web-estekak aukeratzen duzun arakatzaile edo profilera doaz, eta posta-estekak nahi zenuen posta-aplikaziora.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Deskargatu v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Eman PickVia-ri izar bat GitHub-en"><span aria-hidden="true">★</span> Eman izar bat GitHub-en</a></div><p class="subline">macOS 14+ · Apple Silicon · Doakoa &amp; kode irekikoa</p></div>
         </div>
         <p class="screenshot-note">Pantaila-argazkiek ingelesezko interfazea erakusten dute.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="PickVia-ren arakatzaile-hautatzailea, arakatzaile-profilak, helmuga pribatuak eta teklatuko lasterbideak erakusten" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Konfiguratu zure aukerak</p><h2>Konfiguratu behin.<br /><em>Aukeratu azkar.</em></h2><p>Konfiguratu ohiko arakatzaile-profilak eta posta-aplikazioak behin, eta berrantolatu gehien erabiltzen dituzun helmugak.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="PickVia-ren arakatzaile-ezarpenak, arakatzaileekin eta profilen adibideekin" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Ireki hurrengo esteka<br /><em>leku</em> egokian.</h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">Deskargatu macOS-erako <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="PickVia aplikazioaren ikonoa" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Ireki hurrengo esteka<br /><em>leku</em> egokian.</h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Deskargatu macOS-erako <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="PickVia aplikazioaren ikonoa" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Itxi" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Instalatu Mac-en</h2>
+        <ol class="install-steps"><li>Deskargatu eta ireki DMGa.</li><li>Arrastatu <strong>PickVia</strong> <strong>Applications</strong> karpetara.</li><li>Saiatu aplikazioa behin irekitzen. macOSek blokeatzen badu, ireki <strong>Sistemaren ezarpenak → Pribatutasuna eta segurtasuna</strong> eta hautatu <strong>Ireki hala ere</strong>.</li></ol>
+        <details><summary>«Ireki hala ere» agertzen ez bada</summary><p>Aplikazioa Applications karpetara mugitu ondoren, ireki Terminal eta exekutatu:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Kopiatu" data-copied-label="Kopiatuta" data-copy-failed-label="Ezin izan da kopiatu; hautatu eta kopiatu komandoa eskuz.">Kopiatu</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Deskargatu macOS-erako <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">Lagungarria bada, eman izarra proiektuari GitHub-en <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · MIT lizentzia</span><span><a href="changelog.html">Aldaketen erregistroa</a> · <a href="privacy.html">Pribatutasuna</a> · <a href="terms.html">Baldintzak</a> · <a href="https://github.com/kiteretsu903/pick-via">Iturburu-kodea GitHub-en <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

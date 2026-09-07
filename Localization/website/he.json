@@ -53,7 +53,7 @@
   "index.p.002": "חלון בחירת קישורים מקורי ל-macOS",
   "index.h1.001": "מפסיקים לפתוח<br />קישורים<br /><em>בדפדפן או בפרופיל הלא נכון.</em>",
   "index.p.003": "PickVia שואל לפני פתיחת כל קישור אינטרנט או דואר, כך שקישורי אינטרנט מגיעים לדפדפן או לפרופיל שבחרתם וקישורי דואר ליישום הדואר שהתכוונתם אליו.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">הורדת v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> הוספת כוכב ב-GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">הורדת v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> הוספת כוכב ב-GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · חינם &amp; קוד פתוח",
   "index.p.005": "צילומי המסך מציגים את הממשק באנגלית.",
   "index.p.006": "01 / בוחרים לפני הפתיחה",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "גרסה 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">הערות הגרסה המלאות <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">הורדת v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 בספטמבר 2026</strong><span class=\"release-current\">הגרסה הנוכחית</span>",
-  "release.v1_5_1.summary": "הוסרה הגבלת הגרסה למצב הפרטי של DuckDuckGo, בורר השפה הועבר לסרגל העליון והודעת השפות הוסרה מדף הבית."
+  "release.v1_5_1.summary": "הוסרה הגבלת הגרסה למצב הפרטי של DuckDuckGo, בורר השפה הועבר לסרגל העליון והודעת השפות הוסרה מדף הבית.",
+  "download.close": "סגירה",
+  "download.title": "התקנה ב-Mac",
+  "download.steps": "<li>הורידו ופתחו את קובץ ה-DMG.</li><li>גררו את <strong>PickVia</strong> אל <strong>יישומים</strong>.</li><li>נסו לפתוח את היישום פעם אחת. אם macOS חוסם אותו, פתחו את <strong>הגדרות המערכת → פרטיות &amp; אבטחה</strong> ובחרו <strong>פתיחה בכל זאת</strong>.</li>",
+  "download.fallback": "אם האפשרות ״פתיחה בכל זאת״ אינה מופיעה",
+  "download.terminal": "לאחר העברת היישום אל ״יישומים״, פתחו את ״מסוף״ והריצו:",
+  "download.copy": "העתקה",
+  "download.copied": "הועתק",
+  "download.copyFailed": "ההעתקה נכשלה; יש לבחור את הפקודה ולהעתיק אותה ידנית.",
+  "download.star": "אם הפרויקט עוזר לכם, סמנו אותו בכוכב ב-GitHub <span aria-hidden=\"true\">↗</span>"
 }

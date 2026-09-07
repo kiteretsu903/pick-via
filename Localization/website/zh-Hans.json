@@ -53,7 +53,7 @@
   "index.p.002": "macOS 原生链接选择器",
   "index.h1.001": "别再让链接<br />打开在<br /><em>错误的浏览器或个人资料中。</em>",
   "index.p.003": "PickVia 在打开每个网页或电子邮件链接前询问你，让网页链接打开在你选择的浏览器或个人资料中，让邮件链接打开在你想用的邮件应用中。",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">下载 v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> 在 GitHub 上加星</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">下载 v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> 在 GitHub 上加星</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · 免费开源",
   "index.p.005": "截图展示的是英文界面。",
   "index.p.006": "01 / 打开之前先选择",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "版本 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">完整版本说明 <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">下载 v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>2026 年 9 月 6 日</strong><span class=\"release-current\">当前版本</span>",
-  "release.v1_5_1.summary": "移除 DuckDuckGo 隐私模式的版本限制，将语言选择器移至顶部栏，并移除首页的语言提示。"
+  "release.v1_5_1.summary": "移除 DuckDuckGo 隐私模式的版本限制，将语言选择器移至顶部栏，并移除首页的语言提示。",
+  "download.close": "关闭",
+  "download.title": "在 Mac 上安装",
+  "download.steps": "<li>下载并打开 DMG。</li><li>将 <strong>PickVia</strong> 拖入<strong>应用程序</strong>。</li><li>先尝试打开应用一次。如果 macOS 阻止打开，请前往<strong>系统设置 → 隐私与安全性</strong>，选择<strong>仍要打开</strong>。</li>",
+  "download.fallback": "如果没有出现“仍要打开”",
+  "download.terminal": "将应用移入“应用程序”后，打开终端并运行：",
+  "download.copy": "复制",
+  "download.copied": "已复制",
+  "download.copyFailed": "复制失败；请手动选择并复制命令。",
+  "download.star": "如果对你有帮助，请在 GitHub 上点亮星标 <span aria-hidden=\"true\">↗</span>"
 }

@@ -53,7 +53,7 @@
   "index.p.002": "macOS အတွက် သီးသန့်ဖန်တီးထားသော လင့်ခ်ရွေးချယ်အက်ပ်",
   "index.h1.001": "လင့်ခ်များကို<br />မဖွင့်မိစေပါနှင့်<br /><em>မှားသော ဘရောက်ဇာ သို့မဟုတ် ပရိုဖိုင်တွင်။</em>",
   "index.p.003": "PickVia သည် ဝဘ် သို့မဟုတ် အီးမေးလ်လင့်ခ်တစ်ခုစီ မဖွင့်မီ မေးမြန်းသဖြင့် ဝဘ်လင့်ခ်များသည် သင်ရွေးသော ဘရောက်ဇာ သို့မဟုတ် ပရိုဖိုင်သို့၊ အီးမေးလ်လင့်ခ်များသည် သင်ရည်ရွယ်သော အီးမေးလ်အက်ပ်သို့ ရောက်ရှိသည်။",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1 ဒေါင်းလုဒ်လုပ်ရန် <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub တွင် ကြယ်ပေးရန်</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 ဒေါင်းလုဒ်လုပ်ရန် <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub တွင် ကြယ်ပေးရန်</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · အခမဲ့ &amp; မူရင်းကုဒ်ဖွင့်ထားသည်",
   "index.p.005": "မျက်နှာပြင်ပုံများတွင် အင်္ဂလိပ်မျက်နှာပြင်ကို ပြထားသည်။",
   "index.p.006": "01 / မဖွင့်မီ ရွေးပါ",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "ဗားရှင်း 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">ထုတ်ဝေမှုမှတ်စု အပြည့်အစုံ <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 ဒေါင်းလုဒ်လုပ်ရန် <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 စက်တင်ဘာ 2026</strong><span class=\"release-current\">လက်ရှိထုတ်ဝေမှု</span>",
-  "release.v1_5_1.summary": "DuckDuckGo သီးသန့်မုဒ်၏ ဗားရှင်းကန့်သတ်ချက်ကို ဖယ်ရှားထားပြီး ဘာသာစကားရွေးချယ်မှုကို အပေါ်ဘားသို့ ရွှေ့ထားကာ ပင်မစာမျက်နှာရှိ ဘာသာစကားအသိပေးချက်ကို ဖယ်ရှားထားသည်။"
+  "release.v1_5_1.summary": "DuckDuckGo သီးသန့်မုဒ်၏ ဗားရှင်းကန့်သတ်ချက်ကို ဖယ်ရှားထားပြီး ဘာသာစကားရွေးချယ်မှုကို အပေါ်ဘားသို့ ရွှေ့ထားကာ ပင်မစာမျက်နှာရှိ ဘာသာစကားအသိပေးချက်ကို ဖယ်ရှားထားသည်။",
+  "download.close": "ပိတ်ရန်",
+  "download.title": "Mac တွင် ထည့်သွင်းရန်",
+  "download.steps": "<li>DMG ကို ဒေါင်းလုဒ်လုပ်ပြီး ဖွင့်ပါ။</li><li><strong>PickVia</strong> ကို <strong>Applications</strong> ထဲသို့ ဆွဲထည့်ပါ။</li><li>အက်ပ်ကို တစ်ကြိမ် ဖွင့်ကြည့်ပါ။ macOS က တားလျှင် <strong>စနစ်ဆက်တင်များ → ကိုယ်ရေးလုံခြုံမှု &amp; လုံခြုံရေး</strong> ကိုဖွင့်ပြီး <strong>မည်သို့ပင်ဖြစ်စေ ဖွင့်ရန်</strong> ကို ရွေးပါ။</li>",
+  "download.fallback": "“မည်သို့ပင်ဖြစ်စေ ဖွင့်ရန်” မပေါ်လျှင်",
+  "download.terminal": "အက်ပ်ကို Applications ထဲသို့ ရွှေ့ပြီးနောက် Terminal ကိုဖွင့်၍ လုပ်ဆောင်ပါ:",
+  "download.copy": "ကူးယူရန်",
+  "download.copied": "ကူးယူပြီး",
+  "download.copyFailed": "ကူးယူခြင်း မအောင်မြင်ပါ။ အမိန့်ကို ရွေးပြီး ကိုယ်တိုင် ကူးယူပါ။",
+  "download.star": "အထောက်အကူပြုလျှင် GitHub တွင် ပရောဂျက်ကို ကြယ်ပေးပါ <span aria-hidden=\"true\">↗</span>"
 }

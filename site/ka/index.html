@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">macOS-ისთვის შექმნილი ბმულის ამრჩევი</p><h1>შეწყვიტეთ ბმულების<br />გახსნა არასწორ<br /><em>ბრაუზერში ან პროფილში.</em></h1></div>
-          <div class="hero-intro"><p>PickVia ყოველი ვებბმულის ან ელფოსტის ბმულის გახსნამდე გეკითხებათ, რათა ვებბმულები არჩეულ ბრაუზერში ან პროფილში გადავიდეს, ხოლო საფოსტო ბმულები — სასურველ საფოსტო აპში.</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">v1.5.1-ის ჩამოტვირთვა <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="მიანიჭეთ PickVia-ს ვარსკვლავი GitHub-ზე"><span aria-hidden="true">★</span> ვარსკვლავი GitHub-ზე</a></div><p class="subline">macOS 14+ · Apple Silicon · უფასო და ღია კოდით</p></div>
+          <div class="hero-intro"><p>PickVia ყოველი ვებბმულის ან ელფოსტის ბმულის გახსნამდე გეკითხებათ, რათა ვებბმულები არჩეულ ბრაუზერში ან პროფილში გადავიდეს, ხოლო საფოსტო ბმულები — სასურველ საფოსტო აპში.</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">v1.5.1-ის ჩამოტვირთვა <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="მიანიჭეთ PickVia-ს ვარსკვლავი GitHub-ზე"><span aria-hidden="true">★</span> ვარსკვლავი GitHub-ზე</a></div><p class="subline">macOS 14+ · Apple Silicon · უფასო და ღია კოდით</p></div>
         </div>
         <p class="screenshot-note">ეკრანის სურათები ინგლისურ ინტერფეისს აჩვენებს.</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="PickVia-ს ბრაუზერის არჩევის ფანჯარა ბრაუზერის პროფილებით, პირადი სამიზნეებითა და კლავიატურის მალსახმობებით" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / მოაწყვეთ თქვენი არჩევანი</p><h2>დააყენეთ ერთხელ.<br /><em>აირჩიეთ სწრაფად.</em></h2><p>ერთხელ დააყენეთ თქვენი ჩვეულებრივი ბრაუზერის პროფილები და საფოსტო აპები, შემდეგ გადაალაგეთ ყველაზე ხშირად გამოყენებული სამიზნეები.</p></div><div class="settings-window"><img src="../assets/settings.png" alt="PickVia-ს ბრაუზერის პარამეტრები ბრაუზერებითა და პროფილების მაგალითებით" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>გახსენით შემდეგი ბმული<br />სწორ <em>ადგილას.</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">ჩამოტვირთვა macOS-ისთვის <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="PickVia-ს აპის ხატულა" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>გახსენით შემდეგი ბმული<br />სწორ <em>ადგილას.</em></h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">ჩამოტვირთვა macOS-ისთვის <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="PickVia-ს აპის ხატულა" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="დახურვა" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Mac-ზე დაყენება</h2>
+        <ol class="install-steps"><li>ჩამოტვირთეთ და გახსენით DMG.</li><li>გადაიტანეთ <strong>PickVia</strong> საქაღალდეში <strong>Applications</strong>.</li><li>ერთხელ სცადეთ აპის გახსნა. თუ macOS დაბლოკავს, გახსენით <strong>სისტემის პარამეტრები → კონფიდენციალურობა &amp; უსაფრთხოება</strong> და აირჩიეთ <strong>მაინც გახსნა</strong>.</li></ol>
+        <details><summary>თუ „მაინც გახსნა“ არ ჩანს</summary><p>აპის Applications-ში გადატანის შემდეგ გახსენით Terminal და შეასრულეთ:</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="კოპირება" data-copied-label="დაკოპირებულია" data-copy-failed-label="კოპირება ვერ მოხერხდა; მონიშნეთ და ხელით დააკოპირეთ ბრძანება.">კოპირება</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">ჩამოტვირთვა macOS-ისთვის <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">თუ გამოგადგათ, მიანიჭეთ პროექტს ვარსკვლავი GitHub-ზე <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · MIT ლიცენზია</span><span><a href="changelog.html">ცვლილებების ჟურნალი</a> · <a href="privacy.html">კონფიდენციალურობა</a> · <a href="terms.html">პირობები</a> · <a href="https://github.com/kiteretsu903/pick-via">საწყისი კოდი GitHub-ზე <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>

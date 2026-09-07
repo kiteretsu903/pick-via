@@ -53,7 +53,7 @@
   "index.p.002": "Natív hivatkozásválasztó macOS rendszerre",
   "index.h1.001": "Ne a rossz<br />böngészőben<br /><em>vagy profilban nyíljanak meg a hivatkozások.</em>",
   "index.p.003": "A PickVia minden webes vagy e-mail-hivatkozás megnyitása előtt rákérdez a célra: a webhivatkozások a kiválasztott böngészőbe vagy profilba, az e-mail-hivatkozások pedig a kívánt levelezőalkalmazásba kerülnek.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1 letöltése <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Csillag a GitHubon</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 letöltése <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Csillag a GitHubon</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Ingyenes és nyílt forráskódú",
   "index.p.005": "A képernyőképek az angol felületet mutatják.",
   "index.p.006": "01 / Válasszon megnyitás előtt",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "1.5.1 verzió",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Teljes kiadási megjegyzések <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 letöltése <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>2026. SZEPT. 06.</strong><span class=\"release-current\">Aktuális kiadás</span>",
-  "release.v1_5_1.summary": "Megszűnt a DuckDuckGo privát módjának verziókorlátozása, a nyelvválasztó a felső sávba került, és eltávolítottuk a kezdőlap nyelvi tájékoztatóját."
+  "release.v1_5_1.summary": "Megszűnt a DuckDuckGo privát módjának verziókorlátozása, a nyelvválasztó a felső sávba került, és eltávolítottuk a kezdőlap nyelvi tájékoztatóját.",
+  "download.close": "Bezárás",
+  "download.title": "Telepítés Macre",
+  "download.steps": "<li>Töltse le és nyissa meg a DMG-t.</li><li>Húzza az <strong>PickVia</strong> alkalmazást az <strong>Alkalmazások</strong> mappába.</li><li>Próbálja meg egyszer megnyitni az alkalmazást. Ha a macOS letiltja, nyissa meg a <strong>Rendszerbeállítások → Adatvédelem és biztonság</strong> részt, és válassza a <strong>Megnyitás mindenképpen</strong> lehetőséget.</li>",
+  "download.fallback": "Ha nem jelenik meg a „Megnyitás mindenképpen”",
+  "download.terminal": "Miután az alkalmazást az Alkalmazások mappába helyezte, nyissa meg a Terminált, és futtassa:",
+  "download.copy": "Másolás",
+  "download.copied": "Másolva",
+  "download.copyFailed": "A másolás nem sikerült; jelölje ki és másolja ki kézzel a parancsot.",
+  "download.star": "Ha hasznos, adjon csillagot a projektnek a GitHubon <span aria-hidden=\"true\">↗</span>"
 }

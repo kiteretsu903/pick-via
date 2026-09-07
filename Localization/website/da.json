@@ -53,7 +53,7 @@
   "index.p.002": "En linkvælger udviklet til macOS",
   "index.h1.001": "Stop med at åbne<br />links i den<br /><em>forkerte browser eller profil.</em>",
   "index.p.003": "PickVia spørger, før hvert web- eller maillink åbnes, så weblinks går til den browser eller profil, du vælger, og maillinks går til den ønskede mailapp.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Download v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Giv en stjerne på GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Download v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Giv en stjerne på GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Gratis og open source",
   "index.p.005": "Skærmbillederne viser den engelske brugerflade.",
   "index.p.006": "01 / Vælg før det åbnes",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "Version 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Alle udgivelsesnoter <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Download v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 SEP 2026</strong><span class=\"release-current\">Aktuel udgivelse</span>",
-  "release.v1_5_1.summary": "Versionsbegrænsningen for DuckDuckGos private tilstand er fjernet, sprogvælgeren er flyttet til den øverste bjælke, og sprogbeskeden på forsiden er fjernet."
+  "release.v1_5_1.summary": "Versionsbegrænsningen for DuckDuckGos private tilstand er fjernet, sprogvælgeren er flyttet til den øverste bjælke, og sprogbeskeden på forsiden er fjernet.",
+  "download.close": "Luk",
+  "download.title": "Installer på Mac",
+  "download.steps": "<li>Download og åbn DMG-filen.</li><li>Træk <strong>PickVia</strong> til <strong>Programmer</strong>.</li><li>Prøv at åbne appen én gang. Hvis macOS blokerer den, skal du åbne <strong>Systemindstillinger → Anonymitet &amp; sikkerhed</strong> og vælge <strong>Åbn alligevel</strong>.</li>",
+  "download.fallback": "Hvis “Åbn alligevel” ikke vises",
+  "download.terminal": "Når du har flyttet appen til Programmer, skal du åbne Terminal og køre:",
+  "download.copy": "Kopier",
+  "download.copied": "Kopieret",
+  "download.copyFailed": "Kopiering mislykkedes; marker og kopier kommandoen manuelt.",
+  "download.star": "Hvis appen hjælper, så giv projektet en stjerne på GitHub <span aria-hidden=\"true\">↗</span>"
 }

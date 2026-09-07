@@ -53,7 +53,7 @@
   "index.p.002": "macOS ಗಾಗಿ ಸ್ಥಳೀಯ ಲಿಂಕ್ ಆಯ್ಕೆ ಆಪ್",
   "index.h1.001": "ಲಿಂಕ್‌ಗಳನ್ನು<br />ತೆರೆಯಬೇಡಿ<br /><em>ತಪ್ಪು ಬ್ರೌಸರ್ ಅಥವಾ ಪ್ರೊಫೈಲ್‌ನಲ್ಲಿ.</em>",
   "index.p.003": "ಪ್ರತಿ ವೆಬ್ ಅಥವಾ ಇಮೇಲ್ ಲಿಂಕ್ ತೆರೆಯುವ ಮೊದಲು PickVia ಕೇಳುತ್ತದೆ. ಹೀಗಾಗಿ ವೆಬ್ ಲಿಂಕ್‌ಗಳು ನೀವು ಆಯ್ಕೆಮಾಡಿದ ಬ್ರೌಸರ್ ಅಥವಾ ಪ್ರೊಫೈಲ್‌ಗೆ, ಇಮೇಲ್ ಲಿಂಕ್‌ಗಳು ನೀವು ಉದ್ದೇಶಿಸಿದ ಇಮೇಲ್ ಆಪ್‌ಗೆ ಹೋಗುತ್ತವೆ.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1 ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub ನಲ್ಲಿ ನಕ್ಷತ್ರ ನೀಡಿ</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub ನಲ್ಲಿ ನಕ್ಷತ್ರ ನೀಡಿ</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · ಉಚಿತ &amp; ಮುಕ್ತ ಮೂಲ",
   "index.p.005": "ಸ್ಕ್ರೀನ್‌ಶಾಟ್‌ಗಳು ಇಂಗ್ಲಿಷ್ ಇಂಟರ್‌ಫೇಸ್ ತೋರಿಸುತ್ತವೆ.",
   "index.p.006": "01 / ತೆರೆಯುವ ಮೊದಲು ಆಯ್ಕೆಮಾಡಿ",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "ಆವೃತ್ತಿ 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">ಸಂಪೂರ್ಣ ಬಿಡುಗಡೆ ಟಿಪ್ಪಣಿಗಳು <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 ಸೆಪ್ಟೆಂಬರ್ 2026</strong><span class=\"release-current\">ಪ್ರಸ್ತುತ ಬಿಡುಗಡೆ</span>",
-  "release.v1_5_1.summary": "DuckDuckGo ಖಾಸಗಿ ಮೋಡ್‌ನ ಆವೃತ್ತಿ ನಿರ್ಬಂಧವನ್ನು ತೆಗೆದುಹಾಕಲಾಗಿದೆ, ಭಾಷಾ ಆಯ್ಕೆ ಸಾಧನವನ್ನು ಮೇಲಿನ ಪಟ್ಟಿಗೆ ಸರಿಸಲಾಗಿದೆ ಮತ್ತು ಮುಖಪುಟದ ಭಾಷಾ ಸೂಚನೆಯನ್ನು ತೆಗೆದುಹಾಕಲಾಗಿದೆ."
+  "release.v1_5_1.summary": "DuckDuckGo ಖಾಸಗಿ ಮೋಡ್‌ನ ಆವೃತ್ತಿ ನಿರ್ಬಂಧವನ್ನು ತೆಗೆದುಹಾಕಲಾಗಿದೆ, ಭಾಷಾ ಆಯ್ಕೆ ಸಾಧನವನ್ನು ಮೇಲಿನ ಪಟ್ಟಿಗೆ ಸರಿಸಲಾಗಿದೆ ಮತ್ತು ಮುಖಪುಟದ ಭಾಷಾ ಸೂಚನೆಯನ್ನು ತೆಗೆದುಹಾಕಲಾಗಿದೆ.",
+  "download.close": "ಮುಚ್ಚಿ",
+  "download.title": "Mac ನಲ್ಲಿ ಸ್ಥಾಪಿಸಿ",
+  "download.steps": "<li>DMG ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ ತೆರೆಯಿರಿ.</li><li><strong>PickVia</strong> ಅನ್ನು <strong>ಅಪ್ಲಿಕೇಶನ್‌ಗಳು</strong> ಫೋಲ್ಡರ್‌ಗೆ ಎಳೆದು ಬಿಡಿ.</li><li>ಒಮ್ಮೆ ಆ್ಯಪ್ ತೆರೆಯಲು ಪ್ರಯತ್ನಿಸಿ. macOS ತಡೆದರೆ, <strong>ಸಿಸ್ಟಂ ಸೆಟ್ಟಿಂಗ್‌ಗಳು → ಗೌಪ್ಯತೆ &amp; ಭದ್ರತೆ</strong> ತೆರೆಯಿರಿ ಮತ್ತು <strong>ಆದರೂ ತೆರೆಯಿರಿ</strong> ಆಯ್ಕೆಮಾಡಿ.</li>",
+  "download.fallback": "“ಆದರೂ ತೆರೆಯಿರಿ” ಕಾಣಿಸದಿದ್ದರೆ",
+  "download.terminal": "ಆ್ಯಪ್ ಅನ್ನು ಅಪ್ಲಿಕೇಶನ್‌ಗಳು ಫೋಲ್ಡರ್‌ಗೆ ಸರಿಸಿದ ನಂತರ, Terminal ತೆರೆದು ಇದನ್ನು ಚಲಾಯಿಸಿ:",
+  "download.copy": "ನಕಲಿಸಿ",
+  "download.copied": "ನಕಲಿಸಲಾಗಿದೆ",
+  "download.copyFailed": "ನಕಲು ವಿಫಲವಾಗಿದೆ; ಆದೇಶವನ್ನು ಆಯ್ಕೆಮಾಡಿ ಕೈಯಾರೆ ನಕಲಿಸಿ.",
+  "download.star": "ಉಪಯುಕ್ತವೆನಿಸಿದರೆ, GitHub ನಲ್ಲಿ ಯೋಜನೆಗೆ ನಕ್ಷತ್ರ ನೀಡಿ <span aria-hidden=\"true\">↗</span>"
 }

@@ -53,7 +53,7 @@
   "index.p.002": "ለmacOS የተሠራ የአገናኝ መምረጫ",
   "index.h1.001": "አገናኞችን<br />መክፈት አቁም<br /><em>በተሳሳተ አሳሽ ወይም መገለጫ።</em>",
   "index.p.003": "PickVia እያንዳንዱ የድር ወይም የኢሜይል አገናኝ ከመከፈቱ በፊት ይጠይቃል። ስለዚህ የድር አገናኞች ወደ መረጥከው አሳሽ ወይም መገለጫ፣ የኢሜይል አገናኞችም ወደ ፈለግከው የኢሜይል መተግበሪያ ይሄዳሉ።",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1 አውርድ <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> በGitHub ኮከብ ስጥ</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 አውርድ <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> በGitHub ኮከብ ስጥ</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · ነፃ &amp; ክፍት ምንጭ",
   "index.p.005": "የማያ ገጽ ምስሎች የእንግሊዝኛ በይነገጽን ያሳያሉ።",
   "index.p.006": "01 / ከመከፈቱ በፊት ምረጥ",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "ስሪት 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">ሙሉ የልቀት ማስታወሻዎች <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 አውርድ <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>06 ሴፕቴምበር 2026</strong><span class=\"release-current\">የአሁኑ ልቀት</span>",
-  "release.v1_5_1.summary": "የDuckDuckGo የግል ሁነታ የስሪት ገደብን ያስወግዳል፣ የቋንቋ መምረጫውን ወደ ላይኛው አሞሌ ያንቀሳቅሳል፣ እና ከመነሻ ገጹ የቋንቋ ማሳወቂያውን ያስወግዳል።"
+  "release.v1_5_1.summary": "የDuckDuckGo የግል ሁነታ የስሪት ገደብን ያስወግዳል፣ የቋንቋ መምረጫውን ወደ ላይኛው አሞሌ ያንቀሳቅሳል፣ እና ከመነሻ ገጹ የቋንቋ ማሳወቂያውን ያስወግዳል።",
+  "download.close": "ዝጋ",
+  "download.title": "በMac ላይ ጫን",
+  "download.steps": "<li>DMG አውርደው ይክፈቱ።</li><li><strong>PickVia</strong> ወደ <strong>መተግበሪያዎች</strong> ይጎትቱት።</li><li>መተግበሪያውን አንድ ጊዜ ለመክፈት ይሞክሩ። macOS ካገደው፣ <strong>የስርዓት ቅንብሮች → ግላዊነት &amp; ደህንነት</strong> ክፈቱና <strong>ለማንኛውም ክፈት</strong> ይምረጡ።</li>",
+  "download.fallback": "“ለማንኛውም ክፈት” ካልታየ",
+  "download.terminal": "መተግበሪያውን ወደ መተግበሪያዎች ካዛወሩ በኋላ፣ Terminal ክፈቱና ይህን ያስኪዱ፦",
+  "download.copy": "ቅዳ",
+  "download.copied": "ተቀድቷል",
+  "download.copyFailed": "መቅዳት አልተሳካም፤ ትእዛዙን ይምረጡና በእጅ ይቅዱ።",
+  "download.star": "ከረዳዎት፣ ለፕሮጀክቱ በGitHub ኮከብ ይስጡ <span aria-hidden=\"true\">↗</span>"
 }

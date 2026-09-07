@@ -53,7 +53,7 @@
   "index.p.002": "macOS 原生連結選擇器",
   "index.h1.001": "別再讓連結<br />開啟在錯誤的<br /><em>瀏覽器或設定檔中。</em>",
   "index.p.003": "PickVia 會在每個網頁或電子郵件連結開啟前詢問，讓網頁連結前往你選擇的瀏覽器或設定檔，郵件連結則交給你想用的郵件應用程式。",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">下載 v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> 在 GitHub 上給星</a>",
+  "index.div.001": "<a class=\"button button-dark\" data-download-dialog href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">下載 v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> 在 GitHub 上給星</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · 免費且開放原始碼",
   "index.p.005": "螢幕截圖顯示的是英文介面。",
   "index.p.006": "01 / 開啟前先選擇",
@@ -147,5 +147,14 @@
   "release.v1_5_1.title": "版本 1.5.1",
   "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">完整版本說明 <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">下載 v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5_1.meta": "<strong>2026 年 9 月 6 日</strong><span class=\"release-current\">目前版本</span>",
-  "release.v1_5_1.summary": "移除 DuckDuckGo 私密模式的版本限制，將語言選擇器移至頂部導覽列，並移除首頁的語言公告。"
+  "release.v1_5_1.summary": "移除 DuckDuckGo 私密模式的版本限制，將語言選擇器移至頂部導覽列，並移除首頁的語言公告。",
+  "download.close": "關閉",
+  "download.title": "在 Mac 上安裝",
+  "download.steps": "<li>下載並開啟 DMG。</li><li>將 <strong>PickVia</strong> 拖入<strong>應用程式</strong>。</li><li>先嘗試開啟 App 一次。如果 macOS 阻擋開啟，請前往<strong>系統設定 → 隱私權與安全性</strong>，然後選擇<strong>強制打開</strong>。</li>",
+  "download.fallback": "如果未出現「強制打開」",
+  "download.terminal": "將 App 移至「應用程式」後，開啟「終端機」並執行：",
+  "download.copy": "拷貝",
+  "download.copied": "已拷貝",
+  "download.copyFailed": "拷貝失敗；請手動選取並拷貝指令。",
+  "download.star": "如果對你有幫助，歡迎在 GitHub 上加星支持 <span aria-hidden=\"true\">↗</span>"
 }

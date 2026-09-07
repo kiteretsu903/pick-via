@@ -186,8 +186,8 @@
     <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
     <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
     <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
-    <link rel="stylesheet" href="../assets/localization.css?v=c02c2e6dea78" />
-    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+    <link rel="stylesheet" href="../assets/localization.css?v=bcbe360b9d9f" />
+    <script src="../assets/localization.js?v=c02279db2a2b" defer></script>
   </head>
   <body>
     <header class="shell site-header">
@@ -201,7 +201,7 @@
       <section class="shell hero">
         <div class="hero-top">
           <div><p class="kicker">Բնիկ հղումների ընտրիչ macOS-ի համար</p><h1>Այլևս մի բացեք<br />հղումները սխալ<br /><em>դիտարկիչում կամ պրոֆիլում։</em></h1></div>
-          <div class="hero-intro"><p>PickVia-ն հարցնում է յուրաքանչյուր վեբ կամ նամակի հղում բացելուց առաջ, որպեսզի վեբ հղումները գնան ձեր ընտրած դիտարկիչին կամ պրոֆիլին, իսկ նամակների հղումները՝ ձեր նախատեսած փոստային հավելվածին։</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">Ներբեռնել v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Աստղ տվեք PickVia-ին GitHub-ում"><span aria-hidden="true">★</span> Աստղ տալ GitHub-ում</a></div><p class="subline">macOS 14+ · Apple Silicon · Անվճար և բաց կոդով</p></div>
+          <div class="hero-intro"><p>PickVia-ն հարցնում է յուրաքանչյուր վեբ կամ նամակի հղում բացելուց առաջ, որպեսզի վեբ հղումները գնան ձեր ընտրած դիտարկիչին կամ պրոֆիլին, իսկ նամակների հղումները՝ ձեր նախատեսած փոստային հավելվածին։</p><div class="hero-actions"><a class="button button-dark" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Ներբեռնել v1.5.1 <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="Աստղ տվեք PickVia-ին GitHub-ում"><span aria-hidden="true">★</span> Աստղ տալ GitHub-ում</a></div><p class="subline">macOS 14+ · Apple Silicon · Անվճար և բաց կոդով</p></div>
         </div>
         <p class="screenshot-note">Էկրանակադրերը ցույց են տալիս անգլերեն միջերեսը։</p>
         <div class="product-frame"><img src="../assets/browser-chooser.png" alt="PickVia-ի դիտարկիչի ընտրիչը՝ դիտարկիչի պրոֆիլներով, մասնավոր նպատակակետերով և ստեղնաշարի դյուրանցումներով" /></div>
@@ -222,8 +222,24 @@
 
       <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / Կարգավորեք ձեր ընտրանքները</p><h2>Կարգավորեք մեկ անգամ։<br /><em>Ընտրեք արագ։</em></h2><p>Մեկ անգամ կարգավորեք ձեր սովորական դիտարկիչի պրոֆիլներն ու փոստային հավելվածները, ապա վերադասավորեք ամենաշատ օգտագործվող նպատակակետերը։</p></div><div class="settings-window"><img src="../assets/settings.png" alt="PickVia-ի դիտարկիչի կարգավորումները՝ դիտարկիչներով և պրոֆիլների օրինակներով" /></div></div></section>
 
-      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Հաջորդ հղումը բացեք<br />ճիշտ <em>տեղում։</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">Ներբեռնել macOS-ի համար <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="PickVia հավելվածի պատկերակ" /></div></section>
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5.1</p><h2>Հաջորդ հղումը բացեք<br />ճիշտ <em>տեղում։</em></h2><a class="button" data-download-dialog href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Ներբեռնել macOS-ի համար <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="PickVia հավելվածի պատկերակ" /></div></section>
     </main>
+    <dialog class="download-dialog" id="download-dialog" aria-labelledby="download-dialog-title">
+      <div class="dialog-panel">
+        <button class="dialog-close" type="button" data-dialog-close aria-label="Փակել" autofocus>×</button>
+        <p class="dialog-platform">PickVia v1.5.1 · macOS</p>
+        <h2 id="download-dialog-title">Տեղադրել Mac-ում</h2>
+        <ol class="install-steps"><li>Ներբեռնեք և բացեք DMG-ն։</li><li>Քաշեք <strong>PickVia</strong>-ը <strong>Applications</strong> պանակ։</li><li>Փորձեք մեկ անգամ բացել հավելվածը։ Եթե macOS-ն արգելափակում է այն, բացեք <strong>Համակարգի կարգավորումներ → Գաղտնիություն և անվտանգություն</strong> և ընտրեք <strong>Ամեն դեպքում բացել</strong>։</li></ol>
+        <details><summary>Եթե «Ամեն դեպքում բացել» տարբերակը չի երևում</summary><p>Հավելվածը Applications տեղափոխելուց հետո բացեք Terminal-ը և գործարկեք՝</p>
+          <div class="command-row"><code dir="ltr">xattr -dr com.apple.quarantine "/Applications/PickVia.app"</code><button type="button" data-copy-command data-copy-label="Պատճենել" data-copied-label="Պատճենված է" data-copy-failed-label="Պատճենումը չհաջողվեց․ ընտրեք և ձեռքով պատճենեք հրամանը։">Պատճենել</button></div>
+          <p class="copy-status" role="status" aria-live="polite"></p>
+        </details>
+        <div class="dialog-actions">
+          <a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg">Ներբեռնել macOS-ի համար <span aria-hidden="true">↓</span></a>
+          <a class="dialog-star" href="https://github.com/kiteretsu903/pick-via">Եթե այն օգնում է, աստղ տվեք նախագծին GitHub-ում <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </dialog>
     <footer class="shell site-footer"><span>© 2026 PickVia · MIT լիցենզիա</span><span><a href="changelog.html">Փոփոխությունների մատյան</a> · <a href="privacy.html">Գաղտնիություն</a> · <a href="terms.html">Պայմաններ</a> · <a href="https://github.com/kiteretsu903/pick-via">Սկզբնաղբյուրը GitHub-ում <span aria-hidden="true">↗</span></a></span></footer>
   </body>
 </html>
