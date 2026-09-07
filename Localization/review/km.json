@@ -1,0 +1,45 @@
+{
+  "locale": "km",
+  "translation": "AI translated",
+  "review": "AI self-reviewed all key-value pairs for complete coverage, Khmer grammar, conditions and technical meaning; no human review claimed",
+  "sourceSHA256": {
+    "app": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "checks": {
+    "appKeys": 137,
+    "websiteKeys": 139,
+    "placeholders": "passed",
+    "websiteHTMLTagsAttributes": "passed"
+  },
+  "unresolvedIssues": [],
+  "nativeUIVerification": "NOT RUN by translation agent",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "e5fba9b9bc2ae8607cdfcaece168526918899ec81c9dfca70b4be71b51e6bab2",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputSHA256": {
+      "website": "db5321f05f8af4914fc8f797bbe65194c81683cb0ed410893c2e6e20c93c5806"
+    },
+    "checks": [
+      "Khmer release delta self-reviewed",
+      "Website keys, placeholders and exact HTML structure match English",
+      "Historical changelog unchanged",
+      "Apple Development signing distinguished from notarization; Safari permissions and new-window behavior preserved"
+    ],
+    "unresolvedIssues": []
+  }
+}

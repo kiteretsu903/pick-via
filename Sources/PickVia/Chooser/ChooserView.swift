@@ -3,6 +3,7 @@ import PickViaCore
 import SwiftUI
 
 public struct ChooserView: View {
+  @AppStorage(L10n.preferenceKey) private var localizationSelection = L10n.system
   public let presentation: ChooserPresentation
   public let showsURL: Bool
   public let density: ChooserDensity
@@ -33,6 +34,7 @@ public struct ChooserView: View {
   }
 
   public var body: some View {
+    let _ = localizationSelection
     VStack(alignment: .leading, spacing: metrics.mainSpacing) {
       Text(presentation.heading)
         .font(.title2.weight(.semibold))
@@ -44,10 +46,11 @@ public struct ChooserView: View {
           .lineLimit(1)
           .truncationMode(.middle)
           .textSelection(.enabled)
+          .environment(\.layoutDirection, .leftToRight)
       }
 
       if let errorMessage = presentation.errorMessage {
-        Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+        Label(L10n.tr(errorMessage), systemImage: "exclamationmark.triangle.fill")
           .font(.callout)
           .foregroundStyle(.red)
           .fixedSize(horizontal: false, vertical: true)
@@ -77,20 +80,21 @@ public struct ChooserView: View {
 
       HStack {
         if presentation.showsCopyAction {
-          Button("Copy", systemImage: "doc.on.doc", action: onCopyURL)
+          Button(L10n.tr("Copy"), systemImage: "doc.on.doc", action: onCopyURL)
         }
-        Button("Settings", systemImage: "gearshape") {
+        Button(L10n.tr("Settings"), systemImage: "gearshape") {
           onOpenSettings(presentation.kind)
         }
         Spacer()
-        Button("Cancel", action: onCancel)
+        Button(L10n.tr("Cancel"), action: onCancel)
           .keyboardShortcut(.cancelAction)
       }
       .controlSize(.small)
     }
     .padding(metrics.outerPadding)
-    .frame(width: density.metrics.contentWidth)
+    .frame(width: density.localizedContentWidth)
     .frame(maxHeight: maximumContentHeight)
+    .pickViaLocalization()
     .background(.regularMaterial)
     .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
   }
@@ -147,7 +151,9 @@ public struct ChooserView: View {
         } == row.id
 
       ChooserTargetRow(
-        label: target.label,
+        label: target.localizedLabel(
+          applicationName: presentation.application(for: target.applicationID)?.displayName
+            ?? target.label),
         shortcut: row.shortcut,
         applicationURL: indented ? nil : application.applicationURL,
         isIndented: indented,

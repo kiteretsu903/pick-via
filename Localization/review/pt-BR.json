@@ -1,0 +1,55 @@
+{
+  "locale": "pt-BR",
+  "translator": "AI translation",
+  "reviewer": "AI self-review",
+  "surfaces": [
+    "app",
+    "website",
+    "readme"
+  ],
+  "sourceSHA256": {
+    "app": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b",
+    "readme": "c00bb9825e8080348e7de2ab7188d536e8d3e0dd15cba241f5165425002bf163"
+  },
+  "checks": [
+    "Complete app and website key parity",
+    "Nonempty translations",
+    "App interpolation tokens preserved",
+    "Website HTML tags and attributes preserved",
+    "README section/table structure, commands, URLs, and brand identifiers preserved",
+    "Reviewed Brazilian Portuguese meaning, enable/disable conditions, permission recovery, release versus development scope, and temporary state cleanup"
+  ],
+  "unresolvedIssues": [],
+  "nativeUIVerification": "NOT RUN by translation agent",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "df9e7ed7a48ebc078a03ad37b05f00698c692192d785d8a7bd3ed3ecb13e37ce",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df",
+      "readme": "817cf2b6851b49c79e2078e258478b7666ce2d1d13942de55be811980ae246cc"
+    },
+    "outputSHA256": {
+      "website": "6b151f4e0b1b0401e92669c7c56da67236777217f3a1672bffd680760b2873a6",
+      "readme": "080d88206b088e0dfc94e898f70451e0b3e991ca666923264c0345db573efd93"
+    },
+    "checks": [
+      "Release v1.5 meanings reviewed",
+      "Website key parity and HTML preserved",
+      "README code spans, command blocks, links and heading count match latest English",
+      "Safari experimental scope, opt-in permissions, fixed Apple Development signing and no notarization preserved"
+    ],
+    "unresolvedIssues": []
+  }
+}

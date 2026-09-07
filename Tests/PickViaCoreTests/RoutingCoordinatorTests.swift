@@ -250,6 +250,20 @@ final class RoutingCoordinatorTests: XCTestCase {
   }
 
   @MainActor
+  func testDuckDuckGoPermissionFailureShowsActionableFixedTextAndKeepsRequest() async {
+    let chooser = ChooserSpy()
+    let launcher = LauncherStub(result: .failure(DuckDuckGoRoutingError.automationRequired))
+    let coordinator = makeCoordinator(chooser: chooser, launcher: launcher)
+    coordinator.enqueue(URL(string: "https://secret.example/private?token=secret")!)
+    await coordinator.selected(targetID: "target-1")
+    XCTAssertEqual(
+      coordinator.currentError?.message, DuckDuckGoRoutingError.automationRequired.userMessage)
+    XCTAssertFalse(coordinator.currentError!.message.contains("secret"))
+    XCTAssertNotNil(coordinator.currentRequest)
+    XCTAssertEqual(chooser.dismissCallCount, 0)
+  }
+
+  @MainActor
   func testFailedLaunchKeepsCurrentRequestAndDoesNotAdvanceQueue() async {
     let chooser = ChooserSpy()
     let launcher = LauncherStub(result: .failure(TestError.failed))

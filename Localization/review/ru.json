@@ -1,0 +1,48 @@
+{
+  "locale": "ru",
+  "translation": "AI translated",
+  "review": "AI self-reviewed for complete coverage, Russian grammar, conditions and technical meaning; no human review claimed",
+  "sourceSHA256": {
+    "app": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b",
+    "readme": "c00bb9825e8080348e7de2ab7188d536e8d3e0dd15cba241f5165425002bf163"
+  },
+  "checks": {
+    "appKeys": 137,
+    "websiteKeys": 139,
+    "placeholders": "passed",
+    "websiteHTMLTagsAttributes": "passed",
+    "readme": "All sections, table rows, shell command, paths and links retained; release UI button names retain English alongside Russian because v1.4 is English-only."
+  },
+  "unresolvedIssues": [],
+  "nativeUIVerification": "NOT RUN by translation agent",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "993aa953603124a0ebb1f9ffe8fa9cead4a8cd04d4039d3d38eb5fd729a03e03",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df",
+      "readme": "817cf2b6851b49c79e2078e258478b7666ce2d1d13942de55be811980ae246cc"
+    },
+    "outputSHA256": {
+      "website": "2433ab5f018feba33bd2451618dfd074162ae31d1712d4b94696d5c1c9e59d42",
+      "readme": "7c5cd6a9e8da32ef55c23d55a56ce43874a36ab18a7369b650679c4c63f6ee70"
+    },
+    "checks": [
+      "Website key parity, exact HTML tags and attributes, placeholders passed",
+      "README inline code, commands, links, heading count and table rows passed",
+      "Release meaning and modified Russian prose reviewed; public test-report links and validation claims removed as requested"
+    ],
+    "unresolvedIssues": []
+  }
+}

@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="pa" dir="ltr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="PickVia ਤੁਹਾਨੂੰ macOS ਉੱਤੇ ਹਰ ਵੈੱਬ ਲਿੰਕ ਲਈ ਬ੍ਰਾਊਜ਼ਰ ਜਾਂ ਪ੍ਰੋਫਾਈਲ ਅਤੇ ਹਰ ਈਮੇਲ ਲਿੰਕ ਲਈ ਮੇਲ ਐਪ ਚੁਣਨ ਦਿੰਦਾ ਹੈ।" />
+    <link rel="canonical" href="https://kiteretsu903.github.io/pick-via/pa/" />
+    <meta name="theme-color" content="#f4f3ee" />
+    <title>PickVia - ਹਰ ਵੈੱਬ ਲਿੰਕ ਲਈ ਸਹੀ ਬ੍ਰਾਊਜ਼ਰ ਜਾਂ ਪ੍ਰੋਫਾਈਲ ਚੁਣੋ</title>
+    <style>
+      :root {
+        --paper: #f4f3ee;
+        --ink: #151515;
+        --muted: #696963;
+        --rule: #d9d8d0;
+        --violet: #6149d7;
+        --soft-violet: #eceaff;
+        --soft-peach: #fff0e8;
+        --radius: 28px;
+      }
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body { margin: 0; overflow-x: hidden; background: var(--paper); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif; }
+      a { color: inherit; text-decoration: none; }
+      .shell { width: min(1180px, calc(100% - 48px)); margin: 0 auto; }
+      .site-header { height: 82px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--rule); }
+      .brand { display: inline-flex; gap: 10px; align-items: center; font-size: 19px; letter-spacing: -.045em; font-weight: 740; }
+      .brand img { width: 31px; height: 31px; border-radius: 8px; }
+      nav { display: flex; align-items: center; gap: 27px; color: #55554f; font-size: 14px; font-weight: 560; }
+      nav a:hover { color: var(--violet); }
+      .button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 43px; padding: 0 17px; border: 1px solid var(--ink); border-radius: 999px; font-size: 14px; font-weight: 650; transition: transform .18s ease, background .18s ease, color .18s ease; }
+      .button:hover { transform: translateY(-1px); }
+      .button-dark { background: var(--ink); color: white; }
+      .button-dark:hover { background: var(--violet); border-color: var(--violet); }
+      .button-light { background: transparent; }
+      .button-light:hover { background: white; }
+
+      .hero { padding: 46px 0 94px; }
+      .hero-top { display: grid; grid-template-columns: .92fr 1.08fr; gap: 48px; align-items: start; }
+      .hero-top > *, .section-head > *, .mail-layout > *, .setup-grid > *, .download-inner > * { min-width: 0; }
+      .kicker, .section-label { margin: 0; color: var(--violet); font-size: 11px; font-weight: 760; letter-spacing: .13em; text-transform: uppercase; }
+      h1, h2, h3, p { margin-top: 0; }
+      h1 { max-width: 650px; margin: 17px 0 0; font-size: clamp(50px, 4.4vw, 56px); line-height: .91; letter-spacing: -.08em; font-weight: 740; }
+      h1 em, h2 em { font-style: normal; color: var(--violet); }
+      .hero-intro { min-width: 0; padding: 30px 0 8px; }
+      .hero-intro p { max-width: 515px; margin: 0; color: var(--muted); font-size: 19px; letter-spacing: -.03em; line-height: 1.48; }
+      .hero-actions { display: flex; gap: 11px; flex-wrap: wrap; margin-top: 26px; }
+      .subline { margin: 0; padding-top: 29px; color: #7d7d76; font-size: 13px; }
+      .product-frame { position: relative; margin-top: 58px; overflow: hidden; border: 1px solid rgba(21,21,21,.14); border-radius: var(--radius); background: #d9d6e8; box-shadow: 0 22px 50px rgba(26,22,65,.12); }
+      .product-frame img { display: block; width: 100%; }
+
+      .feature-section { padding: 96px 0; }
+      .section-head { display: grid; grid-template-columns: .85fr 1.15fr; gap: 48px; align-items: end; }
+      h2 { margin: 13px 0 0; max-width: 620px; font-size: clamp(42px, 5.4vw, 70px); line-height: .96; letter-spacing: -.07em; }
+      .section-lede { max-width: 540px; margin: 0; color: var(--muted); font-size: 18px; letter-spacing: -.025em; line-height: 1.55; }
+      .feature-list { margin-top: 58px; border-top: 1px solid var(--ink); }
+      .feature-row { display: grid; grid-template-columns: 82px 1.1fr 1fr; gap: 25px; min-height: 144px; padding: 27px 0; align-items: start; border-bottom: 1px solid var(--rule); }
+      .feature-number { color: var(--violet); font-size: 13px; font-weight: 750; letter-spacing: .1em; }
+      .feature-row h3 { margin: 0; font-size: 25px; line-height: 1.08; letter-spacing: -.05em; }
+      .feature-row p { max-width: 400px; margin: 0; color: var(--muted); font-size: 15px; line-height: 1.52; }
+
+      .mail-section { padding: 0 0 96px; }
+      .mail-layout { display: grid; grid-template-columns: 1.02fr .98fr; gap: 20px; align-items: stretch; }
+      .mail-copy { display: flex; flex-direction: column; justify-content: space-between; min-height: 507px; padding: 43px; border-radius: var(--radius); background: var(--ink); color: white; }
+      .mail-copy h2 { margin-top: 13px; color: white; font-size: clamp(43px, 4.8vw, 64px); }
+      .mail-copy h2 em { color: #d9ceff; }
+      .mail-copy p:not(.section-label) { max-width: 385px; margin: 20px 0 0; color: #c6c5ca; font-size: 17px; line-height: 1.55; }
+      .privacy-note { display: flex; gap: 12px; padding-top: 24px; border-top: 1px solid #4e4d54; color: #d6d5da; font-size: 13px; line-height: 1.42; }
+      .privacy-note strong { display: block; margin-bottom: 3px; color: white; font-size: 12px; letter-spacing: .08em; }
+      .mail-shot { overflow: hidden; border-radius: var(--radius); border: 1px solid rgba(21,21,21,.12); background: #e4d7ea; }
+      .mail-shot img { display: block; width: 100%; min-height: 507px; object-fit: cover; }
+
+      .setup { padding: 106px 0; background: #e9e8e2; }
+      .setup-grid { display: grid; grid-template-columns: .82fr 1.18fr; gap: 54px; align-items: center; }
+      .setup-copy > p:not(.section-label) { max-width: 380px; margin: 22px 0 0; color: var(--muted); font-size: 17px; line-height: 1.55; }
+      .settings-window { overflow: hidden; padding: 10px; border-radius: 20px; background: #dedde4; box-shadow: 0 22px 40px rgba(21,21,21,.12); }
+      .settings-window img { display: block; width: 100%; border-radius: 13px; }
+
+      .download { padding: 36px 0 62px; }
+      .download-inner { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 40px; padding: 52px 58px; overflow: hidden; border-radius: var(--radius); color: white; background: var(--violet); }
+      .download-inner .section-label { color: #e0dbff; }
+      .download-inner h2 { margin-top: 11px; max-width: 690px; color: white; font-size: clamp(41px, 5vw, 64px); }
+      .download-inner h2 em { color: #d7d0ff; }
+      .download-inner .button { margin-top: 24px; border-color: white; background: white; color: #3d2b99; }
+      .download-inner img { width: 128px; border-radius: 28px; box-shadow: 0 22px 28px rgba(30,18,85,.25); }
+      .site-footer { display: flex; justify-content: space-between; padding: 25px 0 38px; border-top: 1px solid var(--rule); color: #76766f; font-size: 13px; }
+      .site-footer a:hover { color: var(--violet); }
+
+      @media (max-width: 780px) {
+        .site-header { height: 72px; } nav { display: none; }
+        .hero { padding: 55px 0 66px; } .hero-top, .section-head, .mail-layout, .setup-grid { grid-template-columns: 1fr; gap: 30px; } .hero-intro { padding-top: 0; }
+        .product-frame { margin-top: 40px; border-radius: 18px; }
+        .feature-section { padding: 76px 0; } .mail-section { padding-bottom: 76px; }
+        .mail-copy, .mail-shot img { min-height: auto; } .mail-copy { padding: 34px; }
+        .setup { padding: 80px 0; }
+        .download-inner { grid-template-columns: 1fr; padding: 40px 34px; } .download-inner img { width: 88px; }
+      }
+      @media (max-width: 500px) {
+        .shell { width: min(100% - 32px, 1180px); } .brand { font-size: 18px; }
+        .site-header .button { min-height: 36px; padding: 0 12px; font-size: 12px; }
+        h1 { font-size: 48px; } .hero-intro p, .section-lede { font-size: 17px; }
+        .feature-row { grid-template-columns: 48px 1fr; gap: 12px; } .feature-row p { grid-column: 2; }
+        .mail-copy { min-height: 470px; } .mail-shot { min-height: 285px; } .mail-shot img { min-height: 285px; }
+        .download-inner { padding: 34px 28px; }
+        .site-footer { flex-direction: column; gap: 13px; }
+      }
+    </style>
+      <link rel="alternate" hreflang="en" href="https://kiteretsu903.github.io/pick-via/en/" />
+    <link rel="alternate" hreflang="zh-Hans" href="https://kiteretsu903.github.io/pick-via/zh-Hans/" />
+    <link rel="alternate" hreflang="zh-Hant" href="https://kiteretsu903.github.io/pick-via/zh-Hant/" />
+    <link rel="alternate" hreflang="ja" href="https://kiteretsu903.github.io/pick-via/ja/" />
+    <link rel="alternate" hreflang="ko" href="https://kiteretsu903.github.io/pick-via/ko/" />
+    <link rel="alternate" hreflang="es" href="https://kiteretsu903.github.io/pick-via/es/" />
+    <link rel="alternate" hreflang="fr" href="https://kiteretsu903.github.io/pick-via/fr/" />
+    <link rel="alternate" hreflang="de" href="https://kiteretsu903.github.io/pick-via/de/" />
+    <link rel="alternate" hreflang="pt-BR" href="https://kiteretsu903.github.io/pick-via/pt-BR/" />
+    <link rel="alternate" hreflang="ru" href="https://kiteretsu903.github.io/pick-via/ru/" />
+    <link rel="alternate" hreflang="ar" href="https://kiteretsu903.github.io/pick-via/ar/" />
+    <link rel="alternate" hreflang="hi" href="https://kiteretsu903.github.io/pick-via/hi/" />
+    <link rel="alternate" hreflang="it" href="https://kiteretsu903.github.io/pick-via/it/" />
+    <link rel="alternate" hreflang="pt-PT" href="https://kiteretsu903.github.io/pick-via/pt-PT/" />
+    <link rel="alternate" hreflang="nl" href="https://kiteretsu903.github.io/pick-via/nl/" />
+    <link rel="alternate" hreflang="sv" href="https://kiteretsu903.github.io/pick-via/sv/" />
+    <link rel="alternate" hreflang="da" href="https://kiteretsu903.github.io/pick-via/da/" />
+    <link rel="alternate" hreflang="nb" href="https://kiteretsu903.github.io/pick-via/nb/" />
+    <link rel="alternate" hreflang="fi" href="https://kiteretsu903.github.io/pick-via/fi/" />
+    <link rel="alternate" hreflang="is" href="https://kiteretsu903.github.io/pick-via/is/" />
+    <link rel="alternate" hreflang="pl" href="https://kiteretsu903.github.io/pick-via/pl/" />
+    <link rel="alternate" hreflang="cs" href="https://kiteretsu903.github.io/pick-via/cs/" />
+    <link rel="alternate" hreflang="sk" href="https://kiteretsu903.github.io/pick-via/sk/" />
+    <link rel="alternate" hreflang="hu" href="https://kiteretsu903.github.io/pick-via/hu/" />
+    <link rel="alternate" hreflang="ro" href="https://kiteretsu903.github.io/pick-via/ro/" />
+    <link rel="alternate" hreflang="bg" href="https://kiteretsu903.github.io/pick-via/bg/" />
+    <link rel="alternate" hreflang="uk" href="https://kiteretsu903.github.io/pick-via/uk/" />
+    <link rel="alternate" hreflang="sr" href="https://kiteretsu903.github.io/pick-via/sr/" />
+    <link rel="alternate" hreflang="hr" href="https://kiteretsu903.github.io/pick-via/hr/" />
+    <link rel="alternate" hreflang="bs" href="https://kiteretsu903.github.io/pick-via/bs/" />
+    <link rel="alternate" hreflang="sl" href="https://kiteretsu903.github.io/pick-via/sl/" />
+    <link rel="alternate" hreflang="mk" href="https://kiteretsu903.github.io/pick-via/mk/" />
+    <link rel="alternate" hreflang="el" href="https://kiteretsu903.github.io/pick-via/el/" />
+    <link rel="alternate" hreflang="tr" href="https://kiteretsu903.github.io/pick-via/tr/" />
+    <link rel="alternate" hreflang="he" href="https://kiteretsu903.github.io/pick-via/he/" />
+    <link rel="alternate" hreflang="fa" href="https://kiteretsu903.github.io/pick-via/fa/" />
+    <link rel="alternate" hreflang="ur" href="https://kiteretsu903.github.io/pick-via/ur/" />
+    <link rel="alternate" hreflang="bn" href="https://kiteretsu903.github.io/pick-via/bn/" />
+    <link rel="alternate" hreflang="ta" href="https://kiteretsu903.github.io/pick-via/ta/" />
+    <link rel="alternate" hreflang="te" href="https://kiteretsu903.github.io/pick-via/te/" />
+    <link rel="alternate" hreflang="mr" href="https://kiteretsu903.github.io/pick-via/mr/" />
+    <link rel="alternate" hreflang="gu" href="https://kiteretsu903.github.io/pick-via/gu/" />
+    <link rel="alternate" hreflang="kn" href="https://kiteretsu903.github.io/pick-via/kn/" />
+    <link rel="alternate" hreflang="ml" href="https://kiteretsu903.github.io/pick-via/ml/" />
+    <link rel="alternate" hreflang="pa" href="https://kiteretsu903.github.io/pick-via/pa/" />
+    <link rel="alternate" hreflang="ne" href="https://kiteretsu903.github.io/pick-via/ne/" />
+    <link rel="alternate" hreflang="si" href="https://kiteretsu903.github.io/pick-via/si/" />
+    <link rel="alternate" hreflang="th" href="https://kiteretsu903.github.io/pick-via/th/" />
+    <link rel="alternate" hreflang="vi" href="https://kiteretsu903.github.io/pick-via/vi/" />
+    <link rel="alternate" hreflang="id" href="https://kiteretsu903.github.io/pick-via/id/" />
+    <link rel="alternate" hreflang="ms" href="https://kiteretsu903.github.io/pick-via/ms/" />
+    <link rel="alternate" hreflang="fil" href="https://kiteretsu903.github.io/pick-via/fil/" />
+    <link rel="alternate" hreflang="km" href="https://kiteretsu903.github.io/pick-via/km/" />
+    <link rel="alternate" hreflang="lo" href="https://kiteretsu903.github.io/pick-via/lo/" />
+    <link rel="alternate" hreflang="my" href="https://kiteretsu903.github.io/pick-via/my/" />
+    <link rel="alternate" hreflang="mn" href="https://kiteretsu903.github.io/pick-via/mn/" />
+    <link rel="alternate" hreflang="ka" href="https://kiteretsu903.github.io/pick-via/ka/" />
+    <link rel="alternate" hreflang="hy" href="https://kiteretsu903.github.io/pick-via/hy/" />
+    <link rel="alternate" hreflang="az" href="https://kiteretsu903.github.io/pick-via/az/" />
+    <link rel="alternate" hreflang="kk" href="https://kiteretsu903.github.io/pick-via/kk/" />
+    <link rel="alternate" hreflang="uz" href="https://kiteretsu903.github.io/pick-via/uz/" />
+    <link rel="alternate" hreflang="sw" href="https://kiteretsu903.github.io/pick-via/sw/" />
+    <link rel="alternate" hreflang="af" href="https://kiteretsu903.github.io/pick-via/af/" />
+    <link rel="alternate" hreflang="am" href="https://kiteretsu903.github.io/pick-via/am/" />
+    <link rel="alternate" hreflang="zu" href="https://kiteretsu903.github.io/pick-via/zu/" />
+    <link rel="alternate" hreflang="xh" href="https://kiteretsu903.github.io/pick-via/xh/" />
+    <link rel="alternate" hreflang="yo" href="https://kiteretsu903.github.io/pick-via/yo/" />
+    <link rel="alternate" hreflang="ha" href="https://kiteretsu903.github.io/pick-via/ha/" />
+    <link rel="alternate" hreflang="ig" href="https://kiteretsu903.github.io/pick-via/ig/" />
+    <link rel="alternate" hreflang="so" href="https://kiteretsu903.github.io/pick-via/so/" />
+    <link rel="alternate" hreflang="mt" href="https://kiteretsu903.github.io/pick-via/mt/" />
+    <link rel="alternate" hreflang="ga" href="https://kiteretsu903.github.io/pick-via/ga/" />
+    <link rel="alternate" hreflang="cy" href="https://kiteretsu903.github.io/pick-via/cy/" />
+    <link rel="alternate" hreflang="eu" href="https://kiteretsu903.github.io/pick-via/eu/" />
+    <link rel="alternate" hreflang="ca" href="https://kiteretsu903.github.io/pick-via/ca/" />
+    <link rel="alternate" hreflang="gl" href="https://kiteretsu903.github.io/pick-via/gl/" />
+    <link rel="alternate" hreflang="et" href="https://kiteretsu903.github.io/pick-via/et/" />
+    <link rel="alternate" hreflang="lv" href="https://kiteretsu903.github.io/pick-via/lv/" />
+    <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/" />
+    <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/" />
+    <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/" />
+    <link rel="stylesheet" href="../assets/localization.css?v=ef62d78d8c0b" />
+    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+  </head>
+  <body>
+    <header class="shell site-header">
+      <a class="brand" href="#top" aria-label="PickVia ਮੁੱਖ ਪੰਨਾ"><img src="../assets/icon.png" alt="" /><span>PickVia</span></a>
+      <nav aria-label="ਮੁੱਖ ਨੈਵੀਗੇਸ਼ਨ"><a href="#features">ਵਿਸ਼ੇਸ਼ਤਾਵਾਂ</a><a href="changelog.html">ਬਦਲਾਅ ਸੂਚੀ</a><a href="#download">ਡਾਊਨਲੋਡ</a></nav>
+      <a class="button button-light" href="https://github.com/kiteretsu903/pick-via">ਸੋਰਸ ਕੋਡ <span aria-hidden="true">↗</span></a>
+    </header>
+    <div class="shell language-bar"><label for="website-language">ਭਾਸ਼ਾ</label><select id="website-language" aria-label="ਵੈੱਬਸਾਈਟ ਦੀ ਭਾਸ਼ਾ ਚੁਣੋ"><option value="../en/" lang="en" dir="ltr">English</option><option value="../zh-Hans/" lang="zh-Hans" dir="ltr">简体中文</option><option value="../zh-Hant/" lang="zh-Hant" dir="ltr">繁體中文</option><option value="../ja/" lang="ja" dir="ltr">日本語</option><option value="../ko/" lang="ko" dir="ltr">한국어</option><option value="../es/" lang="es" dir="ltr">Español</option><option value="../fr/" lang="fr" dir="ltr">Français</option><option value="../de/" lang="de" dir="ltr">Deutsch</option><option value="../pt-BR/" lang="pt-BR" dir="ltr">Português (Brasil)</option><option value="../ru/" lang="ru" dir="ltr">Русский</option><option value="../ar/" lang="ar" dir="rtl">العربية</option><option value="../hi/" lang="hi" dir="ltr">हिन्दी</option><option value="../it/" lang="it" dir="ltr">Italiano</option><option value="../pt-PT/" lang="pt-PT" dir="ltr">Português (Portugal)</option><option value="../nl/" lang="nl" dir="ltr">Nederlands</option><option value="../sv/" lang="sv" dir="ltr">Svenska</option><option value="../da/" lang="da" dir="ltr">Dansk</option><option value="../nb/" lang="nb" dir="ltr">Norsk bokmål</option><option value="../fi/" lang="fi" dir="ltr">Suomi</option><option value="../is/" lang="is" dir="ltr">Íslenska</option><option value="../pl/" lang="pl" dir="ltr">Polski</option><option value="../cs/" lang="cs" dir="ltr">Čeština</option><option value="../sk/" lang="sk" dir="ltr">Slovenčina</option><option value="../hu/" lang="hu" dir="ltr">Magyar</option><option value="../ro/" lang="ro" dir="ltr">Română</option><option value="../bg/" lang="bg" dir="ltr">Български</option><option value="../uk/" lang="uk" dir="ltr">Українська</option><option value="../sr/" lang="sr" dir="ltr">Српски</option><option value="../hr/" lang="hr" dir="ltr">Hrvatski</option><option value="../bs/" lang="bs" dir="ltr">Bosanski</option><option value="../sl/" lang="sl" dir="ltr">Slovenščina</option><option value="../mk/" lang="mk" dir="ltr">Македонски</option><option value="../el/" lang="el" dir="ltr">Ελληνικά</option><option value="../tr/" lang="tr" dir="ltr">Türkçe</option><option value="../he/" lang="he" dir="rtl">עברית</option><option value="../fa/" lang="fa" dir="rtl">فارسی</option><option value="../ur/" lang="ur" dir="rtl">اردو</option><option value="../bn/" lang="bn" dir="ltr">বাংলা</option><option value="../ta/" lang="ta" dir="ltr">தமிழ்</option><option value="../te/" lang="te" dir="ltr">తెలుగు</option><option value="../mr/" lang="mr" dir="ltr">मराठी</option><option value="../gu/" lang="gu" dir="ltr">ગુજરાતી</option><option value="../kn/" lang="kn" dir="ltr">ಕನ್ನಡ</option><option value="../ml/" lang="ml" dir="ltr">മലയാളം</option><option value="../pa/" lang="pa" dir="ltr" selected>ਪੰਜਾਬੀ</option><option value="../ne/" lang="ne" dir="ltr">नेपाली</option><option value="../si/" lang="si" dir="ltr">සිංහල</option><option value="../th/" lang="th" dir="ltr">ไทย</option><option value="../vi/" lang="vi" dir="ltr">Tiếng Việt</option><option value="../id/" lang="id" dir="ltr">Bahasa Indonesia</option><option value="../ms/" lang="ms" dir="ltr">Bahasa Melayu</option><option value="../fil/" lang="fil" dir="ltr">Filipino</option><option value="../km/" lang="km" dir="ltr">ខ្មែរ</option><option value="../lo/" lang="lo" dir="ltr">ລາວ</option><option value="../my/" lang="my" dir="ltr">မြန်မာ</option><option value="../mn/" lang="mn" dir="ltr">Монгол</option><option value="../ka/" lang="ka" dir="ltr">ქართული</option><option value="../hy/" lang="hy" dir="ltr">Հայերեն</option><option value="../az/" lang="az" dir="ltr">Azərbaycanca</option><option value="../kk/" lang="kk" dir="ltr">Қазақша</option><option value="../uz/" lang="uz" dir="ltr">O‘zbekcha</option><option value="../sw/" lang="sw" dir="ltr">Kiswahili</option><option value="../af/" lang="af" dir="ltr">Afrikaans</option><option value="../am/" lang="am" dir="ltr">አማርኛ</option><option value="../zu/" lang="zu" dir="ltr">isiZulu</option><option value="../xh/" lang="xh" dir="ltr">isiXhosa</option><option value="../yo/" lang="yo" dir="ltr">Yorùbá</option><option value="../ha/" lang="ha" dir="ltr">Hausa</option><option value="../ig/" lang="ig" dir="ltr">Igbo</option><option value="../so/" lang="so" dir="ltr">Soomaali</option><option value="../mt/" lang="mt" dir="ltr">Malti</option><option value="../ga/" lang="ga" dir="ltr">Gaeilge</option><option value="../cy/" lang="cy" dir="ltr">Cymraeg</option><option value="../eu/" lang="eu" dir="ltr">Euskara</option><option value="../ca/" lang="ca" dir="ltr">Català</option><option value="../gl/" lang="gl" dir="ltr">Galego</option><option value="../et/" lang="et" dir="ltr">Eesti</option><option value="../lv/" lang="lv" dir="ltr">Latviešu</option><option value="../lt/" lang="lt" dir="ltr">Lietuvių</option><option value="../sq/" lang="sq" dir="ltr">Shqip</option></select></div>
+    <main id="top">
+      <section class="shell hero">
+        <p class="localization-notice">ਐਪ ਅਤੇ ਵੈੱਬਸਾਈਟ 80 ਭਾਸ਼ਾਵਾਂ ਵਿੱਚ ਉਪਲਬਧ ਹਨ, ਅਤੇ README ਦੇ 12 ਅਨੁਵਾਦ ਹਨ। ਸੈਟਿੰਗਾਂ ਵਿੱਚ ਆਪਣੀ ਭਾਸ਼ਾ ਚੁਣੋ।</p>
+        <div class="hero-top">
+          <div><p class="kicker">macOS ਲਈ ਨੇਟਿਵ ਲਿੰਕ ਚੋਣ ਸਾਧਨ</p><h1>ਲਿੰਕਾਂ ਨੂੰ<br />ਖੋਲ੍ਹਣਾ ਛੱਡੋ<br /><em>ਗਲਤ ਬ੍ਰਾਊਜ਼ਰ ਜਾਂ ਪ੍ਰੋਫਾਈਲ ਵਿੱਚ।</em></h1></div>
+          <div class="hero-intro"><p>PickVia ਹਰ ਵੈੱਬ ਜਾਂ ਈਮੇਲ ਲਿੰਕ ਖੁੱਲ੍ਹਣ ਤੋਂ ਪਹਿਲਾਂ ਪੁੱਛਦਾ ਹੈ, ਤਾਂ ਜੋ ਵੈੱਬ ਲਿੰਕ ਤੁਹਾਡੇ ਚੁਣੇ ਬ੍ਰਾਊਜ਼ਰ ਜਾਂ ਪ੍ਰੋਫਾਈਲ ਵਿੱਚ ਜਾਣ ਅਤੇ ਮੇਲ ਲਿੰਕ ਤੁਹਾਡੀ ਮਨਚਾਹੀ ਈਮੇਲ ਐਪ ਵਿੱਚ ਜਾਣ।</p><div class="hero-actions"><a class="button button-dark" href="https://github.com/kiteretsu903/pick-via/releases/latest">v1.5 ਡਾਊਨਲੋਡ ਕਰੋ <span aria-hidden="true">↓</span></a><a class="button button-light" href="https://github.com/kiteretsu903/pick-via" aria-label="GitHub ਉੱਤੇ PickVia ਨੂੰ ਸਟਾਰ ਦਿਓ"><span aria-hidden="true">★</span> GitHub ਉੱਤੇ ਸਟਾਰ ਦਿਓ</a></div><p class="subline">macOS 14+ · Apple Silicon · ਮੁਫ਼ਤ ਅਤੇ ਓਪਨ ਸੋਰਸ</p></div>
+        </div>
+        <p class="screenshot-note">ਸਕ੍ਰੀਨਸ਼ਾਟ ਅੰਗਰੇਜ਼ੀ ਇੰਟਰਫੇਸ ਦਿਖਾਉਂਦੇ ਹਨ।</p>
+        <div class="product-frame"><img src="../assets/browser-chooser.png" alt="PickVia ਬ੍ਰਾਊਜ਼ਰ ਚੋਣ ਵਿੰਡੋ ਜਿਸ ਵਿੱਚ ਬ੍ਰਾਊਜ਼ਰ ਪ੍ਰੋਫਾਈਲ, ਨਿੱਜੀ ਟੀਚੇ ਅਤੇ ਕੀਬੋਰਡ ਸ਼ਾਰਟਕੱਟ ਦਿਖਾਏ ਗਏ ਹਨ" /></div>
+      </section>
+
+      <section class="shell feature-section" id="features">
+        <div class="section-head"><div><p class="section-label">01 / ਖੁੱਲ੍ਹਣ ਤੋਂ ਪਹਿਲਾਂ ਚੁਣੋ</p><h2>ਸਹੀ ਬ੍ਰਾਊਜ਼ਰ।<br /><em>ਸਹੀ ਪ੍ਰੋਫਾਈਲ।</em></h2></div><p class="section-lede">ਹਰ ਵੈੱਬ ਜਾਂ ਈਮੇਲ ਲਿੰਕ ਲਈ ਢੁਕਵਾਂ ਟੀਚਾ ਚੁਣੋ।</p></div>
+        <div class="feature-list">
+          <article class="feature-row"><span class="feature-number">01</span><h3>ਸਹੀ ਲਿੰਕ, ਸਹੀ ਪ੍ਰੋਫਾਈਲ।</h3><p>ਕੋਈ ਚਾਲੂ ਬ੍ਰਾਊਜ਼ਰ ਜਾਂ ਪ੍ਰੋਫਾਈਲ, ਜਾਂ ਸਮਰਥਿਤ ਬ੍ਰਾਊਜ਼ਰ-ਪੱਧਰੀ ਨਿੱਜੀ ਵਿੰਡੋ ਚੁਣੋ।</p></article>
+          <article class="feature-row"><span class="feature-number">02</span><h3>ਮੇਲ ਲਿੰਕ, ਸਹੀ ਐਪ।</h3><p>ਹਰ <code>mailto:</code> ਲਿੰਕ ਨੂੰ ਇੱਕੋ ਡਿਫ਼ਾਲਟ ਐਪ ਵਿੱਚ ਭੇਜਣ ਦੀ ਬਜਾਏ ਆਪਣੀ ਮਨਚਾਹੀ ਰਜਿਸਟਰਡ ਮੇਲ ਐਪ ਚੁਣੋ।</p></article>
+          <article class="feature-row"><span class="feature-number">03</span><h3>ਬਿਨਾਂ ਦੇਰੀ ਚੁਣੋ।</h3><p>ਆਪਣੀਆਂ ਆਮ ਚੋਣਾਂ ਨੂੰ ਕ੍ਰਮ ਵਿੱਚ ਰੱਖੋ, ਫਿਰ ਇੱਕ ਕਲਿੱਕ ਜਾਂ ਕੀਬੋਰਡ ਸ਼ਾਰਟਕੱਟ ਵਰਤੋ।</p></article>
+          <article class="feature-row"><span class="feature-number">04</span><h3>ਤੁਹਾਡੇ ਬ੍ਰਾਊਜ਼ਰ ਦਾ ਐਡੀਸ਼ਨ ਵੀ।</h3><p>ਵੱਖਰੇ Chrome ਅਤੇ Edge ਐਡੀਸ਼ਨ, Brave Beta ਜਾਂ Nightly, Vivaldi Snapshot, ਅਤੇ Firefox Developer Edition ਜਾਂ Nightly ਚੁਣੋ। ਜਾਣੇ-ਪਛਾਣੇ ਐਡੀਸ਼ਨ ਨਾਲ ਸੰਬੰਧਿਤ Firefox ਪ੍ਰੋਫਾਈਲ ਉਸੇ ਐਡੀਸ਼ਨ ਨਾਲ ਰਹਿੰਦੇ ਹਨ।</p></article>
+          <article class="feature-row"><span class="feature-number">05</span><h3>ਚੁਣਨ ਲਈ ਹੋਰ ਬ੍ਰਾਊਜ਼ਰ।</h3><p>Opera, Arc, Orion ਅਤੇ Safari Technology Preview ਆਮ ਬ੍ਰਾਊਜ਼ਰ ਚੋਣਾਂ ਦਿੰਦੇ ਹਨ। ਪ੍ਰੋਫਾਈਲ ਅਤੇ ਨਿੱਜੀ ਵਿੰਡੋ ਦਾ ਸਮਰਥਨ ਬ੍ਰਾਊਜ਼ਰ ਅਨੁਸਾਰ ਵੱਖਰਾ ਹੈ। <a href="https://github.com/kiteretsu903/pick-via#browser-support">ਬ੍ਰਾਊਜ਼ਰ ਸਮਰਥਨ ਵੇਖੋ →</a></p></article>
+        </div>
+      </section>
+
+      <section class="shell mail-section"><div class="mail-layout"><article class="mail-copy"><div><p class="section-label">02 / ਮੇਲ ਐਪ ਚੁਣੋ</p><h2>ਮੇਲ ਲਿੰਕ,<br /><em>ਸਹੀ ਐਪ।</em></h2><p>macOS ਆਮ ਤੌਰ ਉੱਤੇ <code>mailto:</code> ਲਿੰਕ ਇੱਕ ਡਿਫ਼ਾਲਟ ਐਪ ਨੂੰ ਭੇਜਦਾ ਹੈ। PickVia ਤੁਹਾਨੂੰ ਹਰ ਵਾਰ ਆਪਣੇ Mac ਉੱਤੇ ਰਜਿਸਟਰਡ ਮੇਲ ਐਪਾਂ ਵਿੱਚੋਂ ਚੁਣਨ ਦਿੰਦਾ ਹੈ।</p></div><div class="privacy-note"><span aria-hidden="true">◌</span><div><strong>ਡਿਜ਼ਾਇਨ ਤੋਂ ਹੀ ਨਿੱਜੀ</strong>PickVia ਮੂਲ ਬੇਨਤੀ ਸਿੱਧੀ ਤੁਹਾਡੀ ਚੋਣ ਵੱਲ ਭੇਜਦਾ ਹੈ। ਇਹ ਮੇਲ ਦੀ ਸਮੱਗਰੀ ਲੌਗ ਜਾਂ ਸਥਾਈ ਤੌਰ ਉੱਤੇ ਸੁਰੱਖਿਅਤ ਨਹੀਂ ਕਰਦਾ।</div></div></article><figure class="mail-shot"><img src="../assets/mail-chooser.png" alt="PickVia ਈਮੇਲ ਚੋਣ ਵਿੰਡੋ ਜਿਸ ਵਿੱਚ ਇੰਸਟਾਲ ਕੀਤੀਆਂ ਮੇਲ ਐਪਾਂ ਹਨ" /></figure></div></section>
+
+      <section class="setup"><div class="shell setup-grid"><div class="setup-copy"><p class="section-label">03 / ਆਪਣੀਆਂ ਚੋਣਾਂ ਸੈੱਟ ਕਰੋ</p><h2>ਇੱਕ ਵਾਰ ਸੈੱਟ ਕਰੋ।<br /><em>ਛੇਤੀ ਚੁਣੋ।</em></h2><p>ਆਪਣੇ ਆਮ ਬ੍ਰਾਊਜ਼ਰ ਪ੍ਰੋਫਾਈਲ ਅਤੇ ਮੇਲ ਐਪਾਂ ਇੱਕ ਵਾਰ ਸੈੱਟ ਕਰੋ, ਫਿਰ ਸਭ ਤੋਂ ਵੱਧ ਵਰਤੇ ਟੀਚਿਆਂ ਦਾ ਕ੍ਰਮ ਬਦਲੋ।</p></div><div class="settings-window"><img src="../assets/settings.png" alt="PickVia ਬ੍ਰਾਊਜ਼ਰ ਸੈਟਿੰਗਾਂ ਵਿੱਚ ਬ੍ਰਾਊਜ਼ਰ ਅਤੇ ਪ੍ਰੋਫਾਈਲ ਦੀਆਂ ਉਦਾਹਰਨਾਂ" /></div></div></section>
+
+      <section class="shell download" id="download"><div class="download-inner"><div><p class="section-label">PickVia v1.5</p><h2>ਅਗਲਾ ਲਿੰਕ ਖੋਲ੍ਹੋ<br />ਸਹੀ <em>ਥਾਂ ਉੱਤੇ।</em></h2><a class="button" href="https://github.com/kiteretsu903/pick-via/releases/latest">macOS ਲਈ ਡਾਊਨਲੋਡ ਕਰੋ <span aria-hidden="true">↓</span></a></div><img src="../assets/icon.png" alt="PickVia ਐਪ ਆਈਕਨ" /></div></section>
+    </main>
+    <footer class="shell site-footer"><span>© 2026 PickVia · MIT ਲਾਇਸੈਂਸ</span><span><a href="changelog.html">ਬਦਲਾਅ ਸੂਚੀ</a> · <a href="privacy.html">ਨਿੱਜਤਾ</a> · <a href="terms.html">ਸ਼ਰਤਾਂ</a> · <a href="https://github.com/kiteretsu903/pick-via">GitHub ਉੱਤੇ ਸੋਰਸ ਕੋਡ <span aria-hidden="true">↗</span></a></span></footer>
+  </body>
+</html>

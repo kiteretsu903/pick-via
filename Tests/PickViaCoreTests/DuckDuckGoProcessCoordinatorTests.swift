@@ -5,6 +5,97 @@ import Testing
 
 @Suite("DuckDuckGo process coordinator")
 struct DuckDuckGoProcessCoordinatorTests {
+  @Test func ordinaryRoutingDoesNotRunPrivateCompatibilityChecks() async throws {
+    let checker = SequenceDuckDuckGoCompatibility(values: [])
+    let fixture = try CoordinatorFixture(
+      compatibilityChecker: checker, existingManagedPIDs: [7001], unmanagedPIDs: [8001])
+    defer { fixture.removeRoot() }
+    let pid = try await fixture.coordinator.open(
+      url: URL(string: "https://example.com/ordinary")!,
+      applicationURL: fixture.applicationURL, mode: .normal)
+    #expect(pid == 8001)
+    #expect(checker.receivedURLs.isEmpty)
+    #expect(await fixture.applications.launches.isEmpty)
+  }
+
+  @Test func unrelatedOpaqueSessionDoesNotPreventConfirmedPrivateReuse() async throws {
+    let fixture = try CoordinatorFixture(compatibility: .fire, existingManagedPIDs: [7001])
+    defer { fixture.removeRoot() }
+    let opaque = try fixture.realStore.prepareHome()
+    try Data("corrupt".utf8).write(to: opaque.journalURL)
+    let pid = try await fixture.coordinator.open(
+      url: URL(string: "https://example.com/private")!,
+      applicationURL: fixture.applicationURL, mode: .private)
+    #expect(pid == 7001)
+    #expect(await fixture.applications.launches.isEmpty)
+    #expect(FileManager.default.fileExists(atPath: opaque.sessionDirectory.path))
+  }
+
+  @Test func staleDirectoryDeletionFailureDoesNotBlockEitherRoute() async throws {
+    for mode in [BrowserMode.normal, .private] {
+      let fixture = try CoordinatorFixture(
+        compatibility: .fire, existingManagedPIDs: [7001],
+        unmanagedPIDs: [8001], managedProcessIsTerminated: true, storeFailure: .removal)
+      defer { fixture.removeRoot() }
+      let pid = try await fixture.coordinator.open(
+        url: URL(string: "https://example.com/cleanup-failure")!,
+        applicationURL: fixture.applicationURL, mode: mode)
+      #expect(pid == (mode == .normal ? 8001 : 9001))
+      #expect(try fixture.realStore.records().contains { $0.marker.processIdentifier == 7001 })
+    }
+  }
+
+  @Test func processExitNotificationCleansPrivateHomeWithoutAnotherRoute() async throws {
+    let fixture = try CoordinatorFixture(
+      compatibility: .fire, existingManagedPIDs: [7001, 7002], unmanagedPIDs: [8001])
+    defer { fixture.removeRoot() }
+    let coordinator = DuckDuckGoProcessCoordinator(
+      compatibilityChecker: StubDuckDuckGoCompatibility(value: .fire),
+      applications: fixture.applications, events: fixture.events, stateStore: fixture.realStore,
+      observesProcessExits: true)
+    let clock = ContinuousClock()
+    let deadline = clock.now.advanced(by: .seconds(3))
+    while !(await fixture.applications.observesTerminations), clock.now < deadline {
+      try await Task.sleep(for: .milliseconds(5))
+    }
+    #expect(await fixture.applications.observesTerminations)
+    await fixture.applications.emitTermination(processIdentifier: 7001)
+    while try fixture.realStore.records().contains(where: { $0.marker.processIdentifier == 7001 }),
+      clock.now < deadline
+    {
+      try await Task.sleep(for: .milliseconds(5))
+    }
+    #expect(try fixture.realStore.records().map(\.marker.processIdentifier) == [7002])
+    #expect(await fixture.applications.snapshot(processIdentifier: 8001) != nil)
+    #expect(await fixture.applications.terminatedPIDs.isEmpty)
+    #expect(await fixture.applications.launches.isEmpty)
+    _ = coordinator
+  }
+
+  @Test func currentDiskOwnershipSupersedesPreviouslyCachedPID() async throws {
+    let fixture = try CoordinatorFixture(compatibility: .fire)
+    defer { fixture.removeRoot() }
+    let session = try fixture.realStore.prepareHome()
+    for pid: Int32 in [7101, 7102] {
+      let date = Date(timeIntervalSince1970: Double(pid))
+      try fixture.realStore.saveQuarantine(
+        DuckDuckGoLaunchQuarantineMarker(
+          identifier: session.identifier,
+          processIdentifier: pid, launchDate: date, applicationPath: fixture.applicationURL.path,
+          executablePath: fixture.executableURL.path), for: session)
+      await fixture.applications.setSnapshot(
+        Self.makeSnapshot(
+          processIdentifier: pid,
+          applicationURL: fixture.applicationURL, executableURL: fixture.executableURL,
+          launchDate: date))
+      if pid == 7102 { await fixture.applications.emitTermination(processIdentifier: 7101) }
+      try await fixture.coordinator.waitForStartupCleanup()
+    }
+    #expect(try fixture.realStore.quarantineRecords().map(\.marker.processIdentifier) == [7102])
+    #expect(FileManager.default.fileExists(atPath: session.homeDirectory.path))
+    #expect(await fixture.applications.terminatedPIDs.isEmpty)
+  }
+
   @Test func firstFireRouteLaunchesWithoutURLThenReopensThenSendsURL() async throws {
     let fixture = try CoordinatorFixture(compatibility: .fire)
     defer { fixture.removeRoot() }
@@ -247,7 +338,7 @@ struct DuckDuckGoProcessCoordinatorTests {
     )
     let launchDate = Date(timeIntervalSince1970: 4_321)
     let session = try fixture.realStore.prepareHome()
-    try fixture.realStore.save(
+    try fixture.realStore.writeLegacy(
       DuckDuckGoManagedProcessMarker(
         identifier: session.identifier,
         processIdentifier: 7101,
@@ -289,7 +380,7 @@ struct DuckDuckGoProcessCoordinatorTests {
     )
     let launchDate = Date(timeIntervalSince1970: 4_321)
     let session = try fixture.realStore.prepareHome()
-    try fixture.realStore.save(
+    try fixture.realStore.writeLegacy(
       DuckDuckGoManagedProcessMarker(
         identifier: session.identifier,
         processIdentifier: 7101,
@@ -365,8 +456,7 @@ struct DuckDuckGoProcessCoordinatorTests {
     #expect(await fixture.events.invocations.isEmpty)
   }
 
-  @Test(arguments: [BrowserMode.normal, .private])
-  func unsupportedBuildRejectsBothModes(_ mode: BrowserMode) async throws {
+  @Test func unsupportedBuildRejectsPrivateMode() async throws {
     let fixture = try CoordinatorFixture(compatibility: .unsupported)
     defer { fixture.removeRoot() }
 
@@ -374,7 +464,7 @@ struct DuckDuckGoProcessCoordinatorTests {
       try await fixture.coordinator.open(
         url: URL(string: "https://example.com/unsupported")!,
         applicationURL: fixture.applicationURL,
-        mode: mode
+        mode: .private
       )
     }
     #expect(await fixture.applications.launches.isEmpty)
@@ -1001,7 +1091,7 @@ struct DuckDuckGoProcessCoordinatorTests {
         mode: .private
       )
     }
-    #expect(try fixture.realStore.records().map(\.marker.processIdentifier) == [7001])
+    #expect(try fixture.realStore.quarantineRecords().map(\.marker.processIdentifier) == [7001])
     await fixture.applications.setNextLaunch(
       DuckDuckGoProcessCoordinatorTests.makeSnapshot(
         processIdentifier: 8001,
@@ -1095,52 +1185,23 @@ struct DuckDuckGoProcessCoordinatorTests {
     #expect(await recoveredEvents.invocations.isEmpty)
   }
 
-  @Test func quarantineRemovalFailureRemainsAuthoritativeAfterRestart() async throws {
-    let fixture = try CoordinatorFixture(
-      compatibility: .fire,
-      storeFailure: .quarantineRemoval
-    )
+  @Test func atomicManagedCommitDoesNotNeedASecondQuarantineRemoval() async throws {
+    let fixture = try CoordinatorFixture(compatibility: .fire, storeFailure: .quarantineRemoval)
     defer { fixture.removeRoot() }
-
-    await #expect(throws: TestFailure.quarantine) {
-      try await fixture.coordinator.open(
-        url: URL(string: "https://example.com/quarantine-remove-failure")!,
-        applicationURL: fixture.applicationURL,
-        mode: .private
-      )
-    }
-    #expect(await fixture.applications.terminatedPIDs.isEmpty)
+    try await fixture.coordinator.open(
+      url: URL(string: "https://example.com/atomic")!,
+      applicationURL: fixture.applicationURL, mode: .private)
+    #expect(try fixture.realStore.quarantineEntries().isEmpty)
     #expect(try fixture.realStore.records().map(\.marker.processIdentifier) == [7001])
-    #expect(try fixture.realStore.quarantineRecords().map(\.marker.processIdentifier) == [7001])
-    let recoveredEvents = RecordingDuckDuckGoAppleEventSender()
-    let recoveredCoordinator = DuckDuckGoProcessCoordinator(
+    let events = RecordingDuckDuckGoAppleEventSender()
+    let recovered = DuckDuckGoProcessCoordinator(
       compatibilityChecker: StubDuckDuckGoCompatibility(value: .fire),
-      applications: fixture.applications,
-      events: recoveredEvents,
-      stateStore: fixture.realStore,
-      rollbackExitTimeout: .zero
-    )
-    await fixture.applications.setNextLaunch(
-      DuckDuckGoProcessCoordinatorTests.makeSnapshot(
-        processIdentifier: 8001,
-        applicationURL: fixture.applicationURL,
-        executableURL: fixture.executableURL,
-        launchDate: Date(timeIntervalSince1970: 9_202)
-      )
-    )
-
-    try await recoveredCoordinator.open(
-      url: URL(string: "https://example.com/private-after-remove-failure")!,
-      applicationURL: fixture.applicationURL,
-      mode: .private
-    )
-
-    #expect(
-      !(await recoveredEvents.invocations).contains {
-        $0.processIdentifier == 7001
-      }
-    )
-    #expect(await recoveredEvents.invocations.map(\.processIdentifier) == [8001, 8001])
+      applications: fixture.applications, events: events, stateStore: fixture.realStore)
+    try await recovered.open(
+      url: URL(string: "https://example.com/restart")!,
+      applicationURL: fixture.applicationURL, mode: .private)
+    #expect(await fixture.applications.launches.count == 1)
+    #expect(await events.invocations.map(\.processIdentifier) == [7001, 7001])
   }
 
   @Test func destructiveRollbackRequiresExactLaunchDate() async throws {
@@ -1163,7 +1224,7 @@ struct DuckDuckGoProcessCoordinatorTests {
     #expect(fixture.sessionDirectoryNames().count == 1)
   }
 
-  @Test func resolvedApplicationURLIsUsedForCompatibilityAndLaunch() async throws {
+  @Test func ordinaryLaunchResolvesApplicationWithoutPrivateCompatibilityCheck() async throws {
     let parent = FileManager.default.temporaryDirectory.appending(
       path: "PickVia-DuckDuckGo-Link-\(UUID())",
       directoryHint: .isDirectory
@@ -1208,7 +1269,7 @@ struct DuckDuckGoProcessCoordinatorTests {
 
     let resolvedApplicationURL = linkedApplicationURL.standardizedFileURL
       .resolvingSymlinksInPath().standardizedFileURL
-    #expect(checker.receivedURLs == [resolvedApplicationURL])
+    #expect(checker.receivedURLs.isEmpty)
     #expect(
       await applications.launches.only?.applicationURL == resolvedApplicationURL
     )
@@ -1299,7 +1360,7 @@ struct DuckDuckGoProcessCoordinatorTests {
     let session = try fixture.realStore.prepareHome()
     let quarantineDate = Date(timeIntervalSince1970: 7_101)
     let processDate = Date(timeIntervalSince1970: 7_201)
-    try fixture.realStore.saveQuarantine(
+    try fixture.realStore.writeLegacy(
       DuckDuckGoLaunchQuarantineMarker(
         identifier: session.identifier,
         processIdentifier: 7101,
@@ -1309,7 +1370,7 @@ struct DuckDuckGoProcessCoordinatorTests {
       ),
       for: session
     )
-    try fixture.realStore.save(
+    try fixture.realStore.writeLegacy(
       DuckDuckGoManagedProcessMarker(
         identifier: session.identifier,
         processIdentifier: 7201,
@@ -1379,7 +1440,7 @@ struct DuckDuckGoProcessCoordinatorTests {
     let session = try fixture.realStore.prepareHome()
     let quarantineDate = Date(timeIntervalSince1970: 7_601)
     let processDate = Date(timeIntervalSince1970: 7_701)
-    try fixture.realStore.saveQuarantine(
+    try fixture.realStore.writeLegacy(
       DuckDuckGoLaunchQuarantineMarker(
         identifier: session.identifier,
         processIdentifier: 7601,
@@ -1389,7 +1450,7 @@ struct DuckDuckGoProcessCoordinatorTests {
       ),
       for: session
     )
-    try fixture.realStore.save(
+    try fixture.realStore.writeLegacy(
       DuckDuckGoManagedProcessMarker(
         identifier: session.identifier,
         processIdentifier: 7701,
@@ -1436,7 +1497,7 @@ struct DuckDuckGoProcessCoordinatorTests {
     let session = try fixture.realStore.prepareHome()
     let quarantineDate = Date(timeIntervalSince1970: 7_801)
     let processDate = Date(timeIntervalSince1970: 7_901)
-    try fixture.realStore.saveQuarantine(
+    try fixture.realStore.writeLegacy(
       DuckDuckGoLaunchQuarantineMarker(
         identifier: session.identifier,
         processIdentifier: 7801,
@@ -1446,7 +1507,7 @@ struct DuckDuckGoProcessCoordinatorTests {
       ),
       for: session
     )
-    try fixture.realStore.save(
+    try fixture.realStore.writeLegacy(
       DuckDuckGoManagedProcessMarker(
         identifier: session.identifier,
         processIdentifier: 7901,
@@ -1496,7 +1557,7 @@ struct DuckDuckGoProcessCoordinatorTests {
     let session = try fixture.realStore.prepareHome()
     let quarantineDate = Date(timeIntervalSince1970: 7_801)
     let processDate = Date(timeIntervalSince1970: 7_901)
-    try fixture.realStore.saveQuarantine(
+    try fixture.realStore.writeLegacy(
       DuckDuckGoLaunchQuarantineMarker(
         identifier: session.identifier,
         processIdentifier: 7801,
@@ -1506,7 +1567,7 @@ struct DuckDuckGoProcessCoordinatorTests {
       ),
       for: session
     )
-    try fixture.realStore.save(
+    try fixture.realStore.writeLegacy(
       DuckDuckGoManagedProcessMarker(
         identifier: session.identifier,
         processIdentifier: 7901,
@@ -1553,7 +1614,7 @@ struct DuckDuckGoProcessCoordinatorTests {
     #expect(try fixture.realStore.records().map(\.marker.processIdentifier) == [7901])
   }
 
-  @Test func failedStartupCleanupIsRetriedByTheNextOpen() async throws {
+  @Test func unreadableOwnershipStateDoesNotBlockOrdinaryRouting() async throws {
     let fixture = try CoordinatorFixture(compatibility: .fire)
     defer { fixture.removeRoot() }
     let failingStore = FailingDuckDuckGoManagedStateStore(
@@ -1566,18 +1627,16 @@ struct DuckDuckGoProcessCoordinatorTests {
       events: fixture.events,
       stateStore: failingStore,
       rollbackExitTimeout: .zero,
-      startsStartupCleanup: true
+      startsStartupCleanup: false
     )
     let url = URL(string: "https://example.com/startup-retry")!
 
-    await #expect(throws: TestFailure.startup) {
-      try await coordinator.open(
-        url: url,
-        applicationURL: fixture.applicationURL,
-        mode: .normal
-      )
-    }
-    #expect(await fixture.applications.launches.isEmpty)
+    try await coordinator.open(
+      url: url,
+      applicationURL: fixture.applicationURL,
+      mode: .normal
+    )
+    #expect(await fixture.applications.launches.count == 1)
 
     try await coordinator.open(
       url: url,
@@ -1598,7 +1657,7 @@ struct DuckDuckGoProcessCoordinatorTests {
     ]
     for (index, identifier) in identifiers.enumerated() {
       let session = try fixture.realStore.prepareHome(identifier: identifier)
-      try fixture.realStore.saveQuarantine(
+      try fixture.realStore.writeLegacy(
         DuckDuckGoLaunchQuarantineMarker(
           identifier: identifier,
           processIdentifier: 7501,
@@ -1610,7 +1669,7 @@ struct DuckDuckGoProcessCoordinatorTests {
       )
       let processIdentifier = Int32(7601 + index)
       let processDate = Date(timeIntervalSince1970: 7_601 + Double(index))
-      try fixture.realStore.save(
+      try fixture.realStore.writeLegacy(
         DuckDuckGoManagedProcessMarker(
           identifier: identifier,
           processIdentifier: processIdentifier,
@@ -1662,7 +1721,7 @@ struct DuckDuckGoProcessCoordinatorTests {
     let session = try fixture.realStore.prepareHome()
     let processDate = Date(timeIntervalSince1970: 7_301)
     try Data("not json".utf8).write(to: session.quarantineURL)
-    try fixture.realStore.save(
+    try fixture.realStore.writeLegacy(
       DuckDuckGoManagedProcessMarker(
         identifier: session.identifier,
         processIdentifier: 7301,
@@ -1738,7 +1797,7 @@ struct DuckDuckGoProcessCoordinatorTests {
       at: session.quarantineURL,
       withDestinationURL: external
     )
-    try fixture.realStore.save(
+    try fixture.realStore.writeLegacy(
       DuckDuckGoManagedProcessMarker(
         identifier: session.identifier,
         processIdentifier: 7401,
@@ -1810,7 +1869,7 @@ struct DuckDuckGoProcessCoordinatorTests {
     #expect(FileManager.default.fileExists(atPath: session.sessionDirectory.path))
   }
 
-  @Test func unattributedQuarantineSkipsSecondOrdinaryProcessEnumeration()
+  @Test func unattributedQuarantineSkipsOrdinaryProcessEnumeration()
     async throws
   {
     let fixture = try CoordinatorFixture(compatibility: .fire)
@@ -1844,7 +1903,7 @@ struct DuckDuckGoProcessCoordinatorTests {
       mode: .normal
     )
 
-    #expect(await fixture.applications.runningApplicationsCallCount == 1)
+    #expect(await fixture.applications.runningApplicationsCallCount == 0)
     let launch = try #require(await fixture.applications.launches.only)
     #expect(launch.urls == [url])
     #expect(launch.createsNewApplicationInstance)
@@ -1866,7 +1925,7 @@ struct DuckDuckGoProcessCoordinatorTests {
     let session = try fixture.realStore.prepareHome()
     try Data("opaque".utf8).write(to: session.quarantineURL)
     let staleDate = Date(timeIntervalSince1970: 7_301)
-    try fixture.realStore.save(
+    try fixture.realStore.writeLegacy(
       DuckDuckGoManagedProcessMarker(
         identifier: session.identifier,
         processIdentifier: 7301,
@@ -1912,7 +1971,7 @@ struct DuckDuckGoProcessCoordinatorTests {
     defer { fixture.removeRoot() }
     let session = try fixture.realStore.prepareHome()
     let quarantineDate = Date(timeIntervalSince1970: 7_501)
-    try fixture.realStore.saveQuarantine(
+    try fixture.realStore.writeLegacy(
       DuckDuckGoLaunchQuarantineMarker(
         identifier: session.identifier,
         processIdentifier: 7501,
@@ -2017,6 +2076,20 @@ private actor RecordingDuckDuckGoApplicationManager: DuckDuckGoApplicationManagi
   let suspendsLaunch: Bool
   let snapshotLaunchDateOffsetAfterLaunch: TimeInterval
   private var suspendedLaunches: [CheckedContinuation<Void, Never>] = []
+  private var terminationContinuation: AsyncStream<Void>.Continuation?
+  var observesTerminations: Bool { terminationContinuation != nil }
+
+  func terminationEvents() async -> AsyncStream<Void> {
+    let (stream, continuation) = AsyncStream<Void>.makeStream()
+    terminationContinuation = continuation
+    return stream
+  }
+
+  func emitTermination(processIdentifier: Int32) {
+    snapshots.removeValue(forKey: processIdentifier)
+    terminationContinuation?.yield(())
+  }
+
   private var runningApplicationResponses: [[DuckDuckGoApplicationSnapshot]] = []
 
   init(
@@ -2206,6 +2279,7 @@ private final class FailingDuckDuckGoManagedStateStore:
     case quarantineUpdate
     case quarantineRemoval
     case startupEntriesOnce
+    case removal
   }
 
   let underlying: DuckDuckGoManagedStateStore
@@ -2268,6 +2342,7 @@ private final class FailingDuckDuckGoManagedStateStore:
   }
 
   func removeSession(identifier: UUID) throws {
+    if failure == .removal { throw TestFailure.cleanup }
     try underlying.removeSession(identifier: identifier)
   }
 }
@@ -2356,7 +2431,7 @@ private final class CoordinatorFixture: @unchecked Sendable {
     for (index, existingManagedPID) in existingManagedPIDs.enumerated() {
       let session = try realStore.prepareHome()
       let markerLaunchDate = launchDate.addingTimeInterval(Double(index))
-      try realStore.save(
+      try realStore.writeLegacy(
         DuckDuckGoManagedProcessMarker(
           identifier: session.identifier,
           processIdentifier: existingManagedPID,
@@ -2435,6 +2510,7 @@ private enum TestFailure: Error, Equatable, Sendable {
   case wait
   case quarantine
   case startup
+  case cleanup
 }
 
 extension Collection {

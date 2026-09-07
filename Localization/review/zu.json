@@ -1,0 +1,45 @@
+{
+  "locale": "zu",
+  "translation": "AI translated",
+  "review": "AI self-reviewed all key-value pairs for complete coverage, Zulu grammar, conditions and technical meaning; no human review claimed",
+  "sourceSHA256": {
+    "app": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "checks": {
+    "appKeys": 137,
+    "websiteKeys": 139,
+    "placeholders": "passed",
+    "websiteHTMLTagsAttributes": "passed"
+  },
+  "unresolvedIssues": [],
+  "nativeUIVerification": "NOT RUN by translation agent",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "87fb8743067e2ab44a3f12739c85c5658c304f7d5f0265db05780ff980e41e3c",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputSHA256": {
+      "website": "2b3807f87773c1822a2ab726662f9bd367e263e623653e4841d843c8aa545550"
+    },
+    "checks": [
+      "Zulu release delta self-reviewed",
+      "Website keys, placeholders and exact HTML structure match English",
+      "Historical changelog unchanged",
+      "Apple Development signing distinguished from notarization; Safari permissions and new-window behavior preserved"
+    ],
+    "unresolvedIssues": []
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "locale": "te",
+  "language": "Telugu",
+  "translation": "AI translated",
+  "review": "AI self-review completed for every app and website key/value; checked Telugu meaning and terminology, enable/disable and recovery conditions, retained versus removed state, private routing, permission names, historical releases versus development, full changelog and legal text, dates, brands, interpolation and HTML. Explicit keyed mappings were used, with no positional list insertion. No native-speaker review claimed.",
+  "sources": {
+    "Localization/app/en.json": {
+      "sha256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88"
+    },
+    "Localization/website/en.json": {
+      "sha256": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+    }
+  },
+  "outputs": {
+    "Localization/app/te.json": {
+      "sha256": "222ff8418db64918f33e7165e9fd3c44cbdd41f5c4cfcb626cf11891371974af"
+    },
+    "Localization/website/te.json": {
+      "sha256": "df4c912f0ef46dc16f04cd094fa0fb960a02a1fa59bd0dd5e053ec46d0492147"
+    }
+  },
+  "checks": {
+    "app_keys": 137,
+    "website_keys": 139,
+    "placeholders": "passed",
+    "html_tags_and_attributes": "passed",
+    "numeric_versions_and_dates": "passed",
+    "semantic_self_review": "completed; corrected cannot-use-private-routing tense before delivery"
+  },
+  "unresolved_issues": [],
+  "native_ui_verification": "NOT RUN by translation agent; website visual checks pending",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "222ff8418db64918f33e7165e9fd3c44cbdd41f5c4cfcb626cf11891371974af",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceHashes": {
+      "website/en.json": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputHashes": {
+      "website/te.json": "ebdb7f50da4565208add482b9cbad5f38b22d0d20c4308f07166869df9ad08d2"
+    },
+    "checks": [
+      "Reviewed v1.5 released language availability, experimental Safari permissions/new-window behavior, DuckDuckGo compatibility, and fixed Apple Development signing without notarization",
+      "All catalog keys/nonempty values/placeholders match; changed entries preserve HTML; historical content unchanged"
+    ],
+    "unresolvedIssues": [],
+    "integrationReview": "AI review confirmed localized heading markup is valid. Raw tag order differs because word order is localized; official HTML validator passes."
+  }
+}

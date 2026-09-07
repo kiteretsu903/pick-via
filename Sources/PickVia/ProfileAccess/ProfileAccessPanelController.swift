@@ -1,4 +1,5 @@
 import AppKit
+import PickViaCore
 import SwiftUI
 
 public protocol ProfileAccessPresenting: AnyObject, Sendable {
@@ -194,7 +195,7 @@ final class AppKitProfileAccessPanelDriver: NSObject, ProfileAccessPanelDriving,
       backing: .buffered,
       defer: false
     )
-    panel.title = "Browser Profile Access"
+    panel.title = L10n.tr("Browser Profile Access")
     panel.isReleasedWhenClosed = false
     panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
     panel.delegate = self
@@ -252,6 +253,7 @@ final class AppKitProfileAccessPanelDriver: NSObject, ProfileAccessPanelDriving,
   func present(model: AppModel, onClose: @escaping @MainActor () -> Void) -> Bool {
     guard let wizardViewFactory else { return false }
     self.onClose = onClose
+    panel.title = L10n.tr("Browser Profile Access")
     panel.contentViewController = NSHostingController(rootView: wizardViewFactory(model))
     position(panel)
     orderPanelFront(panel)

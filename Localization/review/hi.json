@@ -1,0 +1,62 @@
+{
+  "locale": "hi",
+  "language": "Hindi",
+  "translation": "AI translated",
+  "review": "AI self-review completed for all app, website and README text; checked permissions, privacy conditions, release/development distinction, dates, brands, placeholders and markup. No native-speaker review claimed.",
+  "sources": {
+    "Localization/app/en.json": {
+      "sha256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88"
+    },
+    "Localization/website/en.json": {
+      "sha256": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+    },
+    "Localization/readme/en.md": {
+      "sha256": "c00bb9825e8080348e7de2ab7188d536e8d3e0dd15cba241f5165425002bf163"
+    }
+  },
+  "outputs": {
+    "Localization/app/hi.json": {
+      "sha256": "94742f8476e2ab66e9be9ff34eed9dbae7429f83e25741a1ece46011c93f7e50"
+    },
+    "Localization/website/hi.json": {
+      "sha256": "a7805c9ff5635a440936075702ebcc6d03a0e00a4e6c4153cd1950963a05503d"
+    },
+    "Localization/readme/hi.md": {
+      "sha256": "30db9084ff4285e4f69340dd26e8b8e2708ab2dd66f604cf2931d0f94a1c8be7"
+    }
+  },
+  "checks": {
+    "app_keys": 137,
+    "website_keys": 139,
+    "placeholders": "passed",
+    "html_tags_and_attributes": "passed",
+    "readme_commands_links_sections": "passed"
+  },
+  "unresolved_issues": [],
+  "native_ui_verification": "NOT RUN by translation agent",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "94742f8476e2ab66e9be9ff34eed9dbae7429f83e25741a1ece46011c93f7e50",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Release 1.5 semantics reviewed against current sources: released languages, experimental Safari opt-in permissions and new windows, DuckDuckGo compatibility, fixed Apple Development signing without notarization. README commands, links, section structure match updated public baseline without internal verification links.",
+    "unresolvedIssues": [],
+    "sources": {
+      "Localization/website/en.json": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df",
+      "Localization/readme/en.md": "817cf2b6851b49c79e2078e258478b7666ce2d1d13942de55be811980ae246cc"
+    },
+    "outputs": {
+      "Localization/website/hi.json": "bf17a002bedcba2c2997516ec343e18791ce13abf39007eac864bd6ac2bfa830",
+      "Localization/readme/hi.md": "1072539eb7d718cfd21fe1e787aac2d69a8f7c97f404d847cb6a3376ed599b62"
+    }
+  }
+}

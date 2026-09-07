@@ -1,0 +1,48 @@
+{
+  "locale": "ar",
+  "translation": "AI translation",
+  "review": "AI self-review completed for app, website, and complete README; no native-speaker review claimed.",
+  "sourceSHA256": {
+    "Localization/app/en.json": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "Localization/website/en.json": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b",
+    "Localization/readme/en.md": "c00bb9825e8080348e7de2ab7188d536e8d3e0dd15cba241f5165425002bf163"
+  },
+  "checks": [
+    "139 app keys complete, exact placeholders",
+    "139 website keys complete, exact HTML tags and attributes",
+    "README full section/table structure and installation commands preserved",
+    "Arabic linguistic self-review and recovery/permission distinctions reviewed"
+  ],
+  "unresolvedIssues": [],
+  "nativeUI": "Not run by translation agent; Arabic RTL layout and shaping require parent verification.",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "d404c3ed20fc9fdd9743bd799a25ef21277bb712e08a898d53e03341b47916fc",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "Localization/website/en.json": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df",
+      "Localization/readme/en.md": "817cf2b6851b49c79e2078e258478b7666ce2d1d13942de55be811980ae246cc"
+    },
+    "outputSHA256": {
+      "Localization/website/ar.json": "8c8c886ff68a18c9d4143241c17150de2027031199e5a103c4f9f536c5b831cc",
+      "Localization/readme/ar.md": "c73b730a6e9c6c85344b9677190860d808d29af9824010127cfa875f26cf7929"
+    },
+    "checks": [
+      "All release delta meaning reviewed in Arabic",
+      "Website keys and exact HTML tags match English",
+      "README commands unchanged; language release, signing and Safari coverage synchronized",
+      "Final README removes testing/prototype report links and verification claims; simple support and experimental scope retained"
+    ],
+    "unresolvedIssues": []
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "locale": "hr",
+  "translation": "AI translated",
+  "review": "AI self-reviewed against each English key and source value",
+  "sourceHashes": {
+    "app/en.json": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website/en.json": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "checks": [
+    "139 app and 139 website key/value assignments reviewed in source order",
+    "Placeholder preservation",
+    "Exact HTML tags and attributes",
+    "Explicit brand retention",
+    "Croatian terminology, numeric meaning, dates and recovery semantics reviewed"
+  ],
+  "unresolvedIssues": [],
+  "nativeUIReview": "NOT RUN",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "5ddd82d4fabe2d69a962cec59dfcc3f7e42dedfa1ee5dad2673b17096aa7c6d5",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputSHA256": {
+      "website": "17ce729acb19e2a27a11b7a288fdee3d1c8c62108305e236e99deb73f2831443"
+    },
+    "checks": [
+      "Croatian release delta self-reviewed",
+      "Website keys, placeholders and exact HTML structure match English",
+      "Historical changelog unchanged",
+      "Apple Development signing distinguished from notarization; Safari permissions and new-window behavior preserved"
+    ],
+    "unresolvedIssues": []
+  }
+}

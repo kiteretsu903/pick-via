@@ -1,3 +1,4 @@
+import PickViaCore
 import SwiftUI
 
 @MainActor
@@ -23,11 +24,13 @@ final class SettingsSceneOpener {
 
 @MainActor
 struct SettingsActionInstaller: View {
+  @AppStorage(L10n.preferenceKey) private var localizationSelection = L10n.system
   @Environment(\.openSettings) private var openSettings
 
   let opener: SettingsSceneOpener
 
   var body: some View {
+    let _ = localizationSelection
     Color.clear
       .frame(width: 0, height: 0)
       .onAppear {

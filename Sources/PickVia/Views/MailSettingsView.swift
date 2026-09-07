@@ -33,21 +33,23 @@ func makeMailSettingsRows(
 }
 
 public struct MailSettingsView: View {
+  @AppStorage(L10n.preferenceKey) private var localizationSelection = L10n.system
   @Environment(AppModel.self) private var model
 
   public init() {}
 
   public var body: some View {
+    let _ = localizationSelection
     VStack(spacing: 0) {
       VStack(alignment: .leading, spacing: 8) {
         HStack(spacing: 10) {
           Button(action: rescan) {
-            Label("Rescan", systemImage: "arrow.clockwise")
+            Label(L10n.tr("Rescan"), systemImage: "arrow.clockwise")
           }
-          Button("Make PickVia Default") {
+          Button(L10n.tr("Make PickVia Default")) {
             Task { await model.requestDefaultMail() }
           }
-          Button("Refresh Status") {
+          Button(L10n.tr("Refresh Status")) {
             model.refreshDefaultStatus()
           }
           Spacer()
@@ -65,16 +67,16 @@ public struct MailSettingsView: View {
       List {
         if let errorMessage = model.mailErrorMessage {
           Section {
-            Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+            Label(L10n.tr(errorMessage), systemImage: "exclamationmark.triangle.fill")
               .foregroundStyle(.red)
           }
         }
 
         if model.mailApplications.isEmpty {
           ContentUnavailableView(
-            "No Mail Applications",
+            L10n.tr("No Mail Applications"),
             systemImage: "envelope.badge",
-            description: Text("Install a mail application, then rescan."))
+            description: Text(L10n.tr("Install a mail application, then rescan.")))
         } else {
           ForEach(rows) { row in
             MailTargetSettingsRow(row: row)
@@ -85,7 +87,7 @@ public struct MailSettingsView: View {
         }
       }
     }
-    .navigationTitle("Mail")
+    .navigationTitle(L10n.tr("Mail"))
   }
 
   private var rows: [MailSettingsRow] {
@@ -98,9 +100,11 @@ public struct MailSettingsView: View {
 }
 
 private struct MailDefaultStatusRow: View {
+  @AppStorage(L10n.preferenceKey) private var localizationSelection = L10n.system
   let status: SchemeStatus
 
   var body: some View {
+    let _ = localizationSelection
     HStack(spacing: 16) {
       Text("MAILTO").fontWeight(.medium)
       Label(
@@ -116,18 +120,20 @@ private struct MailDefaultStatusRow: View {
   private var statusText: String {
     switch status {
     case .isDefault: "PickVia"
-    case .notDefault: "Another app"
-    case .unknown: "Unknown"
+    case .notDefault: L10n.tr("Another app")
+    case .unknown: L10n.tr("Unknown")
     }
   }
 }
 
 private struct MailTargetSettingsRow: View {
+  @AppStorage(L10n.preferenceKey) private var localizationSelection = L10n.system
   @Environment(AppModel.self) private var model
 
   let row: MailSettingsRow
 
   var body: some View {
+    let _ = localizationSelection
     HStack(spacing: 10) {
       applicationIcon
       Toggle(
@@ -139,14 +145,14 @@ private struct MailTargetSettingsRow: View {
       )
       .labelsHidden()
       TextField(
-        "Label",
+        L10n.tr("Label"),
         text: Binding(
           get: { row.target.label },
           set: { try? model.renameTarget(id: row.targetID, label: $0) }
         )
       )
       if !row.isAvailable {
-        Text("Missing").foregroundStyle(.red)
+        Text(L10n.tr("Missing")).foregroundStyle(.red)
       }
     }
     .padding(.vertical, 4)

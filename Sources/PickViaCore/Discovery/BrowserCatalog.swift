@@ -299,7 +299,9 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
           ?? legacyCanonicalWinner
           ?? canonicalExisting
           ?? legacyAbsolutePathMatches.min(by: stableCustomizationOrder)
-          ?? ((!supportsProfiles(browser) || !isBrowserLevelTarget(candidate))
+          ?? ((!supportsProfiles(browser)
+            || routingCapabilities(for: browser)?.profileStrategy == .safariAccessibility
+            || !isBrowserLevelTarget(candidate))
             && hasUniqueMutableProfileName(candidate, among: candidates)
             ? legacyProfileMatch(for: candidate, in: browserTargets) : nil)
         consumedExistingIDs.formUnion(canonicalDefaultMatches.map(\.id))
@@ -505,9 +507,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     let privateModeIsAvailable: Bool
     if descriptor.privateStrategy == .duckDuckGoFire {
       switch duckDuckGoCompatibilityChecker.compatibility(of: applicationURL) {
-      case .unsupported:
-        return nil
-      case .ordinaryOnly:
+      case .unsupported, .ordinaryOnly:
         privateModeIsAvailable = false
       case .fire:
         privateModeIsAvailable = true
@@ -554,9 +554,13 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     usesSavedGrant: Bool,
     excluded: [DiscoveredProfile]
   ) {
+    if descriptor.profileStrategy == .safariAccessibility {
+      let profiles = SafariProfilePreferences().discoveredProfiles
+      return (profiles, .loaded, false, [])
+    }
     let profileRoot: String
     switch descriptor.profileStrategy {
-    case .none, .safariShortcut:
+    case .none, .safariShortcut, .safariAccessibility:
       return ([], .notApplicable, false, [])
     case .chromium(let root), .firefox(let root):
       profileRoot = root
@@ -661,7 +665,7 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
 
     do {
       switch descriptor.profileStrategy {
-      case .none, .safariShortcut:
+      case .none, .safariShortcut, .safariAccessibility:
         return ([], .notApplicable)
       case .chromium:
         let profiles = try ChromiumProfileParser.parse(data: data, baseDirectory: root)
@@ -744,7 +748,11 @@ public struct BrowserCatalog: BrowserDiscovering, Sendable {
     }
 
     return defaults
-      + explicitProfiles.flatMap { profile in
+      + explicitProfiles.filter { profile in
+        capabilities.profileStrategy != .safariAccessibility
+          || (SafariProfileMenuItem(identifier: profile.identifier) != nil
+            && profile.launchIdentifier == profile.identifier && profile.directoryURL == nil)
+      }.flatMap { profile in
         var candidates: [RouteTarget] = []
         if capabilities.supportsRoute(hasProfile: true, mode: .normal) {
           candidates.append(

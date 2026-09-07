@@ -1,0 +1,38 @@
+{
+  "locale": "gl",
+  "translation": "AI translated in Galician",
+  "review": "AI self-reviewed every English-to-Galician key/value alignment and precise permissions, retained state, failure and recovery meanings; official app and website validators passed.",
+  "sources": {
+    "app": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "unresolvedIssues": [],
+  "nativeUIVerification": "Not run by translation agent",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "224ed6b121e38f8d7662ca1aa187a737692f8d2aff3bf63d5855871822f2a43a",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website/en.json": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputSHA256": {
+      "website/gl.json": "aecf5fa8b2da5d8391bf7d733042a8e19e54de9b5af4278812451ee9d350bd1f"
+    },
+    "unresolvedIssues": [],
+    "checks": [
+      "Four release delta strings translated and reviewed",
+      "Complete keys and exact HTML attributes/placeholders validated",
+      "Historical changelog and app unchanged"
+    ]
+  }
+}

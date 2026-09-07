@@ -1,0 +1,54 @@
+{
+  "locale": "yo",
+  "translator": "AI",
+  "reviewer": "AI self-review",
+  "status": "complete",
+  "surfaces": [
+    "app",
+    "website"
+  ],
+  "sourceHashes": {
+    "app/en.json": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website/en.json": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "checks": [
+    "Every source key/value mapping audited for semantic alignment",
+    "Placeholders, brands, versions and URLs preserved",
+    "Exact HTML tags and attributes preserved",
+    "Yoruba diacritics and terminology self-reviewed; values normalized to NFC",
+    "Permission, recovery, privacy, dates and release semantics reviewed"
+  ],
+  "unresolvedIssues": [],
+  "notes": [
+    "AI translation and AI self-review; no human review claimed.",
+    "Native Yoruba diacritic rendering and wrapping not tested by translation agent.",
+    "macOS 27 permission category translated descriptively; exact localized OS label requires native verification."
+  ],
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "127577c5a3ee71f1bb8af106ad11bfb308f26ace07dbe8719040b83df82223f3",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputSHA256": {
+      "website": "d4a382e71fdd39357872c0f922e07d3f9f66e3136d12778c0aab021a4e3c1bfb"
+    },
+    "checks": [
+      "Release notice and three new release paragraphs translated and semantically reviewed",
+      "Exact website keys and HTML preserved; historical releases unchanged",
+      "Permission terminology aligned with existing app catalog"
+    ],
+    "unresolvedIssues": []
+  }
+}

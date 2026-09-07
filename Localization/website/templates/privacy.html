@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="{{privacy.description.001}}" />
+    <link rel="canonical" href="https://kiteretsu903.github.io/pick-via/privacy.html" />
+    <meta name="theme-color" content="#f4f3ee" />
+    <title>{{privacy.title.001}}</title>
+    <style>
+      :root { --paper: #f4f3ee; --ink: #151515; --muted: #696963; --rule: #d9d8d0; --violet: #6149d7; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--paper); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif; }
+      a { color: inherit; text-decoration: none; }
+      .shell { width: min(820px, calc(100% - 48px)); margin: 0 auto; }
+      header { height: 82px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--rule); }
+      .brand { display: inline-flex; gap: 10px; align-items: center; font-size: 19px; font-weight: 740; letter-spacing: -.045em; }
+      .brand img { width: 31px; height: 31px; border-radius: 8px; }
+      header nav { display: flex; gap: 24px; color: var(--muted); font-size: 14px; }
+      header a:hover, footer a:hover, main a { color: var(--violet); }
+      main { padding: 88px 0 96px; }
+      .eyebrow { margin: 0; color: var(--violet); font-size: 11px; font-weight: 760; letter-spacing: .13em; text-transform: uppercase; }
+      h1 { margin: 15px 0 18px; font-size: clamp(52px, 8vw, 82px); line-height: .94; letter-spacing: -.075em; }
+      .updated { margin: 0 0 58px; color: var(--muted); font-size: 14px; }
+      section { padding: 28px 0; border-top: 1px solid var(--rule); }
+      h2 { margin: 0 0 13px; font-size: 23px; letter-spacing: -.04em; }
+      p, li { color: #55554f; font-size: 16px; line-height: 1.62; }
+      p { margin: 0; } ul { margin: 0; padding-left: 20px; }
+      footer { display: flex; justify-content: space-between; padding: 25px 0 38px; border-top: 1px solid var(--rule); color: #76766f; font-size: 13px; }
+      @media (max-width: 600px) { .shell { width: min(100% - 32px, 820px); } header nav { display: none; } main { padding-top: 62px; } footer { flex-direction: column; gap: 13px; } }
+    </style>
+      {{locale.head}}
+  </head>
+  <body>
+    <header class="shell"><a class="brand" href="index.html"><img src="assets/icon.png" alt="" /><span>PickVia</span></a><nav><a href="index.html">{{privacy.a.001}}</a><a href="terms.html">{{privacy.a.002}}</a></nav></header>
+    {{locale.selector}}
+    <main class="shell">
+      <p class="eyebrow">{{privacy.p.001}}</p>
+      <h1>{{privacy.h1.001}}</h1>
+      <p class="updated">{{privacy.p.002}}</p>
+      <section><h2>{{privacy.h2.001}}</h2><p>{{privacy.p.003}}</p></section>
+      <section><h2>{{privacy.h2.002}}</h2><ul><li>{{privacy.li.001}}</li><li>{{privacy.li.002}}</li><li>{{privacy.li.003}}</li><li>{{privacy.li.004}}</li></ul></section>
+      <section><h2>{{privacy.h2.003}}</h2><p>{{privacy.p.004}}</p></section>
+      <section><h2>{{privacy.h2.004}}</h2><p>{{privacy.p.005}}</p></section>
+      <section><h2>{{privacy.h2.005}}</h2><p>{{privacy.p.006}}</p></section>
+      <section><h2>{{privacy.h2.006}}</h2><p>{{privacy.p.007}}</p></section>
+    </main>
+    <footer class="shell"><span>{{privacy.span.001}}</span><span>{{privacy.span.002}}</span></footer>
+  </body>
+</html>

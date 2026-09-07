@@ -1,0 +1,49 @@
+{
+  "locale": "fi",
+  "translator": "AI",
+  "reviewer": "AI self-review",
+  "status": "complete",
+  "surfaces": [
+    "app",
+    "website"
+  ],
+  "sourceHashes": {
+    "app/en.json": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website/en.json": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "checks": [
+    "All catalog keys present and nonempty",
+    "App placeholders preserved",
+    "Website HTML tags and attributes preserved",
+    "Semantics reviewed for permissions, recovery, private state, release availability and legal text",
+    "Re-read every current app key/value pair for semantic alignment after final source insertion; all139 correct"
+  ],
+  "unresolvedIssues": [],
+  "notes": [
+    "AI translation and AI self-review; no human review claimed.",
+    "macOS 27 permission category translated descriptively; exact Finnish system UI label requires native OS verification.",
+    "Native UI and browser layout verification not performed by this translation agent."
+  ],
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "5c86daa46cea5045c58df7356be709188176e40dfaa1d3b58a6dd70375da2d64",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website/en.json": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputSHA256": {
+      "website/fi.json": "dc4a72b1ef3f5e61bd13e92ee336a139dee9f06e16189dc0c278f821fea1d040"
+    },
+    "unresolvedIssues": []
+  }
+}

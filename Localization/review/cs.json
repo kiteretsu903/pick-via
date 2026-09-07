@@ -1,0 +1,64 @@
+{
+  "locale": "cs",
+  "language": "Czech",
+  "translation": "AI translated",
+  "review": "AI self-review completed for app and website. Reviewed Czech grammar, permission instructions, preservation and recovery conditions, privacy claims and historical release versus development scope. No native-speaker review claimed.",
+  "sources": {
+    "Localization/app/en.json": {
+      "sha256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88"
+    },
+    "Localization/website/en.json": {
+      "sha256": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+    }
+  },
+  "outputs": {
+    "Localization/app/cs.json": {
+      "sha256": "4f8a3a768af2b9198b1ae42379406b31d7cade5c0889edf23666223f6bf27c9f"
+    },
+    "Localization/website/cs.json": {
+      "sha256": "57f4c51d5b81b57c189f31d5c4f52907a9a4ab0e4f41a6e0550359a0162c6d3e"
+    }
+  },
+  "checks": {
+    "app": {
+      "keys": 139,
+      "placeholders": "passed",
+      "html_tags_and_attributes": "passed",
+      "empty_values": "none"
+    },
+    "website": {
+      "keys": 139,
+      "placeholders": "passed",
+      "html_tags_and_attributes": "passed",
+      "empty_values": "none"
+    }
+  },
+  "unresolved_issues": [],
+  "native_ui_verification": "NOT RUN by translation agent",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "4f8a3a768af2b9198b1ae42379406b31d7cade5c0889edf23666223f6bf27c9f",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputSHA256": {
+      "website": "fbf678acf5bb7ec13dd22b74b2313509ab829d60b8398e42bf528b01c66d3ae7"
+    },
+    "checks": [
+      "Reviewed all four changed Czech strings for release meaning and grammar",
+      "Website exact key parity, HTML tags/attributes and placeholders passed"
+    ],
+    "unresolvedIssues": []
+  }
+}

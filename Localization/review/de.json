@@ -1,0 +1,56 @@
+{
+  "locale": "de",
+  "translation": "AI translation",
+  "review": "AI self-review of all app, website, and README text",
+  "surfaces": [
+    "app",
+    "website",
+    "readme"
+  ],
+  "sourceHashes": {
+    "app": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b",
+    "readme": "c00bb9825e8080348e7de2ab7188d536e8d3e0dd15cba241f5165425002bf163"
+  },
+  "checks": [
+    "Exact JSON key sets and non-empty values",
+    "App interpolation tokens preserved",
+    "Website HTML tags and attributes preserved",
+    "README section structure, command and links preserved",
+    "German meaning and terminology reviewed"
+  ],
+  "unresolvedIssues": [
+    "macOS 27 German permission-panel label translated semantically; exact OS wording not confirmed in native German UI."
+  ],
+  "nativeUI": "NOT RUN by translation agent",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "1813d2e21cb2388e7036d11f2773601f5f70b8efd300a2abe111293de51d1aa1",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df",
+      "readme": "817cf2b6851b49c79e2078e258478b7666ce2d1d13942de55be811980ae246cc"
+    },
+    "outputSHA256": {
+      "website": "1ca1a9e847b15c1acaebc787062a05b0bd2af180d3b7826e6307c2f8a51182ad",
+      "readme": "ca667c2c42d5fd5e2384bd5feaf9b3479c8e5f741ec56a8aa0337b2fbe937e6e"
+    },
+    "checks": [
+      "Website exact keys, HTML attributes and placeholders",
+      "README release meaning, Safari table split, permissions and new-window behavior, Apple Development signing and non-notarized status reviewed",
+      "Historical website v1.4 entries unchanged",
+      "Final README omits all test/prototype report links and pass/pending coverage prose, matching English"
+    ],
+    "unresolvedIssues": []
+  }
+}

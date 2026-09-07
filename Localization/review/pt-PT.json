@@ -1,0 +1,64 @@
+{
+  "locale": "pt-PT",
+  "translator": "AI",
+  "reviewer": "AI self-review",
+  "status": "complete",
+  "surfaces": [
+    "app",
+    "website"
+  ],
+  "sourceHashes": {
+    "app/en.json": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website/en.json": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "checks": [
+    "Complete nonempty catalogs",
+    "Placeholders preserved",
+    "HTML tags and exact attributes preserved",
+    "European Portuguese terminology reviewed",
+    "Permission, recovery, privacy and release-version semantics reviewed"
+  ],
+  "unresolvedIssues": [],
+  "notes": [
+    "AI translated and AI self-reviewed; no human review claimed.",
+    "Native UI and website layout not tested by translation agent.",
+    "macOS 27 permission category translated descriptively; exact localized OS label requires native verification."
+  ],
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "338127cf4f15dc8275c800fd1f17a085f5b58b84fab4487bb6cf8f4ce700a117",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "Localization/website/en.json": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputSHA256": {
+      "Localization/website/pt-PT.json": "5cb95e17eb242d3aa449aa915a4392f04f6cb6623ee83928ad426d3a819ad117"
+    },
+    "changedKeys": [
+      "index.p.001",
+      "release.v1_5.duckduckgo",
+      "release.v1_5.safari",
+      "release.v1_5.signing"
+    ],
+    "checks": [
+      "Reviewed every changed value for European Portuguese terminology and final v1.5 release meaning",
+      "Confirmed the released 80 app/website languages and 12 README translations",
+      "Preserved Safari experimental status, permissions and new-window behavior",
+      "Preserved DuckDuckGo unsandboxed 1.203.x compatibility and lack of normal-link version/publisher-signature requirement",
+      "Preserved fixed Apple Development certificate and explicit non-notarized download status",
+      "Catalog key coverage, numeric values, placeholders and HTML validation passed; historical v1.4 prose unchanged"
+    ],
+    "readme": "No pt-PT README exists; no README modified",
+    "unresolvedIssues": []
+  }
+}

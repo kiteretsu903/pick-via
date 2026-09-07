@@ -1,0 +1,42 @@
+{
+  "locale": "kn",
+  "translation": "AI translated from frozen English catalogs using explicit keyed mappings.",
+  "review": "AI self-review of every English/Kannada pair for alignment, Kannada meaning, permissions and recovery conditions, release versions and dates; structural checks for placeholders, HTML tags/attributes, URLs and UTF-8.",
+  "sourceHashes": {
+    "app": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "coverage": {
+    "app": 137,
+    "website": 139,
+    "readme": false
+  },
+  "unresolvedIssues": [],
+  "nativeUI": "NOT RUN",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "46bde1d09af2808e411d62a211f88b74f9eb334a0bfce960b4afda4975e14e50",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputSHA256": {
+      "website": "0507e76906b56a7959b830679b7a799daeab49660fa5194b265c35ae0a6c7d24"
+    },
+    "checks": [
+      "Release notice and three new release paragraphs translated and semantically reviewed",
+      "Exact website keys and HTML preserved; historical releases unchanged"
+    ],
+    "unresolvedIssues": []
+  }
+}

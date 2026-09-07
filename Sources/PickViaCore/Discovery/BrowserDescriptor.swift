@@ -3,10 +3,11 @@ public enum BrowserProfileStrategy: Equatable, Sendable {
   case chromium(root: String)
   case firefox(root: String)
   case safariShortcut
+  case safariAccessibility
 
   var requiredProfileMarker: String? {
     switch self {
-    case .none, .safariShortcut:
+    case .none, .safariShortcut, .safariAccessibility:
       nil
     case .chromium:
       "Local State"
@@ -105,7 +106,7 @@ public struct BrowserRoutingCapabilities: Equatable, Sendable {
     return switch profileStrategy {
     case .chromium, .firefox:
       true
-    case .none, .safariShortcut:
+    case .none, .safariShortcut, .safariAccessibility:
       false
     }
   }
@@ -183,7 +184,7 @@ public struct BrowserDescriptor: Equatable, Sendable {
 
   public var profileRoot: String? {
     switch profileStrategy {
-    case .none, .safariShortcut:
+    case .none, .safariShortcut, .safariAccessibility:
       nil
     case .chromium(let root), .firefox(let root):
       root
@@ -226,7 +227,7 @@ public struct BrowserDescriptor: Equatable, Sendable {
         if case .chromium = launchStrategy { true } else { false }
       case .firefox:
         if case .firefox = launchStrategy { true } else { false }
-      case .safariShortcut:
+      case .safariShortcut, .safariAccessibility:
         launchStrategy == .workspace
       }
     let privateModeIsCompatible =
@@ -256,9 +257,9 @@ public struct BrowserDescriptor: Equatable, Sendable {
       !(routeCapabilityPolicy.profile || routeCapabilityPolicy.profilePrivate)
       || {
         switch (profileStrategy, launchStrategy) {
-        case (.chromium, .chromium), (.firefox, .firefox):
+        case (.chromium, .chromium), (.firefox, .firefox), (.safariAccessibility, .workspace):
           true
-        case (.none, _), (.safariShortcut, _), (.chromium, _), (.firefox, _):
+        case (.none, _), (.safariShortcut, _), (.safariAccessibility, _), (.chromium, _), (.firefox, _):
           false
         }
       }()
@@ -283,9 +284,9 @@ public struct BrowserDescriptor: Equatable, Sendable {
   ) -> BrowserRouteCapabilityPolicy {
     let profile =
       switch (profileStrategy, launchStrategy) {
-      case (.chromium, .chromium), (.firefox, .firefox):
+      case (.chromium, .chromium), (.firefox, .firefox), (.safariAccessibility, .workspace):
         true
-      case (.none, _), (.safariShortcut, _), (.chromium, _), (.firefox, _):
+      case (.none, _), (.safariShortcut, _), (.safariAccessibility, _), (.chromium, _), (.firefox, _):
         false
       }
     let browserPrivate =
@@ -308,13 +309,13 @@ public struct BrowserDescriptor: Equatable, Sendable {
       bundleIdentifier: "com.apple.Safari",
       family: .safari,
       displayName: "Safari",
-      profileStrategy: .none,
+      profileStrategy: .safariAccessibility,
       launchStrategy: .workspace,
       privateStrategy: .unsupported,
       routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
         normal: .workspace,
         browserPrivate: false,
-        profile: false,
+        profile: true,
         profilePrivate: false
       )
     ),

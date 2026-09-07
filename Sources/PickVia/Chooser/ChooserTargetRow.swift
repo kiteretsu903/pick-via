@@ -1,7 +1,9 @@
 import AppKit
+import PickViaCore
 import SwiftUI
 
 struct ChooserTargetRow: View {
+  @AppStorage(L10n.preferenceKey) private var localizationSelection = L10n.system
   let label: String
   let shortcut: ChooserShortcut?
   let applicationURL: URL?
@@ -13,6 +15,7 @@ struct ChooserTargetRow: View {
   @State private var isHovering = false
 
   var body: some View {
+    let _ = localizationSelection
     Button(action: action) {
       HStack(spacing: 10) {
         if let applicationURL {

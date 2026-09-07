@@ -1,5 +1,9 @@
 # PickVia
 
+<!-- Generated language navigation -->
+**English** · [简体中文](docs/readme/README.zh-Hans.md) · [繁體中文](docs/readme/README.zh-Hant.md) · [日本語](docs/readme/README.ja.md) · [한국어](docs/readme/README.ko.md) · [Español](docs/readme/README.es.md) · [Français](docs/readme/README.fr.md) · [Deutsch](docs/readme/README.de.md) · [Português (Brasil)](docs/readme/README.pt-BR.md) · [Русский](docs/readme/README.ru.md) · [العربية](docs/readme/README.ar.md) · [हिन्दी](docs/readme/README.hi.md)
+<!-- End language navigation -->
+
 <p align="center">
   <img src="Support/Icons/PickViaArtwork.png" alt="PickVia app icon" width="128">
 </p>
@@ -17,9 +21,16 @@ screenshots, release highlights, and the [changelog](https://kiteretsu903.github
   <img src="docs/screenshots/pickvia-browser-chooser-backdrop@2x.png" alt="PickVia browser chooser with native macOS translucent material" width="900">
 </p>
 
+## Languages
+
+PickVia v1.5 supports 80 app and website languages, including a language
+selector and right-to-left layouts, plus 12 README languages. Choose the app language
+in Settings or follow the primary system language. Product screenshots show
+the English interface.
+
 ## Download
 
-**[Download PickVia v1.4 for macOS](https://github.com/kiteretsu903/pick-via/releases/latest)**
+**[Download PickVia v1.5 for macOS](https://github.com/kiteretsu903/pick-via/releases/latest)**
 
 PickVia requires **macOS 14 Sonoma or later** on **Apple Silicon** and handles
 HTTP, HTTPS, and `mailto:` links.
@@ -47,7 +58,7 @@ Settings.
 
 ## Install
 
-1. Download and open `PickVia-v1.4.dmg` from the
+1. Download and open `PickVia-v1.5.dmg` from the
    [GitHub release](https://github.com/kiteretsu903/pick-via/releases/latest).
 2. Drag **PickVia** to the **Applications** folder shown in the installer.
 3. Open **PickVia** from Applications and follow the welcome flow.
@@ -58,7 +69,7 @@ Settings.
 
 ### First launch and Gatekeeper
 
-PickVia v1.4 is ad-hoc signed and not notarized. macOS may block the first
+PickVia v1.5 is signed with an Apple Development certificate and is not notarized. macOS may block the first
 launch of the downloaded app. If you downloaded it from the GitHub release and
 choose to trust it:
 
@@ -81,7 +92,8 @@ Apple documents this Gatekeeper override and its security implications in
 
 | Browser / editions | Profiles | Normal | Private window |
 |---|---:|---:|---:|
-| Safari, Safari Technology Preview | No | Yes | No |
+| Safari | Experimental | Yes | No |
+| Safari Technology Preview | No | Yes | No |
 | DuckDuckGo | No | Yes | Yes* |
 | Chrome Stable / Beta / Dev / Canary, Chromium | Yes | Yes | Yes |
 | Edge Stable / Beta / Dev / Canary | Yes | Yes | Yes |
@@ -90,8 +102,11 @@ Apple documents this Gatekeeper override and its security implications in
 | Firefox Stable / Developer Edition / Nightly | Yes | Yes | Yes |
 | Opera, Arc, Orion | No | Yes | No |
 
-\* DuckDuckGo Private uses isolated, disposable state and is supported only by
-official direct-download builds; it requires neither a DuckDuckGo extension nor Accessibility access.
+\* DuckDuckGo Private uses isolated, disposable state on compatible unsandboxed
+builds (currently the 1.203.x release family). It requires neither a DuckDuckGo
+extension nor Accessibility access. Normal DuckDuckGo links do not require a
+particular version or publisher signature. Private state is cleaned after its
+browser process exits while PickVia is running, or on a subsequent startup/route.
 
 Each installed edition appears as a separate browser with its own name and icon.
 Firefox profiles associated with another installed edition are excluded from that
@@ -104,10 +119,19 @@ discovered profiles. Private windows are browser-level choices: combining a
 specific profile with private mode is not supported. Opera, Arc, and Orion
 currently offer normal app-level routing only.
 
-The table describes supported routes, not exhaustive verification of every browser
-version and startup state. See the [Computer E2E report](docs/testing/browser-computer-e2e-2026-09-05.md)
-and [seven-case retry](docs/testing/browser-computer-e2e-2026-09-05-retry.md) for
-observed results and remaining coverage limits.
+Support varies by browser version and startup state.
+
+## Safari profiles (experimental)
+
+Enable Safari Stable profiles in Browser Settings. This opt-in feature requires
+Accessibility (Device Control and Data Access on macOS 27 or later) and Automation
+permissions. Each link opens in a new window of the selected profile. Safari
+profile routing remains experimental.
+
+For local builds, set `PICKVIA_SIGNING_IDENTITY` to your codesigning certificate
+fingerprint, or save it in the ignored `.signing-identity` file, then run
+`scripts/build-app.sh`. Keep the same identity across rebuilds to preserve app
+identity for macOS permissions.
 
 ## Mail support
 

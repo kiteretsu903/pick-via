@@ -1,0 +1,36 @@
+{
+  "locale": "fr",
+  "translation": "AI translated",
+  "review": "AI self-reviewed for meaning, complete coverage, French typography, terminology, placeholders, HTML attributes, dates, versions, privacy and recovery conditions.",
+  "sourceHashes": {
+    "app/en.json": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website/en.json": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b",
+    "readme/en.md": "c00bb9825e8080348e7de2ab7188d536e8d3e0dd15cba241f5165425002bf163"
+  },
+  "unresolvedIssues": [],
+  "humanReview": false,
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "8dca44caf7c6b1ccb2285769f0ee6358b7d6e19061bd748b536c89a1fd2a93db",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website/en.json": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df",
+      "readme/en.md": "817cf2b6851b49c79e2078e258478b7666ce2d1d13942de55be811980ae246cc"
+    },
+    "outputSHA256": {
+      "website/fr.json": "084448403b42b0f7de12c1e0cf5251bb268732fade0177d713d6d12583d39150",
+      "readme/fr.md": "f720598ffe6daa5898778dab104e48edb818bdb3c317ee00d4d0825a807a1fa8"
+    },
+    "unresolvedIssues": []
+  }
+}

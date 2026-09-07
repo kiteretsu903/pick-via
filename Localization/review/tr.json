@@ -1,0 +1,50 @@
+{
+  "locale": "tr",
+  "translation": "AI translation",
+  "review": "AI self-review of every explicitly keyed app and website translation",
+  "surfaces": [
+    "app",
+    "website"
+  ],
+  "sourceHashes": {
+    "app": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "checks": [
+    "Exact JSON key sets; no duplicate keys or empty values",
+    "App interpolation tokens preserved",
+    "Website HTML tags and attributes preserved",
+    "Turkish meaning and terminology reviewed"
+  ],
+  "unresolvedIssues": [
+    "macOS 27 Turkish permission-panel label translated semantically; exact OS wording not confirmed in native Turkish UI."
+  ],
+  "nativeUI": "NOT RUN by translation agent",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "e4dd4ea9c8bbfe773a113fdafe5992b64462ac7097f04c7d67170d9c3da5e737",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "Localization/website/en.json": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputSHA256": {
+      "Localization/website/tr.json": "2526f07c347dd35af2b3eac7ba8043a65d6a80b1a24af3867059f110827dceed"
+    },
+    "checks": [
+      "All four release delta strings translated and self-reviewed",
+      "145 website keys and exact HTML tags/attributes match English",
+      "Historical v1.4 prose unchanged"
+    ],
+    "unresolvedIssues": []
+  }
+}

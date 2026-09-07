@@ -1,0 +1,49 @@
+{
+  "locale": "is",
+  "translator": "AI translation agent",
+  "reviewer": "AI self-review",
+  "reviewDate": "2026-09-06",
+  "surfaces": [
+    "app",
+    "website"
+  ],
+  "sourceHashes": {
+    "app/en.json": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website/en.json": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "checks": [
+    "All 139 app and 139 website keys translated",
+    "Placeholders preserved",
+    "Website HTML tags and attributes preserved",
+    "Dates, versions, brands, URLs, technical values and conditions reviewed",
+    "Icelandic grammar and terminology self-reviewed"
+  ],
+  "unresolvedIssues": [],
+  "nativeUiVerified": false,
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "7058541313909d5d4fbe163186d1787f3f342819cdce6ef0a7918b54738ec621",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputSHA256": {
+      "website": "cc8abe1124d3a41ff09ed653d4c99e8abea5d02595cad016a8710db1dff1c84c"
+    },
+    "checks": [
+      "Release notice and three new release paragraphs translated and semantically reviewed",
+      "Exact website keys and HTML preserved; historical releases unchanged"
+    ],
+    "unresolvedIssues": []
+  }
+}

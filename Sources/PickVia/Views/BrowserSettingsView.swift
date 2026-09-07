@@ -1,7 +1,9 @@
+import AppKit
 import PickViaCore
 import SwiftUI
 
 public struct BrowserSettingsView: View {
+  @AppStorage(L10n.preferenceKey) private var localizationSelection = L10n.system
   @Environment(AppModel.self) private var model
   @Environment(\.profileAccessPresenter) private var profileAccessPresenter
   @State private var showsAddTarget = false
@@ -9,13 +11,14 @@ public struct BrowserSettingsView: View {
   public init() {}
 
   public var body: some View {
+    let _ = localizationSelection
     VStack(spacing: 0) {
       VStack(alignment: .leading, spacing: 8) {
         HStack(spacing: 10) {
           Button {
             showsAddTarget = true
           } label: {
-            Label("Add Target", systemImage: "plus")
+            Label(L10n.tr("Add Target"), systemImage: "plus")
           }
           .disabled(availableBrowsers.isEmpty)
 
@@ -24,7 +27,7 @@ public struct BrowserSettingsView: View {
             profileAccessPresenter.request(model: model)
           } label: {
             HStack(spacing: 6) {
-              Label("Profile Access", systemImage: "folder.badge.key")
+              Label(L10n.tr("Profile Access"), systemImage: "folder.badge.key")
               issueDots(model.browserSettingsIssueSummary)
             }
           }
@@ -32,7 +35,7 @@ public struct BrowserSettingsView: View {
           .accessibilityLabel(profileAccessAccessibilityText(model.browserSettingsIssueSummary))
 
           Button(action: rescan) {
-            Label("Rescan", systemImage: "arrow.clockwise")
+            Label(L10n.tr("Rescan"), systemImage: "arrow.clockwise")
           }
           Spacer()
         }
@@ -57,12 +60,18 @@ public struct BrowserSettingsView: View {
       .padding(.horizontal, 16)
       .padding(.vertical, 10)
 
+      if model.browsers.contains(where: { $0.bundleIdentifier == "com.apple.Safari" }) {
+        SafariProfileSettings()
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.horizontal, 16)
+          .padding(.bottom, 8)
+      }
       Divider()
 
       List {
         if let recoveryMessage = model.configurationRecoveryMessage {
           Section {
-            Label(recoveryMessage, systemImage: "exclamationmark.triangle.fill")
+            Label(L10n.tr(recoveryMessage), systemImage: "exclamationmark.triangle.fill")
               .foregroundStyle(.red)
           }
         }
@@ -70,8 +79,11 @@ public struct BrowserSettingsView: View {
           Section {
             let targets = targets(for: browser)
             if targets.isEmpty {
-              Text(browser.isAvailable ? "No profiles discovered" : "Browser is missing")
-                .foregroundStyle(.secondary)
+              Text(
+                browser.isAvailable
+                  ? L10n.tr("No profiles discovered") : L10n.tr("Browser is missing")
+              )
+              .foregroundStyle(.secondary)
             } else {
               ForEach(targets) { target in
                 TargetSettingsRow(
@@ -88,19 +100,19 @@ public struct BrowserSettingsView: View {
           } header: {
             HStack {
               Text(browser.displayName)
-              if !browser.isAvailable { Text("Missing").foregroundStyle(.red) }
+              if !browser.isAvailable { Text(L10n.tr("Missing")).foregroundStyle(.red) }
             }
           }
         }
 
         if model.browsers.isEmpty {
           ContentUnavailableView(
-            "No Supported Browsers", systemImage: "globe.badge.chevron.backward",
-            description: Text("Install a supported browser, then rescan."))
+            L10n.tr("No Supported Browsers"), systemImage: "globe.badge.chevron.backward",
+            description: Text(L10n.tr("Install a supported browser, then rescan.")))
         }
       }
     }
-    .navigationTitle("Browsers")
+    .navigationTitle(L10n.tr("Browsers"))
     .sheet(isPresented: $showsAddTarget) {
       AddTargetView(browsers: availableBrowsers)
         .environment(model)
@@ -142,7 +154,7 @@ public struct BrowserSettingsView: View {
     _ summary: BrowserSettingsIssueSummary
   ) -> String {
     let details = summary.segments.map(\.text).joined(separator: ", ")
-    return details.isEmpty ? "Profile Access" : "Profile Access, \(details)"
+    return details.isEmpty ? L10n.tr("Profile Access") : L10n.tr("Profile Access, {0}", details)
   }
 
   private var availableBrowsers: [BrowserApplication] {
@@ -180,12 +192,14 @@ public struct BrowserSettingsView: View {
 }
 
 private struct TargetSettingsRow: View {
+  @AppStorage(L10n.preferenceKey) private var localizationSelection = L10n.system
   @Environment(AppModel.self) private var model
   let target: BrowserTarget
   let browser: BrowserApplication
   let onRemove: (() -> Void)?
 
   var body: some View {
+    let _ = localizationSelection
     VStack(alignment: .leading, spacing: 8) {
       HStack {
         Toggle(
@@ -198,18 +212,18 @@ private struct TargetSettingsRow: View {
         .labelsHidden()
         .disabled(!capabilities.supportsRoute(hasProfile: hasProfile, mode: target.mode))
         TextField(
-          "Label",
+          L10n.tr("Label"),
           text: Binding(
             get: { target.label },
             set: { try? model.renameTarget(id: target.id, label: $0) }
           ))
         if target.origin == .detected || !canEditProfile {
-          Text(target.profileDisplayName ?? "Default")
+          Text(target.profileDisplayName ?? L10n.tr("Default"))
             .foregroundStyle(.secondary)
-            .frame(width: 150, alignment: .leading)
+            .frame(minWidth: 150, alignment: .leading)
         } else {
           Picker(
-            "Profile",
+            L10n.tr("Profile"),
             selection: Binding(
               get: { target.profileIdentity ?? target.profileIdentifier ?? "" },
               set: {
@@ -221,7 +235,7 @@ private struct TargetSettingsRow: View {
             )
           ) {
             if capabilities.supportsRoute(hasProfile: false, mode: target.mode) {
-              Text("Browser Default").tag("")
+              Text(L10n.tr("Browser Default")).tag("")
             }
             if capabilities.supportsRoute(hasProfile: true, mode: target.mode) {
               ForEach(profileChoices) { profile in
@@ -229,7 +243,7 @@ private struct TargetSettingsRow: View {
               }
             }
           }
-          .frame(width: 150)
+          .frame(minWidth: 150)
         }
         if target.origin == .detected
           || !shouldShowBrowserModePicker(
@@ -238,35 +252,35 @@ private struct TargetSettingsRow: View {
             currentMode: target.mode
           )
         {
-          Text(target.mode == .private ? "Private" : "Normal")
+          Text(target.mode == .private ? L10n.tr("Private") : L10n.tr("Normal"))
             .foregroundStyle(.secondary)
-            .frame(width: 130, alignment: .leading)
+            .frame(minWidth: 130, alignment: .leading)
         } else {
           Picker(
-            "Mode",
+            L10n.tr("Mode"),
             selection: Binding(
               get: { target.mode },
               set: { try? model.setTargetMode(id: target.id, mode: $0) }
             )
           ) {
             ForEach(availableModes, id: \.rawValue) { mode in
-              Text(mode == .private ? "Private" : "Normal").tag(mode)
+              Text(mode == .private ? L10n.tr("Private") : L10n.tr("Normal")).tag(mode)
             }
           }
-          .frame(width: 130)
+          .frame(minWidth: 130)
         }
         if let onRemove {
-          Button("Remove", systemImage: "trash", role: .destructive, action: onRemove)
+          Button(L10n.tr("Remove"), systemImage: "trash", role: .destructive, action: onRemove)
             .labelStyle(.iconOnly)
         }
       }
       HStack(spacing: 8) {
-        Text(target.profileDisplayName ?? "Default")
+        Text(target.profileDisplayName ?? L10n.tr("Default"))
         if target.availability == .unavailable {
-          Label("Profile missing", systemImage: "exclamationmark.triangle.fill")
+          Label(L10n.tr("Profile missing"), systemImage: "exclamationmark.triangle.fill")
             .foregroundStyle(.red)
         } else if !browser.isAvailable {
-          Label("Browser missing", systemImage: "exclamationmark.triangle.fill")
+          Label(L10n.tr("Browser missing"), systemImage: "exclamationmark.triangle.fill")
             .foregroundStyle(.red)
         }
       }
@@ -306,6 +320,7 @@ private struct TargetSettingsRow: View {
 }
 
 private struct AddTargetView: View {
+  @AppStorage(L10n.preferenceKey) private var localizationSelection = L10n.system
   @Environment(AppModel.self) private var model
   @Environment(\.dismiss) private var dismiss
   let browsers: [BrowserApplication]
@@ -316,18 +331,19 @@ private struct AddTargetView: View {
   @State private var errorMessage: String?
 
   var body: some View {
+    let _ = localizationSelection
     VStack(alignment: .leading, spacing: 16) {
-      Text("Add Browser Target").font(.title2.bold())
+      Text(L10n.tr("Add Browser Target")).font(.title2.bold())
       Form {
-        Picker("Browser", selection: $browserID) {
+        Picker(L10n.tr("Browser"), selection: $browserID) {
           ForEach(browsers) { Text($0.displayName).tag($0.id) }
         }
         if selectedCapabilities.supportsRoute(hasProfile: false, mode: mode)
           || selectedCapabilities.supportsRoute(hasProfile: true, mode: mode)
         {
-          Picker("Profile", selection: $profileIdentifier) {
+          Picker(L10n.tr("Profile"), selection: $profileIdentifier) {
             if selectedCapabilities.supportsRoute(hasProfile: false, mode: mode) {
-              Text("Browser Default").tag("")
+              Text(L10n.tr("Browser Default")).tag("")
             }
             if selectedCapabilities.supportsRoute(hasProfile: true, mode: mode) {
               ForEach(profiles, id: \.identifier) { profile in
@@ -336,18 +352,18 @@ private struct AddTargetView: View {
             }
           }
         }
-        TextField("Label", text: $label)
-        Picker("Mode", selection: $mode) {
+        TextField(L10n.tr("Label"), text: $label)
+        Picker(L10n.tr("Mode"), selection: $mode) {
           ForEach(selectedModes, id: \.rawValue) { mode in
-            Text(mode == .private ? "Private" : "Normal").tag(mode)
+            Text(mode == .private ? L10n.tr("Private") : L10n.tr("Normal")).tag(mode)
           }
         }
       }
-      if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
+      if let errorMessage { Text(L10n.tr(errorMessage)).foregroundStyle(.red) }
       HStack {
         Spacer()
-        Button("Cancel", role: .cancel) { dismiss() }
-        Button("Add") { add() }
+        Button(L10n.tr("Cancel"), role: .cancel) { dismiss() }
+        Button(L10n.tr("Add")) { add() }
           .buttonStyle(.borderedProminent)
           .disabled(
             label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedBrowser == nil
@@ -526,7 +542,10 @@ func browserTargetCapabilities(
   return BrowserTargetCapabilities(
     descriptor: descriptor,
     hasDetectedProfiles: detectedAvailableTargets.contains {
-      $0.profileIdentity != nil || $0.profileIdentifier != nil
+      if descriptor.profileStrategy == .safariAccessibility {
+        return SafariProfileMenuItem(identifier: $0.profileIdentifier ?? "") != nil
+      }
+      return $0.profileIdentity != nil || $0.profileIdentifier != nil
     },
     browserPrivateModeIsAvailable: BrowserPrivateCapabilityResolver.isAvailable(
       descriptor: descriptor,
@@ -566,5 +585,72 @@ func browserSettingsTargets(
   }.sorted {
     if $0.sortOrder != $1.sortOrder { return $0.sortOrder < $1.sortOrder }
     return $0.id < $1.id
+  }
+}
+
+private struct SafariProfileSettings: View {
+  @AppStorage(L10n.preferenceKey) private var localizationSelection = L10n.system
+  @Environment(AppModel.self) private var model
+  @State private var enabled = SafariProfilePreferences().isEnabled
+  @State private var busy = false
+  @State private var message: String?
+  @State private var foundProfileCount: Int?
+
+  var body: some View {
+    let _ = localizationSelection
+    VStack(alignment: .leading, spacing: 8) {
+      Toggle(L10n.tr("Safari profiles (experimental)"), isOn: $enabled)
+        .onChange(of: enabled) { _, value in
+          SafariProfilePreferences().setEnabled(value)
+          try? model.userRequestedRescan()
+          if value { refresh() }
+        }
+      if enabled {
+        Text(
+          L10n.tr(
+            "Uses {0} and permission to control Safari. Each link opens in a new window in the selected profile.",
+            L10n.tr(MacOSControlPermission.name))
+        )
+        .font(.caption).foregroundStyle(.secondary)
+        HStack {
+          Button(L10n.tr("Refresh Safari Profiles"), action: refresh).disabled(busy)
+          Button(L10n.tr("{0} Settings", L10n.tr(MacOSControlPermission.name))) {
+            if let url = URL(
+              string:
+                "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+            {
+              NSWorkspace.shared.open(url)
+            }
+          }
+          if busy { ProgressView().controlSize(.small) }
+        }
+        if let foundProfileCount {
+          LabeledContent(
+            L10n.tr("Safari profiles (experimental)"), value: String(foundProfileCount)
+          ).font(.caption)
+        }
+        if let message { Text(L10n.tr(message)).font(.caption).textSelection(.enabled) }
+      }
+    }
+    .buttonStyle(.borderless)
+    .accessibilityElement(children: .contain)
+    .padding(.vertical, 4)
+  }
+
+  private func refresh() {
+    guard !busy else { return }
+    busy = true
+    Task { @MainActor in
+      defer { busy = false }
+      do {
+        let profiles = try await SafariProfileRouter.shared.refresh()
+        try model.userRequestedRescan()
+        foundProfileCount = profiles.count
+        message = nil
+      } catch {
+        foundProfileCount = nil
+        message = error.localizedDescription
+      }
+    }
   }
 }

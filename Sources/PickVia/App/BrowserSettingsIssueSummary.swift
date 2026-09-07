@@ -18,10 +18,8 @@ public struct BrowserSettingsIssueSegment: Equatable, Identifiable, Sendable {
 
   public var text: String {
     switch (kind, count) {
-    case (.access, 1): "1 browser needs access"
-    case (.access, _): "\(count) browsers need access"
-    case (.missingProfile, 1): "1 profile is missing"
-    case (.missingProfile, _): "\(count) profiles are missing"
+    case (.access, _): L10n.tr("Browsers needing access: {0}", String(count))
+    case (.missingProfile, _): L10n.tr("Missing profiles: {0}", String(count))
     }
   }
 }

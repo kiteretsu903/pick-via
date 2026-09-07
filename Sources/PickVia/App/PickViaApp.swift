@@ -1,12 +1,16 @@
+import PickViaCore
 import SwiftUI
 
 @main
 struct PickViaApp: App {
+  @AppStorage(L10n.preferenceKey) private var localizationSelection = L10n.system
   @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
   var body: some Scene {
+    let _ = localizationSelection
     MenuBarExtra {
       StatusMenuView()
+        .pickViaLocalization()
         .environment(delegate.model)
         .environment(delegate.navigation)
         .environment(\.profileAccessPresenter, delegate.profileAccessPresenter)
@@ -19,13 +23,14 @@ struct PickViaApp: App {
 
     Settings {
       SettingsRootView()
+        .pickViaLocalization()
         .environment(delegate.model)
         .environment(delegate.navigation)
         .environment(\.profileAccessPresenter, delegate.profileAccessPresenter)
     }
     .commands {
       CommandGroup(replacing: .appSettings) {
-        Button("Settings…") {
+        Button(L10n.tr("Settings…")) {
           delegate.settingsNavigationAction.open(.general)
         }
         .keyboardShortcut(",", modifiers: .command)
@@ -50,15 +55,16 @@ struct PickViaApp: App {
       }
 
       CommandGroup(replacing: .appInfo) {
-        Button("About PickVia") {
+        Button(L10n.tr("About PickVia")) {
           delegate.aboutAction.show()
         }
         .disabled(!delegate.aboutAction.isEnabled)
       }
     }
 
-    Window("Welcome to PickVia", id: "welcome") {
+    Window(L10n.tr("Welcome to PickVia"), id: "welcome") {
       WelcomeView()
+        .pickViaLocalization()
         .environment(delegate.model)
         .environment(\.profileAccessPresenter, delegate.profileAccessPresenter)
     }

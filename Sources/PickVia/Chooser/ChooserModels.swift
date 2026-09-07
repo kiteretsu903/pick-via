@@ -113,15 +113,15 @@ public struct ChooserPresentation: Equatable, Sendable {
   public var kind: RouteKind { request.kind }
 
   public var heading: String {
-    request.kind == .mail ? "Open email with" : "Open link with"
+    request.kind == .mail ? L10n.tr("Open email with") : L10n.tr("Open link with")
   }
 
   public var showsCopyAction: Bool { request.kind == .web }
 
   public var emptyStateMessage: String {
     request.kind == .mail
-      ? "No available mail applications. Open Mail Settings to enable or rescan one."
-      : "No available browser targets. Open Browser Settings to add or enable one."
+      ? L10n.tr("No available mail applications. Open Mail Settings to enable or rescan one.")
+      : L10n.tr("No available browser targets. Open Browser Settings to add or enable one.")
   }
 
   public static func make(
@@ -250,10 +250,10 @@ public struct ChooserPresentation: Equatable, Sendable {
 
   private static func sanitizedDisplayURL(_ url: URL) -> String {
     guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
-      return "Web link"
+      return L10n.tr("Web link")
     }
     components.user = nil
     components.password = nil
-    return components.string ?? "Web link"
+    return components.string ?? L10n.tr("Web link")
   }
 }

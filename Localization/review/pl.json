@@ -1,0 +1,50 @@
+{
+  "locale": "pl",
+  "translation": "AI translation",
+  "review": "AI self-review of all app and website text, including explicit reread of all app key-value pairs after correcting insertion-order mismatch",
+  "surfaces": [
+    "app",
+    "website"
+  ],
+  "sourceHashes": {
+    "app": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "checks": [
+    "Exact JSON key sets; no duplicate keys or empty values",
+    "App interpolation tokens preserved",
+    "Website HTML tags and attributes preserved",
+    "Polish meaning and terminology reviewed"
+  ],
+  "unresolvedIssues": [
+    "macOS 27 Polish permission-panel label translated semantically; exact OS wording not confirmed in native Polish UI."
+  ],
+  "nativeUI": "NOT RUN by translation agent",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "26e7524e05af723ff06aed3ea6e8ee75bd1b6afb907fb0dfacaa8fb41f3368f5",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputSHA256": {
+      "website": "af6ce27c92e79391697891b097250a5483f703f28747642484d1aa6097160a3f"
+    },
+    "checks": [
+      "Release v1.5 meanings self-reviewed in Polish",
+      "Website key parity and exact HTML preserved",
+      "Experimental Safari scope, version and signing limitations preserved"
+    ],
+    "unresolvedIssues": []
+  }
+}

@@ -7,95 +7,54 @@ public enum DuckDuckGoBuildCompatibility: Equatable, Sendable {
   case fire
 }
 
-public struct SignedApplicationMetadata: Equatable, Sendable {
+public struct DuckDuckGoApplicationMetadata: Equatable, Sendable {
   public let bundleIdentifier: String?
-  public let teamIdentifier: String?
   public let shortVersion: String?
-  public let isSandboxed: Bool
+  public let isSandboxed: Bool?
 
-  public init(
-    bundleIdentifier: String?,
-    teamIdentifier: String?,
-    shortVersion: String?,
-    isSandboxed: Bool
-  ) {
+  public init(bundleIdentifier: String?, shortVersion: String?, isSandboxed: Bool?) {
     self.bundleIdentifier = bundleIdentifier
-    self.teamIdentifier = teamIdentifier
     self.shortVersion = shortVersion
     self.isSandboxed = isSandboxed
   }
 }
 
-public protocol SignedApplicationMetadataProviding: Sendable {
-  func metadata(for url: URL) -> SignedApplicationMetadata?
+public protocol DuckDuckGoApplicationMetadataProviding: Sendable {
+  func metadata(for url: URL) -> DuckDuckGoApplicationMetadata?
 }
 
-public struct SystemSignedApplicationMetadataProvider: SignedApplicationMetadataProviding {
+public struct SystemDuckDuckGoApplicationMetadataProvider: DuckDuckGoApplicationMetadataProviding {
   public init() {}
 
-  public func metadata(for url: URL) -> SignedApplicationMetadata? {
-    var staticCode: SecStaticCode?
-    guard SecStaticCodeCreateWithPath(url as CFURL, [], &staticCode) == errSecSuccess,
-      let staticCode
-    else {
-      return nil
-    }
-
-    var requirement: SecRequirement?
-    guard
-      SecRequirementCreateWithString(
-        signingRequirement as CFString,
-        [],
-        &requirement
-      ) == errSecSuccess,
-      let requirement
-    else {
-      return nil
-    }
-
-    let validityFlags = SecCSFlags(rawValue: kSecCSCheckAllArchitectures | kSecCSStrictValidate)
-    guard SecStaticCodeCheckValidity(staticCode, validityFlags, requirement) == errSecSuccess else {
-      return nil
-    }
-
-    var signingInformation: CFDictionary?
-    guard
+  public func metadata(for url: URL) -> DuckDuckGoApplicationMetadata? {
+    guard let bundle = Bundle(url: url) else { return nil }
+    // Read entitlements only to determine whether the disposable-home technique applies.
+    // This is not signature validation or a publisher trust requirement.
+    var code: SecStaticCode?
+    var information: CFDictionary?
+    var sandboxed: Bool?
+    if SecStaticCodeCreateWithPath(url as CFURL, [], &code) == errSecSuccess,
+      let code,
       SecCodeCopySigningInformation(
-        staticCode,
-        SecCSFlags(rawValue: kSecCSSigningInformation),
-        &signingInformation
-      ) == errSecSuccess,
-      let signingInformation,
-      let information = signingInformation as? [String: Any]
-    else {
-      return nil
+        code, SecCSFlags(rawValue: kSecCSSigningInformation),
+        &information) == errSecSuccess,
+      let values = information as? [String: Any]
+    {
+      sandboxed = duckDuckGoSandboxStatus(from: values)
     }
-
-    return signedApplicationMetadata(from: information)
+    return DuckDuckGoApplicationMetadata(
+      bundleIdentifier: bundle.bundleIdentifier,
+      shortVersion: bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+      isSandboxed: sandboxed
+    )
   }
 }
 
-let signingRequirement =
-  "anchor apple generic and identifier \"com.duckduckgo.macos.browser\" and certificate leaf[subject.OU] = \"HKE973VLUW\""
-
-func signedApplicationMetadata(from information: [String: Any]) -> SignedApplicationMetadata? {
-  guard let bundleIdentifier = information[kSecCodeInfoIdentifier as String] as? String,
-    let teamIdentifier = information[kSecCodeInfoTeamIdentifier as String] as? String
-  else {
-    return nil
-  }
-
-  let plist = information[kSecCodeInfoPList as String] as? [String: Any]
-  let shortVersion = plist?["CFBundleShortVersionString"] as? String
-  let entitlements = information[kSecCodeInfoEntitlementsDict as String] as? [String: Any]
-  let isSandboxed = entitlements?["com.apple.security.app-sandbox"] as? Bool == true
-
-  return SignedApplicationMetadata(
-    bundleIdentifier: bundleIdentifier,
-    teamIdentifier: teamIdentifier,
-    shortVersion: shortVersion,
-    isSandboxed: isSandboxed
-  )
+func duckDuckGoSandboxStatus(from information: [String: Any]) -> Bool? {
+  guard let raw = information[kSecCodeInfoEntitlementsDict as String] else { return false }
+  guard let entitlements = raw as? [String: Any] else { return nil }
+  guard let value = entitlements["com.apple.security.app-sandbox"] else { return false }
+  return value as? Bool
 }
 
 public protocol DuckDuckGoBuildCompatibilityChecking: Sendable {
@@ -104,35 +63,34 @@ public protocol DuckDuckGoBuildCompatibilityChecking: Sendable {
 
 public struct DuckDuckGoBuildCompatibilityChecker: DuckDuckGoBuildCompatibilityChecking {
   public static let bundleIdentifier = "com.duckduckgo.macos.browser"
-  public static let teamIdentifier = "HKE973VLUW"
-
-  private let metadataProvider: any SignedApplicationMetadataProviding
-  private let allowedVersions: Set<String>
+  private let metadataProvider: any DuckDuckGoApplicationMetadataProviding
 
   public init(
-    metadataProvider: any SignedApplicationMetadataProviding =
-      SystemSignedApplicationMetadataProvider(),
-    allowedVersions: Set<String> = ["1.203.0"]
+    metadataProvider: any DuckDuckGoApplicationMetadataProviding =
+      SystemDuckDuckGoApplicationMetadataProvider()
   ) {
     self.metadataProvider = metadataProvider
-    self.allowedVersions = allowedVersions
   }
 
   public func compatibility(of url: URL) -> DuckDuckGoBuildCompatibility {
     guard let metadata = metadataProvider.metadata(for: url),
-      metadata.bundleIdentifier == Self.bundleIdentifier,
-      metadata.teamIdentifier == Self.teamIdentifier
-    else {
-      return .unsupported
-    }
-
-    guard !metadata.isSandboxed,
-      let shortVersion = metadata.shortVersion,
-      allowedVersions.contains(shortVersion)
-    else {
-      return .ordinaryOnly
-    }
-
+      metadata.bundleIdentifier == Self.bundleIdentifier
+    else { return .unsupported }
+    guard metadata.isSandboxed == false,
+      let version = metadata.shortVersion,
+      Self.supportsPrivatePreferences(version: version)
+    else { return .ordinaryOnly }
     return .fire
+  }
+
+  // The 1.203 release family uses the observed Fire startup preference layout.
+  // Permit patch updates; evaluate a new minor/major release before widening this range.
+  static func supportsPrivatePreferences(version: String) -> Bool {
+    let parts = version.split(separator: ".", omittingEmptySubsequences: false)
+    guard parts.count == 3,
+      parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy({ $0.isASCII && $0.isNumber }) }),
+      let major = Int(parts[0]), let minor = Int(parts[1]), let patch = Int(parts[2])
+    else { return false }
+    return major == 1 && minor == 203 && patch >= 0
   }
 }

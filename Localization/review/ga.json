@@ -1,0 +1,61 @@
+{
+  "locale": "ga",
+  "translator": "AI translation agent",
+  "reviewer": "AI self-review",
+  "reviewDate": "2026-09-06",
+  "surfaces": [
+    "app",
+    "website"
+  ],
+  "sourceHashes": {
+    "app/en.json": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website/en.json": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "checks": [
+    "All 139 app and 139 website keys translated",
+    "Every key-value pairing explicitly audited, including inserted Safari permission key",
+    "Placeholders preserved",
+    "Website HTML tags and attributes preserved",
+    "Dates, versions, brands, URLs, technical values and conditions reviewed",
+    "Irish grammar and terminology self-reviewed; count sentences rephrased to avoid unsupported inflection"
+  ],
+  "unresolvedIssues": [],
+  "nativeUiVerified": false,
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "cda7cb410bf0d7319e4ea623af3b18b25eb46d3466140abd86cefb076189b2fb",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "Localization/website/en.json": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputSHA256": {
+      "Localization/website/ga.json": "1b7a5e4c7f5544d8b4ed9fccd4d7eb3ea64c04d20026a5e95b1518c13bafae60"
+    },
+    "changedKeys": [
+      "index.p.001",
+      "release.v1_5.duckduckgo",
+      "release.v1_5.safari",
+      "release.v1_5.signing"
+    ],
+    "checks": [
+      "Reviewed all four changed values in Irish for meaning, inflection and existing Settings/profile/permission terminology",
+      "Confirmed released 80 app/website languages and 12 README translations",
+      "Preserved experimental Safari profiles, permissions and selected-profile new-window behavior",
+      "Preserved DuckDuckGo unsandboxed 1.203.x compatibility and lack of normal-link version/publisher-signature requirement",
+      "Preserved fixed Apple Development certificate and explicit lack of Apple notarization",
+      "Catalog keys, numeric values, placeholders and HTML validation passed; all historical release prose unchanged"
+    ],
+    "readme": "No ga README exists; no README modified",
+    "unresolvedIssues": []
+  }
+}

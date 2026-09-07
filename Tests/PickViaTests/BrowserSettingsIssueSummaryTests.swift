@@ -372,22 +372,22 @@ final class BrowserSettingsIssueSummaryTests: XCTestCase {
     XCTAssertEqual(summary, .init(accessIssueBrowserCount: 0, missingEnabledProfileCount: 0))
   }
 
-  func testSegmentsUseApprovedSingularAndPluralCopy() {
+  func testSegmentsUsePluralNeutralLocalizedCounts() {
     XCTAssertEqual(
       BrowserSettingsIssueSegment(kind: .access, count: 1).text,
-      "1 browser needs access"
+      "Browsers needing access: 1"
     )
     XCTAssertEqual(
       BrowserSettingsIssueSegment(kind: .access, count: 2).text,
-      "2 browsers need access"
+      "Browsers needing access: 2"
     )
     XCTAssertEqual(
       BrowserSettingsIssueSegment(kind: .missingProfile, count: 1).text,
-      "1 profile is missing"
+      "Missing profiles: 1"
     )
     XCTAssertEqual(
       BrowserSettingsIssueSegment(kind: .missingProfile, count: 3).text,
-      "3 profiles are missing"
+      "Missing profiles: 3"
     )
   }
 }

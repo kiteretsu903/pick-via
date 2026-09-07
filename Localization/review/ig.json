@@ -1,0 +1,45 @@
+{
+  "locale": "ig",
+  "translation": "AI translation",
+  "review": "AI self-review of every source key and translated value completed, including Igbo vowel diacritics; no native-speaker review claimed.",
+  "sourceSHA256": {
+    "Localization/app/en.json": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "Localization/website/en.json": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "checks": [
+    "139 app and 139 website keys complete",
+    "Inserted Safari permission key handled explicitly",
+    "Every key/value mapping audited",
+    "Placeholders and exact HTML tags and attributes preserved",
+    "Official build terminology corrected to refer to project publisher",
+    "Dates, versions, technical values, permissions and recovery conditions reviewed"
+  ],
+  "unresolvedIssues": [],
+  "nativeUI": "Not run by translation agent.",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "bbec55c55ea61fb5541475a966ec896a3aec6e72b4c47130b9816692033ed55e",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputSHA256": {
+      "website": "1aeddf05db5838e3beb858280559bb5eee9fb50193d768d673aa40ff25de3f6e"
+    },
+    "checks": [
+      "Reviewed all four changed Igbo strings for release meaning and grammar",
+      "Website exact key parity, HTML tags/attributes and placeholders passed"
+    ],
+    "unresolvedIssues": []
+  }
+}

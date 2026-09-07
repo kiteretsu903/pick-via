@@ -104,11 +104,11 @@ final class ProfileAccessWizardTests: XCTestCase {
     XCTAssertEqual(profileAccessStatusText(for: .accessNeeded), "Access needed")
     XCTAssertEqual(
       profileAccessStatusText(for: .granted(profileCount: 3, persistence: .persistent)),
-      "Granted — 3 profiles found"
+      "Granted — profiles found: 3"
     )
     XCTAssertEqual(
       profileAccessStatusText(for: .granted(profileCount: 1, persistence: .persistent)),
-      "Granted — 1 profile found"
+      "Granted — profiles found: 1"
     )
     XCTAssertEqual(
       profileAccessStatusText(for: .invalidFolder(requiredMarker: "Local State")),
@@ -236,7 +236,8 @@ final class ProfileAccessWizardTests: XCTestCase {
     let statusMenu = try source("Sources/PickVia/Views/StatusMenuView.swift")
     let app = try source("Sources/PickVia/App/PickViaApp.swift")
 
-    XCTAssertTrue(settings.contains("Label(\"Profile Access\", systemImage: \"folder.badge.key\")"))
+    XCTAssertTrue(
+      settings.contains("Label(L10n.tr(\"Profile Access\"), systemImage: \"folder.badge.key\")"))
     XCTAssertTrue(settings.contains("model.openProfileAccessManager()"))
     XCTAssertTrue(settings.contains("profileAccessPresenter.request(model: model)"))
     XCTAssertTrue(settings.contains("profileAccessPresenter.environmentDidChange()"))
@@ -275,7 +276,7 @@ final class ProfileAccessWizardTests: XCTestCase {
       app.components(separatedBy: "CommandGroup(replacing: .appSettings)").count - 1,
       1
     )
-    XCTAssertEqual(app.components(separatedBy: "Button(\"Settings…\")").count - 1, 1)
+    XCTAssertEqual(app.components(separatedBy: "Button(L10n.tr(\"Settings…\"))").count - 1, 1)
     XCTAssertTrue(app.contains("delegate.settingsNavigationAction.open(.general)"))
     XCTAssertTrue(app.contains(".disabled(!delegate.settingsNavigationAction.isEnabled)"))
     XCTAssertTrue(app.contains(".keyboardShortcut(\",\", modifiers: .command)"))
@@ -289,12 +290,13 @@ final class ProfileAccessWizardTests: XCTestCase {
       app.components(separatedBy: "CommandGroup(replacing: .appInfo)").count - 1,
       1
     )
-    XCTAssertEqual(app.components(separatedBy: "Button(\"About PickVia\")").count - 1, 1)
+    XCTAssertEqual(app.components(separatedBy: "Button(L10n.tr(\"About PickVia\"))").count - 1, 1)
     XCTAssertTrue(app.contains("delegate.aboutAction.show()"))
     XCTAssertTrue(app.contains(".disabled(!delegate.aboutAction.isEnabled)"))
     XCTAssertFalse(app.contains("orderFrontStandardAboutPanel"))
 
-    XCTAssertEqual(statusMenu.components(separatedBy: "Button(\"About PickVia\")").count - 1, 1)
+    XCTAssertEqual(
+      statusMenu.components(separatedBy: "Button(L10n.tr(\"About PickVia\"))").count - 1, 1)
     XCTAssertTrue(statusMenu.contains("AboutAction("))
     XCTAssertTrue(statusMenu.contains("aboutAction.show()"))
     XCTAssertTrue(statusMenu.contains(".disabled(!aboutAction.isEnabled)"))

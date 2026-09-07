@@ -1,0 +1,37 @@
+{
+  "locale": "nl",
+  "translation": "AI translated",
+  "review": "AI self-reviewed for complete meaning, Dutch terminology, placeholders, exact HTML attributes, dates, versions, and privacy/recovery conditions.",
+  "sourceHashes": {
+    "app/en.json": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website/en.json": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "unresolvedIssues": [],
+  "humanReview": false,
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "758a1f62c96de2ee485a1cab0496db3dba2abf915efa9616186ecea55834b283",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website/en.json": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputSHA256": {
+      "website/nl.json": "bace0aea2be69504cb763a0dc1dd4b458727c2f65c078a3a58b7300c95d44643"
+    },
+    "checks": [
+      "Release availability, Safari permissions and new windows, DuckDuckGo compatibility, signing and non-notarization translated and self-reviewed",
+      "Website key set, HTML tags and attributes, and placeholders validated"
+    ],
+    "unresolvedIssues": []
+  }
+}

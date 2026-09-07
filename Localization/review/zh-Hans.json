@@ -1,0 +1,37 @@
+{
+  "locale": "zh-Hans",
+  "translation": "AI translated",
+  "review": "AI self-reviewed for completeness, precise permissions and failure conditions, technical values, placeholders, markup, commands and links.",
+  "sources": {
+    "app": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b",
+    "readme": "c00bb9825e8080348e7de2ab7188d536e8d3e0dd15cba241f5165425002bf163"
+  },
+  "unresolvedIssues": [],
+  "nativeUIVerification": "Not run by translation agent",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "0991ae9884e0283fe673c7ba6e9d9b766311e63c0b743dfa67af31e57b46e14a",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Updated release v1.5 meaning, Apple Development signing without notarization, experimental Safari opt-in permissions/new-window behavior, and released language support. Removed public testing-report links and evidence claims to match final English README. Preserved all other approved translations.",
+    "sources": {
+      "website": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df",
+      "readme": "817cf2b6851b49c79e2078e258478b7666ce2d1d13942de55be811980ae246cc"
+    },
+    "outputs": {
+      "website": "7e20802f2326d4cd6bc65dca146d1eb7366076680fd6d5a20a8f30644d679efb",
+      "readme": "92154ae57a6034ca801aa4e47ae1fdafdbdd1fca61ed964465f636b3bb202fd0"
+    },
+    "unresolvedIssues": []
+  }
+}

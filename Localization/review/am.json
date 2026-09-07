@@ -1,0 +1,42 @@
+{
+  "locale": "am",
+  "translation": "AI translated from the frozen English app and website catalogs using explicit key/value mappings.",
+  "review": "AI self-review of every English/Amharic pair for alignment and meaning, permission and recovery conditions, transient versus persistent state, privacy/legal claims, release versions and Gregorian dates. Strict source validators passed for keys, interpolation, HTML attributes/tags, URLs, numeric meaning, Unicode and technical identifiers.",
+  "sourceHashes": {
+    "app": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "coverage": {
+    "app": 137,
+    "website": 139,
+    "readme": false
+  },
+  "unresolvedIssues": [],
+  "nativeUI": "NOT RUN",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "0f82dd1b752ed137a84e5da5c8d01060da909b505c0e23c75b4422e782e5f8b9",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceHashes": {
+      "website/en.json": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputHashes": {
+      "website/am.json": "8dc522996f01ba396ac82fa4d1b2f82754b2a3cdd3637d4d25fba37164d19b25"
+    },
+    "checks": [
+      "Reviewed v1.5 released language availability, experimental Safari permissions/new-window behavior, DuckDuckGo compatibility, and fixed Apple Development signing without notarization",
+      "scripts/localize-website.py validate_catalog passed for full locale catalog; historical changelog unchanged"
+    ],
+    "unresolvedIssues": []
+  }
+}

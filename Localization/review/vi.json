@@ -1,0 +1,32 @@
+{
+  "locale": "vi",
+  "translation": "AI translated",
+  "review": "AI self-reviewed every English-to-Vietnamese key/value alignment, natural phrasing, and precise permission, retention, failure and recovery meanings; technical values, markup and placeholders verified.",
+  "sources": {
+    "app": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "unresolvedIssues": [],
+  "nativeUIVerification": "Not run by translation agent",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "228c0b3b16134b0b1bc2295120d5963337b4f12cc44c8d11db2217bf1defca35",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Reviewed four Vietnamese release-delta strings for released 80/12 language coverage, experimental Safari Stable profiles with Accessibility/Automation and per-link new-window behavior, compatible unsandboxed DuckDuckGo 1.203.x private routing and absence of normal-link version/publisher-signature requirements, fixed Apple Development certificate and no notarization. Preserved historical prose and shared release labels/links. No Vietnamese README exists. Strict website catalog validation passed.",
+    "website": {
+      "sourceSHA256": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df",
+      "outputSHA256": "65df86c374738da00d8865768e6226861059c5492be38e4376dd09fb5a6af1e8"
+    },
+    "unresolvedIssues": []
+  }
+}

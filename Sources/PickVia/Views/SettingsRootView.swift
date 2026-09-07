@@ -1,3 +1,4 @@
+import PickViaCore
 import SwiftUI
 
 public enum SettingsDestination: String, CaseIterable, Identifiable {
@@ -7,7 +8,14 @@ public enum SettingsDestination: String, CaseIterable, Identifiable {
   case about
 
   public var id: Self { self }
-  public var title: String { rawValue.capitalized }
+  public var title: String {
+    switch self {
+    case .general: L10n.tr("General")
+    case .browsers: L10n.tr("Browsers")
+    case .mail: L10n.tr("Mail")
+    case .about: L10n.tr("About")
+    }
+  }
 
   public var systemImage: String {
     switch self {
@@ -20,6 +28,7 @@ public enum SettingsDestination: String, CaseIterable, Identifiable {
 }
 
 public struct SettingsRootView: View {
+  @AppStorage(L10n.preferenceKey) private var localizationSelection = L10n.system
   @Environment(AppModel.self) private var model
   @Environment(SettingsNavigation.self) private var navigation
   @Environment(\.profileAccessPresenter) private var profileAccessPresenter
@@ -27,6 +36,7 @@ public struct SettingsRootView: View {
   public init() {}
 
   public var body: some View {
+    let _ = localizationSelection
     @Bindable var navigation = navigation
     NavigationSplitView {
       List(SettingsDestination.allCases, selection: $navigation.destination) { destination in
@@ -43,7 +53,7 @@ public struct SettingsRootView: View {
       }
     }
     .environment(model)
-    .frame(minWidth: 720, minHeight: 480)
+    .frame(minWidth: LocalizationLayout.settingsWidth, minHeight: 480)
     .onDisappear {
       settingsDidClose(
         model: model,

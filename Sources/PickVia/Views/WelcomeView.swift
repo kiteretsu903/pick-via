@@ -3,6 +3,7 @@ import PickViaCore
 import SwiftUI
 
 public struct WelcomeView: View {
+  @AppStorage(L10n.preferenceKey) private var localizationSelection = L10n.system
   @Environment(AppModel.self) private var model
   @Environment(\.profileAccessPresenter) private var profileAccessPresenter
   @Environment(\.dismissWindow) private var dismissWindow
@@ -10,9 +11,14 @@ public struct WelcomeView: View {
   public init() {}
 
   public var body: some View {
+    let _ = localizationSelection
     Group {
       if lifecycle.shouldShowContent(isOnboardingComplete: model.isOnboardingComplete) {
-        welcomeContent
+        ViewThatFits(in: .vertical) {
+          welcomeContent.fixedSize(horizontal: false, vertical: true)
+          ScrollView(.vertical) { welcomeContent }
+        }
+        .frame(maxHeight: max(240, LocalizationLayout.availableHeight - 80))
       } else {
         Color.clear
           .frame(width: 0, height: 0)
@@ -33,7 +39,7 @@ public struct WelcomeView: View {
 
   private var welcomeContent: some View {
     VStack(alignment: .leading, spacing: 20) {
-      Text("Welcome to PickVia")
+      Text(L10n.tr("Welcome to PickVia"))
         .font(.largeTitle.bold())
 
       if let step = welcomeStep(for: model.onboardingStep) {
@@ -52,27 +58,27 @@ public struct WelcomeView: View {
       }
 
       if let errorMessage = onboardingErrorMessage {
-        Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+        Label(L10n.tr(errorMessage), systemImage: "exclamationmark.triangle.fill")
           .foregroundStyle(.red)
       }
     }
     .padding(32)
-    .frame(width: 560)
+    .frame(width: min(560, LocalizationLayout.availableWidth - 32))
     .frame(minHeight: 360, alignment: .topLeading)
   }
 
   private var discoveryStep: some View {
     VStack(alignment: .leading, spacing: 14) {
-      Label("Discover browsers", systemImage: "sparkle.magnifyingglass")
+      Label(L10n.tr("Discover browsers"), systemImage: "sparkle.magnifyingglass")
         .font(.title2.bold())
-      Text(
-        "PickVia found \(model.browsers.filter(\.isAvailable).count) supported browsers on this Mac."
+      LabeledContent(
+        L10n.tr("Browsers"), value: String(model.browsers.filter(\.isAvailable).count)
       )
       .foregroundStyle(.secondary)
       HStack {
-        Button("Scan Again") { rescan() }
+        Button(L10n.tr("Scan Again")) { rescan() }
         Spacer()
-        Button("Continue") { model.advanceOnboarding() }
+        Button(L10n.tr("Continue")) { model.advanceOnboarding() }
           .buttonStyle(.borderedProminent)
       }
     }
@@ -80,9 +86,9 @@ public struct WelcomeView: View {
 
   private var reviewStep: some View {
     VStack(alignment: .leading, spacing: 14) {
-      Label("Review browser targets", systemImage: "checklist")
+      Label(L10n.tr("Review browser targets"), systemImage: "checklist")
         .font(.title2.bold())
-      Text("Choose which profiles and modes should appear when you open a link.")
+      Text(L10n.tr("Choose which profiles and modes should appear when you open a link."))
         .foregroundStyle(.secondary)
       List(
         model.targets.filter { $0.routeKind == .web }.sorted {
@@ -90,17 +96,20 @@ public struct WelcomeView: View {
         }
       ) { target in
         HStack {
-          Text(target.label)
+          Text(
+            target.localizedLabel(
+              applicationName: model.browsers.first { $0.id == target.applicationID }?.displayName
+                ?? target.label))
           Spacer()
-          Text(target.isEnabled ? "Enabled" : "Hidden")
+          Text(target.isEnabled ? L10n.tr("Enabled") : L10n.tr("Hidden"))
             .foregroundStyle(.secondary)
         }
       }
       .frame(minHeight: 150)
       HStack {
-        Button("Rescan") { rescan() }
+        Button(L10n.tr("Rescan")) { rescan() }
         Spacer()
-        Button("Continue") {
+        Button(L10n.tr("Continue")) {
           advanceOnboardingAndPresentProfileAccess(
             model: model,
             profileAccessPresenter: profileAccessPresenter
@@ -114,14 +123,14 @@ public struct WelcomeView: View {
 
   private var defaultBrowserStep: some View {
     VStack(alignment: .leading, spacing: 14) {
-      Label("Make PickVia your default browser", systemImage: "checkmark.seal")
+      Label(L10n.tr("Make PickVia your default browser"), systemImage: "checkmark.seal")
         .font(.title2.bold())
-      Text("macOS asks separately for permission to handle HTTP and HTTPS links.")
+      Text(L10n.tr("macOS asks separately for permission to handle HTTP and HTTPS links."))
         .foregroundStyle(.secondary)
       BrowserDefaultStatusRows(status: model.defaultStatus)
       HStack {
         Spacer()
-        Button("Set as Default") {
+        Button(L10n.tr("Set as Default")) {
           Task { await model.requestDefaultBrowser() }
         }
         .buttonStyle(.borderedProminent)
@@ -132,25 +141,25 @@ public struct WelcomeView: View {
 
   private var mailReviewStep: some View {
     VStack(alignment: .leading, spacing: 14) {
-      Label("Review mail apps", systemImage: "envelope.badge")
+      Label(L10n.tr("Review mail apps"), systemImage: "envelope.badge")
         .font(.title2.bold())
-      Text("Choose which mail applications should appear when you open a mail link.")
+      Text(L10n.tr("Choose which mail applications should appear when you open a mail link."))
         .foregroundStyle(.secondary)
       List(mailReviewRows) { row in
         HStack(spacing: 10) {
           applicationIcon(row.application)
           Text(row.application.displayName)
           Spacer()
-          Text(row.target.isEnabled ? "Enabled" : "Hidden")
+          Text(row.target.isEnabled ? L10n.tr("Enabled") : L10n.tr("Hidden"))
             .foregroundStyle(.secondary)
         }
       }
       .frame(minHeight: 150)
       HStack {
-        Button("Rescan") { try? model.rescanMailApplications() }
+        Button(L10n.tr("Rescan")) { try? model.rescanMailApplications() }
         Spacer()
-        Button("Skip Mail Setup") { model.skipMailSetup() }
-        Button("Continue") { model.continueMailReview() }
+        Button(L10n.tr("Skip Mail Setup")) { model.skipMailSetup() }
+        Button(L10n.tr("Continue")) { model.continueMailReview() }
           .buttonStyle(.borderedProminent)
           .disabled(!model.canContinueMailReview)
       }
@@ -159,17 +168,17 @@ public struct WelcomeView: View {
 
   private var defaultMailStep: some View {
     VStack(alignment: .leading, spacing: 14) {
-      Label("Make PickVia your default mail app", systemImage: "checkmark.seal")
+      Label(L10n.tr("Make PickVia your default mail app"), systemImage: "checkmark.seal")
         .font(.title2.bold())
-      Text("macOS asks for permission to handle mail links.")
+      Text(L10n.tr("macOS asks for permission to handle mail links."))
         .foregroundStyle(.secondary)
       Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
         DefaultStatusRow(scheme: "MAILTO", status: model.defaultStatus.mailto)
       }
       HStack {
         Spacer()
-        Button("Skip Mail Setup") { model.skipMailSetup() }
-        Button("Set as Default") {
+        Button(L10n.tr("Skip Mail Setup")) { model.skipMailSetup() }
+        Button(L10n.tr("Set as Default")) {
           Task { await model.requestDefaultMail() }
         }
         .buttonStyle(.borderedProminent)
@@ -254,9 +263,11 @@ struct WelcomeLifecycle {
 }
 
 struct BrowserDefaultStatusRows: View {
+  @AppStorage(L10n.preferenceKey) private var localizationSelection = L10n.system
   let status: DefaultHandlerStatus
 
   var body: some View {
+    let _ = localizationSelection
     Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
       DefaultStatusRow(scheme: "HTTP", status: status.http)
       DefaultStatusRow(scheme: "HTTPS", status: status.https)
@@ -265,10 +276,12 @@ struct BrowserDefaultStatusRows: View {
 }
 
 struct DefaultStatusRow: View {
+  @AppStorage(L10n.preferenceKey) private var localizationSelection = L10n.system
   let scheme: String
   let status: SchemeStatus
 
   var body: some View {
+    let _ = localizationSelection
     GridRow {
       Text(scheme).fontWeight(.medium)
       Label(
@@ -282,8 +295,8 @@ struct DefaultStatusRow: View {
   private var statusDescription: String {
     switch status {
     case .isDefault: "PickVia"
-    case .notDefault: "Another app"
-    case .unknown: "Unknown"
+    case .notDefault: L10n.tr("Another app")
+    case .unknown: L10n.tr("Unknown")
     }
   }
 }

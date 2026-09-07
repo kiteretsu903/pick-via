@@ -1,0 +1,66 @@
+{
+  "locale": "sl",
+  "language": "Slovenian",
+  "translation": "AI translated",
+  "review": "AI self-review of every key/value assignment completed. The inserted Safari permission key was handled by its explicit key, excluded before mapping the original 138 app entries, and added explicitly afterward. Reviewed grammar, permission and recovery conditions, dates, technical values, privacy claims and release versus development scope. No native-speaker review claimed.",
+  "sources": {
+    "Localization/app/en.json": {
+      "sha256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88"
+    },
+    "Localization/website/en.json": {
+      "sha256": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+    }
+  },
+  "outputs": {
+    "Localization/app/sl.json": {
+      "sha256": "a6bcbccf2f21b830aa19ad487deca7270d24f2452f26f9f44ed0deb20c83f7d3"
+    },
+    "Localization/website/sl.json": {
+      "sha256": "1eccc93b2b2471c5ef311a2ce7d57d13ec54c901fa3f4dabe56bee2513115fb7"
+    }
+  },
+  "checks": {
+    "app": {
+      "keys": 139,
+      "placeholders": "passed",
+      "html_tags_and_attributes": "passed",
+      "empty_values": "none",
+      "key_value_alignment": "reviewed all assignments"
+    },
+    "website": {
+      "keys": 139,
+      "placeholders": "passed",
+      "html_tags_and_attributes": "passed",
+      "empty_values": "none",
+      "key_value_alignment": "reviewed all assignments"
+    }
+  },
+  "unresolved_issues": [],
+  "native_ui_verification": "NOT RUN by translation agent",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "a6bcbccf2f21b830aa19ad487deca7270d24f2452f26f9f44ed0deb20c83f7d3",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputSHA256": {
+      "website": "17eeb7a9d013eca9480fc08c49e1cedc17c43288a333f43af687030f6f9b8cb5"
+    },
+    "checks": [
+      "Release notice and three new release paragraphs translated and semantically reviewed",
+      "Exact website keys and HTML preserved; historical releases unchanged"
+    ],
+    "unresolvedIssues": []
+  }
+}

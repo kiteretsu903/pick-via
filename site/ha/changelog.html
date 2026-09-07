@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="ha" dir="ltr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Bayanin fitarwa na PickVia, mai zaɓin hanyar haɗi da aka gina don macOS." />
+    <link rel="canonical" href="https://kiteretsu903.github.io/pick-via/ha/changelog.html" />
+    <meta name="theme-color" content="#f4f3ee" />
+    <title>Tarihin Sauye-sauye - PickVia</title>
+    <style>
+      :root { --paper: #f4f3ee; --ink: #151515; --muted: #696963; --rule: #d9d8d0; --violet: #6149d7; --soft-violet: #eceaff; --radius: 28px; }
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body { margin: 0; background: var(--paper); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif; }
+      a { color: inherit; text-decoration: none; }
+      .shell { width: min(980px, calc(100% - 48px)); margin: 0 auto; }
+      .site-header { height: 82px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--rule); }
+      .brand { display: inline-flex; gap: 10px; align-items: center; font-size: 19px; letter-spacing: -.045em; font-weight: 740; }
+      .brand img { width: 31px; height: 31px; border-radius: 8px; }
+      nav { display: flex; align-items: center; gap: 27px; color: #55554f; font-size: 14px; font-weight: 560; }
+      nav a:hover, .site-footer a:hover { color: var(--violet); }
+      .button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 16px; border: 1px solid var(--ink); border-radius: 999px; font-size: 14px; font-weight: 650; transition: transform .18s ease, background .18s ease; }
+      .button:hover { transform: translateY(-1px); background: white; }
+      .page-intro { padding: 106px 0 80px; }
+      .eyebrow { margin: 0; color: var(--violet); font-size: 11px; font-weight: 760; letter-spacing: .13em; text-transform: uppercase; }
+      h1, h2, p { margin-top: 0; }
+      h1 { max-width: 680px; margin: 16px 0 20px; font-size: clamp(60px, 9vw, 106px); line-height: .9; letter-spacing: -.085em; }
+      h1 em { font-style: normal; color: var(--violet); }
+      .intro-copy { max-width: 515px; margin: 0; color: var(--muted); font-size: 19px; letter-spacing: -.028em; line-height: 1.48; }
+      .release-list { padding-bottom: 86px; }
+      .release { display: grid; grid-template-columns: 168px 1fr; gap: 38px; padding: 40px 0 52px; border-top: 1px solid var(--ink); }
+      .release-meta { color: var(--muted); font-size: 13px; line-height: 1.45; }
+      .release-meta strong { display: block; margin-bottom: 4px; color: var(--violet); font-size: 12px; letter-spacing: .09em; }
+      h2 { margin: 0; font-size: clamp(38px, 5.2vw, 58px); line-height: .94; letter-spacing: -.07em; }
+      .release-summary { max-width: 600px; margin: 18px 0 27px; color: var(--muted); font-size: 17px; line-height: 1.55; }
+      .release ul { max-width: 650px; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--rule); }
+      .release li { position: relative; padding: 14px 0 14px 19px; border-bottom: 1px solid var(--rule); color: #3b3b37; font-size: 15px; line-height: 1.45; }
+      .release li::before { position: absolute; left: 0; color: var(--violet); content: "•"; }
+      .release-links { display: flex; gap: 19px; margin-top: 24px; color: var(--violet); font-size: 14px; font-weight: 650; }
+      .release-links a:hover { text-decoration: underline; text-underline-offset: 4px; }
+      .release-current { padding: 6px 10px; border-radius: 999px; color: #39299c; background: var(--soft-violet); font-size: 11px; font-weight: 760; letter-spacing: .08em; text-transform: uppercase; }
+      .site-footer { display: flex; justify-content: space-between; padding: 25px 0 38px; border-top: 1px solid var(--rule); color: #76766f; font-size: 13px; }
+      @media (max-width: 680px) {
+        .shell { width: min(100% - 32px, 980px); }
+        .site-header { height: 72px; } nav { display: none; }
+        .page-intro { padding: 72px 0 58px; }
+        .release { grid-template-columns: 1fr; gap: 18px; padding: 32px 0 42px; }
+        .site-footer { flex-direction: column; gap: 13px; }
+      }
+    </style>
+      <link rel="alternate" hreflang="en" href="https://kiteretsu903.github.io/pick-via/en/changelog.html" />
+    <link rel="alternate" hreflang="zh-Hans" href="https://kiteretsu903.github.io/pick-via/zh-Hans/changelog.html" />
+    <link rel="alternate" hreflang="zh-Hant" href="https://kiteretsu903.github.io/pick-via/zh-Hant/changelog.html" />
+    <link rel="alternate" hreflang="ja" href="https://kiteretsu903.github.io/pick-via/ja/changelog.html" />
+    <link rel="alternate" hreflang="ko" href="https://kiteretsu903.github.io/pick-via/ko/changelog.html" />
+    <link rel="alternate" hreflang="es" href="https://kiteretsu903.github.io/pick-via/es/changelog.html" />
+    <link rel="alternate" hreflang="fr" href="https://kiteretsu903.github.io/pick-via/fr/changelog.html" />
+    <link rel="alternate" hreflang="de" href="https://kiteretsu903.github.io/pick-via/de/changelog.html" />
+    <link rel="alternate" hreflang="pt-BR" href="https://kiteretsu903.github.io/pick-via/pt-BR/changelog.html" />
+    <link rel="alternate" hreflang="ru" href="https://kiteretsu903.github.io/pick-via/ru/changelog.html" />
+    <link rel="alternate" hreflang="ar" href="https://kiteretsu903.github.io/pick-via/ar/changelog.html" />
+    <link rel="alternate" hreflang="hi" href="https://kiteretsu903.github.io/pick-via/hi/changelog.html" />
+    <link rel="alternate" hreflang="it" href="https://kiteretsu903.github.io/pick-via/it/changelog.html" />
+    <link rel="alternate" hreflang="pt-PT" href="https://kiteretsu903.github.io/pick-via/pt-PT/changelog.html" />
+    <link rel="alternate" hreflang="nl" href="https://kiteretsu903.github.io/pick-via/nl/changelog.html" />
+    <link rel="alternate" hreflang="sv" href="https://kiteretsu903.github.io/pick-via/sv/changelog.html" />
+    <link rel="alternate" hreflang="da" href="https://kiteretsu903.github.io/pick-via/da/changelog.html" />
+    <link rel="alternate" hreflang="nb" href="https://kiteretsu903.github.io/pick-via/nb/changelog.html" />
+    <link rel="alternate" hreflang="fi" href="https://kiteretsu903.github.io/pick-via/fi/changelog.html" />
+    <link rel="alternate" hreflang="is" href="https://kiteretsu903.github.io/pick-via/is/changelog.html" />
+    <link rel="alternate" hreflang="pl" href="https://kiteretsu903.github.io/pick-via/pl/changelog.html" />
+    <link rel="alternate" hreflang="cs" href="https://kiteretsu903.github.io/pick-via/cs/changelog.html" />
+    <link rel="alternate" hreflang="sk" href="https://kiteretsu903.github.io/pick-via/sk/changelog.html" />
+    <link rel="alternate" hreflang="hu" href="https://kiteretsu903.github.io/pick-via/hu/changelog.html" />
+    <link rel="alternate" hreflang="ro" href="https://kiteretsu903.github.io/pick-via/ro/changelog.html" />
+    <link rel="alternate" hreflang="bg" href="https://kiteretsu903.github.io/pick-via/bg/changelog.html" />
+    <link rel="alternate" hreflang="uk" href="https://kiteretsu903.github.io/pick-via/uk/changelog.html" />
+    <link rel="alternate" hreflang="sr" href="https://kiteretsu903.github.io/pick-via/sr/changelog.html" />
+    <link rel="alternate" hreflang="hr" href="https://kiteretsu903.github.io/pick-via/hr/changelog.html" />
+    <link rel="alternate" hreflang="bs" href="https://kiteretsu903.github.io/pick-via/bs/changelog.html" />
+    <link rel="alternate" hreflang="sl" href="https://kiteretsu903.github.io/pick-via/sl/changelog.html" />
+    <link rel="alternate" hreflang="mk" href="https://kiteretsu903.github.io/pick-via/mk/changelog.html" />
+    <link rel="alternate" hreflang="el" href="https://kiteretsu903.github.io/pick-via/el/changelog.html" />
+    <link rel="alternate" hreflang="tr" href="https://kiteretsu903.github.io/pick-via/tr/changelog.html" />
+    <link rel="alternate" hreflang="he" href="https://kiteretsu903.github.io/pick-via/he/changelog.html" />
+    <link rel="alternate" hreflang="fa" href="https://kiteretsu903.github.io/pick-via/fa/changelog.html" />
+    <link rel="alternate" hreflang="ur" href="https://kiteretsu903.github.io/pick-via/ur/changelog.html" />
+    <link rel="alternate" hreflang="bn" href="https://kiteretsu903.github.io/pick-via/bn/changelog.html" />
+    <link rel="alternate" hreflang="ta" href="https://kiteretsu903.github.io/pick-via/ta/changelog.html" />
+    <link rel="alternate" hreflang="te" href="https://kiteretsu903.github.io/pick-via/te/changelog.html" />
+    <link rel="alternate" hreflang="mr" href="https://kiteretsu903.github.io/pick-via/mr/changelog.html" />
+    <link rel="alternate" hreflang="gu" href="https://kiteretsu903.github.io/pick-via/gu/changelog.html" />
+    <link rel="alternate" hreflang="kn" href="https://kiteretsu903.github.io/pick-via/kn/changelog.html" />
+    <link rel="alternate" hreflang="ml" href="https://kiteretsu903.github.io/pick-via/ml/changelog.html" />
+    <link rel="alternate" hreflang="pa" href="https://kiteretsu903.github.io/pick-via/pa/changelog.html" />
+    <link rel="alternate" hreflang="ne" href="https://kiteretsu903.github.io/pick-via/ne/changelog.html" />
+    <link rel="alternate" hreflang="si" href="https://kiteretsu903.github.io/pick-via/si/changelog.html" />
+    <link rel="alternate" hreflang="th" href="https://kiteretsu903.github.io/pick-via/th/changelog.html" />
+    <link rel="alternate" hreflang="vi" href="https://kiteretsu903.github.io/pick-via/vi/changelog.html" />
+    <link rel="alternate" hreflang="id" href="https://kiteretsu903.github.io/pick-via/id/changelog.html" />
+    <link rel="alternate" hreflang="ms" href="https://kiteretsu903.github.io/pick-via/ms/changelog.html" />
+    <link rel="alternate" hreflang="fil" href="https://kiteretsu903.github.io/pick-via/fil/changelog.html" />
+    <link rel="alternate" hreflang="km" href="https://kiteretsu903.github.io/pick-via/km/changelog.html" />
+    <link rel="alternate" hreflang="lo" href="https://kiteretsu903.github.io/pick-via/lo/changelog.html" />
+    <link rel="alternate" hreflang="my" href="https://kiteretsu903.github.io/pick-via/my/changelog.html" />
+    <link rel="alternate" hreflang="mn" href="https://kiteretsu903.github.io/pick-via/mn/changelog.html" />
+    <link rel="alternate" hreflang="ka" href="https://kiteretsu903.github.io/pick-via/ka/changelog.html" />
+    <link rel="alternate" hreflang="hy" href="https://kiteretsu903.github.io/pick-via/hy/changelog.html" />
+    <link rel="alternate" hreflang="az" href="https://kiteretsu903.github.io/pick-via/az/changelog.html" />
+    <link rel="alternate" hreflang="kk" href="https://kiteretsu903.github.io/pick-via/kk/changelog.html" />
+    <link rel="alternate" hreflang="uz" href="https://kiteretsu903.github.io/pick-via/uz/changelog.html" />
+    <link rel="alternate" hreflang="sw" href="https://kiteretsu903.github.io/pick-via/sw/changelog.html" />
+    <link rel="alternate" hreflang="af" href="https://kiteretsu903.github.io/pick-via/af/changelog.html" />
+    <link rel="alternate" hreflang="am" href="https://kiteretsu903.github.io/pick-via/am/changelog.html" />
+    <link rel="alternate" hreflang="zu" href="https://kiteretsu903.github.io/pick-via/zu/changelog.html" />
+    <link rel="alternate" hreflang="xh" href="https://kiteretsu903.github.io/pick-via/xh/changelog.html" />
+    <link rel="alternate" hreflang="yo" href="https://kiteretsu903.github.io/pick-via/yo/changelog.html" />
+    <link rel="alternate" hreflang="ha" href="https://kiteretsu903.github.io/pick-via/ha/changelog.html" />
+    <link rel="alternate" hreflang="ig" href="https://kiteretsu903.github.io/pick-via/ig/changelog.html" />
+    <link rel="alternate" hreflang="so" href="https://kiteretsu903.github.io/pick-via/so/changelog.html" />
+    <link rel="alternate" hreflang="mt" href="https://kiteretsu903.github.io/pick-via/mt/changelog.html" />
+    <link rel="alternate" hreflang="ga" href="https://kiteretsu903.github.io/pick-via/ga/changelog.html" />
+    <link rel="alternate" hreflang="cy" href="https://kiteretsu903.github.io/pick-via/cy/changelog.html" />
+    <link rel="alternate" hreflang="eu" href="https://kiteretsu903.github.io/pick-via/eu/changelog.html" />
+    <link rel="alternate" hreflang="ca" href="https://kiteretsu903.github.io/pick-via/ca/changelog.html" />
+    <link rel="alternate" hreflang="gl" href="https://kiteretsu903.github.io/pick-via/gl/changelog.html" />
+    <link rel="alternate" hreflang="et" href="https://kiteretsu903.github.io/pick-via/et/changelog.html" />
+    <link rel="alternate" hreflang="lv" href="https://kiteretsu903.github.io/pick-via/lv/changelog.html" />
+    <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/changelog.html" />
+    <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/changelog.html" />
+    <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/changelog.html" />
+    <link rel="stylesheet" href="../assets/localization.css?v=ef62d78d8c0b" />
+    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+  </head>
+  <body>
+    <header class="shell site-header">
+      <a class="brand" href="index.html" aria-label="Shafin gida na PickVia"><img src="../assets/icon.png" alt="" /><span>PickVia</span></a>
+      <nav aria-label="Babban kewayawa"><a href="index.html#features">Fasaloli</a><a href="changelog.html" aria-current="page">Tarihin Sauye-sauye</a><a href="index.html#download">Sauke</a></nav>
+      <a class="button" href="https://github.com/kiteretsu903/pick-via">Lambar tushe <span aria-hidden="true">↗</span></a>
+    </header>
+    <div class="shell language-bar"><label for="website-language">Harshe</label><select id="website-language" aria-label="Zaɓi harshen shafin yanar gizo"><option value="../en/changelog.html" lang="en" dir="ltr">English</option><option value="../zh-Hans/changelog.html" lang="zh-Hans" dir="ltr">简体中文</option><option value="../zh-Hant/changelog.html" lang="zh-Hant" dir="ltr">繁體中文</option><option value="../ja/changelog.html" lang="ja" dir="ltr">日本語</option><option value="../ko/changelog.html" lang="ko" dir="ltr">한국어</option><option value="../es/changelog.html" lang="es" dir="ltr">Español</option><option value="../fr/changelog.html" lang="fr" dir="ltr">Français</option><option value="../de/changelog.html" lang="de" dir="ltr">Deutsch</option><option value="../pt-BR/changelog.html" lang="pt-BR" dir="ltr">Português (Brasil)</option><option value="../ru/changelog.html" lang="ru" dir="ltr">Русский</option><option value="../ar/changelog.html" lang="ar" dir="rtl">العربية</option><option value="../hi/changelog.html" lang="hi" dir="ltr">हिन्दी</option><option value="../it/changelog.html" lang="it" dir="ltr">Italiano</option><option value="../pt-PT/changelog.html" lang="pt-PT" dir="ltr">Português (Portugal)</option><option value="../nl/changelog.html" lang="nl" dir="ltr">Nederlands</option><option value="../sv/changelog.html" lang="sv" dir="ltr">Svenska</option><option value="../da/changelog.html" lang="da" dir="ltr">Dansk</option><option value="../nb/changelog.html" lang="nb" dir="ltr">Norsk bokmål</option><option value="../fi/changelog.html" lang="fi" dir="ltr">Suomi</option><option value="../is/changelog.html" lang="is" dir="ltr">Íslenska</option><option value="../pl/changelog.html" lang="pl" dir="ltr">Polski</option><option value="../cs/changelog.html" lang="cs" dir="ltr">Čeština</option><option value="../sk/changelog.html" lang="sk" dir="ltr">Slovenčina</option><option value="../hu/changelog.html" lang="hu" dir="ltr">Magyar</option><option value="../ro/changelog.html" lang="ro" dir="ltr">Română</option><option value="../bg/changelog.html" lang="bg" dir="ltr">Български</option><option value="../uk/changelog.html" lang="uk" dir="ltr">Українська</option><option value="../sr/changelog.html" lang="sr" dir="ltr">Српски</option><option value="../hr/changelog.html" lang="hr" dir="ltr">Hrvatski</option><option value="../bs/changelog.html" lang="bs" dir="ltr">Bosanski</option><option value="../sl/changelog.html" lang="sl" dir="ltr">Slovenščina</option><option value="../mk/changelog.html" lang="mk" dir="ltr">Македонски</option><option value="../el/changelog.html" lang="el" dir="ltr">Ελληνικά</option><option value="../tr/changelog.html" lang="tr" dir="ltr">Türkçe</option><option value="../he/changelog.html" lang="he" dir="rtl">עברית</option><option value="../fa/changelog.html" lang="fa" dir="rtl">فارسی</option><option value="../ur/changelog.html" lang="ur" dir="rtl">اردو</option><option value="../bn/changelog.html" lang="bn" dir="ltr">বাংলা</option><option value="../ta/changelog.html" lang="ta" dir="ltr">தமிழ்</option><option value="../te/changelog.html" lang="te" dir="ltr">తెలుగు</option><option value="../mr/changelog.html" lang="mr" dir="ltr">मराठी</option><option value="../gu/changelog.html" lang="gu" dir="ltr">ગુજરાતી</option><option value="../kn/changelog.html" lang="kn" dir="ltr">ಕನ್ನಡ</option><option value="../ml/changelog.html" lang="ml" dir="ltr">മലയാളം</option><option value="../pa/changelog.html" lang="pa" dir="ltr">ਪੰਜਾਬੀ</option><option value="../ne/changelog.html" lang="ne" dir="ltr">नेपाली</option><option value="../si/changelog.html" lang="si" dir="ltr">සිංහල</option><option value="../th/changelog.html" lang="th" dir="ltr">ไทย</option><option value="../vi/changelog.html" lang="vi" dir="ltr">Tiếng Việt</option><option value="../id/changelog.html" lang="id" dir="ltr">Bahasa Indonesia</option><option value="../ms/changelog.html" lang="ms" dir="ltr">Bahasa Melayu</option><option value="../fil/changelog.html" lang="fil" dir="ltr">Filipino</option><option value="../km/changelog.html" lang="km" dir="ltr">ខ្មែរ</option><option value="../lo/changelog.html" lang="lo" dir="ltr">ລາວ</option><option value="../my/changelog.html" lang="my" dir="ltr">မြန်မာ</option><option value="../mn/changelog.html" lang="mn" dir="ltr">Монгол</option><option value="../ka/changelog.html" lang="ka" dir="ltr">ქართული</option><option value="../hy/changelog.html" lang="hy" dir="ltr">Հայերեն</option><option value="../az/changelog.html" lang="az" dir="ltr">Azərbaycanca</option><option value="../kk/changelog.html" lang="kk" dir="ltr">Қазақша</option><option value="../uz/changelog.html" lang="uz" dir="ltr">O‘zbekcha</option><option value="../sw/changelog.html" lang="sw" dir="ltr">Kiswahili</option><option value="../af/changelog.html" lang="af" dir="ltr">Afrikaans</option><option value="../am/changelog.html" lang="am" dir="ltr">አማርኛ</option><option value="../zu/changelog.html" lang="zu" dir="ltr">isiZulu</option><option value="../xh/changelog.html" lang="xh" dir="ltr">isiXhosa</option><option value="../yo/changelog.html" lang="yo" dir="ltr">Yorùbá</option><option value="../ha/changelog.html" lang="ha" dir="ltr" selected>Hausa</option><option value="../ig/changelog.html" lang="ig" dir="ltr">Igbo</option><option value="../so/changelog.html" lang="so" dir="ltr">Soomaali</option><option value="../mt/changelog.html" lang="mt" dir="ltr">Malti</option><option value="../ga/changelog.html" lang="ga" dir="ltr">Gaeilge</option><option value="../cy/changelog.html" lang="cy" dir="ltr">Cymraeg</option><option value="../eu/changelog.html" lang="eu" dir="ltr">Euskara</option><option value="../ca/changelog.html" lang="ca" dir="ltr">Català</option><option value="../gl/changelog.html" lang="gl" dir="ltr">Galego</option><option value="../et/changelog.html" lang="et" dir="ltr">Eesti</option><option value="../lv/changelog.html" lang="lv" dir="ltr">Latviešu</option><option value="../lt/changelog.html" lang="lt" dir="ltr">Lietuvių</option><option value="../sq/changelog.html" lang="sq" dir="ltr">Shqip</option></select></div>
+    <main>
+      <section class="shell page-intro">
+        <p class="eyebrow">Bayanin fitarwa</p>
+        <h1>Abin da yake <em>sabo</em><br />a PickVia.</h1>
+        <p class="intro-copy">Taƙaitaccen tarihin kowace fitowar PickVia ga jama’a. Sauke sabuwar siga daga GitHub.</p>
+      </section>
+      <section class="shell release-list" aria-label="Fitowar PickVia">
+        <article class="release">
+          <div class="release-meta"><strong>06 SAT 2026</strong><span class="release-current">Fitowar yanzu</span></div>
+          <div>
+            <h2>Siga 1.5</h2>
+            <p class="release-summary">Ana samun manhajar da shafin yanar gizo a harsuna 80, tare da fassarar README guda 12. Zaɓi harshenka a Saituna.</p>
+            <ul>
+              <li>Gwada bayanan martabar Safari Stable na gwaji tare da izinin Sauƙin Amfani da Aiki ta Atomatik. Kowace hanyar haɗi tana buɗewa a sabuwar taga ta bayanin martabar da aka zaɓa.</li>
+              <li>An sauƙaƙa dawo da zaman sirri na DuckDuckGo da share bayanansa. Gine-ginen 1.203.x masu dacewa waɗanda ba su cikin sandbox suna tallafa wa tura hanyoyin haɗi na sirri; hanyoyin yau da kullum ba sa buƙatar takamaiman siga ko sa hannun mai wallafawa.</li>
+              <li>Ana amfani da takardar shaidar Apple Development guda ɗaya a kowane gini. Ba a yi wa abin saukewa notarization ba; bi umarnin shigarwa a README.</li>
+            </ul>
+            <div class="release-links"><a href="https://github.com/kiteretsu903/pick-via/releases/tag/v1.5">Cikakken bayanin fitarwa <span aria-hidden="true">↗</span></a><a href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg">Sauke v1.5 <span aria-hidden="true">↓</span></a></div>
+          </div>
+        </article>
+        <article class="release">
+          <div class="release-meta"><strong>06 SAT 2026</strong></div>
+          <div>
+            <h2>Siga 1.4</h2>
+            <p class="release-summary">Zaɓi ƙarin burauzai da nau’o’in fitarwa, tare da tara bayanan martabar Firefox bisa nau’in fitarwar da suke da alaƙa da shi.</p>
+            <ul>
+              <li>An ƙara Chrome Dev da Canary; Edge Beta, Dev da Canary; Brave Beta da Nightly; Vivaldi Snapshot; da Firefox Developer Edition da Nightly a matsayin zaɓuɓɓukan burauza dabam-dabam.</li>
+              <li>An ƙara tura hanyoyin haɗi na yau da kullum a matakin manhaja ga Opera, Arc, Orion da Safari Technology Preview.</li>
+              <li>Ana riƙe bayanan martabar Firefox tare da nau’in fitarwarsu da aka rubuta idan an iya gane shi, sannan a cire tsofaffin maimaitattun shigarwar da aka gano lokacin sake bincike. Bayanan martaba da ba su da ingantattun bayanan siffanta alaƙa suna ci gaba da amfani da tsarin madadin da yake nan.</li>
+              <li>An gyara hanyoyin fayil na bayanan martabar Firefox da aka ƙi bayan daidaita hanyoyin wucin gadi na macOS.</li>
+              <li>Ana nuna haɗin zaɓuɓɓukan turawa da ake tallafawa kawai. Tagogin sirri suna ci gaba da zama zaɓuɓɓuka a matakin burauza; babu yanayin sirri na takamaiman bayanin martaba.</li>
+            </ul>
+            <div class="release-links"><a href="https://github.com/kiteretsu903/pick-via/releases/tag/v1.4">Cikakken bayanin fitarwa <span aria-hidden="true">↗</span></a><a href="https://github.com/kiteretsu903/pick-via/releases/download/v1.4/PickVia-v1.4.dmg">Sauke v1.4 <span aria-hidden="true">↓</span></a></div>
+          </div>
+        </article>
+        <article class="release">
+          <div class="release-meta"><strong>20 AGU 2026</strong></div>
+          <div>
+            <h2>Siga 1.3</h2>
+            <p class="release-summary">DuckDuckGo yanzu yana nan a matsayin zaɓin burauza, tare da zaɓin sirri a gine-ginen hukuma da ake tallafawa.</p>
+            <ul>
+              <li>Zaɓi DuckDuckGo na yau da kullum ko na sirri daga taga zaɓi ɗaya.</li>
+              <li>Yanayin sirri yana amfani da bayanai keɓantattu na wucin gadi, ba ya buƙatar ƙari ko izinin Sauƙin Amfani, kuma yana aiki a gine-ginen hukuma masu saukewa kai tsaye da ake tallafawa kawai.</li>
+            </ul>
+            <div class="release-links"><a href="https://github.com/kiteretsu903/pick-via/releases/tag/v1.3">Cikakken bayanin fitarwa <span aria-hidden="true">↗</span></a><a href="https://github.com/kiteretsu903/pick-via/releases/download/v1.3/PickVia-v1.3.dmg">Sauke v1.3 <span aria-hidden="true">↓</span></a></div>
+          </div>
+        </article>
+        <article class="release">
+          <div class="release-meta"><strong>18 AGU 2026</strong></div>
+          <div>
+            <h2>Siga 1.2</h2>
+            <p class="release-summary">Google Chrome Beta yanzu zaɓin burauza ne dabam, tare da nasa bayanan martaba da zaɓuɓɓukan yau da kullum ko na sirri.</p>
+            <div class="release-links"><a href="https://github.com/kiteretsu903/pick-via/releases/tag/v1.2">Cikakken bayanin fitarwa <span aria-hidden="true">↗</span></a><a href="https://github.com/kiteretsu903/pick-via/releases/download/v1.2/PickVia-v1.2.dmg">Sauke v1.2 <span aria-hidden="true">↓</span></a></div>
+          </div>
+        </article>
+        <article class="release">
+          <div class="release-meta"><strong>15 AGU 2026</strong></div>
+          <div>
+            <h2>Siga 1.1</h2>
+            <p class="release-summary">Hanyoyin haɗin imel yanzu za su iya buɗewa a manhajar imel da aka shigar da ka zaɓa.</p>
+            <ul>
+              <li>Zaɓi daga manhajojin imel masu rajista kuma ka tsara jerinsu a Saitunan Imel.</li>
+              <li>PickVia ba ya nuna samfotin ko adana masu karɓa, batutuwa, rubutun saƙonni ko asalin hanyar haɗin imel.</li>
+            </ul>
+            <div class="release-links"><a href="https://github.com/kiteretsu903/pick-via/releases/tag/v1.1">Cikakken bayanin fitarwa <span aria-hidden="true">↗</span></a><a href="https://github.com/kiteretsu903/pick-via/releases/download/v1.1/PickVia-v1.1.dmg">Sauke v1.1 <span aria-hidden="true">↓</span></a></div>
+          </div>
+        </article>
+        <article class="release">
+          <div class="release-meta"><strong>14 AGU 2026</strong><span>Fitowa ta farko ga jama’a</span></div>
+          <div>
+            <h2>Siga 1.0</h2>
+            <p class="release-summary">Fitowa ta farko ga jama’a: zaɓi burauza, bayanin martaba ko yanayin sirri da ake tallafawa ga kowace hanyar haɗin yanar gizo.</p>
+            <ul>
+              <li>Ana tallafa wa Safari, Chrome, Chromium, Edge, Brave, Vivaldi da Firefox.</li>
+              <li>Shigar da manhajar ta hanyar jan ta zuwa babban fayil ɗin Manhajoji daga DMG.</li>
+            </ul>
+            <div class="release-links"><a href="https://github.com/kiteretsu903/pick-via/releases/tag/v1.0">Cikakken bayanin fitarwa <span aria-hidden="true">↗</span></a></div>
+          </div>
+        </article>
+      </section>
+    </main>
+    <footer class="shell site-footer"><span>© 2026 PickVia · Lasisin MIT</span><span><a href="index.html">Gida</a> · <a href="privacy.html">Sirri</a> · <a href="terms.html">Sharuɗɗa</a> · <a href="https://github.com/kiteretsu903/pick-via">Lambar tushe a GitHub <span aria-hidden="true">↗</span></a></span></footer>
+  </body>
+</html>

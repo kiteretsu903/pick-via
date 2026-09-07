@@ -1,0 +1,49 @@
+{
+  "locale": "id",
+  "translation": "AI translation",
+  "review": "AI self-review of every explicitly keyed app and website translation",
+  "surfaces": [
+    "app",
+    "website"
+  ],
+  "sourceHashes": {
+    "app": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "checks": [
+    "Exact JSON key sets; no duplicate keys or empty values",
+    "App interpolation tokens preserved",
+    "Website HTML tags and attributes preserved",
+    "Indonesian meaning and terminology reviewed"
+  ],
+  "unresolvedIssues": [
+    "macOS 27 Indonesian permission-panel label translated semantically; exact OS wording not confirmed in native Indonesian UI."
+  ],
+  "nativeUI": "NOT RUN by translation agent",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "f7b1d0cf1f19fc8a8831e48e1764a212bf8079fbf69ca37c865f272bdbc659cf",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website/en.json": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputSHA256": {
+      "website/id.json": "8d86d80ceb7733bd38649e3f84bbef4a2fb8224387fcc853b808b1456cf3d301"
+    },
+    "checks": [
+      "Release availability, Safari permissions and new windows, DuckDuckGo compatibility, signing and non-notarization translated and self-reviewed",
+      "Website key set, HTML tags and attributes, and placeholders validated"
+    ],
+    "unresolvedIssues": []
+  }
+}

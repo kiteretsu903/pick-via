@@ -1,0 +1,32 @@
+{
+  "locale": "ur",
+  "translation": "AI translated",
+  "review": "AI self-reviewed every English-to-Urdu key/value alignment and precise permission, retention, failure and recovery meanings; technical values, markup and placeholders verified. RTL source uses normal logical order without manual bidi controls.",
+  "sources": {
+    "app": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "unresolvedIssues": [],
+  "nativeUIVerification": "Not run by translation agent; native Urdu shaping and RTL layout require runtime verification",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "a6370bc676aaa5c1ef30a0944df9ac56b3fc7d9c92876a1c45a469cbc6c72ec0",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Reviewed all four Urdu release-delta strings against final English for released 80/12 language coverage, experimental Safari Stable permission/new-window conditions, compatible unsandboxed DuckDuckGo 1.203.x and ordinary routing requirements, fixed Apple Development certificate and lack of notarization. Preserved historical prose and shared generated labels/links. No Urdu README exists. Strict assigned website validation passed.",
+    "website": {
+      "sourceSHA256": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df",
+      "outputSHA256": "3e8232f06fdd2fc64225c68f56a245a48a914b4a187044416429a40bef5cdf86"
+    },
+    "unresolvedIssues": []
+  }
+}

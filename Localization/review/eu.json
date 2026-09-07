@@ -1,0 +1,50 @@
+{
+  "locale": "eu",
+  "translator": "AI",
+  "reviewer": "AI self-review",
+  "status": "complete",
+  "surfaces": [
+    "app",
+    "website"
+  ],
+  "sourceHashes": {
+    "app/en.json": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website/en.json": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "checks": [
+    "All catalog keys present and nonempty; no duplicate keys or invalid Unicode",
+    "Every app key/value pair translated using explicit source keys and reviewed for semantic alignment",
+    "App placeholders preserved",
+    "Website HTML tags and attributes preserved",
+    "Semantics reviewed for permissions, recovery, private state, release availability and legal text"
+  ],
+  "unresolvedIssues": [],
+  "notes": [
+    "AI translation and AI self-review; no human review claimed.",
+    "macOS permission categories translated descriptively; exact system UI wording requires native OS verification.",
+    "Native UI and browser layout verification not performed by this translation agent."
+  ],
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "aaccadfc315b1eeae3999b178c8e6879df8c40c4483693e8642b384acfa83b3a",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Translated v1.5 released-language notice and Safari, DuckDuckGo and signing release changes. Preserved historical release prose, cloned metadata, links and app catalog.",
+    "sources": {
+      "website": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputs": {
+      "website": "6377f6722b8f85b459dc5bf71d53ce4fd0e0a1ddc14d9b339b456c78f6bf580e"
+    },
+    "unresolvedIssues": []
+  }
+}

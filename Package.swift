@@ -4,6 +4,7 @@ import PackageDescription
 
 let package = Package(
   name: "PickVia",
+  defaultLocalization: "en",
   platforms: [
     .macOS(.v14)
   ],
@@ -12,7 +13,7 @@ let package = Package(
     .executable(name: "PickVia", targets: ["PickVia"]),
   ],
   targets: [
-    .target(name: "PickViaCore"),
+    .target(name: "PickViaCore", resources: [.process("Resources")]),
     .executableTarget(name: "PickVia", dependencies: ["PickViaCore"]),
     .testTarget(name: "PickViaCoreTests", dependencies: ["PickViaCore"]),
     .testTarget(name: "PickViaTests", dependencies: ["PickVia", "PickViaCore"]),

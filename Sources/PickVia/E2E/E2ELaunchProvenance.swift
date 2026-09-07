@@ -202,6 +202,7 @@
       switch mechanism {
       case .process: "process"
       case .workspace: "workspace"
+      case .safariAccessibility: "safari-accessibility"
       case .duckDuckGo: "duckduckgo"
       }
     }

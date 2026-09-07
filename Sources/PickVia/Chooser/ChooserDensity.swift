@@ -1,4 +1,6 @@
+import AppKit
 import Foundation
+import PickViaCore
 
 public enum ChooserDensity: Int, CaseIterable, Identifiable, Sendable {
   case compact = 0
@@ -9,9 +11,9 @@ public enum ChooserDensity: Int, CaseIterable, Identifiable, Sendable {
 
   public var title: String {
     switch self {
-    case .compact: "Compact"
-    case .balanced: "Balanced"
-    case .spacious: "Spacious"
+    case .compact: L10n.tr("Compact")
+    case .balanced: L10n.tr("Balanced")
+    case .spacious: L10n.tr("Spacious")
     }
   }
 
@@ -52,4 +54,16 @@ struct ChooserMetrics: Equatable, Sendable {
   let rowVerticalPadding: CGFloat
   let headerHorizontalPadding: CGFloat
   let headerVerticalPadding: CGFloat
+}
+
+@MainActor
+extension ChooserDensity {
+  var localizedContentWidth: CGFloat {
+    let font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+    let labels = ["Copy", "Settings", "Cancel"].map {
+      (L10n.tr($0) as NSString).size(withAttributes: [.font: font]).width + 24
+    }
+    return min(
+      max(metrics.contentWidth, labels.reduce(0, +) + 70), LocalizationLayout.availableWidth - 32)
+  }
 }

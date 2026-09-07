@@ -310,19 +310,19 @@ let descriptorExpectations = [
     bundleIdentifier: "com.apple.Safari",
     family: .safari,
     displayName: "Safari",
-    profileStrategy: .none,
+    profileStrategy: .safariAccessibility,
     launchStrategy: .workspace,
     privateStrategy: .unsupported,
     routeCapabilityPolicy: BrowserRouteCapabilityPolicy(
       normal: .workspace,
       browserPrivate: false,
-      profile: false,
+      profile: true,
       profilePrivate: false
     ),
     profileRoot: nil,
     requiredProfileMarker: nil,
     executableRelativePath: nil,
-    supportsProfiles: false,
+    supportsProfiles: true,
     supportsPrivateMode: false
   ),
   DescriptorExpectation(

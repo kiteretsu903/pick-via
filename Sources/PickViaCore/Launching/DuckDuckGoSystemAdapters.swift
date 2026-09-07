@@ -66,6 +66,38 @@ public protocol DuckDuckGoApplicationManaging: Sendable {
   ) async throws -> DuckDuckGoApplicationSnapshot
   func activate(processIdentifier: Int32) async -> Bool
   func terminate(processIdentifier: Int32) async -> Bool
+  func terminationEvents() async -> AsyncStream<Void>
+}
+
+extension DuckDuckGoApplicationManaging {
+  public func terminationEvents() async -> AsyncStream<Void> {
+    AsyncStream { $0.finish() }
+  }
+}
+
+// NotificationCenter supports removing observers from any thread. This immutable owner
+// keeps the token alive for exactly the lifetime of the stream.
+private final class DuckDuckGoTerminationObservation: @unchecked Sendable {
+  let center: NotificationCenter
+  let token: any NSObjectProtocol
+
+  @MainActor init(continuation: AsyncStream<Void>.Continuation) {
+    center = NSWorkspace.shared.notificationCenter
+    token = center.addObserver(
+      forName: NSWorkspace.didTerminateApplicationNotification,
+      object: nil, queue: .main
+    ) { notification in
+      if let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
+        as? NSRunningApplication,
+        application.bundleIdentifier == DuckDuckGoBuildCompatibilityChecker.bundleIdentifier
+      {
+        continuation.yield(())
+      }
+    }
+  }
+
+  func cancel() { center.removeObserver(token) }
+  deinit { cancel() }
 }
 
 public enum DuckDuckGoApplicationManagerError: Error, Equatable, Sendable {
@@ -91,6 +123,13 @@ public protocol DuckDuckGoAppleEventSending: Sendable {
 @MainActor
 public struct SystemDuckDuckGoApplicationManager: DuckDuckGoApplicationManaging {
   public nonisolated init() {}
+
+  public func terminationEvents() async -> AsyncStream<Void> {
+    let (stream, continuation) = AsyncStream<Void>.makeStream(bufferingPolicy: .bufferingNewest(1))
+    let observer = DuckDuckGoTerminationObservation(continuation: continuation)
+    continuation.onTermination = { @Sendable _ in observer.cancel() }
+    return stream
+  }
 
   public func runningApplications(bundleIdentifier: String) async
     -> [DuckDuckGoApplicationSnapshot]
@@ -229,7 +268,29 @@ public struct SystemDuckDuckGoAppleEventSender: DuckDuckGoAppleEventSending {
     processIdentifier: Int32
   ) async throws {
     let value = Self.descriptor(for: event, processIdentifier: processIdentifier)
-    _ = try value.sendEvent(options: Self.sendOptions, timeout: 5)
+    do {
+      let reply = try value.sendEvent(options: Self.sendOptions, timeout: 5)
+      try Self.validateReply(reply)
+    } catch let error as DuckDuckGoRoutingError {
+      throw error
+    } catch {
+      let failure = error as NSError
+      guard failure.domain == NSOSStatusErrorDomain else { throw error }
+      throw Self.routingError(for: failure.code)
+    }
+  }
+
+  static func validateReply(_ reply: NSAppleEventDescriptor) throws {
+    let code = reply.paramDescriptor(forKeyword: keyErrorNumber)?.int32Value ?? 0
+    guard code == 0 else { throw routingError(for: Int(code)) }
+  }
+
+  static func routingError(for code: Int) -> DuckDuckGoRoutingError {
+    switch code {
+    case Int(errAEEventNotPermitted), -1744: .automationRequired
+    case Int(errAETimeout): .eventTimedOut
+    default: .eventRejected
+    }
   }
 
   static func descriptor(

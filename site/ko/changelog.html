@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="ko" dir="ltr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="macOS 네이티브 링크 선택 앱 PickVia의 릴리스 노트입니다." />
+    <link rel="canonical" href="https://kiteretsu903.github.io/pick-via/ko/changelog.html" />
+    <meta name="theme-color" content="#f4f3ee" />
+    <title>변경 내역 - PickVia</title>
+    <style>
+      :root { --paper: #f4f3ee; --ink: #151515; --muted: #696963; --rule: #d9d8d0; --violet: #6149d7; --soft-violet: #eceaff; --radius: 28px; }
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body { margin: 0; background: var(--paper); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif; }
+      a { color: inherit; text-decoration: none; }
+      .shell { width: min(980px, calc(100% - 48px)); margin: 0 auto; }
+      .site-header { height: 82px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--rule); }
+      .brand { display: inline-flex; gap: 10px; align-items: center; font-size: 19px; letter-spacing: -.045em; font-weight: 740; }
+      .brand img { width: 31px; height: 31px; border-radius: 8px; }
+      nav { display: flex; align-items: center; gap: 27px; color: #55554f; font-size: 14px; font-weight: 560; }
+      nav a:hover, .site-footer a:hover { color: var(--violet); }
+      .button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 16px; border: 1px solid var(--ink); border-radius: 999px; font-size: 14px; font-weight: 650; transition: transform .18s ease, background .18s ease; }
+      .button:hover { transform: translateY(-1px); background: white; }
+      .page-intro { padding: 106px 0 80px; }
+      .eyebrow { margin: 0; color: var(--violet); font-size: 11px; font-weight: 760; letter-spacing: .13em; text-transform: uppercase; }
+      h1, h2, p { margin-top: 0; }
+      h1 { max-width: 680px; margin: 16px 0 20px; font-size: clamp(60px, 9vw, 106px); line-height: .9; letter-spacing: -.085em; }
+      h1 em { font-style: normal; color: var(--violet); }
+      .intro-copy { max-width: 515px; margin: 0; color: var(--muted); font-size: 19px; letter-spacing: -.028em; line-height: 1.48; }
+      .release-list { padding-bottom: 86px; }
+      .release { display: grid; grid-template-columns: 168px 1fr; gap: 38px; padding: 40px 0 52px; border-top: 1px solid var(--ink); }
+      .release-meta { color: var(--muted); font-size: 13px; line-height: 1.45; }
+      .release-meta strong { display: block; margin-bottom: 4px; color: var(--violet); font-size: 12px; letter-spacing: .09em; }
+      h2 { margin: 0; font-size: clamp(38px, 5.2vw, 58px); line-height: .94; letter-spacing: -.07em; }
+      .release-summary { max-width: 600px; margin: 18px 0 27px; color: var(--muted); font-size: 17px; line-height: 1.55; }
+      .release ul { max-width: 650px; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--rule); }
+      .release li { position: relative; padding: 14px 0 14px 19px; border-bottom: 1px solid var(--rule); color: #3b3b37; font-size: 15px; line-height: 1.45; }
+      .release li::before { position: absolute; left: 0; color: var(--violet); content: "•"; }
+      .release-links { display: flex; gap: 19px; margin-top: 24px; color: var(--violet); font-size: 14px; font-weight: 650; }
+      .release-links a:hover { text-decoration: underline; text-underline-offset: 4px; }
+      .release-current { padding: 6px 10px; border-radius: 999px; color: #39299c; background: var(--soft-violet); font-size: 11px; font-weight: 760; letter-spacing: .08em; text-transform: uppercase; }
+      .site-footer { display: flex; justify-content: space-between; padding: 25px 0 38px; border-top: 1px solid var(--rule); color: #76766f; font-size: 13px; }
+      @media (max-width: 680px) {
+        .shell { width: min(100% - 32px, 980px); }
+        .site-header { height: 72px; } nav { display: none; }
+        .page-intro { padding: 72px 0 58px; }
+        .release { grid-template-columns: 1fr; gap: 18px; padding: 32px 0 42px; }
+        .site-footer { flex-direction: column; gap: 13px; }
+      }
+    </style>
+      <link rel="alternate" hreflang="en" href="https://kiteretsu903.github.io/pick-via/en/changelog.html" />
+    <link rel="alternate" hreflang="zh-Hans" href="https://kiteretsu903.github.io/pick-via/zh-Hans/changelog.html" />
+    <link rel="alternate" hreflang="zh-Hant" href="https://kiteretsu903.github.io/pick-via/zh-Hant/changelog.html" />
+    <link rel="alternate" hreflang="ja" href="https://kiteretsu903.github.io/pick-via/ja/changelog.html" />
+    <link rel="alternate" hreflang="ko" href="https://kiteretsu903.github.io/pick-via/ko/changelog.html" />
+    <link rel="alternate" hreflang="es" href="https://kiteretsu903.github.io/pick-via/es/changelog.html" />
+    <link rel="alternate" hreflang="fr" href="https://kiteretsu903.github.io/pick-via/fr/changelog.html" />
+    <link rel="alternate" hreflang="de" href="https://kiteretsu903.github.io/pick-via/de/changelog.html" />
+    <link rel="alternate" hreflang="pt-BR" href="https://kiteretsu903.github.io/pick-via/pt-BR/changelog.html" />
+    <link rel="alternate" hreflang="ru" href="https://kiteretsu903.github.io/pick-via/ru/changelog.html" />
+    <link rel="alternate" hreflang="ar" href="https://kiteretsu903.github.io/pick-via/ar/changelog.html" />
+    <link rel="alternate" hreflang="hi" href="https://kiteretsu903.github.io/pick-via/hi/changelog.html" />
+    <link rel="alternate" hreflang="it" href="https://kiteretsu903.github.io/pick-via/it/changelog.html" />
+    <link rel="alternate" hreflang="pt-PT" href="https://kiteretsu903.github.io/pick-via/pt-PT/changelog.html" />
+    <link rel="alternate" hreflang="nl" href="https://kiteretsu903.github.io/pick-via/nl/changelog.html" />
+    <link rel="alternate" hreflang="sv" href="https://kiteretsu903.github.io/pick-via/sv/changelog.html" />
+    <link rel="alternate" hreflang="da" href="https://kiteretsu903.github.io/pick-via/da/changelog.html" />
+    <link rel="alternate" hreflang="nb" href="https://kiteretsu903.github.io/pick-via/nb/changelog.html" />
+    <link rel="alternate" hreflang="fi" href="https://kiteretsu903.github.io/pick-via/fi/changelog.html" />
+    <link rel="alternate" hreflang="is" href="https://kiteretsu903.github.io/pick-via/is/changelog.html" />
+    <link rel="alternate" hreflang="pl" href="https://kiteretsu903.github.io/pick-via/pl/changelog.html" />
+    <link rel="alternate" hreflang="cs" href="https://kiteretsu903.github.io/pick-via/cs/changelog.html" />
+    <link rel="alternate" hreflang="sk" href="https://kiteretsu903.github.io/pick-via/sk/changelog.html" />
+    <link rel="alternate" hreflang="hu" href="https://kiteretsu903.github.io/pick-via/hu/changelog.html" />
+    <link rel="alternate" hreflang="ro" href="https://kiteretsu903.github.io/pick-via/ro/changelog.html" />
+    <link rel="alternate" hreflang="bg" href="https://kiteretsu903.github.io/pick-via/bg/changelog.html" />
+    <link rel="alternate" hreflang="uk" href="https://kiteretsu903.github.io/pick-via/uk/changelog.html" />
+    <link rel="alternate" hreflang="sr" href="https://kiteretsu903.github.io/pick-via/sr/changelog.html" />
+    <link rel="alternate" hreflang="hr" href="https://kiteretsu903.github.io/pick-via/hr/changelog.html" />
+    <link rel="alternate" hreflang="bs" href="https://kiteretsu903.github.io/pick-via/bs/changelog.html" />
+    <link rel="alternate" hreflang="sl" href="https://kiteretsu903.github.io/pick-via/sl/changelog.html" />
+    <link rel="alternate" hreflang="mk" href="https://kiteretsu903.github.io/pick-via/mk/changelog.html" />
+    <link rel="alternate" hreflang="el" href="https://kiteretsu903.github.io/pick-via/el/changelog.html" />
+    <link rel="alternate" hreflang="tr" href="https://kiteretsu903.github.io/pick-via/tr/changelog.html" />
+    <link rel="alternate" hreflang="he" href="https://kiteretsu903.github.io/pick-via/he/changelog.html" />
+    <link rel="alternate" hreflang="fa" href="https://kiteretsu903.github.io/pick-via/fa/changelog.html" />
+    <link rel="alternate" hreflang="ur" href="https://kiteretsu903.github.io/pick-via/ur/changelog.html" />
+    <link rel="alternate" hreflang="bn" href="https://kiteretsu903.github.io/pick-via/bn/changelog.html" />
+    <link rel="alternate" hreflang="ta" href="https://kiteretsu903.github.io/pick-via/ta/changelog.html" />
+    <link rel="alternate" hreflang="te" href="https://kiteretsu903.github.io/pick-via/te/changelog.html" />
+    <link rel="alternate" hreflang="mr" href="https://kiteretsu903.github.io/pick-via/mr/changelog.html" />
+    <link rel="alternate" hreflang="gu" href="https://kiteretsu903.github.io/pick-via/gu/changelog.html" />
+    <link rel="alternate" hreflang="kn" href="https://kiteretsu903.github.io/pick-via/kn/changelog.html" />
+    <link rel="alternate" hreflang="ml" href="https://kiteretsu903.github.io/pick-via/ml/changelog.html" />
+    <link rel="alternate" hreflang="pa" href="https://kiteretsu903.github.io/pick-via/pa/changelog.html" />
+    <link rel="alternate" hreflang="ne" href="https://kiteretsu903.github.io/pick-via/ne/changelog.html" />
+    <link rel="alternate" hreflang="si" href="https://kiteretsu903.github.io/pick-via/si/changelog.html" />
+    <link rel="alternate" hreflang="th" href="https://kiteretsu903.github.io/pick-via/th/changelog.html" />
+    <link rel="alternate" hreflang="vi" href="https://kiteretsu903.github.io/pick-via/vi/changelog.html" />
+    <link rel="alternate" hreflang="id" href="https://kiteretsu903.github.io/pick-via/id/changelog.html" />
+    <link rel="alternate" hreflang="ms" href="https://kiteretsu903.github.io/pick-via/ms/changelog.html" />
+    <link rel="alternate" hreflang="fil" href="https://kiteretsu903.github.io/pick-via/fil/changelog.html" />
+    <link rel="alternate" hreflang="km" href="https://kiteretsu903.github.io/pick-via/km/changelog.html" />
+    <link rel="alternate" hreflang="lo" href="https://kiteretsu903.github.io/pick-via/lo/changelog.html" />
+    <link rel="alternate" hreflang="my" href="https://kiteretsu903.github.io/pick-via/my/changelog.html" />
+    <link rel="alternate" hreflang="mn" href="https://kiteretsu903.github.io/pick-via/mn/changelog.html" />
+    <link rel="alternate" hreflang="ka" href="https://kiteretsu903.github.io/pick-via/ka/changelog.html" />
+    <link rel="alternate" hreflang="hy" href="https://kiteretsu903.github.io/pick-via/hy/changelog.html" />
+    <link rel="alternate" hreflang="az" href="https://kiteretsu903.github.io/pick-via/az/changelog.html" />
+    <link rel="alternate" hreflang="kk" href="https://kiteretsu903.github.io/pick-via/kk/changelog.html" />
+    <link rel="alternate" hreflang="uz" href="https://kiteretsu903.github.io/pick-via/uz/changelog.html" />
+    <link rel="alternate" hreflang="sw" href="https://kiteretsu903.github.io/pick-via/sw/changelog.html" />
+    <link rel="alternate" hreflang="af" href="https://kiteretsu903.github.io/pick-via/af/changelog.html" />
+    <link rel="alternate" hreflang="am" href="https://kiteretsu903.github.io/pick-via/am/changelog.html" />
+    <link rel="alternate" hreflang="zu" href="https://kiteretsu903.github.io/pick-via/zu/changelog.html" />
+    <link rel="alternate" hreflang="xh" href="https://kiteretsu903.github.io/pick-via/xh/changelog.html" />
+    <link rel="alternate" hreflang="yo" href="https://kiteretsu903.github.io/pick-via/yo/changelog.html" />
+    <link rel="alternate" hreflang="ha" href="https://kiteretsu903.github.io/pick-via/ha/changelog.html" />
+    <link rel="alternate" hreflang="ig" href="https://kiteretsu903.github.io/pick-via/ig/changelog.html" />
+    <link rel="alternate" hreflang="so" href="https://kiteretsu903.github.io/pick-via/so/changelog.html" />
+    <link rel="alternate" hreflang="mt" href="https://kiteretsu903.github.io/pick-via/mt/changelog.html" />
+    <link rel="alternate" hreflang="ga" href="https://kiteretsu903.github.io/pick-via/ga/changelog.html" />
+    <link rel="alternate" hreflang="cy" href="https://kiteretsu903.github.io/pick-via/cy/changelog.html" />
+    <link rel="alternate" hreflang="eu" href="https://kiteretsu903.github.io/pick-via/eu/changelog.html" />
+    <link rel="alternate" hreflang="ca" href="https://kiteretsu903.github.io/pick-via/ca/changelog.html" />
+    <link rel="alternate" hreflang="gl" href="https://kiteretsu903.github.io/pick-via/gl/changelog.html" />
+    <link rel="alternate" hreflang="et" href="https://kiteretsu903.github.io/pick-via/et/changelog.html" />
+    <link rel="alternate" hreflang="lv" href="https://kiteretsu903.github.io/pick-via/lv/changelog.html" />
+    <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/changelog.html" />
+    <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/changelog.html" />
+    <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/changelog.html" />
+    <link rel="stylesheet" href="../assets/localization.css?v=ef62d78d8c0b" />
+    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+  </head>
+  <body>
+    <header class="shell site-header">
+      <a class="brand" href="index.html" aria-label="PickVia 홈"><img src="../assets/icon.png" alt="" /><span>PickVia</span></a>
+      <nav aria-label="주 탐색"><a href="index.html#features">기능</a><a href="changelog.html" aria-current="page">변경 내역</a><a href="index.html#download">다운로드</a></nav>
+      <a class="button" href="https://github.com/kiteretsu903/pick-via">소스 <span aria-hidden="true">↗</span></a>
+    </header>
+    <div class="shell language-bar"><label for="website-language">언어</label><select id="website-language" aria-label="웹사이트 언어 선택"><option value="../en/changelog.html" lang="en" dir="ltr">English</option><option value="../zh-Hans/changelog.html" lang="zh-Hans" dir="ltr">简体中文</option><option value="../zh-Hant/changelog.html" lang="zh-Hant" dir="ltr">繁體中文</option><option value="../ja/changelog.html" lang="ja" dir="ltr">日本語</option><option value="../ko/changelog.html" lang="ko" dir="ltr" selected>한국어</option><option value="../es/changelog.html" lang="es" dir="ltr">Español</option><option value="../fr/changelog.html" lang="fr" dir="ltr">Français</option><option value="../de/changelog.html" lang="de" dir="ltr">Deutsch</option><option value="../pt-BR/changelog.html" lang="pt-BR" dir="ltr">Português (Brasil)</option><option value="../ru/changelog.html" lang="ru" dir="ltr">Русский</option><option value="../ar/changelog.html" lang="ar" dir="rtl">العربية</option><option value="../hi/changelog.html" lang="hi" dir="ltr">हिन्दी</option><option value="../it/changelog.html" lang="it" dir="ltr">Italiano</option><option value="../pt-PT/changelog.html" lang="pt-PT" dir="ltr">Português (Portugal)</option><option value="../nl/changelog.html" lang="nl" dir="ltr">Nederlands</option><option value="../sv/changelog.html" lang="sv" dir="ltr">Svenska</option><option value="../da/changelog.html" lang="da" dir="ltr">Dansk</option><option value="../nb/changelog.html" lang="nb" dir="ltr">Norsk bokmål</option><option value="../fi/changelog.html" lang="fi" dir="ltr">Suomi</option><option value="../is/changelog.html" lang="is" dir="ltr">Íslenska</option><option value="../pl/changelog.html" lang="pl" dir="ltr">Polski</option><option value="../cs/changelog.html" lang="cs" dir="ltr">Čeština</option><option value="../sk/changelog.html" lang="sk" dir="ltr">Slovenčina</option><option value="../hu/changelog.html" lang="hu" dir="ltr">Magyar</option><option value="../ro/changelog.html" lang="ro" dir="ltr">Română</option><option value="../bg/changelog.html" lang="bg" dir="ltr">Български</option><option value="../uk/changelog.html" lang="uk" dir="ltr">Українська</option><option value="../sr/changelog.html" lang="sr" dir="ltr">Српски</option><option value="../hr/changelog.html" lang="hr" dir="ltr">Hrvatski</option><option value="../bs/changelog.html" lang="bs" dir="ltr">Bosanski</option><option value="../sl/changelog.html" lang="sl" dir="ltr">Slovenščina</option><option value="../mk/changelog.html" lang="mk" dir="ltr">Македонски</option><option value="../el/changelog.html" lang="el" dir="ltr">Ελληνικά</option><option value="../tr/changelog.html" lang="tr" dir="ltr">Türkçe</option><option value="../he/changelog.html" lang="he" dir="rtl">עברית</option><option value="../fa/changelog.html" lang="fa" dir="rtl">فارسی</option><option value="../ur/changelog.html" lang="ur" dir="rtl">اردو</option><option value="../bn/changelog.html" lang="bn" dir="ltr">বাংলা</option><option value="../ta/changelog.html" lang="ta" dir="ltr">தமிழ்</option><option value="../te/changelog.html" lang="te" dir="ltr">తెలుగు</option><option value="../mr/changelog.html" lang="mr" dir="ltr">मराठी</option><option value="../gu/changelog.html" lang="gu" dir="ltr">ગુજરાતી</option><option value="../kn/changelog.html" lang="kn" dir="ltr">ಕನ್ನಡ</option><option value="../ml/changelog.html" lang="ml" dir="ltr">മലയാളം</option><option value="../pa/changelog.html" lang="pa" dir="ltr">ਪੰਜਾਬੀ</option><option value="../ne/changelog.html" lang="ne" dir="ltr">नेपाली</option><option value="../si/changelog.html" lang="si" dir="ltr">සිංහල</option><option value="../th/changelog.html" lang="th" dir="ltr">ไทย</option><option value="../vi/changelog.html" lang="vi" dir="ltr">Tiếng Việt</option><option value="../id/changelog.html" lang="id" dir="ltr">Bahasa Indonesia</option><option value="../ms/changelog.html" lang="ms" dir="ltr">Bahasa Melayu</option><option value="../fil/changelog.html" lang="fil" dir="ltr">Filipino</option><option value="../km/changelog.html" lang="km" dir="ltr">ខ្មែរ</option><option value="../lo/changelog.html" lang="lo" dir="ltr">ລາວ</option><option value="../my/changelog.html" lang="my" dir="ltr">မြန်မာ</option><option value="../mn/changelog.html" lang="mn" dir="ltr">Монгол</option><option value="../ka/changelog.html" lang="ka" dir="ltr">ქართული</option><option value="../hy/changelog.html" lang="hy" dir="ltr">Հայերեն</option><option value="../az/changelog.html" lang="az" dir="ltr">Azərbaycanca</option><option value="../kk/changelog.html" lang="kk" dir="ltr">Қазақша</option><option value="../uz/changelog.html" lang="uz" dir="ltr">O‘zbekcha</option><option value="../sw/changelog.html" lang="sw" dir="ltr">Kiswahili</option><option value="../af/changelog.html" lang="af" dir="ltr">Afrikaans</option><option value="../am/changelog.html" lang="am" dir="ltr">አማርኛ</option><option value="../zu/changelog.html" lang="zu" dir="ltr">isiZulu</option><option value="../xh/changelog.html" lang="xh" dir="ltr">isiXhosa</option><option value="../yo/changelog.html" lang="yo" dir="ltr">Yorùbá</option><option value="../ha/changelog.html" lang="ha" dir="ltr">Hausa</option><option value="../ig/changelog.html" lang="ig" dir="ltr">Igbo</option><option value="../so/changelog.html" lang="so" dir="ltr">Soomaali</option><option value="../mt/changelog.html" lang="mt" dir="ltr">Malti</option><option value="../ga/changelog.html" lang="ga" dir="ltr">Gaeilge</option><option value="../cy/changelog.html" lang="cy" dir="ltr">Cymraeg</option><option value="../eu/changelog.html" lang="eu" dir="ltr">Euskara</option><option value="../ca/changelog.html" lang="ca" dir="ltr">Català</option><option value="../gl/changelog.html" lang="gl" dir="ltr">Galego</option><option value="../et/changelog.html" lang="et" dir="ltr">Eesti</option><option value="../lv/changelog.html" lang="lv" dir="ltr">Latviešu</option><option value="../lt/changelog.html" lang="lt" dir="ltr">Lietuvių</option><option value="../sq/changelog.html" lang="sq" dir="ltr">Shqip</option></select></div>
+    <main>
+      <section class="shell page-intro">
+        <p class="eyebrow">릴리스 노트</p>
+        <h1>PickVia의 <em>새로운 소식</em><br />여기서 확인하세요.</h1>
+        <p class="intro-copy">PickVia의 모든 공개 릴리스를 간결하게 정리했습니다. GitHub에서 최신 버전을 다운로드하세요.</p>
+      </section>
+      <section class="shell release-list" aria-label="PickVia 릴리스">
+        <article class="release">
+          <div class="release-meta"><strong>2026년 9월 6일</strong><span class="release-current">현재 릴리스</span></div>
+          <div>
+            <h2>버전 1.5</h2>
+            <p class="release-summary">앱과 웹사이트는 80개 언어로, README는 12개 언어로 제공됩니다. 설정에서 원하는 언어를 선택하세요.</p>
+            <ul>
+              <li>손쉬운 사용 및 자동화 권한을 사용하는 실험적 Safari Stable 프로필 기능을 사용해 보세요. 각 링크는 선택한 프로필의 새 창에서 열립니다.</li>
+              <li>DuckDuckGo 비공개 세션의 복구와 정리를 간소화했습니다. 호환되는 비샌드박스 1.203.x 빌드는 비공개 라우팅을 지원하며, 일반 링크에는 버전이나 게시자 서명 요구 사항이 없습니다.</li>
+              <li>빌드에 고정된 Apple Development 인증서를 사용합니다. 다운로드는 공증되지 않았으므로 README의 설치 안내를 따르세요.</li>
+            </ul>
+            <div class="release-links"><a href="https://github.com/kiteretsu903/pick-via/releases/tag/v1.5">전체 릴리스 노트 <span aria-hidden="true">↗</span></a><a href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg">v1.5 다운로드 <span aria-hidden="true">↓</span></a></div>
+          </div>
+        </article>
+        <article class="release">
+          <div class="release-meta"><strong>2026년 9월 6일</strong></div>
+          <div>
+            <h2>버전 1.4</h2>
+            <p class="release-summary">더 많은 브라우저와 에디션을 선택할 수 있으며, Firefox 프로필은 연결된 에디션별로 묶어 표시됩니다.</p>
+            <ul>
+              <li>Chrome Dev와 Canary, Edge Beta·Dev·Canary, Brave Beta와 Nightly, Vivaldi Snapshot, Firefox Developer Edition과 Nightly를 별도의 브라우저 선택지로 추가했습니다.</li>
+              <li>Opera, Arc, Orion 및 Safari Technology Preview의 일반 앱 수준 라우팅을 추가했습니다.</li>
+              <li>기록된 에디션을 식별할 수 있으면 Firefox 프로필을 해당 에디션에 유지하고, 다시 검색할 때 이전에 감지된 중복 항목을 제거합니다. 신뢰할 수 있는 연결 메타데이터가 없는 프로필은 기존 대체 동작을 유지합니다.</li>
+              <li>macOS의 임시 경로 정규화 후 거부되던 Firefox 프로필 경로 문제를 수정했습니다.</li>
+              <li>지원되는 라우팅 조합만 표시합니다. 비공개 창은 브라우저 수준에서 선택하며, 특정 프로필의 비공개 모드는 사용할 수 없습니다.</li>
+            </ul>
+            <div class="release-links"><a href="https://github.com/kiteretsu903/pick-via/releases/tag/v1.4">전체 릴리스 노트 <span aria-hidden="true">↗</span></a><a href="https://github.com/kiteretsu903/pick-via/releases/download/v1.4/PickVia-v1.4.dmg">v1.4 다운로드 <span aria-hidden="true">↓</span></a></div>
+          </div>
+        </article>
+        <article class="release">
+          <div class="release-meta"><strong>2026년 8월 20일</strong></div>
+          <div>
+            <h2>버전 1.3</h2>
+            <p class="release-summary">이제 DuckDuckGo를 브라우저로 선택할 수 있으며, 지원되는 공식 빌드에서는 비공개 옵션도 사용할 수 있습니다.</p>
+            <ul>
+              <li>같은 선택 창에서 일반 또는 비공개 DuckDuckGo를 선택할 수 있습니다.</li>
+              <li>비공개 모드는 격리된 일회성 상태를 사용하며, 확장 프로그램이나 손쉬운 사용 권한이 필요하지 않습니다. 지원되는 공식 직접 다운로드 빌드에서만 사용할 수 있습니다.</li>
+            </ul>
+            <div class="release-links"><a href="https://github.com/kiteretsu903/pick-via/releases/tag/v1.3">전체 릴리스 노트 <span aria-hidden="true">↗</span></a><a href="https://github.com/kiteretsu903/pick-via/releases/download/v1.3/PickVia-v1.3.dmg">v1.3 다운로드 <span aria-hidden="true">↓</span></a></div>
+          </div>
+        </article>
+        <article class="release">
+          <div class="release-meta"><strong>2026년 8월 18일</strong></div>
+          <div>
+            <h2>버전 1.2</h2>
+            <p class="release-summary">이제 Google Chrome Beta가 자체 프로필과 일반 또는 비공개 옵션을 가진 별도의 브라우저 선택지로 제공됩니다.</p>
+            <div class="release-links"><a href="https://github.com/kiteretsu903/pick-via/releases/tag/v1.2">전체 릴리스 노트 <span aria-hidden="true">↗</span></a><a href="https://github.com/kiteretsu903/pick-via/releases/download/v1.2/PickVia-v1.2.dmg">v1.2 다운로드 <span aria-hidden="true">↓</span></a></div>
+          </div>
+        </article>
+        <article class="release">
+          <div class="release-meta"><strong>2026년 8월 15일</strong></div>
+          <div>
+            <h2>버전 1.1</h2>
+            <p class="release-summary">이제 이메일 링크를 원하는 설치된 메일 앱에서 열 수 있습니다.</p>
+            <ul>
+              <li>등록된 메일 앱 중에서 선택하고 메일 설정에서 순서를 관리할 수 있습니다.</li>
+              <li>PickVia는 수신자, 제목, 메시지 본문 또는 원래 메일 링크를 미리 보거나 저장하지 않습니다.</li>
+            </ul>
+            <div class="release-links"><a href="https://github.com/kiteretsu903/pick-via/releases/tag/v1.1">전체 릴리스 노트 <span aria-hidden="true">↗</span></a><a href="https://github.com/kiteretsu903/pick-via/releases/download/v1.1/PickVia-v1.1.dmg">v1.1 다운로드 <span aria-hidden="true">↓</span></a></div>
+          </div>
+        </article>
+        <article class="release">
+          <div class="release-meta"><strong>2026년 8월 14일</strong><span>첫 공개 릴리스</span></div>
+          <div>
+            <h2>버전 1.0</h2>
+            <p class="release-summary">첫 공개 릴리스입니다. 각 웹 링크에 사용할 브라우저, 프로필 또는 지원되는 비공개 모드를 선택할 수 있습니다.</p>
+            <ul>
+              <li>Safari, Chrome, Chromium, Edge, Brave, Vivaldi 및 Firefox를 지원합니다.</li>
+              <li>DMG에서 응용 프로그램 폴더로 드래그하여 설치할 수 있습니다.</li>
+            </ul>
+            <div class="release-links"><a href="https://github.com/kiteretsu903/pick-via/releases/tag/v1.0">전체 릴리스 노트 <span aria-hidden="true">↗</span></a></div>
+          </div>
+        </article>
+      </section>
+    </main>
+    <footer class="shell site-footer"><span>© 2026 PickVia · MIT 라이선스</span><span><a href="index.html">홈</a> · <a href="privacy.html">개인정보 보호</a> · <a href="terms.html">이용 약관</a> · <a href="https://github.com/kiteretsu903/pick-via">GitHub 소스 코드 <span aria-hidden="true">↗</span></a></span></footer>
+  </body>
+</html>

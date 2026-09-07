@@ -103,3 +103,16 @@ extension RouteTarget {
   public var pendingDefaultMigration: Bool { browserOptions!.pendingDefaultMigration }
   public var validationError: String? { browserOptions!.validationError }
 }
+
+// Stored labels remain unchanged. Only an untouched detected private label gets
+// a translated suffix; names and user-edited labels are never translated.
+extension RouteTarget {
+  public func localizedLabel(applicationName: String) -> String {
+    guard origin == .detected, let options = browserOptions, options.mode == .private else {
+      return label
+    }
+    let base = options.profileDisplayName ?? applicationName
+    guard label == "\(base) Private" else { return label }
+    return L10n.tr("{0} Private", base)
+  }
+}

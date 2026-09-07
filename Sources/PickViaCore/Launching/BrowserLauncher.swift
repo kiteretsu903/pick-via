@@ -9,6 +9,7 @@ public enum LaunchPlan: Equatable, Sendable {
     arguments: [String],
     validation: BrowserProfileLaunchValidation
   )
+  case safariProfile(application: URL, url: URL, menuIdentifier: String)
   case workspace(application: URL, url: URL)
   case duckDuckGo(application: URL, url: URL, mode: BrowserMode)
 }
@@ -498,6 +499,17 @@ public struct BrowserLauncher: Sendable {
       }
     }
 
+    if descriptor.profileStrategy == .safariAccessibility, hasProfileEvidence {
+      guard options.mode == .normal,
+        let identifier = options.profileIdentifier,
+        SafariProfileMenuItem(identifier: identifier) != nil,
+        options.profileLaunchPath == nil,
+        options.profileIdentity == nil || options.profileIdentity == identifier
+      else { throw Self.launchFailure }
+      return .safariProfile(
+        application: trustedApplicationURL, url: url, menuIdentifier: identifier)
+    }
+
     switch descriptor.launchStrategy {
     case .workspace:
       throw Self.launchFailure
@@ -650,6 +662,8 @@ public struct BrowserLauncher: Sendable {
   public func execute(_ plan: LaunchPlan) async throws -> BrowserLaunchObservation {
     do {
       return try await executeObservedPlan(plan)
+    } catch let error as DuckDuckGoRoutingError {
+      throw error
     } catch {
       throw Self.launchFailure
     }
@@ -677,6 +691,7 @@ public struct BrowserLauncher: Sendable {
           .launchError(Self.mechanism(for: plan)),
           context: provenanceContext
         )
+        if let error = error as? DuckDuckGoRoutingError { throw error }
         throw Self.launchFailure
       }
     }
@@ -685,6 +700,7 @@ public struct BrowserLauncher: Sendable {
       switch plan {
       case .executable, .profileExecutable: .process
       case .workspace: .workspace
+      case .safariProfile: .safariAccessibility
       case .duckDuckGo: .duckDuckGo
       }
     }
@@ -712,6 +728,10 @@ public struct BrowserLauncher: Sendable {
           arguments: arguments
         )
         mechanism = .process
+      case .safariProfile(let application, let url, let identifier):
+        processIdentifier = try await SafariProfileRouter.shared.open(
+          url: url, applicationURL: application, menuIdentifier: identifier)
+        mechanism = .safariAccessibility
       case .workspace(let application, let url):
         processIdentifier = try await workspace.open(url, withApplicationAt: application)
         mechanism = .workspace

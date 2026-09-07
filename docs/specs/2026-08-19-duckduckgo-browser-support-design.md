@@ -1,5 +1,7 @@
 # DuckDuckGo Browser Support Design
 
+Updated 2026-09-06: compatibility and recovery simplification. Original browser research below is historical evidence for 1.203.0; it is not a new E2E result for the revised implementation.
+
 ## Goal
 
 PickVia will recognize the official DuckDuckGo browser for macOS and expose two
@@ -69,27 +71,23 @@ IDs.
 
 ## Compatibility Boundary
 
-Ordinary DuckDuckGo routing requires the exact registered bundle identifier and
-the expected DuckDuckGo signing team. Fire routing additionally requires the
-official direct-download build, no App Sandbox entitlement, and an exact
-version from PickVia's tested compatibility allowlist. The initial allowlist
-contains DuckDuckGo 1.203.0, the version validated by this design. This
-Fire-specific implementation detail is not exposed as special target naming in
-the UI.
+Normal discovery and routing do not validate DuckDuckGo's signature, pin a
+publisher, or require private-mode compatibility. They still resolve the expected
+browser and distinguish ordinary processes from PickVia-managed private ones.
+An unreadable private-build metadata record leaves the ordinary browser available.
 
-The sandbox check is functional, not cosmetic: redirecting
-`CFFIXED_USER_HOME` cannot be treated as safe profile isolation for a sandboxed
-Mac App Store build. An incompatible or not-yet-validated build retains the
-ordinary DuckDuckGo target, but PickVia must not advertise the private target
-or attempt the Fire mechanism. A previously persisted private target becomes
-unavailable instead of falling back to a normal window.
+Private routing reads the bundle identifier, version, and sandbox entitlement.
+Reading entitlement metadata does not validate code signatures. Sandboxed or
+unknown-sandbox builds cannot use this disposable-home implementation. The
+compatibility policy accepts numeric `1.203.x` patch releases; different minor or
+major releases remain ordinary-only until the preference layout and native route
+have been evaluated. The policy's historical E2E baseline is 1.203.0, not a claim
+that every possible patch version has been tested. Malformed or absent versions
+remain ordinary-only. Rescans preserve unavailable private-target customization.
 
-The preference keys are an upstream implementation interface rather than a
-documented DuckDuckGo integration API. Unit tests will lock the expected file
-layout and keys, while each newly allowed DuckDuckGo version must pass the real
-end-to-end gate before its version is added. This intentionally prefers an
-unavailable private target over guessing that an upstream update remains
-compatible. PickVia never modifies or shares the real browser profile.
+The internal preference layout remains an implementation dependency. A private
+failure never opens the link through an ordinary window. No real browser profile
+is modified or shared.
 
 ## Ordinary DuckDuckGo Routing
 
@@ -116,7 +114,7 @@ racing into the wrong instance.
 
 For a Fire request, the coordinator:
 
-1. Resolves and revalidates the trusted compatible DuckDuckGo application.
+1. Resolves the expected DuckDuckGo application and checks private compatibility.
 2. Creates a uniquely named, PickVia-owned directory below the user's cache
    directory with owner-only permissions.
 3. Atomically seeds only the isolated DuckDuckGo preferences needed to mark
@@ -150,46 +148,47 @@ DuckDuckGo process. It never contains the user's ordinary bookmarks, history,
 cookies, autofill data, or preferences. Fire Windows therefore behave as real
 DuckDuckGo Fire Windows but do not share ordinary DuckDuckGo personalization.
 
-A small coordinator marker records the generated directory, PID, trusted app
-path, and launch time. On a later PickVia launch, a marker is reusable only
-when the PID still belongs to the same DuckDuckGo bundle, executable, and
-launch instance. The running application's launch date must equal the stored
-launch date exactly; no time tolerance is used for PID identity. This lets a
-user keep an active Fire Window open when PickVia quits and lets the next
-PickVia process reclaim it safely.
+Each new session has one atomically replaced `Session.json` journal with a
+`pending` or `managed` state. Both contain the UUID, application/executable paths,
+and available exact launch identity; neither contains the routed URL. Pending
+state is durable before launching and is updated with the returned PID and launch
+time. Committing managed state replaces pending state in the same file, so a
+second marker removal is not part of a successful launch. A reported commit
+failure restores pending state before attempting rollback.
 
-A separate quarantine marker is written before every isolated launch. This
-pending marker has no PID or launch date, contains no routed URL, and survives
-PickVia restarts. After launch returns, it is atomically updated with the PID
-and exact launch date before that launch can be treated as managed. A failed
-pending write prevents launch; a failed post-launch update leaves the pending
-marker authoritative until exact rollback exit is proven. A live or ambiguous
-quarantined PID is excluded from both ordinary routing and Fire reuse. The
-quarantine is removed only after process exit is proven, PID reuse is proven
-by a different non-null launch date, or the managed marker is durable and the
-quarantine marker itself has been removed successfully.
+The store still reads legacy `Process.json` and `Quarantine.json` pairs. New
+journals supersede legacy files in the same UUID directory. A malformed journal
+never falls back to a legacy record. Corrupt/missing legacy ownership and unsafe
+files are treated as opaque, rather than allowing their process to be reused as
+ordinary. Legacy conflicting records retain the original session-wide ownership
+rules: a stale quarantine cannot delete a same-session live managed process.
 
-Quarantine authority applies to the entire generated UUID session, not only
-to the PID inside a readable marker. If `Quarantine.json` is present but
-unsafe or malformed, the session is opaque: PickVia neither deletes it nor
-allows a `Process.json` in that session to make any process reusable. The
-presence of any opaque session makes routing avoid all already-running
-DuckDuckGo processes and start a fresh trusted instance.
+A managed process is reusable only when its PID, exact launch time, bundle ID,
+and canonical application/executable paths match. These are process-ownership
+checks, not signature checks. A managed private session can be reused across
+links and PickVia restarts. It is not a fresh identity on every click.
 
-Cleanup reconciles every readable authority in a UUID session before deleting
-that session. A stale quarantine alongside a live managed marker removes only
-`Quarantine.json`; an ambiguous managed identity preserves the entire session.
-Whole-session deletion is allowed only when every readable authoritative
-record in that session is proven stale. Destructive cleanup is rooted in held,
-no-follow directory descriptors so replacing the cache-root pathname cannot
-redirect deletion.
+Startup maintenance, browser-process exit notifications, and routes share one
+serialized recovery path. Unknown ownership forces an ordinary route to create
+a fresh ordinary instance without enumerating ambient processes for reuse.
+Unrelated opaque sessions do not prevent reuse of a positively identified managed
+private session. If the ownership store cannot be read, normal browsing can still
+launch a fresh ordinary instance; private routing stops. A failed deletion of a
+proven-stale directory preserves its records for retry and does not block either
+route. No unknown process is killed or reclassified merely to make cleanup pass.
 
-PickVia does not terminate the managed DuckDuckGo process merely because
-PickVia exits. After the managed process terminates, its exact generated cache
-directory is disposable and may be removed. Stale markers are cleaned on the
-next startup only after proving that their recorded process is no longer the
-same launch. Cleanup is restricted to coordinator-created descendants of the
-dedicated PickVia cache root; ambiguous paths are left untouched.
+State files have mode 0600 and session directories mode 0700. Deletion remains
+restricted to UUID descendants of the PickVia cache root, using held no-follow
+directory descriptors, inode/device identity checks, and a temporary rename.
+Authority files are removed last. Failed deletion restores the canonical session
+name when possible. New and legacy sessions share the same deletion implementation.
+
+PickVia does not terminate managed browser processes when PickVia exits. While
+PickVia runs, a DuckDuckGo process-exit notification triggers cleanup after checking
+ownership and staleness again. Missed notifications are covered by startup and
+subsequent routing. Closing a window without exiting the browser process does not
+remove its home. Opaque state and failed deletion can retain files, so disposable
+state does not imply an immediate wipe or memory-only storage.
 
 ## Launch and Error Semantics
 
@@ -204,7 +203,14 @@ The chooser keeps its existing recoverable error behavior for:
 - duplicate-process launch or readiness timeout;
 - process exit during routing;
 - PID identity mismatch;
-- Apple-event delivery failure, including consent-required error `-1744`.
+- Apple-event delivery failure, including consent-required errors `-1743`/`-1744`.
+
+The sender checks both transport failures and the AppleEvent reply error number.
+Known permission, readiness, response-timeout, activation, and compatibility errors
+reach the chooser as fixed, actionable text. Arbitrary reply messages, URLs, and
+filesystem paths remain sanitized. Event timeouts and activation failures remind
+the user to check browser windows before retrying because delivery may have occurred.
+Permission prompts remain suppressed; PickVia does not silently change permissions.
 
 No Fire error may degrade to an ordinary DuckDuckGo launch. URLs are passed in
 memory to the target process and are not written to coordinator markers or
@@ -213,9 +219,6 @@ Apple-event type so packaged-app verification can correlate the route with the
 intended process.
 
 ## Test Strategy
-
-Implementation follows red-green-refactor. Focused failing tests will be added
-before production changes.
 
 Unit and integration coverage will establish that:
 
@@ -234,16 +237,20 @@ Unit and integration coverage will establish that:
   consent prompts;
 - the coordinator reuses a valid process, rejects a reused or mismatched PID,
   and limits cleanup to stale coordinator-owned directories;
-- sandboxed, invalidly signed, unallowlisted-version, profile-bearing,
-  unavailable, and Apple-event failure cases fail closed;
+- sandboxed/unknown-sandbox, out-of-range-version, profile-bearing, unavailable,
+  and Apple-event failure cases do not silently fall back to ordinary routing;
+- normal discovery and routing do not depend on private compatibility metadata;
+- atomic journal transitions, legacy recovery, corruption, delayed deletion,
+  process-exit cleanup, and chooser error sanitization have regression coverage;
 - Safari, Chromium-family browsers, Firefox, mail routing, configuration
   decoding, and chooser behavior retain their existing tests.
 
 ## Real End-to-End Verification
 
-After the full automated suite, formatting lint, packaged-app smoke test, and
-signature verification pass, test the exact built `PickVia.app` with the
-installed official DuckDuckGo build:
+After the automated suite, formatting lint, and packaged-app smoke test pass,
+test the exact built `PickVia.app` with the installed DuckDuckGo build. Do not run
+strict signature verification. Native browser checks are recorded separately from
+automated tests:
 
 1. Rescan applications and confirm the two DuckDuckGo labels.
 2. Route a unique localhost URL through `DuckDuckGo`; prove the request arrives
@@ -269,7 +276,7 @@ close or alter the user's ordinary DuckDuckGo windows or profile.
 Update the README browser list and capability table. Document that DuckDuckGo
 has no PickVia profile selector, that its private target uses a real Fire Window
 with separate disposable state, and that Fire support is limited to a
-compatible official direct-download build. Do not claim that ordinary
+compatible unsandboxed build within the documented release family. Do not claim that ordinary
 DuckDuckGo bookmarks, autofill, extensions, or preferences are available inside
 the managed Fire Window.
 

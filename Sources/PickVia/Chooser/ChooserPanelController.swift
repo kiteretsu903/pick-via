@@ -344,7 +344,7 @@ public final class ChooserPanelController: NSObject,
     if let hostingView {
       hostingView.rootView = view
     } else {
-      let contentWidth = densityForCurrentPresentation.metrics.contentWidth
+      let contentWidth = densityForCurrentPresentation.localizedContentWidth
       let hostingView = NSHostingView(rootView: view)
       self.hostingView = hostingView
       let panel = ChooserPanel(
@@ -372,7 +372,7 @@ public final class ChooserPanelController: NSObject,
 
     guard let hostingView, let panel else { return }
     hostingView.layoutSubtreeIfNeeded()
-    let contentWidth = densityForCurrentPresentation.metrics.contentWidth
+    let contentWidth = densityForCurrentPresentation.localizedContentWidth
     let fittingSize = hostingView.fittingSize
     let fittedHeight =
       maximumContentHeight.map { min($0, fittingSize.height) } ?? fittingSize.height

@@ -1,0 +1,54 @@
+{
+  "locale": "hy",
+  "translator": "AI",
+  "reviewer": "AI self-review",
+  "status": "complete",
+  "surfaces": [
+    "app",
+    "website"
+  ],
+  "sourceHashes": {
+    "app/en.json": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website/en.json": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "checks": [
+    "Every source key/value mapping audited for semantic alignment",
+    "Placeholders, brands, versions and URLs preserved",
+    "Exact HTML tags and attributes preserved",
+    "Eastern Armenian terminology and grammar self-reviewed",
+    "Permission, recovery, privacy, dates and release semantics reviewed"
+  ],
+  "unresolvedIssues": [],
+  "notes": [
+    "AI translation and AI self-review; no human review claimed.",
+    "Native Armenian font rendering and wrapping not tested by translation agent.",
+    "macOS 27 permission category translated descriptively; exact localized OS label requires native verification."
+  ],
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "faee69fd59199c170b7736be90fd527dedd2e155311d9b803b10f739232216fb",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "Localization/website/en.json": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputSHA256": {
+      "Localization/website/hy.json": "91735bdd37bdbf1801bf2549fe6037366672a1c55acb2367fd81ae23a6c62f4b"
+    },
+    "checks": [
+      "All four release delta strings translated and self-reviewed",
+      "145 website keys and exact HTML tags/attributes match English",
+      "Historical v1.4 prose unchanged"
+    ],
+    "unresolvedIssues": []
+  }
+}

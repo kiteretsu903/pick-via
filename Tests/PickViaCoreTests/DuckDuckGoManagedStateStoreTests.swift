@@ -129,7 +129,7 @@ struct DuckDuckGoManagedStateStoreTests {
       try store.records()
         == [DuckDuckGoManagedSessionRecord(session: session, marker: marker)]
     )
-    let text = try String(contentsOf: session.markerURL, encoding: .utf8)
+    let text = try String(contentsOf: session.journalURL, encoding: .utf8)
     #expect(!text.contains("http://"))
     #expect(!text.contains("https://"))
     #expect(!text.contains("file://"))
@@ -142,7 +142,7 @@ struct DuckDuckGoManagedStateStoreTests {
         in: text
       )
     )
-    #expect(try permissions(of: session.markerURL) == 0o600)
+    #expect(try permissions(of: session.journalURL) == 0o600)
   }
 
   @Test func quarantineRoundTripsWithOptionalExactLaunchIdentity() throws {
@@ -161,7 +161,7 @@ struct DuckDuckGoManagedStateStoreTests {
       try store.quarantineRecords()
         == [DuckDuckGoLaunchQuarantineRecord(session: session, marker: quarantine)]
     )
-    let text = try String(contentsOf: session.quarantineURL, encoding: .utf8)
+    let text = try String(contentsOf: session.journalURL, encoding: .utf8)
     #expect(!text.contains("http://"))
     #expect(!text.contains("https://"))
     #expect(!text.contains("file://"))
@@ -175,7 +175,7 @@ struct DuckDuckGoManagedStateStoreTests {
         in: text
       )
     )
-    #expect(try permissions(of: session.quarantineURL) == 0o600)
+    #expect(try permissions(of: session.journalURL) == 0o600)
   }
 
   @Test func pendingQuarantineWithoutPIDIsAValidDurableEntry() throws {
@@ -197,7 +197,7 @@ struct DuckDuckGoManagedStateStoreTests {
       try store.quarantineEntries()
         == [.valid(DuckDuckGoLaunchQuarantineRecord(session: session, marker: pending))]
     )
-    let text = try String(contentsOf: session.quarantineURL, encoding: .utf8)
+    let text = try String(contentsOf: session.journalURL, encoding: .utf8)
     #expect(!text.contains("processIdentifier"))
     #expect(!text.contains("launchDate"))
   }
@@ -253,8 +253,8 @@ struct DuckDuckGoManagedStateStoreTests {
     defer { try? FileManager.default.removeItem(at: root) }
     let store = DuckDuckGoManagedStateStore(rootDirectory: root)
     let session = try store.prepareHome(identifier: fixedIdentifier)
-    try store.save(marker(identifier: fixedIdentifier), for: session)
-    try store.saveQuarantine(
+    try store.writeLegacy(marker(identifier: fixedIdentifier), for: session)
+    try store.writeLegacy(
       quarantineMarker(identifier: fixedIdentifier, launchDate: Date()),
       for: session
     )
@@ -275,7 +275,7 @@ struct DuckDuckGoManagedStateStoreTests {
     }
     let initialStore = DuckDuckGoManagedStateStore(rootDirectory: root)
     let session = try initialStore.prepareHome(identifier: fixedIdentifier)
-    try initialStore.saveQuarantine(
+    try initialStore.writeLegacy(
       quarantineMarker(identifier: fixedIdentifier, launchDate: Date()),
       for: session
     )
@@ -331,7 +331,7 @@ struct DuckDuckGoManagedStateStoreTests {
     let session = try store.prepareHome(identifier: fixedIdentifier)
     try Data("keep".utf8).write(to: externalMarker)
     try FileManager.default.createSymbolicLink(
-      at: session.quarantineURL,
+      at: session.journalURL,
       withDestinationURL: externalMarker
     )
     #expect(throws: DuckDuckGoManagedStateStoreError.invalidSession) {
@@ -343,7 +343,7 @@ struct DuckDuckGoManagedStateStoreTests {
     #expect(throws: DuckDuckGoManagedStateStoreError.invalidSession) {
       try store.removeQuarantine(for: session)
     }
-    #expect(try symbolicLinkExists(at: session.quarantineURL))
+    #expect(try symbolicLinkExists(at: session.journalURL))
     #expect(try Data(contentsOf: externalMarker) == Data("keep".utf8))
   }
 
@@ -687,6 +687,51 @@ struct DuckDuckGoManagedStateStoreTests {
 
     try initialStore.removeSession(identifier: fixedIdentifier)
     #expect(!FileManager.default.fileExists(atPath: session.sessionDirectory.path))
+  }
+
+  @Test func journalAtomicallyTransitionsFromPendingToManagedAcrossRestart() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = DuckDuckGoManagedStateStore(rootDirectory: root)
+    let session = try store.prepareHome(identifier: fixedIdentifier)
+    try store.saveQuarantine(
+      quarantineMarker(identifier: fixedIdentifier, launchDate: nil), for: session)
+    #expect(try DuckDuckGoManagedStateStore(rootDirectory: root).quarantineRecords().count == 1)
+    #expect(try store.records().isEmpty)
+    try store.save(marker(identifier: fixedIdentifier), for: session)
+    let reopened = DuckDuckGoManagedStateStore(rootDirectory: root)
+    #expect(try reopened.quarantineEntries().isEmpty)
+    #expect(try reopened.records().map(\.marker) == [marker(identifier: fixedIdentifier)])
+    #expect(!FileManager.default.fileExists(atPath: session.markerURL.path))
+    #expect(!FileManager.default.fileExists(atPath: session.quarantineURL.path))
+    #expect(try permissions(of: session.journalURL) == 0o600)
+  }
+
+  @Test func newJournalSupersedesLegacyStateButCorruptionDoesNotFallBackToIt() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = DuckDuckGoManagedStateStore(rootDirectory: root)
+    let session = try store.prepareHome(identifier: fixedIdentifier)
+    try store.writeLegacy(marker(identifier: fixedIdentifier), for: session)
+    try store.writeLegacy(
+      quarantineMarker(identifier: fixedIdentifier, launchDate: nil), for: session)
+    try store.save(marker(identifier: fixedIdentifier), for: session)
+    #expect(try store.quarantineEntries().isEmpty)
+    #expect(try store.records().count == 1)
+    try Data("invalid journal".utf8).write(to: session.journalURL)
+    #expect(try store.records().isEmpty)
+    #expect(try store.quarantineEntries() == [.invalid(session: session)])
+    #expect(FileManager.default.fileExists(atPath: session.markerURL.path))
+  }
+
+  @Test func corruptLegacyProcessRecordIsOpaqueOwnership() throws {
+    let root = temporaryRoot()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = DuckDuckGoManagedStateStore(rootDirectory: root)
+    let session = try store.prepareHome(identifier: fixedIdentifier)
+    try Data("corrupt process".utf8).write(to: session.markerURL)
+    #expect(try store.records().isEmpty)
+    #expect(try store.quarantineEntries() == [.invalid(session: session)])
   }
 
   private func temporaryRoot() -> URL {

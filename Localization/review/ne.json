@@ -1,0 +1,38 @@
+{
+  "locale": "ne",
+  "translation": "AI translated",
+  "review": "AI self-reviewed every key/value pairing for source meaning and alignment, Nepali terminology, placeholders, exact HTML attributes, dates, versions, brands, and privacy/recovery conditions. Native complex-script layout verification remains separate.",
+  "sourceHashes": {
+    "app/en.json": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website/en.json": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "unresolvedIssues": [],
+  "humanReview": false,
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "3d5e63b5d34281aec1e95ef00b8f3d54082adbc86d83e8d1f91cbc83681fc14a",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "Localization/website/en.json": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputSHA256": {
+      "Localization/website/ne.json": "15d0d7f23516493aa753a208fa2719279351180a93e53a7c54d3e9f667405e50"
+    },
+    "checks": [
+      "All four release delta strings translated and self-reviewed",
+      "145 website keys and exact HTML tags/attributes match English",
+      "Historical v1.4 prose unchanged"
+    ],
+    "unresolvedIssues": []
+  }
+}

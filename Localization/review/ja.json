@@ -1,0 +1,49 @@
+{
+  "locale": "ja",
+  "translation": "AI translated",
+  "review": "AI self-reviewed against full English source",
+  "sourceHashes": {
+    "app/en.json": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website/en.json": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b",
+    "readme/en.md": "c00bb9825e8080348e7de2ab7188d536e8d3e0dd15cba241f5165425002bf163"
+  },
+  "checks": [
+    "Complete app and website keys",
+    "Placeholder preservation",
+    "Exact HTML tags and attributes",
+    "README sections, table, links and commands preserved",
+    "Japanese terminology and recovery semantics reviewed"
+  ],
+  "unresolvedIssues": [],
+  "nativeUIReview": "NOT RUN",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "6fa58e26f873d3b564afe91bca1fcda978012da390d98d24d173476cf187875d",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website/en.json": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df",
+      "readme/en.md": "817cf2b6851b49c79e2078e258478b7666ce2d1d13942de55be811980ae246cc"
+    },
+    "unresolvedIssues": [],
+    "outputSHA256": {
+      "website/ja.json": "24beff828890cc494c12566c7af694bf2a53dbab3d215a5dd781b86149adba24",
+      "readme/ja.md": "32780211d792a8049c65fe546ccf8f98b5df34e721f7c27342416405d9f288e9"
+    },
+    "checks": [
+      "Release v1.5 meanings and permission names reviewed",
+      "Website keys, HTML attributes and placeholders match",
+      "README sections, links, inline code and commands match",
+      "Public README test-report links and validation claims removed to match final English"
+    ]
+  }
+}

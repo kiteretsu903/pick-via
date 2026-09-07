@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="my" dir="ltr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="macOS အတွက် သီးသန့်ဖန်တီးထားသော လင့်ခ်ရွေးချယ်အက်ပ် PickVia ၏ ထုတ်ဝေမှုမှတ်စုများ။" />
+    <link rel="canonical" href="https://kiteretsu903.github.io/pick-via/my/changelog.html" />
+    <meta name="theme-color" content="#f4f3ee" />
+    <title>ပြောင်းလဲမှုမှတ်တမ်း - PickVia</title>
+    <style>
+      :root { --paper: #f4f3ee; --ink: #151515; --muted: #696963; --rule: #d9d8d0; --violet: #6149d7; --soft-violet: #eceaff; --radius: 28px; }
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body { margin: 0; background: var(--paper); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif; }
+      a { color: inherit; text-decoration: none; }
+      .shell { width: min(980px, calc(100% - 48px)); margin: 0 auto; }
+      .site-header { height: 82px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--rule); }
+      .brand { display: inline-flex; gap: 10px; align-items: center; font-size: 19px; letter-spacing: -.045em; font-weight: 740; }
+      .brand img { width: 31px; height: 31px; border-radius: 8px; }
+      nav { display: flex; align-items: center; gap: 27px; color: #55554f; font-size: 14px; font-weight: 560; }
+      nav a:hover, .site-footer a:hover { color: var(--violet); }
+      .button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 16px; border: 1px solid var(--ink); border-radius: 999px; font-size: 14px; font-weight: 650; transition: transform .18s ease, background .18s ease; }
+      .button:hover { transform: translateY(-1px); background: white; }
+      .page-intro { padding: 106px 0 80px; }
+      .eyebrow { margin: 0; color: var(--violet); font-size: 11px; font-weight: 760; letter-spacing: .13em; text-transform: uppercase; }
+      h1, h2, p { margin-top: 0; }
+      h1 { max-width: 680px; margin: 16px 0 20px; font-size: clamp(60px, 9vw, 106px); line-height: .9; letter-spacing: -.085em; }
+      h1 em { font-style: normal; color: var(--violet); }
+      .intro-copy { max-width: 515px; margin: 0; color: var(--muted); font-size: 19px; letter-spacing: -.028em; line-height: 1.48; }
+      .release-list { padding-bottom: 86px; }
+      .release { display: grid; grid-template-columns: 168px 1fr; gap: 38px; padding: 40px 0 52px; border-top: 1px solid var(--ink); }
+      .release-meta { color: var(--muted); font-size: 13px; line-height: 1.45; }
+      .release-meta strong { display: block; margin-bottom: 4px; color: var(--violet); font-size: 12px; letter-spacing: .09em; }
+      h2 { margin: 0; font-size: clamp(38px, 5.2vw, 58px); line-height: .94; letter-spacing: -.07em; }
+      .release-summary { max-width: 600px; margin: 18px 0 27px; color: var(--muted); font-size: 17px; line-height: 1.55; }
+      .release ul { max-width: 650px; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--rule); }
+      .release li { position: relative; padding: 14px 0 14px 19px; border-bottom: 1px solid var(--rule); color: #3b3b37; font-size: 15px; line-height: 1.45; }
+      .release li::before { position: absolute; left: 0; color: var(--violet); content: "•"; }
+      .release-links { display: flex; gap: 19px; margin-top: 24px; color: var(--violet); font-size: 14px; font-weight: 650; }
+      .release-links a:hover { text-decoration: underline; text-underline-offset: 4px; }
+      .release-current { padding: 6px 10px; border-radius: 999px; color: #39299c; background: var(--soft-violet); font-size: 11px; font-weight: 760; letter-spacing: .08em; text-transform: uppercase; }
+      .site-footer { display: flex; justify-content: space-between; padding: 25px 0 38px; border-top: 1px solid var(--rule); color: #76766f; font-size: 13px; }
+      @media (max-width: 680px) {
+        .shell { width: min(100% - 32px, 980px); }
+        .site-header { height: 72px; } nav { display: none; }
+        .page-intro { padding: 72px 0 58px; }
+        .release { grid-template-columns: 1fr; gap: 18px; padding: 32px 0 42px; }
+        .site-footer { flex-direction: column; gap: 13px; }
+      }
+    </style>
+      <link rel="alternate" hreflang="en" href="https://kiteretsu903.github.io/pick-via/en/changelog.html" />
+    <link rel="alternate" hreflang="zh-Hans" href="https://kiteretsu903.github.io/pick-via/zh-Hans/changelog.html" />
+    <link rel="alternate" hreflang="zh-Hant" href="https://kiteretsu903.github.io/pick-via/zh-Hant/changelog.html" />
+    <link rel="alternate" hreflang="ja" href="https://kiteretsu903.github.io/pick-via/ja/changelog.html" />
+    <link rel="alternate" hreflang="ko" href="https://kiteretsu903.github.io/pick-via/ko/changelog.html" />
+    <link rel="alternate" hreflang="es" href="https://kiteretsu903.github.io/pick-via/es/changelog.html" />
+    <link rel="alternate" hreflang="fr" href="https://kiteretsu903.github.io/pick-via/fr/changelog.html" />
+    <link rel="alternate" hreflang="de" href="https://kiteretsu903.github.io/pick-via/de/changelog.html" />
+    <link rel="alternate" hreflang="pt-BR" href="https://kiteretsu903.github.io/pick-via/pt-BR/changelog.html" />
+    <link rel="alternate" hreflang="ru" href="https://kiteretsu903.github.io/pick-via/ru/changelog.html" />
+    <link rel="alternate" hreflang="ar" href="https://kiteretsu903.github.io/pick-via/ar/changelog.html" />
+    <link rel="alternate" hreflang="hi" href="https://kiteretsu903.github.io/pick-via/hi/changelog.html" />
+    <link rel="alternate" hreflang="it" href="https://kiteretsu903.github.io/pick-via/it/changelog.html" />
+    <link rel="alternate" hreflang="pt-PT" href="https://kiteretsu903.github.io/pick-via/pt-PT/changelog.html" />
+    <link rel="alternate" hreflang="nl" href="https://kiteretsu903.github.io/pick-via/nl/changelog.html" />
+    <link rel="alternate" hreflang="sv" href="https://kiteretsu903.github.io/pick-via/sv/changelog.html" />
+    <link rel="alternate" hreflang="da" href="https://kiteretsu903.github.io/pick-via/da/changelog.html" />
+    <link rel="alternate" hreflang="nb" href="https://kiteretsu903.github.io/pick-via/nb/changelog.html" />
+    <link rel="alternate" hreflang="fi" href="https://kiteretsu903.github.io/pick-via/fi/changelog.html" />
+    <link rel="alternate" hreflang="is" href="https://kiteretsu903.github.io/pick-via/is/changelog.html" />
+    <link rel="alternate" hreflang="pl" href="https://kiteretsu903.github.io/pick-via/pl/changelog.html" />
+    <link rel="alternate" hreflang="cs" href="https://kiteretsu903.github.io/pick-via/cs/changelog.html" />
+    <link rel="alternate" hreflang="sk" href="https://kiteretsu903.github.io/pick-via/sk/changelog.html" />
+    <link rel="alternate" hreflang="hu" href="https://kiteretsu903.github.io/pick-via/hu/changelog.html" />
+    <link rel="alternate" hreflang="ro" href="https://kiteretsu903.github.io/pick-via/ro/changelog.html" />
+    <link rel="alternate" hreflang="bg" href="https://kiteretsu903.github.io/pick-via/bg/changelog.html" />
+    <link rel="alternate" hreflang="uk" href="https://kiteretsu903.github.io/pick-via/uk/changelog.html" />
+    <link rel="alternate" hreflang="sr" href="https://kiteretsu903.github.io/pick-via/sr/changelog.html" />
+    <link rel="alternate" hreflang="hr" href="https://kiteretsu903.github.io/pick-via/hr/changelog.html" />
+    <link rel="alternate" hreflang="bs" href="https://kiteretsu903.github.io/pick-via/bs/changelog.html" />
+    <link rel="alternate" hreflang="sl" href="https://kiteretsu903.github.io/pick-via/sl/changelog.html" />
+    <link rel="alternate" hreflang="mk" href="https://kiteretsu903.github.io/pick-via/mk/changelog.html" />
+    <link rel="alternate" hreflang="el" href="https://kiteretsu903.github.io/pick-via/el/changelog.html" />
+    <link rel="alternate" hreflang="tr" href="https://kiteretsu903.github.io/pick-via/tr/changelog.html" />
+    <link rel="alternate" hreflang="he" href="https://kiteretsu903.github.io/pick-via/he/changelog.html" />
+    <link rel="alternate" hreflang="fa" href="https://kiteretsu903.github.io/pick-via/fa/changelog.html" />
+    <link rel="alternate" hreflang="ur" href="https://kiteretsu903.github.io/pick-via/ur/changelog.html" />
+    <link rel="alternate" hreflang="bn" href="https://kiteretsu903.github.io/pick-via/bn/changelog.html" />
+    <link rel="alternate" hreflang="ta" href="https://kiteretsu903.github.io/pick-via/ta/changelog.html" />
+    <link rel="alternate" hreflang="te" href="https://kiteretsu903.github.io/pick-via/te/changelog.html" />
+    <link rel="alternate" hreflang="mr" href="https://kiteretsu903.github.io/pick-via/mr/changelog.html" />
+    <link rel="alternate" hreflang="gu" href="https://kiteretsu903.github.io/pick-via/gu/changelog.html" />
+    <link rel="alternate" hreflang="kn" href="https://kiteretsu903.github.io/pick-via/kn/changelog.html" />
+    <link rel="alternate" hreflang="ml" href="https://kiteretsu903.github.io/pick-via/ml/changelog.html" />
+    <link rel="alternate" hreflang="pa" href="https://kiteretsu903.github.io/pick-via/pa/changelog.html" />
+    <link rel="alternate" hreflang="ne" href="https://kiteretsu903.github.io/pick-via/ne/changelog.html" />
+    <link rel="alternate" hreflang="si" href="https://kiteretsu903.github.io/pick-via/si/changelog.html" />
+    <link rel="alternate" hreflang="th" href="https://kiteretsu903.github.io/pick-via/th/changelog.html" />
+    <link rel="alternate" hreflang="vi" href="https://kiteretsu903.github.io/pick-via/vi/changelog.html" />
+    <link rel="alternate" hreflang="id" href="https://kiteretsu903.github.io/pick-via/id/changelog.html" />
+    <link rel="alternate" hreflang="ms" href="https://kiteretsu903.github.io/pick-via/ms/changelog.html" />
+    <link rel="alternate" hreflang="fil" href="https://kiteretsu903.github.io/pick-via/fil/changelog.html" />
+    <link rel="alternate" hreflang="km" href="https://kiteretsu903.github.io/pick-via/km/changelog.html" />
+    <link rel="alternate" hreflang="lo" href="https://kiteretsu903.github.io/pick-via/lo/changelog.html" />
+    <link rel="alternate" hreflang="my" href="https://kiteretsu903.github.io/pick-via/my/changelog.html" />
+    <link rel="alternate" hreflang="mn" href="https://kiteretsu903.github.io/pick-via/mn/changelog.html" />
+    <link rel="alternate" hreflang="ka" href="https://kiteretsu903.github.io/pick-via/ka/changelog.html" />
+    <link rel="alternate" hreflang="hy" href="https://kiteretsu903.github.io/pick-via/hy/changelog.html" />
+    <link rel="alternate" hreflang="az" href="https://kiteretsu903.github.io/pick-via/az/changelog.html" />
+    <link rel="alternate" hreflang="kk" href="https://kiteretsu903.github.io/pick-via/kk/changelog.html" />
+    <link rel="alternate" hreflang="uz" href="https://kiteretsu903.github.io/pick-via/uz/changelog.html" />
+    <link rel="alternate" hreflang="sw" href="https://kiteretsu903.github.io/pick-via/sw/changelog.html" />
+    <link rel="alternate" hreflang="af" href="https://kiteretsu903.github.io/pick-via/af/changelog.html" />
+    <link rel="alternate" hreflang="am" href="https://kiteretsu903.github.io/pick-via/am/changelog.html" />
+    <link rel="alternate" hreflang="zu" href="https://kiteretsu903.github.io/pick-via/zu/changelog.html" />
+    <link rel="alternate" hreflang="xh" href="https://kiteretsu903.github.io/pick-via/xh/changelog.html" />
+    <link rel="alternate" hreflang="yo" href="https://kiteretsu903.github.io/pick-via/yo/changelog.html" />
+    <link rel="alternate" hreflang="ha" href="https://kiteretsu903.github.io/pick-via/ha/changelog.html" />
+    <link rel="alternate" hreflang="ig" href="https://kiteretsu903.github.io/pick-via/ig/changelog.html" />
+    <link rel="alternate" hreflang="so" href="https://kiteretsu903.github.io/pick-via/so/changelog.html" />
+    <link rel="alternate" hreflang="mt" href="https://kiteretsu903.github.io/pick-via/mt/changelog.html" />
+    <link rel="alternate" hreflang="ga" href="https://kiteretsu903.github.io/pick-via/ga/changelog.html" />
+    <link rel="alternate" hreflang="cy" href="https://kiteretsu903.github.io/pick-via/cy/changelog.html" />
+    <link rel="alternate" hreflang="eu" href="https://kiteretsu903.github.io/pick-via/eu/changelog.html" />
+    <link rel="alternate" hreflang="ca" href="https://kiteretsu903.github.io/pick-via/ca/changelog.html" />
+    <link rel="alternate" hreflang="gl" href="https://kiteretsu903.github.io/pick-via/gl/changelog.html" />
+    <link rel="alternate" hreflang="et" href="https://kiteretsu903.github.io/pick-via/et/changelog.html" />
+    <link rel="alternate" hreflang="lv" href="https://kiteretsu903.github.io/pick-via/lv/changelog.html" />
+    <link rel="alternate" hreflang="lt" href="https://kiteretsu903.github.io/pick-via/lt/changelog.html" />
+    <link rel="alternate" hreflang="sq" href="https://kiteretsu903.github.io/pick-via/sq/changelog.html" />
+    <link rel="alternate" hreflang="x-default" href="https://kiteretsu903.github.io/pick-via/changelog.html" />
+    <link rel="stylesheet" href="../assets/localization.css?v=ef62d78d8c0b" />
+    <script src="../assets/localization.js?v=c987567a3db8" defer></script>
+  </head>
+  <body>
+    <header class="shell site-header">
+      <a class="brand" href="index.html" aria-label="PickVia ပင်မစာမျက်နှာ"><img src="../assets/icon.png" alt="" /><span>PickVia</span></a>
+      <nav aria-label="ပင်မလမ်းညွှန်"><a href="index.html#features">လုပ်ဆောင်ချက်များ</a><a href="changelog.html" aria-current="page">ပြောင်းလဲမှုမှတ်တမ်း</a><a href="index.html#download">ဒေါင်းလုဒ်</a></nav>
+      <a class="button" href="https://github.com/kiteretsu903/pick-via">မူရင်းကုဒ် <span aria-hidden="true">↗</span></a>
+    </header>
+    <div class="shell language-bar"><label for="website-language">ဘာသာစကား</label><select id="website-language" aria-label="ဝဘ်ဆိုက်ဘာသာစကား ရွေးရန်"><option value="../en/changelog.html" lang="en" dir="ltr">English</option><option value="../zh-Hans/changelog.html" lang="zh-Hans" dir="ltr">简体中文</option><option value="../zh-Hant/changelog.html" lang="zh-Hant" dir="ltr">繁體中文</option><option value="../ja/changelog.html" lang="ja" dir="ltr">日本語</option><option value="../ko/changelog.html" lang="ko" dir="ltr">한국어</option><option value="../es/changelog.html" lang="es" dir="ltr">Español</option><option value="../fr/changelog.html" lang="fr" dir="ltr">Français</option><option value="../de/changelog.html" lang="de" dir="ltr">Deutsch</option><option value="../pt-BR/changelog.html" lang="pt-BR" dir="ltr">Português (Brasil)</option><option value="../ru/changelog.html" lang="ru" dir="ltr">Русский</option><option value="../ar/changelog.html" lang="ar" dir="rtl">العربية</option><option value="../hi/changelog.html" lang="hi" dir="ltr">हिन्दी</option><option value="../it/changelog.html" lang="it" dir="ltr">Italiano</option><option value="../pt-PT/changelog.html" lang="pt-PT" dir="ltr">Português (Portugal)</option><option value="../nl/changelog.html" lang="nl" dir="ltr">Nederlands</option><option value="../sv/changelog.html" lang="sv" dir="ltr">Svenska</option><option value="../da/changelog.html" lang="da" dir="ltr">Dansk</option><option value="../nb/changelog.html" lang="nb" dir="ltr">Norsk bokmål</option><option value="../fi/changelog.html" lang="fi" dir="ltr">Suomi</option><option value="../is/changelog.html" lang="is" dir="ltr">Íslenska</option><option value="../pl/changelog.html" lang="pl" dir="ltr">Polski</option><option value="../cs/changelog.html" lang="cs" dir="ltr">Čeština</option><option value="../sk/changelog.html" lang="sk" dir="ltr">Slovenčina</option><option value="../hu/changelog.html" lang="hu" dir="ltr">Magyar</option><option value="../ro/changelog.html" lang="ro" dir="ltr">Română</option><option value="../bg/changelog.html" lang="bg" dir="ltr">Български</option><option value="../uk/changelog.html" lang="uk" dir="ltr">Українська</option><option value="../sr/changelog.html" lang="sr" dir="ltr">Српски</option><option value="../hr/changelog.html" lang="hr" dir="ltr">Hrvatski</option><option value="../bs/changelog.html" lang="bs" dir="ltr">Bosanski</option><option value="../sl/changelog.html" lang="sl" dir="ltr">Slovenščina</option><option value="../mk/changelog.html" lang="mk" dir="ltr">Македонски</option><option value="../el/changelog.html" lang="el" dir="ltr">Ελληνικά</option><option value="../tr/changelog.html" lang="tr" dir="ltr">Türkçe</option><option value="../he/changelog.html" lang="he" dir="rtl">עברית</option><option value="../fa/changelog.html" lang="fa" dir="rtl">فارسی</option><option value="../ur/changelog.html" lang="ur" dir="rtl">اردو</option><option value="../bn/changelog.html" lang="bn" dir="ltr">বাংলা</option><option value="../ta/changelog.html" lang="ta" dir="ltr">தமிழ்</option><option value="../te/changelog.html" lang="te" dir="ltr">తెలుగు</option><option value="../mr/changelog.html" lang="mr" dir="ltr">मराठी</option><option value="../gu/changelog.html" lang="gu" dir="ltr">ગુજરાતી</option><option value="../kn/changelog.html" lang="kn" dir="ltr">ಕನ್ನಡ</option><option value="../ml/changelog.html" lang="ml" dir="ltr">മലയാളം</option><option value="../pa/changelog.html" lang="pa" dir="ltr">ਪੰਜਾਬੀ</option><option value="../ne/changelog.html" lang="ne" dir="ltr">नेपाली</option><option value="../si/changelog.html" lang="si" dir="ltr">සිංහල</option><option value="../th/changelog.html" lang="th" dir="ltr">ไทย</option><option value="../vi/changelog.html" lang="vi" dir="ltr">Tiếng Việt</option><option value="../id/changelog.html" lang="id" dir="ltr">Bahasa Indonesia</option><option value="../ms/changelog.html" lang="ms" dir="ltr">Bahasa Melayu</option><option value="../fil/changelog.html" lang="fil" dir="ltr">Filipino</option><option value="../km/changelog.html" lang="km" dir="ltr">ខ្មែរ</option><option value="../lo/changelog.html" lang="lo" dir="ltr">ລາວ</option><option value="../my/changelog.html" lang="my" dir="ltr" selected>မြန်မာ</option><option value="../mn/changelog.html" lang="mn" dir="ltr">Монгол</option><option value="../ka/changelog.html" lang="ka" dir="ltr">ქართული</option><option value="../hy/changelog.html" lang="hy" dir="ltr">Հայերեն</option><option value="../az/changelog.html" lang="az" dir="ltr">Azərbaycanca</option><option value="../kk/changelog.html" lang="kk" dir="ltr">Қазақша</option><option value="../uz/changelog.html" lang="uz" dir="ltr">O‘zbekcha</option><option value="../sw/changelog.html" lang="sw" dir="ltr">Kiswahili</option><option value="../af/changelog.html" lang="af" dir="ltr">Afrikaans</option><option value="../am/changelog.html" lang="am" dir="ltr">አማርኛ</option><option value="../zu/changelog.html" lang="zu" dir="ltr">isiZulu</option><option value="../xh/changelog.html" lang="xh" dir="ltr">isiXhosa</option><option value="../yo/changelog.html" lang="yo" dir="ltr">Yorùbá</option><option value="../ha/changelog.html" lang="ha" dir="ltr">Hausa</option><option value="../ig/changelog.html" lang="ig" dir="ltr">Igbo</option><option value="../so/changelog.html" lang="so" dir="ltr">Soomaali</option><option value="../mt/changelog.html" lang="mt" dir="ltr">Malti</option><option value="../ga/changelog.html" lang="ga" dir="ltr">Gaeilge</option><option value="../cy/changelog.html" lang="cy" dir="ltr">Cymraeg</option><option value="../eu/changelog.html" lang="eu" dir="ltr">Euskara</option><option value="../ca/changelog.html" lang="ca" dir="ltr">Català</option><option value="../gl/changelog.html" lang="gl" dir="ltr">Galego</option><option value="../et/changelog.html" lang="et" dir="ltr">Eesti</option><option value="../lv/changelog.html" lang="lv" dir="ltr">Latviešu</option><option value="../lt/changelog.html" lang="lt" dir="ltr">Lietuvių</option><option value="../sq/changelog.html" lang="sq" dir="ltr">Shqip</option></select></div>
+    <main>
+      <section class="shell page-intro">
+        <p class="eyebrow">ထုတ်ဝေမှုမှတ်စုများ</p>
+        <h1>PickVia တွင် <em>အသစ်</em><br />ဘာပါသလဲ။</h1>
+        <p class="intro-copy">PickVia ၏ အများပြည်သူသုံး ထုတ်ဝေမှုတစ်ခုစီအတွက် အကျဉ်းချုပ်မှတ်တမ်း။ နောက်ဆုံးဗားရှင်းကို GitHub မှ ဒေါင်းလုဒ်လုပ်ပါ။</p>
+      </section>
+      <section class="shell release-list" aria-label="PickVia ထုတ်ဝေမှုများ">
+        <article class="release">
+          <div class="release-meta"><strong>06 စက်တင်ဘာ 2026</strong><span class="release-current">လက်ရှိထုတ်ဝေမှု</span></div>
+          <div>
+            <h2>ဗားရှင်း 1.5</h2>
+            <p class="release-summary">အက်ပ်နှင့် ဝဘ်ဆိုက်ကို ဘာသာစကား 80 ဖြင့် အသုံးပြုနိုင်ပြီး README ဘာသာပြန် 12 မျိုးလည်း ရှိသည်။ ဆက်တင်များတွင် သင့်ဘာသာစကားကို ရွေးချယ်ပါ။</p>
+            <ul>
+              <li>သုံးစွဲနိုင်မှုနှင့် အလိုအလျောက်လုပ်ဆောင်မှု ခွင့်ပြုချက်များဖြင့် စမ်းသပ်ဆဲ Safari Stable ပရိုဖိုင်များကို အသုံးပြုကြည့်ပါ။ လင့်ခ်တစ်ခုစီသည် ရွေးချယ်ထားသော ပရိုဖိုင်၏ ဝင်းဒိုးအသစ်တွင် ပွင့်မည်။</li>
+              <li>DuckDuckGo သီးသန့်ဆက်ရှင်များ ပြန်လည်ရယူခြင်းနှင့် ရှင်းလင်းခြင်းကို ပိုမိုရိုးရှင်းစေထားသည်။ ကိုက်ညီမှုရှိသော sandbox မသုံးသည့် 1.203.x build များသည် သီးသန့်မုဒ်ဖြင့် လင့်ခ်ဖွင့်ခြင်းကို ပံ့ပိုးသည်။ ပုံမှန်လင့်ခ်များအတွက် သီးခြားဗားရှင်း သို့မဟုတ် ထုတ်ဝေသူလက်မှတ် မလိုအပ်ပါ။</li>
+              <li>Build များအတွက် တူညီသော Apple Development အသိအမှတ်ပြုလက်မှတ်ကို အသုံးပြုသည်။ ဒေါင်းလုဒ်သည် Apple ၏ notarization စစ်ဆေးအတည်ပြုမှု မရရှိထားပါ။ README ရှိ ထည့်သွင်းခြင်းညွှန်ကြားချက်များကို လိုက်နာပါ။</li>
+            </ul>
+            <div class="release-links"><a href="https://github.com/kiteretsu903/pick-via/releases/tag/v1.5">ထုတ်ဝေမှုမှတ်စု အပြည့်အစုံ <span aria-hidden="true">↗</span></a><a href="https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg">v1.5 ဒေါင်းလုဒ်လုပ်ရန် <span aria-hidden="true">↓</span></a></div>
+          </div>
+        </article>
+        <article class="release">
+          <div class="release-meta"><strong>06 စက်တင်ဘာ 2026</strong></div>
+          <div>
+            <h2>ဗားရှင်း 1.4</h2>
+            <p class="release-summary">ဘရောက်ဇာနှင့် ထုတ်ဝေမျိုးကွဲ ပိုများစွာမှ ရွေးနိုင်ပြီး Firefox ပရိုဖိုင်များကို ဆက်စပ်မျိုးကွဲအလိုက် အုပ်စုဖွဲ့ထားသည်။</p>
+            <ul>
+              <li>Chrome Dev နှင့် Canary၊ Edge Beta၊ Dev နှင့် Canary၊ Brave Beta နှင့် Nightly၊ Vivaldi Snapshot၊ Firefox Developer Edition နှင့် Nightly တို့ကို သီးခြားဘရောက်ဇာရွေးချယ်မှုများအဖြစ် ထည့်ထားသည်။</li>
+              <li>Opera၊ Arc၊ Orion နှင့် Safari Technology Preview အတွက် အက်ပ်အဆင့် ပုံမှန်ဖွင့်ခြင်း ထည့်ထားသည်။</li>
+              <li>သတ်မှတ်နိုင်လျှင် Firefox ပရိုဖိုင်များကို မှတ်တမ်းတင်ထားသော မျိုးကွဲနှင့်အတူ ထားပြီး ပြန်စစ်ချိန်တွင် ယခင်တွေ့ရှိထားသော ထပ်နေသည့်စာရင်းများကို ဖယ်ရှားသည်။ ယုံကြည်ရသော ဆက်စပ်မှုမီတာဒေတာမရှိသည့် ပရိုဖိုင်များသည် ရှိပြီးသား အရန်လုပ်ဆောင်ပုံကို ဆက်သုံးသည်။</li>
+              <li>macOS က ယာယီဖိုင်လမ်းကြောင်းများကို စံပြုပြီးနောက် ငြင်းပယ်ခံရသည့် Firefox ပရိုဖိုင်လမ်းကြောင်းများကို ပြင်ဆင်ထားသည်။</li>
+              <li>ပံ့ပိုးထားသော ဖွင့်နည်းပေါင်းစပ်မှုများကိုသာ ပြသည်။ သီးသန့်ဝင်းဒိုးများသည် ဘရောက်ဇာအဆင့် ရွေးချယ်မှုများအဖြစ် ဆက်ရှိပြီး ပရိုဖိုင်တစ်ခုချင်းအတွက် သီးသန့်မုဒ် မရရှိပါ။</li>
+            </ul>
+            <div class="release-links"><a href="https://github.com/kiteretsu903/pick-via/releases/tag/v1.4">ထုတ်ဝေမှုမှတ်စု အပြည့်အစုံ <span aria-hidden="true">↗</span></a><a href="https://github.com/kiteretsu903/pick-via/releases/download/v1.4/PickVia-v1.4.dmg">v1.4 ဒေါင်းလုဒ်လုပ်ရန် <span aria-hidden="true">↓</span></a></div>
+          </div>
+        </article>
+        <article class="release">
+          <div class="release-meta"><strong>20 ဩဂုတ် 2026</strong></div>
+          <div>
+            <h2>ဗားရှင်း 1.3</h2>
+            <p class="release-summary">DuckDuckGo ကို ဘရောက်ဇာရွေးချယ်မှုအဖြစ် ယခု ရရှိပြီး ပံ့ပိုးထားသော တရားဝင်ဗားရှင်းများတွင် သီးသန့်ရွေးချယ်မှု ပါဝင်သည်။</p>
+            <ul>
+              <li>တူညီသော ရွေးချယ်ဝင်းဒိုးမှ ပုံမှန် သို့မဟုတ် သီးသန့် DuckDuckGo ကို ရွေးပါ။</li>
+              <li>သီးသန့်မုဒ်သည် သီးခြားခွဲထားသော ယာယီဒေတာကို သုံးပြီး တိုးချဲ့ပရိုဂရမ် သို့မဟုတ် သုံးစွဲနိုင်မှုခွင့်ပြုချက် မလိုအပ်ပါ။ ပံ့ပိုးထားသော တရားဝင် တိုက်ရိုက်ဒေါင်းလုဒ်ဗားရှင်းများအတွက်သာ ဖြစ်သည်။</li>
+            </ul>
+            <div class="release-links"><a href="https://github.com/kiteretsu903/pick-via/releases/tag/v1.3">ထုတ်ဝေမှုမှတ်စု အပြည့်အစုံ <span aria-hidden="true">↗</span></a><a href="https://github.com/kiteretsu903/pick-via/releases/download/v1.3/PickVia-v1.3.dmg">v1.3 ဒေါင်းလုဒ်လုပ်ရန် <span aria-hidden="true">↓</span></a></div>
+          </div>
+        </article>
+        <article class="release">
+          <div class="release-meta"><strong>18 ဩဂုတ် 2026</strong></div>
+          <div>
+            <h2>ဗားရှင်း 1.2</h2>
+            <p class="release-summary">Google Chrome Beta သည် ယခု ၎င်း၏ ကိုယ်ပိုင်ပရိုဖိုင်များ၊ ပုံမှန် သို့မဟုတ် သီးသန့်ရွေးချယ်မှုများနှင့်အတူ သီးခြားဘရောက်ဇာရွေးချယ်မှုတစ်ခု ဖြစ်သည်။</p>
+            <div class="release-links"><a href="https://github.com/kiteretsu903/pick-via/releases/tag/v1.2">ထုတ်ဝေမှုမှတ်စု အပြည့်အစုံ <span aria-hidden="true">↗</span></a><a href="https://github.com/kiteretsu903/pick-via/releases/download/v1.2/PickVia-v1.2.dmg">v1.2 ဒေါင်းလုဒ်လုပ်ရန် <span aria-hidden="true">↓</span></a></div>
+          </div>
+        </article>
+        <article class="release">
+          <div class="release-meta"><strong>15 ဩဂုတ် 2026</strong></div>
+          <div>
+            <h2>ဗားရှင်း 1.1</h2>
+            <p class="release-summary">အီးမေးလ်လင့်ခ်များကို သင်ရွေးသော ထည့်သွင်းထားသည့် အီးမေးလ်အက်ပ်တွင် ယခု ဖွင့်နိုင်သည်။</p>
+            <ul>
+              <li>မှတ်ပုံတင်ထားသော အီးမေးလ်အက်ပ်များမှ ရွေးပြီး အီးမေးလ်ဆက်တင်များတွင် ၎င်းတို့၏ အစီအစဉ်ကို စီမံပါ။</li>
+              <li>PickVia သည် လက်ခံသူ၊ အကြောင်းအရာခေါင်းစဉ်၊ စာကိုယ် သို့မဟုတ် မူလအီးမေးလ်လင့်ခ်ကို အကြိုမပြသသလို မသိမ်းဆည်းပါ။</li>
+            </ul>
+            <div class="release-links"><a href="https://github.com/kiteretsu903/pick-via/releases/tag/v1.1">ထုတ်ဝေမှုမှတ်စု အပြည့်အစုံ <span aria-hidden="true">↗</span></a><a href="https://github.com/kiteretsu903/pick-via/releases/download/v1.1/PickVia-v1.1.dmg">v1.1 ဒေါင်းလုဒ်လုပ်ရန် <span aria-hidden="true">↓</span></a></div>
+          </div>
+        </article>
+        <article class="release">
+          <div class="release-meta"><strong>14 ဩဂုတ် 2026</strong><span>ပထမဆုံး အများပြည်သူသုံးထုတ်ဝေမှု</span></div>
+          <div>
+            <h2>ဗားရှင်း 1.0</h2>
+            <p class="release-summary">ပထမဆုံး အများပြည်သူသုံးထုတ်ဝေမှု: ဝဘ်လင့်ခ်တစ်ခုစီအတွက် ဘရောက်ဇာ၊ ပရိုဖိုင် သို့မဟုတ် ပံ့ပိုးထားသော သီးသန့်မုဒ်ကို ရွေးပါ။</p>
+            <ul>
+              <li>Safari၊ Chrome၊ Chromium၊ Edge၊ Brave၊ Vivaldi နှင့် Firefox ကို ပံ့ပိုးသည်။</li>
+              <li>DMG မှ Applications သို့ ဆွဲချ၍ ထည့်သွင်းပါ။</li>
+            </ul>
+            <div class="release-links"><a href="https://github.com/kiteretsu903/pick-via/releases/tag/v1.0">ထုတ်ဝေမှုမှတ်စု အပြည့်အစုံ <span aria-hidden="true">↗</span></a></div>
+          </div>
+        </article>
+      </section>
+    </main>
+    <footer class="shell site-footer"><span>© 2026 PickVia · MIT လိုင်စင်</span><span><a href="index.html">ပင်မစာမျက်နှာ</a> · <a href="privacy.html">ကိုယ်ရေးအချက်အလက်</a> · <a href="terms.html">စည်းကမ်းချက်များ</a> · <a href="https://github.com/kiteretsu903/pick-via">GitHub ရှိ မူရင်းကုဒ် <span aria-hidden="true">↗</span></a></span></footer>
+  </body>
+</html>

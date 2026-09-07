@@ -5,6 +5,10 @@ on:
     branches: [main]
     paths:
       - site/**
+      - Localization/website/**
+      - Localization/locales.json
+      - scripts/localize-website.py
+      - scripts/test_localize_website.py
       - .github/workflows/deploy-pages.yml
   workflow_dispatch:
 
@@ -26,6 +30,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Validate generated translations
+        run: |
+          python3 scripts/localize-website.py --check
+          python3 scripts/test_localize_website.py
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload site

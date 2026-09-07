@@ -1,0 +1,64 @@
+{
+  "locale": "fa",
+  "translator": "AI",
+  "reviewer": "AI self-review",
+  "status": "complete",
+  "surfaces": [
+    "app",
+    "website"
+  ],
+  "sourceHashes": {
+    "app/en.json": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website/en.json": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "checks": [
+    "All 139 source key/value mappings on each surface audited for semantic alignment",
+    "Placeholders, brands, versions and URLs preserved",
+    "Exact HTML tags and attributes preserved",
+    "Persian terminology and RTL text self-reviewed",
+    "Permission, recovery, privacy, dates and release-version semantics reviewed"
+  ],
+  "unresolvedIssues": [],
+  "notes": [
+    "AI translation and AI self-review; no human review claimed.",
+    "Native RTL shaping and mixed-direction UI/layout not tested by translation agent.",
+    "macOS 27 permission category translated descriptively; exact localized OS label requires native verification."
+  ],
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "01310d635dd69b3b333bed5603a8565f4a196c09b1df9f18bbef8e8f2f5cb332",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "Localization/website/en.json": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputSHA256": {
+      "Localization/website/fa.json": "5a18015f481bfd58fc9bb3476432c721aac3b943707d484f54d18ec85a29a5fe"
+    },
+    "changedKeys": [
+      "index.p.001",
+      "release.v1_5.duckduckgo",
+      "release.v1_5.safari",
+      "release.v1_5.signing"
+    ],
+    "checks": [
+      "Reviewed all four changed values in Persian; preserved existing Settings, Accessibility, Automation and profile terminology",
+      "Confirmed released 80 app/website languages and 12 README translations",
+      "Preserved Safari experimental status, required permissions and selected-profile new-window behavior",
+      "Preserved DuckDuckGo unsandboxed 1.203.x compatibility and lack of normal-link version/publisher-signature requirement",
+      "Preserved fixed Apple Development certificate and explicit lack of Apple notarization; the technical process name is retained parenthetically for clarity",
+      "Catalog keys, numeric values, placeholders and HTML validation passed; historical release prose unchanged"
+    ],
+    "readme": "No fa README exists; no README modified",
+    "unresolvedIssues": []
+  }
+}

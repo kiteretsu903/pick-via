@@ -7,6 +7,18 @@ import Testing
 struct BrowserLauncherTests {
   private let url = URL(string: "https://example.com")!
 
+  @Test func duckDuckGoActionableErrorsSurviveTheLauncherBoundary() async {
+    let appURL = URL(fileURLWithPath: "/Applications/DuckDuckGo.app")
+    let launcher = duckDuckGoLauncher(
+      router: RecordingDuckDuckGoRouter(routingError: .automationRequired))
+    await #expect(throws: DuckDuckGoRoutingError.automationRequired) {
+      try await launcher.execute(
+        .duckDuckGo(
+          application: appURL,
+          url: URL(string: "https://example.com")!, mode: .private))
+    }
+  }
+
   @Test func launchObservationRejectsNonpositiveProcessIdentifiers() {
     #expect(BrowserLaunchObservation(processIdentifier: 0, mechanism: .process) == nil)
     #expect(BrowserLaunchObservation(processIdentifier: -1, mechanism: .workspace) == nil)

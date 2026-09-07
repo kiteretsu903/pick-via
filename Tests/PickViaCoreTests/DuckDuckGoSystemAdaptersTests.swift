@@ -73,6 +73,28 @@ struct DuckDuckGoSystemAdaptersTests {
     #expect(raw & UInt(kAECanInteract) == 0)
   }
 
+  @Test func appleEventReplyErrorsAreNotMistakenForSuccessfulDelivery() throws {
+    let reply = NSAppleEventDescriptor.record()
+    try SystemDuckDuckGoAppleEventSender.validateReply(reply)
+    reply.setParam(
+      NSAppleEventDescriptor(int32: Int32(errAEEventNotPermitted)), forKeyword: keyErrorNumber)
+    #expect(throws: DuckDuckGoRoutingError.automationRequired) {
+      try SystemDuckDuckGoAppleEventSender.validateReply(reply)
+    }
+    #expect(SystemDuckDuckGoAppleEventSender.routingError(for: -1744) == .automationRequired)
+    reply.setParam(NSAppleEventDescriptor(int32: Int32(errAETimeout)), forKeyword: keyErrorNumber)
+    #expect(throws: DuckDuckGoRoutingError.eventTimedOut) {
+      try SystemDuckDuckGoAppleEventSender.validateReply(reply)
+    }
+    reply.setParam(NSAppleEventDescriptor(int32: -1708), forKeyword: keyErrorNumber)
+    reply.setParam(
+      NSAppleEventDescriptor(string: "https://secret.example/private"), forKeyword: keyErrorString)
+    #expect(throws: DuckDuckGoRoutingError.eventRejected) {
+      try SystemDuckDuckGoAppleEventSender.validateReply(reply)
+    }
+    #expect(!DuckDuckGoRoutingError.eventRejected.userMessage.contains("secret"))
+  }
+
   @MainActor @Test func launchConfigurationCopiesRequestAndDisablesUnsafeWorkspaceBehavior() {
     let request = DuckDuckGoApplicationLaunchRequest(
       applicationURL: URL(fileURLWithPath: "/Applications/DuckDuckGo.app"),

@@ -127,8 +127,9 @@ public final class ProfileAccessFolderSelector: ProfileAccessFolderSelecting {
     activePanel = panel
     defer { activePanel = nil }
     let generation = selectionGeneration
-    panel.prompt = "Grant Access"
-    panel.message = "Select the \(descriptor.displayName) data folder containing \(marker)."
+    panel.prompt = L10n.tr("Grant Access")
+    panel.message = L10n.tr(
+      "Select the {0} data folder containing {1}.", descriptor.displayName, marker)
     panel.canChooseDirectories = true
     panel.canChooseFiles = false
     panel.allowsMultipleSelection = false

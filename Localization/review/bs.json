@@ -1,0 +1,50 @@
+{
+  "locale": "bs",
+  "translator": "AI",
+  "reviewer": "AI self-review",
+  "status": "complete",
+  "surfaces": [
+    "app",
+    "website"
+  ],
+  "sourceHashes": {
+    "app/en.json": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website/en.json": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "checks": [
+    "All catalog keys present and nonempty; no duplicate keys",
+    "Every app key/value pair translated with explicit source keys and reviewed for semantic alignment",
+    "App placeholders preserved",
+    "Website HTML tags and attributes preserved",
+    "Semantics reviewed for permissions, recovery, private state, release availability and legal text"
+  ],
+  "unresolvedIssues": [],
+  "notes": [
+    "AI translation and AI self-review; no human review claimed.",
+    "Bosnian uses Latin script and count-neutral phrasing where interpolated values could require plural forms.",
+    "macOS permission categories translated descriptively; exact system UI wording requires native OS verification.",
+    "Native UI and browser layout verification not performed by this translation agent."
+  ],
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "b7441d4aa56079f817675a6e7d7d8ce426fcc66cdb9453ab180b624e406d57c7",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website/en.json": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputSHA256": {
+      "website/bs.json": "843383387f0c6c1599fc5c0a532e04e43ff9f6218962566119fe506def75bab1"
+    },
+    "unresolvedIssues": []
+  }
+}

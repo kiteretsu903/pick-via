@@ -7,6 +7,7 @@ public struct DuckDuckGoManagedSession: Equatable, Sendable {
   public let homeDirectory: URL
   public let markerURL: URL
   public let quarantineURL: URL
+  public var journalURL: URL { sessionDirectory.appending(path: "Session.json") }
 
   public init(
     identifier: UUID,
@@ -236,24 +237,56 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
     _ marker: DuckDuckGoManagedProcessMarker,
     for session: DuckDuckGoManagedSession
   ) throws {
-    let fileManager = FileManager.default
-    try validateRoot(fileManager: fileManager)
-    guard session == derivedSession(identifier: session.identifier),
-      isDirectoryAndNotSymbolicLink(session.sessionDirectory, fileManager: fileManager)
-    else {
-      throw DuckDuckGoManagedStateStoreError.invalidSession
+    try writeJournal(.managed(marker), identifier: marker.identifier, for: session)
+  }
+
+  private enum SessionJournal: Codable {
+    case pending(DuckDuckGoLaunchQuarantineMarker)
+    case managed(DuckDuckGoManagedProcessMarker)
+
+    var identifier: UUID {
+      switch self {
+      case .pending(let marker): marker.identifier
+      case .managed(let marker): marker.identifier
+      }
     }
-    guard marker.identifier == session.identifier else {
+
+    var isValid: Bool {
+      switch self {
+      case .pending(let marker): marker.schemaVersion == 1
+      case .managed(let marker): marker.schemaVersion == 1 && marker.processIdentifier > 0
+      }
+    }
+  }
+
+  private func writeJournal(
+    _ journal: SessionJournal, identifier: UUID, for session: DuckDuckGoManagedSession
+  ) throws {
+    let fileManager = FileManager.default
+    try validateSession(session, fileManager: fileManager)
+    guard identifier == session.identifier else {
       throw DuckDuckGoManagedStateStoreError.markerIdentifierMismatch
+    }
+    if try entryExists(at: session.journalURL, fileManager: fileManager),
+      !isRegularFileAndNotSymbolicLink(session.journalURL, fileManager: fileManager)
+    {
+      throw DuckDuckGoManagedStateStoreError.invalidSession
     }
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys]
-    let data = try encoder.encode(marker)
-    try data.write(to: session.markerURL, options: [.atomic])
-    try fileManager.setAttributes(
-      [.posixPermissions: 0o600],
-      ofItemAtPath: session.markerURL.path
-    )
+    try encoder.encode(journal).write(to: session.journalURL, options: [.atomic])
+    try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: session.journalURL.path)
+  }
+
+  private func readJournal(for session: DuckDuckGoManagedSession) throws -> SessionJournal? {
+    let fileManager = FileManager.default
+    guard try entryExists(at: session.journalURL, fileManager: fileManager) else { return nil }
+    guard isRegularFileAndNotSymbolicLink(session.journalURL, fileManager: fileManager),
+      let data = try? Data(contentsOf: session.journalURL),
+      let journal = try? JSONDecoder().decode(SessionJournal.self, from: data),
+      journal.identifier == session.identifier, journal.isValid
+    else { throw DuckDuckGoManagedStateStoreError.invalidSession }
+    return journal
   }
 
   public func records() throws -> [DuckDuckGoManagedSessionRecord] {
@@ -278,6 +311,13 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
       else { continue }
 
       let session = derivedSession(identifier: identifier)
+      // A new journal supersedes both legacy files, even if it is unreadable.
+      if try entryExists(at: session.journalURL, fileManager: fileManager) {
+        if let journal = try? readJournal(for: session), case .managed(let marker) = journal {
+          result.append(DuckDuckGoManagedSessionRecord(session: session, marker: marker))
+        }
+        continue
+      }
       guard isRegularFileAndNotSymbolicLink(session.markerURL, fileManager: fileManager),
         let data = try? Data(contentsOf: session.markerURL),
         let marker = try? JSONDecoder().decode(
@@ -298,25 +338,7 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
     _ marker: DuckDuckGoLaunchQuarantineMarker,
     for session: DuckDuckGoManagedSession
   ) throws {
-    let fileManager = FileManager.default
-    try validateSession(session, fileManager: fileManager)
-    guard marker.identifier == session.identifier else {
-      throw DuckDuckGoManagedStateStoreError.markerIdentifierMismatch
-    }
-    if try entryExists(at: session.quarantineURL, fileManager: fileManager),
-      !isRegularFileAndNotSymbolicLink(session.quarantineURL, fileManager: fileManager)
-    {
-      throw DuckDuckGoManagedStateStoreError.invalidSession
-    }
-
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.sortedKeys]
-    let data = try encoder.encode(marker)
-    try data.write(to: session.quarantineURL, options: [.atomic])
-    try fileManager.setAttributes(
-      [.posixPermissions: 0o600],
-      ofItemAtPath: session.quarantineURL.path
-    )
+    try writeJournal(.pending(marker), identifier: marker.identifier, for: session)
   }
 
   public func quarantineRecords() throws -> [DuckDuckGoLaunchQuarantineRecord] {
@@ -351,7 +373,28 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
         result.append(.invalid(session: session))
         continue
       }
+      if try entryExists(at: session.journalURL, fileManager: fileManager) {
+        do {
+          if let journal = try readJournal(for: session), case .pending(let marker) = journal {
+            result.append(
+              .valid(DuckDuckGoLaunchQuarantineRecord(session: session, marker: marker)))
+          }
+        } catch {
+          result.append(.invalid(session: session))
+        }
+        continue
+      }
       guard try entryExists(at: session.quarantineURL, fileManager: fileManager) else {
+        // Unknown legacy state cannot establish that an ambient process is ordinary.
+        if !isRegularFileAndNotSymbolicLink(session.markerURL, fileManager: fileManager)
+          || (try? Data(contentsOf: session.markerURL)).flatMap({
+            try? JSONDecoder().decode(DuckDuckGoManagedProcessMarker.self, from: $0)
+          }).map({
+            $0.schemaVersion == 1 && $0.identifier == identifier && $0.processIdentifier > 0
+          }) != true
+        {
+          result.append(.invalid(session: session))
+        }
         continue
       }
       guard isRegularFileAndNotSymbolicLink(session.quarantineURL, fileManager: fileManager),
@@ -378,6 +421,10 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
   public func removeQuarantine(for session: DuckDuckGoManagedSession) throws {
     guard session == derivedSession(identifier: session.identifier) else {
       throw DuckDuckGoManagedStateStoreError.invalidSession
+    }
+    if let journal = try readJournal(for: session) {
+      guard case .managed = journal else { throw DuckDuckGoManagedStateStoreError.invalidSession }
+      return
     }
     let rootFileDescriptor = try openRootDirectory()
     defer { Darwin.close(rootFileDescriptor) }
@@ -740,7 +787,7 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
       }
       if childName == "." || childName == ".." { continue }
       if preservingAuthorityFiles,
-        childName == "Process.json" || childName == "Quarantine.json"
+        childName == "Session.json" || childName == "Process.json" || childName == "Quarantine.json"
       {
         continue
       }
@@ -786,7 +833,7 @@ public struct DuckDuckGoManagedStateStore: DuckDuckGoManagedStateStoring, Sendab
     }
 
     if preservingAuthorityFiles {
-      for childName in ["Quarantine.json", "Process.json"]
+      for childName in ["Quarantine.json", "Process.json", "Session.json"]
       where try relativeNodeTypeIfPresent(
         parent: directoryFileDescriptor,
         name: childName

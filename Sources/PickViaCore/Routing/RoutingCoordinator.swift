@@ -148,7 +148,11 @@ public final class RoutingCoordinator {
         currentRequest?.id == request.id,
         launchingRequestID == request.id
       else { return }
-      launchFailed(Self.sanitizedLaunchFailure(for: request.kind))
+      if request.kind == .web, let error = error as? DuckDuckGoRoutingError {
+        presentFailure(LaunchFailure(message: error.userMessage))
+      } else {
+        launchFailed(Self.sanitizedLaunchFailure(for: request.kind))
+      }
       return
     }
 
@@ -173,11 +177,15 @@ public final class RoutingCoordinator {
   }
 
   public func launchFailed(_ failure: LaunchFailure) {
+    guard let request = currentRequest else { return }
+    presentFailure(Self.sanitizedLaunchFailure(for: request.kind))
+  }
+
+  private func presentFailure(_ failure: LaunchFailure) {
     guard let request = currentRequest, let snapshot = currentSnapshot else { return }
     launchingRequestID = nil
-    let sanitizedFailure = Self.sanitizedLaunchFailure(for: request.kind)
-    currentError = sanitizedFailure
-    present(request: request, snapshot: snapshot, error: sanitizedFailure)
+    currentError = failure
+    present(request: request, snapshot: snapshot, error: failure)
   }
 
   private func finishCurrentRequest() {

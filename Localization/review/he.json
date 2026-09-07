@@ -1,0 +1,34 @@
+{
+  "locale": "he",
+  "translation": "AI translated",
+  "review": "AI self-reviewed every key/value pairing for source meaning and alignment, Hebrew terminology and RTL text, placeholders, exact HTML attributes, dates, versions, brands, and privacy/recovery conditions. Native RTL layout verification remains separate from linguistic review.",
+  "sourceHashes": {
+    "app/en.json": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website/en.json": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "unresolvedIssues": [],
+  "humanReview": false,
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "02bc4892e7c82bb8449ab33920c52d5ad5f9f147f10c6b874522e60256f40c5d",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Reviewed four release-delta translations for released language coverage, experimental Safari permissions/new-window behavior, DuckDuckGo private compatibility and unrestricted ordinary routing, fixed signing and lack of Apple notarization. Other prose and historical release unchanged.",
+    "unresolvedIssues": [],
+    "sources": {
+      "Localization/website/en.json": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputs": {
+      "Localization/website/he.json": "d4b7a7a51bd51bb4fd86782f5acc64113e35c6046595dbba2a6ac1d92782f4ba"
+    }
+  }
+}

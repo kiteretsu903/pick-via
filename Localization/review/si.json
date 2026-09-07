@@ -1,0 +1,51 @@
+{
+  "locale": "si",
+  "translator": "AI",
+  "reviewer": "AI self-review",
+  "status": "complete",
+  "surfaces": [
+    "app",
+    "website"
+  ],
+  "sourceHashes": {
+    "app/en.json": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website/en.json": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "checks": [
+    "All catalog keys present and nonempty; no duplicate keys or invalid Unicode",
+    "Every app key/value pair translated using explicit source keys and reviewed for semantic alignment",
+    "App placeholders preserved",
+    "Website HTML tags and attributes preserved",
+    "Semantics reviewed for permissions, recovery, private state, release availability and legal text"
+  ],
+  "unresolvedIssues": [],
+  "notes": [
+    "AI translation and AI self-review; no human review claimed.",
+    "Sinhala script translated fully; native shaping and glyph coverage not verified by this translation agent.",
+    "macOS permission categories translated descriptively; exact system UI wording requires native OS verification.",
+    "Native UI and browser layout verification not performed by this translation agent."
+  ],
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "348bbca0f5c6da552a1106d101fca4052117122183694165bfc945cf5b98cf62",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Reviewed four release-delta translations for released language coverage, experimental Safari permissions/new-window behavior, DuckDuckGo private compatibility and unrestricted ordinary routing, fixed signing and lack of Apple notarization. Other prose and historical release unchanged.",
+    "unresolvedIssues": [],
+    "sources": {
+      "Localization/website/en.json": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputs": {
+      "Localization/website/si.json": "72965f5667cf113019c7b726b97996b87f4c49ae45a4c7dbc1d28ffc04ad41f3"
+    }
+  }
+}

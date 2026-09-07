@@ -1,4 +1,5 @@
 import AppKit
+import PickViaCore
 import SwiftUI
 
 enum PickViaMenuBarIcon {
@@ -18,6 +19,7 @@ enum PickViaMenuBarIcon {
 }
 
 struct PickViaMenuBarLabel: View {
+  @AppStorage(L10n.preferenceKey) private var localizationSelection = L10n.system
   private let image: NSImage?
 
   init(bundle: Bundle = .main) {
@@ -25,6 +27,7 @@ struct PickViaMenuBarLabel: View {
   }
 
   var body: some View {
+    let _ = localizationSelection
     Group {
       if let image {
         Image(nsImage: image)

@@ -10,3 +10,10 @@ build/
 build-e2e/
 dist/
 .vscode/
+
+.signing-identity
+
+__pycache__/
+
+# Keep local verification reports out of future releases.
+/docs/testing/

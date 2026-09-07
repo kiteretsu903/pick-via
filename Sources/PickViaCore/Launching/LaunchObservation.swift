@@ -1,6 +1,7 @@
 public enum BrowserLaunchMechanism: Equatable, Sendable {
   case process
   case workspace
+  case safariAccessibility
   case duckDuckGo
 }
 

@@ -672,13 +672,14 @@ struct BrowserCatalogTests {
     #expect(result.targets.first { $0.id == privateID }?.label == "My Duck Browser")
   }
 
-  @Test func unsupportedDuckDuckGoBuildIsNotDiscovered() throws {
+  @Test func unknownPrivateCompatibilityStillDiscoversOrdinaryDuckDuckGo() throws {
     let catalog = duckDuckGoCatalog(
       applicationURL: URL(fileURLWithPath: "/Applications/DuckDuckGo.app", isDirectory: true),
       compatibility: .unsupported
     )
 
-    #expect(try catalog.scan().isEmpty)
+    let browser = try #require(catalog.scan().first)
+    #expect(!browser.privateModeIsAvailable)
   }
 
   @Test func ordinaryOnlyDuckDuckGoRescanPreservesButDisablesFireCustomization() throws {

@@ -52,7 +52,7 @@
           switch fixture.descriptor.profileStrategy {
           case .chromium: "Default"
           case .firefox: "synthetic0.default"
-          case .none, .safariShortcut: "unsupported"
+          case .none, .safariShortcut, .safariAccessibility: "unsupported"
           }
         XCTAssertEqual(
           validatedGrant?.profileIdentifier,

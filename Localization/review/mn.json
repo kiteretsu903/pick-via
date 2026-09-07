@@ -1,0 +1,39 @@
+{
+  "locale": "mn",
+  "translation": "AI translated in Mongolian Cyrillic",
+  "review": "AI self-reviewed every English-to-Mongolian key/value alignment, Cyrillic script, precise permissions, retained state, failure and recovery meanings; technical values, markup and placeholders verified.",
+  "sources": {
+    "app": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "unresolvedIssues": [],
+  "nativeUIVerification": "Not run by translation agent",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "b7afc2a696a64bfcac172ecbb2bdad98303ef5367c7653d81c5dbd17bdc368d1",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputSHA256": {
+      "website": "cee693e7f1461eedefa8c1fd6683c8880236b092abdfa6037d44c1f51bfccd91"
+    },
+    "checks": [
+      "Release v1.5 meanings self-reviewed in Mongolian",
+      "Website key parity verified and four changed strings preserve HTML",
+      "Experimental Safari scope, version and signing limitations preserved"
+    ],
+    "unresolvedIssues": [],
+    "integrationReview": "AI review confirmed localized heading markup is valid. Raw tag order differs because word order is localized; official HTML validator passes."
+  }
+}

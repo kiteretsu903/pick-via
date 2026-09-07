@@ -254,7 +254,7 @@
         ).standardizedFileURL
         return normalizedURL.path == launchPath
           && FirefoxProfileIdentity.identifier(for: normalizedURL) == identity
-      case .safariShortcut:
+      case .safariShortcut, .safariAccessibility:
         guard let launchPath = options.profileLaunchPath else { return true }
         return nonempty(launchPath, limit: 1_024) == launchPath
       }

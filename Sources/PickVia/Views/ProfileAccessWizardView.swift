@@ -5,15 +5,15 @@ import SwiftUI
 func profileAccessStatusText(for state: BrowserProfileAccessRowState) -> String {
   switch state {
   case .accessNeeded:
-    "Access needed"
+    L10n.tr("Access needed")
   case .granted(let profileCount, _):
-    "Granted — \(profileCount) \(profileCount == 1 ? "profile" : "profiles") found"
+    L10n.tr("Granted — profiles found: {0}", String(profileCount))
   case .invalidFolder:
-    "Invalid folder"
+    L10n.tr("Invalid folder")
   case .accessRevoked:
-    "Access revoked"
+    L10n.tr("Access revoked")
   case .metadataDamaged:
-    "Metadata damaged"
+    L10n.tr("Metadata damaged")
   }
 }
 
@@ -23,7 +23,7 @@ func profileAccessPrimaryAction(
 ) -> String? {
   switch state {
   case .accessNeeded, .invalidFolder, .accessRevoked:
-    hasStoredGrant ? "Replace Access" : "Grant Access"
+    hasStoredGrant ? L10n.tr("Replace Access") : L10n.tr("Grant Access")
   case .granted, .metadataDamaged:
     nil
   }
@@ -53,17 +53,21 @@ func profileAccessGuidanceText(
 ) -> String? {
   switch state {
   case .accessNeeded, .invalidFolder, .accessRevoked:
-    "Select the browser data folder containing \(requiredMarker)."
+    L10n.tr("Select the browser data folder containing {0}.", requiredMarker)
   case .granted(_, .currentSessionOnly):
-    "Access is available until PickVia quits. To avoid granting it again, allow PickVia in Full Disk Access."
+    L10n.tr(
+      "Access is available until PickVia quits. To avoid granting it again, allow PickVia in Full Disk Access."
+    )
   case .granted(_, .persistent):
     nil
   case .metadataDamaged:
-    "The browser profile metadata could not be read. Repair it in the browser, then rescan."
+    L10n.tr(
+      "The browser profile metadata could not be read. Repair it in the browser, then rescan.")
   }
 }
 
 public struct ProfileAccessWizardView: View {
+  @AppStorage(L10n.preferenceKey) private var localizationSelection = L10n.system
   @Environment(AppModel.self) private var model
 
   let selectionCoordinator: ProfileAccessWizardSelectionCoordinator
@@ -88,22 +92,26 @@ public struct ProfileAccessWizardView: View {
   }
 
   public var body: some View {
+    let _ = localizationSelection
     VStack(alignment: .leading, spacing: 18) {
-      Text("Browser Profile Access")
+      Text(L10n.tr("Browser Profile Access"))
         .font(.largeTitle.bold())
-      Text("Grant read-only access to each browser data folder so PickVia can find its profiles.")
-        .foregroundStyle(.secondary)
+      Text(
+        L10n.tr(
+          "Grant read-only access to each browser data folder so PickVia can find its profiles.")
+      )
+      .foregroundStyle(.secondary)
       List(model.profileAccessRows) { row in
         ProfileAccessRowView(row: row, selectionCoordinator: selectionCoordinator)
       }
       .disabled(selectionCoordinator.isSelectionInFlight)
       if let errorMessage = profileAccessWizardErrorText(model.errorMessage) {
-        Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+        Label(L10n.tr(errorMessage), systemImage: "exclamationmark.triangle.fill")
           .font(.callout)
           .foregroundStyle(.red)
       }
       HStack {
-        Button("Skip for Now") {
+        Button(L10n.tr("Skip for Now")) {
           selectionCoordinator.performSkip {
             model.skipProfileAccess()
           }
@@ -111,7 +119,7 @@ public struct ProfileAccessWizardView: View {
         }
         .disabled(selectionCoordinator.isSelectionInFlight)
         Spacer()
-        Button("Finish & Rescan") {
+        Button(L10n.tr("Finish & Rescan")) {
           do {
             try selectionCoordinator.performFinish {
               try model.finishProfileAccessAndRescan()
@@ -129,7 +137,11 @@ public struct ProfileAccessWizardView: View {
       }
     }
     .padding(24)
-    .frame(width: 620, height: 440)
+    .pickViaLocalization()
+    .frame(
+      width: min(620, LocalizationLayout.availableWidth - 32),
+      height: min(440, LocalizationLayout.availableHeight - 80)
+    )
     .onAppear {
       selectionCoordinator.beginPresentation()
     }
@@ -140,6 +152,7 @@ public struct ProfileAccessWizardView: View {
 }
 
 private struct ProfileAccessRowView: View {
+  @AppStorage(L10n.preferenceKey) private var localizationSelection = L10n.system
   @Environment(AppModel.self) private var model
 
   let row: BrowserProfileAccessRow
@@ -149,6 +162,7 @@ private struct ProfileAccessRowView: View {
   @State private var localErrorMessage: String?
 
   var body: some View {
+    let _ = localizationSelection
     HStack(alignment: .top, spacing: 12) {
       browserIcon
       VStack(alignment: .leading, spacing: 5) {
@@ -165,7 +179,7 @@ private struct ProfileAccessRowView: View {
             .foregroundStyle(.secondary)
         }
         if let localErrorMessage {
-          Text(localErrorMessage)
+          Text(L10n.tr(localErrorMessage))
             .font(.caption)
             .foregroundStyle(.red)
         }
@@ -181,18 +195,21 @@ private struct ProfileAccessRowView: View {
           }
         }
         if row.hasStoredGrant {
-          Button("Remove Access", role: .destructive) {
+          Button(L10n.tr("Remove Access"), role: .destructive) {
             showsRemoveConfirmation = true
           }
         }
       }
     }
     .padding(.vertical, 6)
-    .alert("Remove access for \(row.displayName)?", isPresented: $showsRemoveConfirmation) {
-      Button("Cancel", role: .cancel) {}
-      Button("Remove Access", role: .destructive) { removeAccess() }
+    .alert(
+      L10n.tr("Remove access for {0}?", row.displayName), isPresented: $showsRemoveConfirmation
+    ) {
+      Button(L10n.tr("Cancel"), role: .cancel) {}
+      Button(L10n.tr("Remove Access"), role: .destructive) { removeAccess() }
     } message: {
-      Text("PickVia will stop using the saved browser folder grant and rescan its targets.")
+      Text(
+        L10n.tr("PickVia will stop using the saved browser folder grant and rescan its targets."))
     }
   }
 

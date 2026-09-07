@@ -1,0 +1,60 @@
+{
+  "locale": "es",
+  "translator": "AI",
+  "reviewer": "AI self-review",
+  "status": "complete",
+  "surfaces": [
+    "app",
+    "website",
+    "readme"
+  ],
+  "sourceHashes": {
+    "app/en.json": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website/en.json": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b",
+    "readme/en.md": "c00bb9825e8080348e7de2ab7188d536e8d3e0dd15cba241f5165425002bf163"
+  },
+  "checks": [
+    "All catalog keys present and nonempty",
+    "App placeholders preserved",
+    "Website HTML tags and attributes preserved",
+    "README sections, table rows, links, code and commands preserved",
+    "Semantics reviewed for permissions, recovery, private state, release availability and legal text"
+  ],
+  "unresolvedIssues": [],
+  "notes": [
+    "AI translation and AI self-review; no human review claimed.",
+    "macOS 27 permission category translated descriptively; exact Spanish system UI label requires native OS verification.",
+    "Native UI and browser layout verification not performed by this translation agent."
+  ],
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "07ebcec0da438de2a6ea13acb6c6a77e2b7ba3075e622c4c7e1a05841c746465",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df",
+      "readme": "817cf2b6851b49c79e2078e258478b7666ce2d1d13942de55be811980ae246cc"
+    },
+    "outputSHA256": {
+      "website": "3c3ef1fd8fddfcf3e5937d54d4a81d6907c5030e25cb16cf915034e7444f4cda",
+      "readme": "e1744548de1805bca0f6c36accced6083e4e3f08686c62c1ff11dc96a789405c"
+    },
+    "checks": [
+      "Release1.5 semantics reviewed; historical changelog preserved",
+      "Website keys and HTML structure match source",
+      "README sections, table rows, links, inline code and installation command match source",
+      "Apple Development signing distinguished from notarization; Safari opt-in permissions and new-window behavior preserved",
+      "Final README removes public test-report links and test coverage prose; preserves support-varies and experimental Safari statements"
+    ],
+    "unresolvedIssues": []
+  }
+}

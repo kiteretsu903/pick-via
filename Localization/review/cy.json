@@ -1,0 +1,44 @@
+{
+  "locale": "cy",
+  "translation": "AI translation",
+  "review": "AI self-review of every explicitly keyed app and website translation",
+  "surfaces": [
+    "app",
+    "website"
+  ],
+  "sourceHashes": {
+    "app": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "checks": [
+    "Exact JSON key sets; no duplicate keys or empty values",
+    "App interpolation tokens preserved",
+    "Website HTML tags and attributes preserved",
+    "Welsh meaning and terminology reviewed"
+  ],
+  "unresolvedIssues": [
+    "System Settings panel labels translated semantically; exact OS wording not confirmed in native Welsh UI."
+  ],
+  "nativeUI": "NOT RUN by translation agent",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "9501d8e9af1bee020509c16bc4ae6790f6757ccac489c6e5d7866e7f144b8aef",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Reviewed the four Welsh release-delta strings for final released 80/12 language coverage, experimental Safari Stable Accessibility/Automation and per-link new-window behavior, compatible unsandboxed DuckDuckGo 1.203.x and absence of ordinary-link version/publisher-signature requirements, fixed Apple Development signing and lack of notarization. Historical prose and shared generated labels/links preserved. No Welsh README exists. Strict assigned website validation passed.",
+    "website": {
+      "sourceSHA256": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df",
+      "outputSHA256": "b2895309467665b02ea73bb03d39d61de54556ce951b01ee88f209c8263cd8f7"
+    },
+    "unresolvedIssues": []
+  }
+}

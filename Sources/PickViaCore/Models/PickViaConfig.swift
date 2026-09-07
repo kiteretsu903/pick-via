@@ -298,16 +298,23 @@ public struct PickViaConfig: Codable, Equatable, Sendable {
     let acceptsPersistedProfileShape =
       Self.hasFileBackedProfiles(descriptor)
       || {
-        if case .safariShortcut = descriptor.profileStrategy { return true }
+        if descriptor.profileStrategy == .safariShortcut || descriptor.profileStrategy == .safariAccessibility { return true }
         return false
       }()
     guard !hasProfileEvidence || acceptsPersistedProfileShape else {
       throw ConfigDocumentError.invalidTarget
     }
-    if case .safariShortcut = descriptor.profileStrategy {
+    if descriptor.profileStrategy == .safariShortcut || descriptor.profileStrategy == .safariAccessibility {
       guard options.profileLaunchPath == nil else {
         throw ConfigDocumentError.invalidTarget
       }
+    }
+    if descriptor.profileStrategy == .safariAccessibility, hasProfileEvidence {
+      guard let identifier = options.profileIdentifier,
+        SafariProfileMenuItem(identifier: identifier) != nil,
+        options.profileIdentity == nil || options.profileIdentity == identifier,
+        options.profileLaunchPath == nil
+      else { throw ConfigDocumentError.invalidTarget }
     }
     if options.pendingDefaultMigration {
       let canonicalID = [application.bundleIdentifier, "", options.mode.rawValue]
@@ -334,7 +341,7 @@ public struct PickViaConfig: Codable, Equatable, Sendable {
     switch descriptor.profileStrategy {
     case .chromium, .firefox:
       true
-    case .none, .safariShortcut:
+    case .none, .safariShortcut, .safariAccessibility:
       false
     }
   }

@@ -1,0 +1,48 @@
+{
+  "locale": "ms",
+  "translator": "AI translation",
+  "reviewer": "AI self-review",
+  "surfaces": [
+    "app",
+    "website"
+  ],
+  "sourceSHA256": {
+    "app": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "checks": [
+    "Complete 139-key app and website translations",
+    "Key parity, nonempty values, HTML tags and exact attributes, interpolation tokens checked",
+    "Every key/value pair audited after generation for alignment and Malay meaning",
+    "Self-reviewed permission/recovery instructions, enable/disable conditions, temporary state and release distinctions"
+  ],
+  "unresolvedIssues": [],
+  "nativeUIVerification": "NOT RUN by translation agent",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "7e859c52f0668c6e32ece34a437e106bf11b8ff97fa81aac1157cc5991555794",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website/en.json": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputSHA256": {
+      "website/ms.json": "0258a5473cafc70daec1c2773d41b5acc2db7c2e3264875a6b8b0c0f58633d0d"
+    },
+    "unresolvedIssues": [],
+    "checks": [
+      "Four release delta strings translated and reviewed",
+      "Complete keys and exact HTML attributes/placeholders validated",
+      "Historical changelog and app unchanged"
+    ]
+  }
+}

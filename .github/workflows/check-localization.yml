@@ -1,0 +1,40 @@
+name: Check localization sources and generated resources
+
+on:
+  push:
+    paths:
+      - Localization/**
+      - Sources/PickViaCore/Resources/**
+      - README.md
+      - docs/readme/**
+      - site/**
+      - scripts/*localiz*.py
+      - scripts/localize-readmes.py
+      - .github/workflows/check-localization.yml
+  pull_request:
+    paths:
+      - Localization/**
+      - Sources/PickViaCore/Resources/**
+      - README.md
+      - docs/readme/**
+      - site/**
+      - scripts/*localiz*.py
+      - scripts/localize-readmes.py
+      - .github/workflows/check-localization.yml
+
+permissions:
+  contents: read
+
+jobs:
+  catalogs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate all locale surfaces
+        run: |
+          python3 scripts/validate-localizations.py
+          python3 scripts/generate-app-localizations.py --check
+          python3 scripts/localize-website.py --check
+          python3 scripts/localize-readmes.py --check
+          python3 scripts/test_localization_validation.py
+          python3 scripts/test_localize_website.py

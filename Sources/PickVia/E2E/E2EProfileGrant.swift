@@ -240,7 +240,7 @@
         "chromium"
       case .firefox:
         "firefox"
-      case .none, .safariShortcut:
+      case .none, .safariShortcut, .safariAccessibility:
         nil
       }
     }
@@ -293,7 +293,7 @@
           }
           profiles = try FirefoxProfileParser.parse(text: text, baseDirectory: rootURL)
           rawFirefoxProfilePath = try exactFirefoxProfilePath(text)
-        case .none, .safariShortcut:
+        case .none, .safariShortcut, .safariAccessibility:
           throw E2EProfileGrantError.descriptorMismatch
         }
       } catch let error as E2EProfileGrantError {
@@ -323,7 +323,7 @@
           rootURL.appending(path: childName, directoryHint: .isDirectory).standardizedFileURL
             == directoryURL.standardizedFileURL
         else { throw E2EProfileGrantError.invalidProfiles }
-      case .none, .safariShortcut:
+      case .none, .safariShortcut, .safariAccessibility:
         throw E2EProfileGrantError.descriptorMismatch
       }
       guard

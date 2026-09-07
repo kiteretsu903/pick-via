@@ -8,184 +8,63 @@ import Testing
 struct DuckDuckGoBuildCompatibilityTests {
   private let applicationURL = URL(fileURLWithPath: "/Applications/DuckDuckGo.app")
 
-  @Test func nilMetadataIsUnsupported() {
+  @Test func unreadableMetadataDisablesPrivateSupport() {
     let checker = DuckDuckGoBuildCompatibilityChecker(
       metadataProvider: StubMetadataProvider(metadata: nil))
-
     #expect(checker.compatibility(of: applicationURL) == .unsupported)
   }
 
-  @Test func wrongBundleIdentifierIsUnsupported() {
-    let checker = checker(for: metadata(bundleIdentifier: "com.example.browser"))
-
-    #expect(checker.compatibility(of: applicationURL) == .unsupported)
-  }
-
-  @Test func wrongTeamIdentifierIsUnsupported() {
-    let checker = checker(for: metadata(teamIdentifier: "TEAM123456"))
-
-    #expect(checker.compatibility(of: applicationURL) == .unsupported)
-  }
-
-  @Test func validSignedUnknownVersionIsOrdinaryOnly() {
-    let checker = checker(for: metadata(shortVersion: "1.204.0"))
-
-    #expect(checker.compatibility(of: applicationURL) == .ordinaryOnly)
-  }
-
-  @Test func validAllowlistedSandboxedBuildIsOrdinaryOnly() {
-    let checker = checker(for: metadata(isSandboxed: true))
-
-    #expect(checker.compatibility(of: applicationURL) == .ordinaryOnly)
-  }
-
-  @Test func validAllowlistedUnsandboxedBuildIsFire() {
-    let checker = checker(for: metadata(isSandboxed: false))
-
-    #expect(checker.compatibility(of: applicationURL) == .fire)
-  }
-
-  @Test func explicitlyProvidedAllowlistCanEnableMatchingBuild() {
-    let checker = DuckDuckGoBuildCompatibilityChecker(
-      metadataProvider: StubMetadataProvider(metadata: metadata(shortVersion: "9.9.9")),
-      allowedVersions: ["9.9.9"]
-    )
-
-    #expect(checker.compatibility(of: applicationURL) == .fire)
-  }
-
-  @Test func signedInformationExtractsExactMetadata() {
-    let metadata = signedApplicationMetadata(
-      from: signingInformation(
-        bundleIdentifier: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
-        teamIdentifier: DuckDuckGoBuildCompatibilityChecker.teamIdentifier,
-        shortVersion: "1.203.0",
-        sandboxValue: true
-      ))
-
+  @Test func wrongBrowserIsNotPrivateCompatible() {
     #expect(
-      metadata
-        == SignedApplicationMetadata(
-          bundleIdentifier: DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
-          teamIdentifier: DuckDuckGoBuildCompatibilityChecker.teamIdentifier,
-          shortVersion: "1.203.0",
-          isSandboxed: true
-        )
+      checker(bundleIdentifier: "example.browser").compatibility(of: applicationURL) == .unsupported
     )
   }
 
-  @Test func missingSignedPlistProducesUnknownVersion() {
-    var information = signingInformation()
-    information.removeValue(forKey: kSecCodeInfoPList as String)
-
-    #expect(signedApplicationMetadata(from: information)?.shortVersion == nil)
+  @Test(arguments: ["1.203.0", "1.203.1", "1.203.999"])
+  func patchUpdatesUseTheSamePrivatePreferencePolicy(_ version: String) {
+    #expect(checker(version: version).compatibility(of: applicationURL) == .fire)
   }
 
-  @Test func malformedSignedPlistProducesUnknownVersion() {
-    var information = signingInformation()
-    information[kSecCodeInfoPList as String] = "not a plist dictionary"
-
-    #expect(signedApplicationMetadata(from: information)?.shortVersion == nil)
+  @Test(arguments: [
+    "1.202.99", "1.204.0", "2.203.0", "1.203", "1.203.0-beta", "1.203.-1", "1.203.0.1", "1.203.",
+  ])
+  func otherReleasesAndMalformedVersionsAreOrdinaryOnly(_ version: String) {
+    #expect(checker(version: version).compatibility(of: applicationURL) == .ordinaryOnly)
   }
 
-  @Test func absentSignedVersionProducesOrdinaryOnlyCompatibility() {
-    var information = signingInformation()
-    information[kSecCodeInfoPList as String] = [:]
-
-    let metadata = signedApplicationMetadata(from: information)
-    #expect(metadata?.shortVersion == nil)
-    if let metadata {
-      #expect(checker(for: metadata).compatibility(of: applicationURL) == .ordinaryOnly)
-    } else {
-      #expect(Bool(false), "Trusted metadata should remain available when version is missing")
-    }
+  @Test func sandboxedAndUnknownBuildsDoNotUseDisposableHome() {
+    #expect(checker(sandboxed: true).compatibility(of: applicationURL) == .ordinaryOnly)
+    #expect(checker(sandboxed: nil).compatibility(of: applicationURL) == .ordinaryOnly)
+    #expect(checker(version: nil).compatibility(of: applicationURL) == .ordinaryOnly)
   }
 
-  @Test func nonStringSignedVersionProducesUnknownVersion() {
-    var information = signingInformation()
-    information[kSecCodeInfoPList as String] = ["CFBundleShortVersionString": 1_203]
-
-    #expect(signedApplicationMetadata(from: information)?.shortVersion == nil)
-  }
-
-  @Test func missingSignedIdentifiersAreRejected() {
-    var information = signingInformation()
-    information.removeValue(forKey: kSecCodeInfoIdentifier as String)
-    #expect(signedApplicationMetadata(from: information) == nil)
-
-    information = signingInformation()
-    information.removeValue(forKey: kSecCodeInfoTeamIdentifier as String)
-    #expect(signedApplicationMetadata(from: information) == nil)
-  }
-
-  @Test func nonBooleanSandboxEntitlementIsNotSandboxed() {
-    let metadata = signedApplicationMetadata(from: signingInformation(sandboxValue: "true"))
-
-    #expect(metadata?.isSandboxed == false)
-  }
-
-  @Test func falseSandboxEntitlementIsNotSandboxed() {
-    let metadata = signedApplicationMetadata(from: signingInformation(sandboxValue: false))
-
-    #expect(metadata?.isSandboxed == false)
-  }
-
-  @Test func absentSandboxEntitlementIsNotSandboxed() {
-    let metadata = signedApplicationMetadata(from: signingInformation(sandboxValue: nil))
-
-    #expect(metadata?.isSandboxed == false)
-  }
-
-  @Test func signingRequirementPinsAppleAnchorIdentifierAndTeam() {
+  @Test func sandboxMetadataDoesNotRequirePublisherOrVersionFields() {
+    #expect(duckDuckGoSandboxStatus(from: [:]) == false)
     #expect(
-      signingRequirement
-        == "anchor apple generic and identifier \"com.duckduckgo.macos.browser\" and certificate leaf[subject.OU] = \"HKE973VLUW\""
-    )
+      duckDuckGoSandboxStatus(from: [
+        kSecCodeInfoEntitlementsDict as String: ["com.apple.security.app-sandbox": true]
+      ]) == true)
+    #expect(
+      duckDuckGoSandboxStatus(from: [
+        kSecCodeInfoEntitlementsDict as String: ["com.apple.security.app-sandbox": "true"]
+      ]) == nil)
+    #expect(
+      duckDuckGoSandboxStatus(from: [kSecCodeInfoEntitlementsDict as String: "invalid"]) == nil)
   }
 
-  private func checker(for metadata: SignedApplicationMetadata)
-    -> DuckDuckGoBuildCompatibilityChecker
-  {
-    DuckDuckGoBuildCompatibilityChecker(metadataProvider: StubMetadataProvider(metadata: metadata))
-  }
-
-  private func metadata(
-    bundleIdentifier: String? = DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
-    teamIdentifier: String? = DuckDuckGoBuildCompatibilityChecker.teamIdentifier,
-    shortVersion: String? = "1.203.0",
-    isSandboxed: Bool = false
-  ) -> SignedApplicationMetadata {
-    SignedApplicationMetadata(
-      bundleIdentifier: bundleIdentifier,
-      teamIdentifier: teamIdentifier,
-      shortVersion: shortVersion,
-      isSandboxed: isSandboxed
-    )
-  }
-
-  private func signingInformation(
+  private func checker(
     bundleIdentifier: String = DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
-    teamIdentifier: String = DuckDuckGoBuildCompatibilityChecker.teamIdentifier,
-    shortVersion: String = "1.203.0",
-    sandboxValue: Any? = false
-  ) -> [String: Any] {
-    var entitlements: [String: Any] = [:]
-    if let sandboxValue {
-      entitlements["com.apple.security.app-sandbox"] = sandboxValue
-    }
-    return [
-      kSecCodeInfoIdentifier as String: bundleIdentifier,
-      kSecCodeInfoTeamIdentifier as String: teamIdentifier,
-      kSecCodeInfoEntitlementsDict as String: entitlements,
-      kSecCodeInfoPList as String: ["CFBundleShortVersionString": shortVersion],
-    ]
+    version: String? = "1.203.0", sandboxed: Bool? = false
+  ) -> DuckDuckGoBuildCompatibilityChecker {
+    DuckDuckGoBuildCompatibilityChecker(
+      metadataProvider: StubMetadataProvider(
+        metadata:
+          DuckDuckGoApplicationMetadata(
+            bundleIdentifier: bundleIdentifier, shortVersion: version, isSandboxed: sandboxed)))
   }
 }
 
-private struct StubMetadataProvider: SignedApplicationMetadataProviding {
-  let metadata: SignedApplicationMetadata?
-
-  func metadata(for url: URL) -> SignedApplicationMetadata? {
-    metadata
-  }
+private struct StubMetadataProvider: DuckDuckGoApplicationMetadataProviding {
+  let metadata: DuckDuckGoApplicationMetadata?
+  func metadata(for url: URL) -> DuckDuckGoApplicationMetadata? { metadata }
 }

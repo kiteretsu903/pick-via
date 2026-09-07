@@ -261,7 +261,7 @@ final class BrowserSettingsViewTests: XCTestCase {
   func testGeneralSettingsContainsSegmentedChooserSizePicker() throws {
     let source = try projectSource("Sources/PickVia/Views/GeneralSettingsView.swift")
 
-    XCTAssertTrue(source.contains("Picker(\"Chooser size\""))
+    XCTAssertTrue(source.contains("Picker(L10n.tr(\"Chooser size\")"))
     XCTAssertTrue(source.contains("ChooserDensity.allCases"))
     XCTAssertTrue(source.contains(".pickerStyle(.segmented)"))
   }
@@ -271,9 +271,10 @@ final class BrowserSettingsViewTests: XCTestCase {
     let strip = try fixedActionStrip(in: source)
 
     XCTAssertTrue(strip.contains("VStack(spacing: 0)"))
-    XCTAssertTrue(strip.contains("Label(\"Add Target\", systemImage: \"plus\")"))
-    XCTAssertTrue(strip.contains("Label(\"Profile Access\", systemImage: \"folder.badge.key\")"))
-    XCTAssertTrue(strip.contains("Label(\"Rescan\", systemImage: \"arrow.clockwise\")"))
+    XCTAssertTrue(strip.contains("Label(L10n.tr(\"Add Target\"), systemImage: \"plus\")"))
+    XCTAssertTrue(
+      strip.contains("Label(L10n.tr(\"Profile Access\"), systemImage: \"folder.badge.key\")"))
+    XCTAssertTrue(strip.contains("Label(L10n.tr(\"Rescan\"), systemImage: \"arrow.clockwise\")"))
     XCTAssertTrue(strip.contains(".labelStyle(.titleAndIcon)"))
     XCTAssertTrue(strip.contains("model.openProfileAccessManager()"))
     XCTAssertTrue(strip.contains("profileAccessPresenter.request(model: model)"))
@@ -292,7 +293,7 @@ final class BrowserSettingsViewTests: XCTestCase {
     XCTAssertTrue(source.contains("ViewThatFits(in: .vertical)"))
     XCTAssertTrue(source.contains("ScrollViewReader"))
     XCTAssertTrue(source.contains("scrollTo(selectedTargetID"))
-    XCTAssertTrue(source.contains(".frame(width: density.metrics.contentWidth)"))
+    XCTAssertTrue(source.contains(".frame(width: density.localizedContentWidth)"))
     XCTAssertTrue(source.contains(".lineLimit(1)"))
   }
 

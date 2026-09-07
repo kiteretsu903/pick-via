@@ -1,0 +1,37 @@
+{
+  "locale": "bg",
+  "translation": "AI translated",
+  "review": "AI self-reviewed all English-to-Bulgarian value alignments and permission, retention, failure, and recovery meanings; technical values, markup and placeholders verified.",
+  "sources": {
+    "app": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "website": "4e53d76e0e8de00160fdb19fb42d22d7801492ea9f068a2ebed8e9dacfee563b"
+  },
+  "unresolvedIssues": [],
+  "nativeUIVerification": "Not run by translation agent",
+  "integrationChanges": {
+    "action": "Removed two unused count-sensitive phrases after runtime switched to existing localized category labels and separate numeric values. Retained translations are unchanged.",
+    "removedAppKeys": [
+      "Found {0} Safari profiles.",
+      "PickVia found {0} supported browsers on this Mac."
+    ],
+    "previousAppSourceSHA256": "3b3d6fad6b4cbaaab6524d2348c1cf2810d9583b38feeb86930233ab00f96ebd",
+    "finalAppSourceSHA256": "0cd22676a1b434b5abc5d1a74c4c15a8eac8190f92e92fc052233fad34bedb88",
+    "finalAppOutputSHA256": "cbb02419aefe021b03bac9dab2a1389b9d42ea802708148b60818f44ed6006fb",
+    "finalAppKeyCount": 137
+  },
+  "release15Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website/en.json": "cd16469990dfee4d6dbe36a898a1d5c0df0468be023b69d833eb655d923702df"
+    },
+    "outputSHA256": {
+      "website/bg.json": "7899412040cd334ad197078cfb84cf7b5a658651a4ea77fa1f07ec1ef479f35b"
+    },
+    "checks": [
+      "Release availability, Safari permissions and new windows, DuckDuckGo compatibility, signing and non-notarization translated and self-reviewed",
+      "Website key set, HTML tags and attributes, and placeholders validated"
+    ],
+    "unresolvedIssues": []
+  }
+}
