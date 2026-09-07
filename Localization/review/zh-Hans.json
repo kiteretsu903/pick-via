@@ -33,5 +33,19 @@
       "readme": "92154ae57a6034ca801aa4e47ae1fdafdbdd1fca61ed964465f636b3bb202fd0"
     },
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Translated v1.5.1 summary; updated README current version and removed DuckDuckGo private-mode version restriction while retaining compatible unsandboxed requirement. Historical releases and other translations unchanged.",
+    "sources": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721",
+      "readme": "8114dfa56538038c919c7273ddce14a851fa2fa24862272d73042668d64fd81c"
+    },
+    "outputs": {
+      "website": "2b92f712934c02115108fa4dba66c6cb7d14c8b5fc2482467fc8c29aff628247",
+      "readme": "8b36bd4e09b8456cfe885476b99735e1f3362ef9e49b54cd11e5a12bee355d2b"
+    },
+    "unresolvedIssues": []
   }
 }

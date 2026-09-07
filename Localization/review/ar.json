@@ -44,5 +44,23 @@
       "Final README removes testing/prototype report links and verification claims; simple support and experimental scope retained"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "Localization/website/en.json": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721",
+      "Localization/readme/en.md": "8114dfa56538038c919c7273ddce14a851fa2fa24862272d73042668d64fd81c"
+    },
+    "outputSHA256": {
+      "Localization/website/ar.json": "e2e0f7d410f8009b6e5a6a8661208e9896b04cab291b199e9108acb8c7bc5ecd",
+      "Localization/readme/ar.md": "5cf2f8b5861f0a5c94eca4dc23470ee08159e7a3a77d77acdee73b8a7b0ceaf4"
+    },
+    "checks": [
+      "Release summary translated and reviewed",
+      "README v1.5.1 and unrestricted compatible unsandboxed DuckDuckGo wording synchronized",
+      "Official locale-specific website and README validators passed"
+    ],
+    "unresolvedIssues": []
   }
 }

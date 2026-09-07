@@ -53,7 +53,7 @@
   "index.p.002": "macOS-erako esteka-hautatzaile natiboa",
   "index.h1.001": "Utzi estekak<br />okerreko arakatzailean edo profilean<br /><em>irekitzeari.</em>",
   "index.p.003": "PickVia-k web- edo posta-esteka bakoitza ireki aurretik galdetzen du; horrela, web-estekak aukeratzen duzun arakatzaile edo profilera doaz, eta posta-estekak nahi zenuen posta-aplikaziora.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Deskargatu v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Eman izar bat GitHub-en</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Deskargatu v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Eman izar bat GitHub-en</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Doakoa &amp; kode irekikoa",
   "index.p.005": "Pantaila-argazkiek ingelesezko interfazea erakusten dute.",
   "index.p.006": "01 / Aukeratu ireki aurretik",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Konfiguratu zure aukerak",
   "index.h2.003": "Konfiguratu behin.<br /><em>Aukeratu azkar.</em>",
   "index.p.016": "Konfiguratu ohiko arakatzaile-profilak eta posta-aplikazioak behin, eta berrantolatu gehien erabiltzen dituzun helmugak.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Ireki hurrengo esteka<br /><em>leku</em> egokian.",
   "index.a.005": "Deskargatu macOS-erako <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · MIT lizentzia",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Aukeratu webgunearen hizkuntza",
   "index.aria-label.003": "Eman PickVia-ri izar bat GitHub-en",
   "release.v1_5.title": "1.5 bertsioa",
-  "release.v1_5.meta": "<strong>2026KO IRAILAK 06</strong><span class=\"release-current\">Uneko argitalpena</span>",
+  "release.v1_5.meta": "<strong>2026KO IRAILAK 06</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Argitalpen-ohar osoak <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Deskargatu v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Probatu Safari Stable profil esperimentalak Irisgarritasun eta Automatizazio baimenekin. Esteka bakoitza hautatutako profilaren leiho berri batean irekitzen da.",
   "release.v1_5.duckduckgo": "DuckDuckGo saio pribatuen berreskuratzea eta garbiketa sinplifikatu dira. Sandboxik gabeko 1.203.x bertsio bateragarriek estekak modu pribatuan irekitzea onartzen dute; esteka arruntek ez dute bertsio jakinik edo argitaratzailearen sinadurarik eskatzen.",
-  "release.v1_5.signing": "Konpilazioetarako Apple Development ziurtagiri finko bat erabiltzen da. Deskarga ez dago notarizatuta; jarraitu README fitxategiko instalazio-argibideei."
+  "release.v1_5.signing": "Konpilazioetarako Apple Development ziurtagiri finko bat erabiltzen da. Deskarga ez dago notarizatuta; jarraitu README fitxategiko instalazio-argibideei.",
+  "release.v1_5_1.title": "1.5.1 bertsioa",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Argitalpen-ohar osoak <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Deskargatu v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>2026KO IRAILAK 06</strong><span class=\"release-current\">Uneko argitalpena</span>",
+  "release.v1_5_1.summary": "DuckDuckGo-ren modu pribatuaren bertsio-murrizketa kendu da, hizkuntza-hautatzailea goiko barrara eraman da eta hasierako orriko hizkuntzei buruzko oharra kendu da."
 }

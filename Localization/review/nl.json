@@ -33,5 +33,20 @@
       "Website key set, HTML tags and attributes, and placeholders validated"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website/en.json": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "website/nl.json": "297e8bf614ffa09ad53529e503d309ee8def206b1728f4742edf9aea53b18f43"
+    },
+    "checks": [
+      "Release151 summary meaning self-reviewed",
+      "Official website validate_catalog passed"
+    ],
+    "unresolvedIssues": []
   }
 }

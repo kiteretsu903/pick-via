@@ -29,5 +29,21 @@
       "website/xh.json": "9e21f4937a4bfd5fd42d8d0bc7d693d085e8f763f6f4f55316edf5cf0c6a26ea"
     },
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "website": "8f2e6b59a42741825509dc583b96f0a2479bc765b774b4b99727dd9d95631376"
+    },
+    "checks": [
+      "Xhosa release1.5.1 summary self-reviewed",
+      "Assigned website passed project validator",
+      "Historical release prose unchanged"
+    ],
+    "unresolvedIssues": []
   }
 }

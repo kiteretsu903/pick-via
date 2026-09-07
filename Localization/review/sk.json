@@ -39,5 +39,20 @@
       "Historical v1.4 prose unchanged"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "website": "d9fe278e482bc958e10029291d59f750a83452509551b4dce8cbfa208d05cad0"
+    },
+    "checks": [
+      "Reviewed Slovak release summary meaning and grammar",
+      "Website validate_catalog passed"
+    ],
+    "unresolvedIssues": []
   }
 }

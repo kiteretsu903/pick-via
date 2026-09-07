@@ -28,5 +28,15 @@
       "outputSHA256": "3e8232f06fdd2fc64225c68f56a245a48a914b4a187044416429a40bef5cdf86"
     },
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Reviewed Urdu summary against final English: DuckDuckGo private-mode version restriction removed, language selection control moved into top bar, homepage language notice removed. Other translations and release labels preserved. Strict assigned website catalog validation passed.",
+    "website": {
+      "sourceSHA256": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721",
+      "outputSHA256": "e88b5bfa8273f62c3a87b8360a76e39b865c9ee657c29cd1d43afd89b33f96ad"
+    },
+    "unresolvedIssues": []
   }
 }

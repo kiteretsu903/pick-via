@@ -53,7 +53,7 @@
   "index.p.002": "Natívny nástroj na výber cieľa odkazov pre macOS",
   "index.h1.001": "Prestaňte otvárať<br />odkazy v<br /><em>nesprávnom prehliadači alebo profile.</em>",
   "index.p.003": "PickVia sa opýta pred otvorením každého webového alebo e-mailového odkazu, takže webové odkazy smerujú do vybraného prehliadača či profilu a e-mailové odkazy do zamýšľanej poštovej aplikácie.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Stiahnuť v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Pridať hviezdičku na GitHube</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Stiahnuť v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Pridať hviezdičku na GitHube</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Zadarmo a s otvoreným zdrojovým kódom",
   "index.p.005": "Snímky obrazovky zobrazujú anglické rozhranie.",
   "index.p.006": "01 / Vyberte pred otvorením",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Nastavte svoje možnosti",
   "index.h2.003": "Nastavte raz.<br /><em>Vyberajte rýchlo.</em>",
   "index.p.016": "Raz nastavte svoje obvyklé profily prehliadača a poštové aplikácie a potom zmeňte poradie najpoužívanejších cieľov.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Otvorte ďalší odkaz<br />na správnom <em>mieste.</em>",
   "index.a.005": "Stiahnuť pre macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · Licencia MIT",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Vyberte jazyk webovej stránky",
   "index.aria-label.003": "Pridať PickVia hviezdičku na GitHube",
   "release.v1_5.title": "Verzia 1.5",
-  "release.v1_5.meta": "<strong>06. SEP 2026</strong><span class=\"release-current\">Aktuálne vydanie</span>",
+  "release.v1_5.meta": "<strong>06. SEP 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Úplné poznámky k vydaniu <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Stiahnuť v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Vyskúšajte experimentálne profily Safari Stable s oprávneniami Prístupnosť a Automatizácia. Každý odkaz sa otvorí v novom okne vybraného profilu.",
   "release.v1_5.duckduckgo": "Zjednodušené obnovenie a čistenie súkromných relácií DuckDuckGo. Kompatibilné zostavy 1.203.x bez sandboxu podporujú súkromné smerovanie; bežné odkazy nevyžadujú konkrétnu verziu ani podpis vydavateľa.",
-  "release.v1_5.signing": "Pri zostavovaní sa používa pevný certifikát Apple Development. Súbor na stiahnutie nie je notarizovaný; postupujte podľa pokynov na inštaláciu v README."
+  "release.v1_5.signing": "Pri zostavovaní sa používa pevný certifikát Apple Development. Súbor na stiahnutie nie je notarizovaný; postupujte podľa pokynov na inštaláciu v README.",
+  "release.v1_5_1.title": "Verzia 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Úplné poznámky k vydaniu <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Stiahnuť v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06. SEP 2026</strong><span class=\"release-current\">Aktuálne vydanie</span>",
+  "release.v1_5_1.summary": "Odstránené obmedzenie verzie pre súkromný režim DuckDuckGo, výber jazyka presunutý do hornej lišty a odstránené oznámenie o jazykoch z domovskej stránky."
 }

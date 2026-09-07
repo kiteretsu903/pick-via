@@ -53,7 +53,7 @@
   "index.p.002": "Kichaguzi cha viungo kilichoundwa mahsusi kwa macOS",
   "index.h1.001": "Acha kufungua<br />viungo katika<br /><em>kivinjari au wasifu usio sahihi.</em>",
   "index.p.003": "PickVia huuliza kabla ya kufungua kila kiungo cha wavuti au barua pepe, ili viungo vya wavuti viende kwenye kivinjari au wasifu unaochagua na viungo vya barua pepe viende kwenye programu uliyokusudia.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Pakua v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Toa nyota kwenye GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Pakua v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Toa nyota kwenye GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Bila malipo &amp; msimbo wazi",
   "index.p.005": "Picha za skrini zinaonyesha kiolesura cha Kiingereza.",
   "index.p.006": "01 / Chagua kabla ya kufungua",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Sanidi chaguo zako",
   "index.h2.003": "Sanidi mara moja.<br /><em>Chagua haraka.</em>",
   "index.p.016": "Sanidi mara moja wasifu wa vivinjari na programu za barua pepe unazotumia mara kwa mara, kisha panga upya malengwa unayotumia zaidi.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Fungua kiungo kinachofuata<br />mahali <em>sahihi.</em>",
   "index.a.005": "Pakua kwa macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · Leseni ya MIT",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Chagua lugha ya tovuti",
   "index.aria-label.003": "Ipe PickVia nyota kwenye GitHub",
   "release.v1_5.title": "Toleo 1.5",
-  "release.v1_5.meta": "<strong>06 SEP 2026</strong><span class=\"release-current\">Toleo la sasa</span>",
+  "release.v1_5.meta": "<strong>06 SEP 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Maelezo yote ya toleo <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Pakua v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Jaribu wasifu wa majaribio wa Safari Stable ukiwa na ruhusa za Ufikivu na Uendeshaji Otomatiki. Kila kiungo hufunguka katika dirisha jipya la wasifu uliochaguliwa.",
   "release.v1_5.duckduckgo": "Urejeshaji na usafishaji wa vipindi vya faragha vya DuckDuckGo umerahisishwa. Matoleo yanayooana ya 1.203.x yasiyo na sandbox yanawezesha kufungua viungo kwa faragha; viungo vya kawaida havihitaji toleo maalumu au sahihi ya mchapishaji.",
-  "release.v1_5.signing": "Tumia cheti kilekile cha Apple Development kwa miundo ya programu. Faili ya kupakua haijapitia uthibitishaji wa Apple wa notarization; fuata maelekezo ya usakinishaji katika README."
+  "release.v1_5.signing": "Tumia cheti kilekile cha Apple Development kwa miundo ya programu. Faili ya kupakua haijapitia uthibitishaji wa Apple wa notarization; fuata maelekezo ya usakinishaji katika README.",
+  "release.v1_5_1.title": "Toleo 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Maelezo yote ya toleo <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Pakua v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 SEP 2026</strong><span class=\"release-current\">Toleo la sasa</span>",
+  "release.v1_5_1.summary": "Ondoa kizuizi cha toleo kwa hali ya faragha ya DuckDuckGo, hamishia kiteuzi cha lugha kwenye upau wa juu, na uondoe arifa ya lugha kwenye ukurasa wa mwanzo."
 }

@@ -53,7 +53,7 @@
   "index.p.002": "macOS uchun yaratilgan havola tanlash ilovasi",
   "index.h1.001": "Havolalarni<br />noto‘g‘ri brauzer yoki<br /><em>profilda ochishni bas qiling.</em>",
   "index.p.003": "PickVia har bir veb yoki pochta havolasini ochishdan oldin so‘raydi. Shu sababli veb-havolalar siz tanlagan brauzer yoki profilga, pochta havolalari esa siz xohlagan pochta ilovasiga boradi.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5 ni yuklab olish <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub saytida yulduzcha bering</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1 ni yuklab olish <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub saytida yulduzcha bering</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Bepul va ochiq manbali",
   "index.p.005": "Skrinshotlarda inglizcha interfeys ko‘rsatilgan.",
   "index.p.006": "01 / Ochilishidan oldin tanlang",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Tanlovlaringizni sozlang",
   "index.h2.003": "Bir marta sozlang.<br /><em>Tez tanlang.</em>",
   "index.p.016": "Odatdagi brauzer profillari va pochta ilovalaringizni bir marta sozlang, so‘ng eng ko‘p ishlatadigan manzillaringizni tartiblang.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Keyingi havolani<br />kerakli <em>joyda oching.</em>",
   "index.a.005": "macOS uchun yuklab olish <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · MIT litsenziyasi",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Veb-sayt tilini tanlang",
   "index.aria-label.003": "GitHub saytida PickVia uchun yulduzcha bering",
   "release.v1_5.title": "1.5 versiya",
-  "release.v1_5.meta": "<strong>2026-YIL 6-SENTABR</strong><span class=\"release-current\">Joriy reliz</span>",
+  "release.v1_5.meta": "<strong>2026-YIL 6-SENTABR</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">To‘liq reliz qaydlari <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">v1.5 ni yuklab olish <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Maxsus imkoniyatlar va Avtomatlashtirish ruxsatlari bilan Safari Stable brauzerining tajribaviy profillarini sinab ko‘ring. Har bir havola tanlangan profilning yangi oynasida ochiladi.",
   "release.v1_5.duckduckgo": "DuckDuckGo maxfiy seanslarini tiklash va tozalash soddalashtirildi. Sandbox ichida ishlamaydigan mos 1.203.x yig‘ilmalari maxfiy yo‘naltirishni qo‘llab-quvvatlaydi; oddiy havolalar uchun versiya yoki nashriyotchi imzosiga oid talab yo‘q.",
-  "release.v1_5.signing": "Yig‘ilmalar uchun o‘zgarmas Apple Development sertifikati ishlatiladi. Yuklab olinadigan fayl notarizatsiyadan o‘tmagan; README dagi o‘rnatish ko‘rsatmalariga amal qiling."
+  "release.v1_5.signing": "Yig‘ilmalar uchun o‘zgarmas Apple Development sertifikati ishlatiladi. Yuklab olinadigan fayl notarizatsiyadan o‘tmagan; README dagi o‘rnatish ko‘rsatmalariga amal qiling.",
+  "release.v1_5_1.title": "1.5.1 versiya",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">To‘liq reliz qaydlari <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 ni yuklab olish <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>2026-YIL 6-SENTABR</strong><span class=\"release-current\">Joriy reliz</span>",
+  "release.v1_5_1.summary": "DuckDuckGo maxfiy rejimining versiya cheklovi olib tashlandi, til tanlash boshqaruvi yuqori panelga ko‘chirildi va bosh sahifadagi tillar haqidagi bildirishnoma olib tashlandi."
 }

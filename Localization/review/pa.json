@@ -41,5 +41,20 @@
       "Website exact key parity, HTML tags/attributes and placeholders passed"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "Localization/website/en.json": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "Localization/website/pa.json": "f7a9d26bd8d7a1d18339eadecf91723b6a19c83b006de123a3748c61ad306beb"
+    },
+    "checks": [
+      "Release summary translated into Gurmukhi Punjabi and reviewed",
+      "Official locale-specific website validator passed"
+    ],
+    "unresolvedIssues": []
   }
 }

@@ -53,7 +53,7 @@
   "index.p.002": "Un selector nativ de linkuri pentru macOS",
   "index.h1.001": "Nu mai deschideți<br />linkurile în<br /><em>browserul sau profilul greșit.</em>",
   "index.p.003": "PickVia vă întreabă înainte de a deschide fiecare link web sau de e-mail, astfel încât linkurile web să ajungă în browserul sau profilul ales, iar linkurile de e-mail în aplicația dorită.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Descărcați v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Acordați o stea pe GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Descărcați v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Acordați o stea pe GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Gratuit &amp; cu sursă deschisă",
   "index.p.005": "Capturile de ecran prezintă interfața în engleză.",
   "index.p.006": "01 / Alegeți înainte de deschidere",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Configurați opțiunile",
   "index.h2.003": "Configurați o dată.<br /><em>Alegeți rapid.</em>",
   "index.p.016": "Configurați o dată profilurile de browser și aplicațiile de e-mail obișnuite, apoi reordonați destinațiile cele mai utilizate.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Deschideți următorul link<br />în <em>locul potrivit.</em>",
   "index.a.005": "Descărcați pentru macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · Licența MIT",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Alegeți limba site-ului",
   "index.aria-label.003": "Acordați o stea PickVia pe GitHub",
   "release.v1_5.title": "Versiunea 1.5",
-  "release.v1_5.meta": "<strong>06 SEP 2026</strong><span class=\"release-current\">Versiunea actuală</span>",
+  "release.v1_5.meta": "<strong>06 SEP 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Notele complete ale versiunii <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Descărcați v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Încercați profilurile experimentale Safari Stable cu permisiuni de Accesibilitate și Automatizare. Fiecare link se deschide într-o fereastră nouă a profilului selectat.",
   "release.v1_5.duckduckgo": "Simplifică recuperarea și curățarea sesiunilor private DuckDuckGo. Compilările compatibile 1.203.x care nu rulează în sandbox acceptă rutarea privată; linkurile normale nu impun cerințe privind versiunea sau semnătura editorului.",
-  "release.v1_5.signing": "Folosește un certificat Apple Development fix pentru compilări. Fișierul descărcat nu este notarizat; urmați instrucțiunile de instalare din README."
+  "release.v1_5.signing": "Folosește un certificat Apple Development fix pentru compilări. Fișierul descărcat nu este notarizat; urmați instrucțiunile de instalare din README.",
+  "release.v1_5_1.title": "Versiunea 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Notele complete ale versiunii <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Descărcați v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 SEP 2026</strong><span class=\"release-current\">Versiunea actuală</span>",
+  "release.v1_5_1.summary": "Elimină restricția de versiune pentru modul privat DuckDuckGo, mută selectorul de limbă în bara de sus și elimină anunțul despre limbi de pe pagina principală."
 }

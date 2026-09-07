@@ -53,7 +53,7 @@
   "index.p.002": "Pemilih tautan native untuk macOS",
   "index.h1.001": "Jangan lagi membuka<br />tautan di<br /><em>browser atau profil yang salah.</em>",
   "index.p.003": "PickVia bertanya sebelum membuka setiap tautan web atau email, sehingga tautan web masuk ke browser atau profil pilihan Anda dan tautan email ke app email yang Anda maksud.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Unduh v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Beri bintang di GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Unduh v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Beri bintang di GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Gratis &amp; sumber terbuka",
   "index.p.005": "Tangkapan layar menampilkan antarmuka bahasa Inggris.",
   "index.p.006": "01 / Pilih sebelum terbuka",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Atur pilihan Anda",
   "index.h2.003": "Atur sekali.<br /><em>Pilih dengan cepat.</em>",
   "index.p.016": "Atur profil browser dan app email yang biasa digunakan sekali saja, lalu urutkan ulang tujuan yang paling sering Anda gunakan.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Buka tautan berikutnya<br />di <em>tempat yang tepat.</em>",
   "index.a.005": "Unduh untuk macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · Lisensi MIT",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Pilih bahasa situs web",
   "index.aria-label.003": "Beri PickVia bintang di GitHub",
   "release.v1_5.title": "Versi 1.5",
-  "release.v1_5.meta": "<strong>06 SEP 2026</strong><span class=\"release-current\">Rilis saat ini</span>",
+  "release.v1_5.meta": "<strong>06 SEP 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Catatan rilis lengkap <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Unduh v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Coba profil Safari Stable eksperimental dengan izin Aksesibilitas dan Otomatisasi. Setiap tautan terbuka di jendela baru dari profil yang dipilih.",
   "release.v1_5.duckduckgo": "Pemulihan dan pembersihan sesi pribadi DuckDuckGo disederhanakan. Build 1.203.x yang kompatibel dan tanpa sandbox mendukung pembukaan tautan dalam mode pribadi; tautan normal tidak memerlukan versi tertentu atau tanda tangan penerbit.",
-  "release.v1_5.signing": "Gunakan sertifikat Apple Development yang sama untuk setiap build. Unduhan tidak dinotarisasi; ikuti petunjuk instalasi di README."
+  "release.v1_5.signing": "Gunakan sertifikat Apple Development yang sama untuk setiap build. Unduhan tidak dinotarisasi; ikuti petunjuk instalasi di README.",
+  "release.v1_5_1.title": "Versi 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Catatan rilis lengkap <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Unduh v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 SEP 2026</strong><span class=\"release-current\">Rilis saat ini</span>",
+  "release.v1_5_1.summary": "Menghapus batasan versi untuk mode privat DuckDuckGo, memindahkan pemilih bahasa ke bilah atas, dan menghapus pemberitahuan bahasa dari halaman beranda."
 }

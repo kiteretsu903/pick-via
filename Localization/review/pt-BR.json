@@ -51,5 +51,23 @@
       "Safari experimental scope, opt-in permissions, fixed Apple Development signing and no notarization preserved"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721",
+      "readme": "8114dfa56538038c919c7273ddce14a851fa2fa24862272d73042668d64fd81c"
+    },
+    "outputSHA256": {
+      "website": "31de453376d1d9fc75c02130219180cb6ec222dddb7744621ba450a0ef6e5daf",
+      "readme": "9db7f75ef5fafd427cba95037e04a71638a07e1d6e5673dacc2b27d68f36e297"
+    },
+    "checks": [
+      "Release v1.5.1 meaning reviewed in Brazilian Portuguese",
+      "Website validate_catalog and README validate passed",
+      "No version restriction accurately replaces old DuckDuckGo limit; other README text preserved"
+    ],
+    "unresolvedIssues": []
   }
 }

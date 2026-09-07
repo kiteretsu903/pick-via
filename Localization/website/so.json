@@ -53,7 +53,7 @@
   "index.p.002": "Doore xiriiriyeyaal oo si gaar ah loogu sameeyay macOS",
   "index.h1.001": "Jooji inaad<br />xiriiriyeyaasha ku furto<br /><em>biraawsar ama borofayl qaldan.</em>",
   "index.p.003": "PickVia wuxuu ku weydiiyaa ka hor inta uusan furin xiriiriye web ama iimayl, si xiriiriyeyaasha webku ugu tagaan biraawsarka ama borofaylka aad doorato, kuwa iimaylkuna abka aad damacsanayd.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Soo dejiso v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Xiddig ku sii GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Soo dejiso v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Xiddig ku sii GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Bilaash &amp; il-furan",
   "index.p.005": "Sawirrada shaashaddu waxay muujiyaan muuqaalka Ingiriisiga.",
   "index.p.006": "01 / Dooro ka hor furitaanka",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Deji doorashooyinkaaga",
   "index.h2.003": "Hal mar qaabee.<br /><em>Si dhakhso ah u dooro.</em>",
   "index.p.016": "Hal mar qaabee borofayllada biraawsarka iyo ababka iimaylka ee aad caadaysatay, dabadeed kala hormari meelaha aad inta badan ku furto.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Ku fur xiriiriyaha xiga<br /><em>meesha saxda ah.</em>",
   "index.a.005": "U soo dejiso macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · Shatiga MIT",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Dooro luqadda mareegta",
   "index.aria-label.003": "PickVia xiddig ku sii GitHub",
   "release.v1_5.title": "Nooca 1.5",
-  "release.v1_5.meta": "<strong>06 SEBTEMBAR 2026</strong><span class=\"release-current\">Sii-deynta hadda</span>",
+  "release.v1_5.meta": "<strong>06 SEBTEMBAR 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Qoraallada sii-deynta oo dhan <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Soo dejiso v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Tijaabi borofayllada tijaabada ah ee Safari Stable adigoo siinaya oggolaanshaha Helitaanka iyo Otomaatigga. Xiriiriye kasta wuxuu ka furmaa daaqad cusub oo borofaylka la doortay ah.",
   "release.v1_5.duckduckgo": "Soo-celinta iyo nadiifinta fadhiyada gaarka ah ee DuckDuckGo waa la fududeeyay. Dhismayaasha 1.203.x ee ku habboon ee aan ku jirin sandbox waxay taageeraan hagidda gaarka ah; xiriiriyeyaasha caadiga ahi uma baahna nooc gaar ah ama saxeexa daabacaha.",
-  "release.v1_5.signing": "Dhismayaasha waxaa loo adeegsadaa shahaado Apple Development oo joogto ah. Faylka la soo dejinayo ma marin xaqiijinta notarization ee Apple; raac tilmaamaha rakibidda ee README."
+  "release.v1_5.signing": "Dhismayaasha waxaa loo adeegsadaa shahaado Apple Development oo joogto ah. Faylka la soo dejinayo ma marin xaqiijinta notarization ee Apple; raac tilmaamaha rakibidda ee README.",
+  "release.v1_5_1.title": "Nooca 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Qoraallada sii-deynta oo dhan <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Soo dejiso v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 SEBTEMBAR 2026</strong><span class=\"release-current\">Sii-deynta hadda</span>",
+  "release.v1_5_1.summary": "Waxaa laga saaray xaddidaadda nooca ee habka gaarka ah ee DuckDuckGo, xulashada luqadda waxaa loo raray baarka sare, waxaana bogga hore laga saaray ogeysiiska luqadaha."
 }

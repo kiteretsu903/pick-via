@@ -38,5 +38,21 @@
       "scripts/localize-website.py validate_catalog passed for full locale catalog; historical changelog unchanged"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website/en.json": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "website/am.json": "60ab62594ce3ca2e1c95d015ebb92247abb19d374e5fbfec52d9c1636395d581"
+    },
+    "unresolvedIssues": [],
+    "checks": [
+      "v1.5.1 summary reviewed in Amharic",
+      "Website validate_catalog PASS",
+      "Historical releases and unrelated translations preserved"
+    ]
   }
 }

@@ -45,5 +45,17 @@
       "Website key set, HTML tags and attributes, and placeholders validated"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Translated v1.5.1 summary in Indonesian; preserved historical releases, cloned labels and all other translations.",
+    "sources": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputs": {
+      "website": "89312fb8f112c95e2336e7b368a2984dc9106eed3f81e33f85bc11a177b9a535"
+    },
+    "unresolvedIssues": []
   }
 }

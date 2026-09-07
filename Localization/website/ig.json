@@ -53,7 +53,7 @@
   "index.p.002": "Ngwa nhọrọ njikọ e wuru maka macOS",
   "index.h1.001": "Kwụsị imepe<br />njikọ n'ime<br /><em>ihe nchọgharị ma ọ bụ profaịlụ na-ezighi ezi.</em>",
   "index.p.003": "PickVia na-ajụ tupu njikọ weebụ ma ọ bụ ozi ịntanetị ọ bụla emeghe, ka njikọ weebụ gaa n'ihe nchọgharị ma ọ bụ profaịlụ ị họọrọ, njikọ ozi agaakwa na ngwa ozi ị chọrọ.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Budata v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Nye kpakpando na GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Budata v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Nye kpakpando na GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · N'efu ma bụrụ isi koodu mepere emepe",
   "index.p.005": "Foto ihuenyo na-egosi ihu Bekee.",
   "index.p.006": "01 / Họrọ tupu o meghee",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Hazie nhọrọ gị",
   "index.h2.003": "Hazie otu ugboro.<br /><em>Họrọ ngwa ngwa.</em>",
   "index.p.016": "Hazie profaịlụ ihe nchọgharị na ngwa ozi ị na-ejikarị otu ugboro, wee gbanwee usoro ebe aga ị na-ejikarị.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Mepee njikọ ọzọ<br />n'ebe <em>kwesịrị ekwesị.</em>",
   "index.a.005": "Budata maka macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · Ikikere MIT",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Họrọ asụsụ weebụsaịtị",
   "index.aria-label.003": "Nye PickVia kpakpando na GitHub",
   "release.v1_5.title": "Ụdị 1.5",
-  "release.v1_5.meta": "<strong>06 SEPTEMBA 2026</strong><span class=\"release-current\">Ntọhapụ ugbu a</span>",
+  "release.v1_5.meta": "<strong>06 SEPTEMBA 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Ihe ndetu ntọhapụ zuru ezu <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Budata v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Nwalee profaịlụ nnwale Safari Stable site na ikike Nnweta na Akpaaka. Njikọ ọ bụla na-emeghe na windo ọhụrụ nke profaịlụ ahọpụtara.",
   "release.v1_5.duckduckgo": "E mere ka iweghachi na ihichapụ nnọkọ nzuzo DuckDuckGo dị mfe. Ụdị 1.203.x dabara adaba nke na-adịghị n’ime sandbox na-akwado imeghe na nzuzo; njikọ nkịtị anaghị achọ ụdị kpọmkwem ma ọ bụ mbinye aka onye bipụtara ya.",
-  "release.v1_5.signing": "A na-eji otu asambodo Apple Development mgbe niile maka ụdị a na-ewu. Ngwa a na-ebudata enwetabeghị nkwado notarization; soro ntuziaka nwụnye dị na README."
+  "release.v1_5.signing": "A na-eji otu asambodo Apple Development mgbe niile maka ụdị a na-ewu. Ngwa a na-ebudata enwetabeghị nkwado notarization; soro ntuziaka nwụnye dị na README.",
+  "release.v1_5_1.title": "Ụdị 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Ihe ndetu ntọhapụ zuru ezu <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Budata v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 SEPTEMBA 2026</strong><span class=\"release-current\">Ntọhapụ ugbu a</span>",
+  "release.v1_5_1.summary": "Ewepụla mmachi ụdị maka ọnọdụ nzuzo DuckDuckGo, ebufere nhọrọ asụsụ gaa n'ogwe elu, ma wepụ ọkwa asụsụ n'ihu ụlọ."
 }

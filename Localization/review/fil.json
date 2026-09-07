@@ -40,5 +40,21 @@
       "scripts/localize-website.py validate_catalog passed for full locale catalog; historical changelog unchanged"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website/en.json": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "website/fil.json": "963d47b7548fc2299858c084532ad5bf15831f83df558d28b47d0f787f29de71"
+    },
+    "unresolvedIssues": [],
+    "checks": [
+      "v1.5.1 summary reviewed in Filipino",
+      "Website validate_catalog PASS",
+      "Historical releases and unrelated translations preserved"
+    ]
   }
 }

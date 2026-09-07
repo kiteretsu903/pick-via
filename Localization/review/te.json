@@ -55,5 +55,21 @@
     ],
     "unresolvedIssues": [],
     "integrationReview": "AI review confirmed localized heading markup is valid. Raw tag order differs because word order is localized; official HTML validator passes."
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website/en.json": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "website/te.json": "1e2c1cb9e0618b5ff6df2144033ea2b6efe256a51532ec041ba3bd865d3c89c6"
+    },
+    "unresolvedIssues": [],
+    "checks": [
+      "v1.5.1 summary reviewed in Telugu",
+      "Website validate_catalog PASS",
+      "Historical releases and unrelated translations preserved"
+    ]
   }
 }

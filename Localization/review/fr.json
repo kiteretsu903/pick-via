@@ -32,5 +32,18 @@
       "readme/fr.md": "f720598ffe6daa5898778dab104e48edb818bdb3c317ee00d4d0825a807a1fa8"
     },
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website/en.json": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721",
+      "readme/en.md": "8114dfa56538038c919c7273ddce14a851fa2fa24862272d73042668d64fd81c"
+    },
+    "outputSHA256": {
+      "website/fr.json": "5d186b14072b8f2b570518852536159d8c7ba61cfe7db78cb0d21009f527d4ea",
+      "readme/fr.md": "6571f3d33f0dee7ffb0067d259dfc9eb553c81d295a570614dbfb43c76c1892d"
+    },
+    "unresolvedIssues": []
   }
 }

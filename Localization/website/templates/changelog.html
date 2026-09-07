@@ -54,9 +54,10 @@
     <header class="shell site-header">
       <a class="brand" href="index.html" aria-label="{{changelog.aria-label.001}}"><img src="assets/icon.png" alt="" /><span>PickVia</span></a>
       <nav aria-label="{{changelog.aria-label.002}}"><a href="index.html#features">{{changelog.a.001}}</a><a href="changelog.html" aria-current="page">{{changelog.a.002}}</a><a href="index.html#download">{{changelog.a.003}}</a></nav>
+      <div class="header-actions">{{locale.selector}}
       <a class="button" href="https://github.com/kiteretsu903/pick-via">{{changelog.a.004}}</a>
+      </div>
     </header>
-    {{locale.selector}}
     <main>
       <section class="shell page-intro">
         <p class="eyebrow">{{changelog.p.001}}</p>
@@ -64,6 +65,14 @@
         <p class="intro-copy">{{changelog.p.002}}</p>
       </section>
       <section class="shell release-list" aria-label="{{changelog.aria-label.003}}">
+        <article class="release">
+          <div class="release-meta">{{release.v1_5_1.meta}}</div>
+          <div>
+            <h2>{{release.v1_5_1.title}}</h2>
+            <p class="release-summary">{{release.v1_5_1.summary}}</p>
+            <div class="release-links">{{release.v1_5_1.links}}</div>
+          </div>
+        </article>
         <article class="release">
           <div class="release-meta">{{release.v1_5.meta}}</div>
           <div>

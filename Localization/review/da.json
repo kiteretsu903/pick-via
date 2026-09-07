@@ -42,5 +42,20 @@
       "Catalog keys, HTML tags and attributes, placeholders preserved; historical changelog unchanged"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceHashes": {
+      "website/en.json": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputHashes": {
+      "website/da.json": "6e173b22fc04b6f9230ddbe9e96db6c497bb1051779db477a56d45e5f8b3ba71"
+    },
+    "checks": [
+      "v1.5.1 summary translated and self-reviewed: DuckDuckGo version restriction removed, language selector moved to top bar, homepage language notice removed",
+      "Website validate_catalog passed; historical content preserved"
+    ],
+    "unresolvedIssues": []
   }
 }

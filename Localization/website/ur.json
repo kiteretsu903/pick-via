@@ -53,7 +53,7 @@
   "index.p.002": "macOS کے لیے مقامی لنک انتخاب کار",
   "index.h1.001": "لنکس کو<br />اب نہ کھولیں<br /><em>غلط براؤزر یا پروفائل میں۔</em>",
   "index.p.003": "PickVia ہر ویب یا ای میل لنک کھلنے سے پہلے پوچھتا ہے، تاکہ ویب لنکس آپ کے منتخب براؤزر یا پروفائل میں اور میل لنکس آپ کی مطلوبہ میل ایپ میں کھلیں۔",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5 ڈاؤن لوڈ کریں <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub پر ستارہ دیں</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1 ڈاؤن لوڈ کریں <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub پر ستارہ دیں</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · مفت اور اوپن سورس",
   "index.p.005": "اسکرین شاٹس انگریزی انٹرفیس دکھاتے ہیں۔",
   "index.p.006": "01 / کھلنے سے پہلے منتخب کریں",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / اپنے انتخاب ترتیب دیں",
   "index.h2.003": "ایک بار ترتیب دیں۔<br /><em>فوراً منتخب کریں۔</em>",
   "index.p.016": "اپنے عام براؤزر پروفائلز اور میل ایپس ایک بار ترتیب دیں، پھر سب سے زیادہ استعمال ہونے والے اہداف کی ترتیب بدلیں۔",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "اگلا لنک کھولیں<br />درست <em>جگہ پر۔</em>",
   "index.a.005": "macOS کے لیے ڈاؤن لوڈ کریں <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · MIT لائسنس",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "ویب سائٹ کی زبان منتخب کریں",
   "index.aria-label.003": "GitHub پر PickVia کو ستارہ دیں",
   "release.v1_5.title": "ورژن 1.5",
-  "release.v1_5.meta": "<strong>6 ستمبر 2026</strong><span class=\"release-current\">موجودہ ریلیز</span>",
+  "release.v1_5.meta": "<strong>6 ستمبر 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">مکمل ریلیز نوٹس <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">v1.5 ڈاؤن لوڈ کریں <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "رسائی پذیری اور خودکاری کی اجازتوں کے ساتھ Safari Stable کے تجرباتی پروفائلز آزمائیں۔ ہر لنک منتخب پروفائل کی ایک نئی ونڈو میں کھلتا ہے۔",
   "release.v1_5.duckduckgo": "DuckDuckGo کے نجی سیشنز کی بحالی اور صفائی کو آسان بنایا گیا ہے۔ سینڈ باکس میں محدود نہ ہونے والے مطابقت پذیر 1.203.x بلڈز نجی روٹنگ کی معاونت کرتے ہیں؛ عام لنکس کے لیے کسی مخصوص ورژن یا ناشر کے دستخط کی شرط نہیں ہے۔",
-  "release.v1_5.signing": "بلڈز کے لیے ایک مستقل Apple Development سرٹیفکیٹ استعمال کیا جاتا ہے۔ ڈاؤن لوڈ کی نوٹرائزیشن نہیں ہوئی ہے؛ README میں تنصیب کی ہدایات پر عمل کریں۔"
+  "release.v1_5.signing": "بلڈز کے لیے ایک مستقل Apple Development سرٹیفکیٹ استعمال کیا جاتا ہے۔ ڈاؤن لوڈ کی نوٹرائزیشن نہیں ہوئی ہے؛ README میں تنصیب کی ہدایات پر عمل کریں۔",
+  "release.v1_5_1.title": "ورژن 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">مکمل ریلیز نوٹس <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 ڈاؤن لوڈ کریں <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>6 ستمبر 2026</strong><span class=\"release-current\">موجودہ ریلیز</span>",
+  "release.v1_5_1.summary": "DuckDuckGo کے نجی موڈ کی ورژن پابندی ہٹا دی گئی ہے، زبان کا انتخاب کرنے والا کنٹرول اوپر کی پٹی میں منتقل کر دیا گیا ہے، اور ہوم پیج سے زبانوں کا نوٹس ہٹا دیا گیا ہے۔"
 }

@@ -57,5 +57,17 @@
     ],
     "readme": "No ga README exists; no README modified",
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Reviewed new Irish summary: DuckDuckGo private version restriction removed, language selector moved to top bar, homepage language notice removed. Existing release prose unchanged. Catalog validator passed.",
+    "unresolvedIssues": [],
+    "sources": {
+      "Localization/website/en.json": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputs": {
+      "Localization/website/ga.json": "d2faf0f909bc5bb23741dc98cd541c79e5e961fc0afb471d380ea5f31043ff2d"
+    }
   }
 }

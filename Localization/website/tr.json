@@ -53,7 +53,7 @@
   "index.p.002": "macOS için yerel bir bağlantı seçicisi",
   "index.h1.001": "Bağlantıları<br />artık<br /><em>yanlış tarayıcıda veya profilde açmayın.</em>",
   "index.p.003": "PickVia, her web veya e-posta bağlantısını açmadan önce sorar. Böylece web bağlantıları seçtiğiniz tarayıcıya veya profile, e-posta bağlantıları ise istediğiniz e-posta uygulamasına gider.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5'ü indir <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub'da yıldız ver</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1'ü indir <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub'da yıldız ver</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Ücretsiz &amp; açık kaynak",
   "index.p.005": "Ekran görüntüleri İngilizce arayüzü gösterir.",
   "index.p.006": "01 / Açılmadan önce seçin",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Seçeneklerinizi ayarlayın",
   "index.h2.003": "Bir kez ayarlayın.<br /><em>Hızlıca seçin.</em>",
   "index.p.016": "Sık kullandığınız tarayıcı profillerini ve e-posta uygulamalarını bir kez ayarlayın, ardından en çok kullandığınız hedefleri sıralayın.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Sonraki bağlantıyı<br />doğru <em>yerde</em> açın.",
   "index.a.005": "macOS için indir <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · MIT Lisansı",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Web sitesi dilini seçin",
   "index.aria-label.003": "GitHub'da PickVia'ya yıldız verin",
   "release.v1_5.title": "Sürüm 1.5",
-  "release.v1_5.meta": "<strong>06 EYL 2026</strong><span class=\"release-current\">Güncel sürüm</span>",
+  "release.v1_5.meta": "<strong>06 EYL 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Tüm sürüm notları <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">v1.5'ü indir <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Erişilebilirlik ve Otomasyon izinleriyle deneysel Safari Stable profillerini deneyin. Her bağlantı seçilen profilin yeni bir penceresinde açılır.",
   "release.v1_5.duckduckgo": "DuckDuckGo özel oturumlarının kurtarılması ve temizlenmesi basitleştirildi. Korumalı alan dışında çalışan uyumlu 1.203.x derlemeleri özel yönlendirmeyi destekler; normal bağlantılar için sürüm veya yayıncı imzası şartı yoktur.",
-  "release.v1_5.signing": "Derlemeler için sabit bir Apple Development sertifikası kullanılır. İndirilen dosya Apple tarafından noter onayından geçirilmemiştir; README içindeki kurulum talimatlarını izleyin."
+  "release.v1_5.signing": "Derlemeler için sabit bir Apple Development sertifikası kullanılır. İndirilen dosya Apple tarafından noter onayından geçirilmemiştir; README içindeki kurulum talimatlarını izleyin.",
+  "release.v1_5_1.title": "Sürüm 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Tüm sürüm notları <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1'ü indir <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 EYL 2026</strong><span class=\"release-current\">Güncel sürüm</span>",
+  "release.v1_5_1.summary": "DuckDuckGo özel modundaki sürüm kısıtlaması kaldırıldı, dil seçici üst çubuğa taşındı ve ana sayfadaki dil bildirimi kaldırıldı."
 }

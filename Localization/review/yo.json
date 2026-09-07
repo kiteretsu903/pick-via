@@ -50,5 +50,20 @@
       "Permission terminology aligned with existing app catalog"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "website": "57eca6faca4e3a8094683bf70203c7425f6d61fa65e901b09e79042711bc4aab"
+    },
+    "checks": [
+      "New v1.5.1 summary translated and semantically reviewed",
+      "Website validate_catalog passed; historical entries unchanged"
+    ],
+    "unresolvedIssues": []
   }
 }

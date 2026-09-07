@@ -43,5 +43,17 @@
       "Website key set, HTML tags and attributes, and placeholders validated"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Translated v1.5.1 summary in Bengali; preserved historical releases, cloned labels and all other translations.",
+    "sources": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputs": {
+      "website": "1231184fe05919dc31e4b31ccdc17718526c7b0662c9ce747140bb630c2d353f"
+    },
+    "unresolvedIssues": []
   }
 }

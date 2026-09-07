@@ -53,7 +53,7 @@
   "index.p.002": "Mai zaɓin hanyar haɗi da aka gina don macOS",
   "index.h1.001": "Daina buɗe<br />hanyoyin haɗi a<br /><em>burauza ko bayanin martaba marar dacewa.</em>",
   "index.p.003": "PickVia yana tambaya kafin kowace hanyar haɗin yanar gizo ko imel ta buɗe, domin hanyoyin yanar gizo su je burauza ko bayanin martabar da ka zaɓa, kuma hanyoyin imel su je manhajar imel da ka nufa.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Sauke v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Ba da tauraro a GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Sauke v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Ba da tauraro a GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Kyauta kuma buɗaɗɗiyar lambar tushe",
   "index.p.005": "Hotunan allo suna nuna fuskar amfani ta Turanci.",
   "index.p.006": "01 / Zaɓi kafin ya buɗe",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Saita zaɓuɓɓukanka",
   "index.h2.003": "Saita sau ɗaya.<br /><em>Zaɓi da sauri.</em>",
   "index.p.016": "Saita bayanan martabar burauza da manhajojin imel da ka saba amfani da su sau ɗaya, sannan ka sake jera wuraren buɗewa da ka fi amfani da su.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Buɗe hanyar haɗi ta gaba<br />a <em>wurin</em> da ya dace.",
   "index.a.005": "Sauke don macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · Lasisin MIT",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Zaɓi harshen shafin yanar gizo",
   "index.aria-label.003": "Ba PickVia tauraro a GitHub",
   "release.v1_5.title": "Siga 1.5",
-  "release.v1_5.meta": "<strong>06 SAT 2026</strong><span class=\"release-current\">Fitowar yanzu</span>",
+  "release.v1_5.meta": "<strong>06 SAT 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Cikakken bayanin fitarwa <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Sauke v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Gwada bayanan martabar Safari Stable na gwaji tare da izinin Sauƙin Amfani da Aiki ta Atomatik. Kowace hanyar haɗi tana buɗewa a sabuwar taga ta bayanin martabar da aka zaɓa.",
   "release.v1_5.duckduckgo": "An sauƙaƙa dawo da zaman sirri na DuckDuckGo da share bayanansa. Gine-ginen 1.203.x masu dacewa waɗanda ba su cikin sandbox suna tallafa wa tura hanyoyin haɗi na sirri; hanyoyin yau da kullum ba sa buƙatar takamaiman siga ko sa hannun mai wallafawa.",
-  "release.v1_5.signing": "Ana amfani da takardar shaidar Apple Development guda ɗaya a kowane gini. Ba a yi wa abin saukewa notarization ba; bi umarnin shigarwa a README."
+  "release.v1_5.signing": "Ana amfani da takardar shaidar Apple Development guda ɗaya a kowane gini. Ba a yi wa abin saukewa notarization ba; bi umarnin shigarwa a README.",
+  "release.v1_5_1.title": "Siga 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Cikakken bayanin fitarwa <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Sauke v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 SAT 2026</strong><span class=\"release-current\">Fitowar yanzu</span>",
+  "release.v1_5_1.summary": "An cire ƙuntatawar sigar yanayin sirri na DuckDuckGo, an matsar da mai zaɓin harshe zuwa sandar sama, sannan an cire sanarwar harshe daga shafin farko."
 }

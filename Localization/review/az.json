@@ -38,5 +38,20 @@
     "outputs": {
       "Localization/website/az.json": "56d8d771cf60bc3f8168393ba052ac36fbca2f45bdc268846a07e80234561301"
     }
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "website": "03dac7ca7c690270b6ed0b2616055ee959d8b2ca2ad9b5b063b00ab42b1a482a"
+    },
+    "checks": [
+      "Reviewed Azerbaijani release summary meaning and grammar",
+      "Website validate_catalog passed"
+    ],
+    "unresolvedIssues": []
   }
 }

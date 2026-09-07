@@ -53,7 +53,7 @@
   "index.p.002": "App na ginawa para sa macOS para pumili ng destinasyon ng link",
   "index.h1.001": "Itigil ang pagbubukas<br />ng mga link sa<br /><em>maling browser o profile.</em>",
   "index.p.003": "Nagtatanong ang PickVia bago buksan ang bawat link sa web o email, kaya mapupunta ang mga link sa web sa browser o profile na pinili mo at ang mga mail link sa email app na balak mong gamitin.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">I-download ang v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Lagyan ng star sa GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">I-download ang v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Lagyan ng star sa GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Libre at bukas ang source code",
   "index.p.005": "Ipinapakita ng mga screenshot ang English na interface.",
   "index.p.006": "01 / Pumili bago magbukas",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / I-set up ang mga pagpipilian",
   "index.h2.003": "I-configure nang isang beses.<br /><em>Pumili nang mabilis.</em>",
   "index.p.016": "I-configure nang isang beses ang karaniwan mong mga profile ng browser at mail app, pagkatapos ay ayusin ang mga destinasyong pinakamadalas mong gamitin.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Buksan ang susunod na link<br />sa tamang <em>lugar.</em>",
   "index.a.005": "I-download para sa macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · Lisensyang MIT",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Piliin ang wika ng website",
   "index.aria-label.003": "Lagyan ng star ang PickVia sa GitHub",
   "release.v1_5.title": "Bersyon 1.5",
-  "release.v1_5.meta": "<strong>6 SETYEMBRE 2026</strong><span class=\"release-current\">Kasalukuyang release</span>",
+  "release.v1_5.meta": "<strong>6 SETYEMBRE 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Kumpletong tala sa release <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">I-download ang v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Subukan ang mga eksperimental na Safari Stable profile na may pahintulot sa Accessibility at Automation. Nagbubukas ang bawat link sa bagong window ng napiling profile.",
   "release.v1_5.duckduckgo": "Pinasimple ang pagbawi at paglilinis ng mga pribadong session ng DuckDuckGo. Sinusuportahan ng mga katugmang 1.203.x build na walang sandbox ang pribadong pagraruta; walang kinakailangang partikular na bersyon o lagda ng publisher para sa mga karaniwang link.",
-  "release.v1_5.signing": "Gumagamit ng nakapirming Apple Development certificate para sa mga build. Hindi notarized ang download; sundin ang mga tagubilin sa pag-install sa README."
+  "release.v1_5.signing": "Gumagamit ng nakapirming Apple Development certificate para sa mga build. Hindi notarized ang download; sundin ang mga tagubilin sa pag-install sa README.",
+  "release.v1_5_1.title": "Bersyon 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Kumpletong tala sa release <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">I-download ang v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>6 SETYEMBRE 2026</strong><span class=\"release-current\">Kasalukuyang release</span>",
+  "release.v1_5_1.summary": "Inalis ang limitasyon sa bersyon para sa pribadong mode ng DuckDuckGo, inilipat ang pagpili ng wika sa bar sa itaas, at inalis ang paunawa tungkol sa mga wika sa pangunahing pahina."
 }

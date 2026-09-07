@@ -53,7 +53,7 @@
   "index.p.002": "A native link chooser for macOS",
   "index.h1.001": "Stop opening<br />links in the<br /><em>wrong browser or profile.</em>",
   "index.p.003": "PickVia asks before each web or email link opens, so web links go to the browser or profile you choose and mail links go to the email app you intended.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Download v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Star on GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Download v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Star on GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Free &amp; open source",
   "index.p.005": "Screenshots show the English interface.",
   "index.p.006": "01 / Choose before it opens",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Set up your choices",
   "index.h2.003": "Configure once.<br /><em>Choose quickly.</em>",
   "index.p.016": "Configure your usual browser profiles and mail apps once, then reorder the targets you use most.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Open the next link<br />in the right <em>place.</em>",
   "index.a.005": "Download for macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · MIT License",
@@ -142,6 +142,10 @@
   "release.v1_5.duckduckgo": "Simplify DuckDuckGo private-session recovery and cleanup. Compatible unsandboxed 1.203.x builds support private routing; normal links have no version or publisher-signature requirement.",
   "release.v1_5.signing": "Use a fixed Apple Development certificate for builds. The download is not notarized; follow the README installation instructions.",
   "release.v1_5.title": "Version 1.5",
-  "release.v1_5.meta": "<strong>06 SEP 2026</strong><span class=\"release-current\">Current release</span>",
-  "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Full release notes <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Download v1.5 <span aria-hidden=\"true\">↓</span></a>"
+  "release.v1_5.meta": "<strong>06 SEP 2026</strong>",
+  "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Full release notes <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Download v1.5 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.summary": "Remove the DuckDuckGo private-mode version restriction, move the language selector into the top bar, and remove the homepage language notice.",
+  "release.v1_5_1.title": "Version 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Full release notes <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Download v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 SEP 2026</strong><span class=\"release-current\">Current release</span>"
 }

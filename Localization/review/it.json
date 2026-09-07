@@ -28,5 +28,15 @@
       "outputSHA256": "b82362421684a4e2c0bc71f8bbde01ce9c8374eb45a3712c38b09ecb4decee98"
     },
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Reviewed new Italian release summary against final English: removal of DuckDuckGo private-mode version restriction, language selector moved to top bar, and homepage language notice removed. Other website content, historical release metadata and cloned current labels preserved. Strict website catalog validation passed.",
+    "website": {
+      "sourceSHA256": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721",
+      "outputSHA256": "1acea604752286f00ffcb2571e28dda609c1bab85d4c23389dfb3d63e54527a9"
+    },
+    "unresolvedIssues": []
   }
 }

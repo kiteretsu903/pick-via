@@ -53,7 +53,7 @@
   "index.p.002": "macOS 原生链接选择器",
   "index.h1.001": "别再让链接<br />打开在<br /><em>错误的浏览器或个人资料中。</em>",
   "index.p.003": "PickVia 在打开每个网页或电子邮件链接前询问你，让网页链接打开在你选择的浏览器或个人资料中，让邮件链接打开在你想用的邮件应用中。",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">下载 v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> 在 GitHub 上加星</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">下载 v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> 在 GitHub 上加星</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · 免费开源",
   "index.p.005": "截图展示的是英文界面。",
   "index.p.006": "01 / 打开之前先选择",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / 设置常用选项",
   "index.h2.003": "一次设置。<br /><em>快速选择。</em>",
   "index.p.016": "一次配置常用浏览器个人资料和邮件应用，然后为最常用的目标调整顺序。",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "让下一个链接<br />打开在合适的<em>地方。</em>",
   "index.a.005": "下载 macOS 版 <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · MIT 许可证",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "选择网站语言",
   "index.aria-label.003": "在 GitHub 上为 PickVia 加星",
   "release.v1_5.title": "版本 1.5",
-  "release.v1_5.meta": "<strong>2026 年 9 月 6 日</strong><span class=\"release-current\">当前版本</span>",
+  "release.v1_5.meta": "<strong>2026 年 9 月 6 日</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">完整版本说明 <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">下载 v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "试用实验性的 Safari Stable 个人资料功能，需要辅助功能和自动化权限。每个链接都会在所选个人资料的新窗口中打开。",
   "release.v1_5.duckduckgo": "简化 DuckDuckGo 隐私会话的恢复与清理。兼容的非沙盒 1.203.x 版本支持以隐私模式打开链接；普通链接不要求特定版本或发布者签名。",
-  "release.v1_5.signing": "构建时使用固定的 Apple Development 证书。下载的应用未经公证；请按照 README 中的安装说明操作。"
+  "release.v1_5.signing": "构建时使用固定的 Apple Development 证书。下载的应用未经公证；请按照 README 中的安装说明操作。",
+  "release.v1_5_1.title": "版本 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">完整版本说明 <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">下载 v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>2026 年 9 月 6 日</strong><span class=\"release-current\">当前版本</span>",
+  "release.v1_5_1.summary": "移除 DuckDuckGo 隐私模式的版本限制，将语言选择器移至顶部栏，并移除首页的语言提示。"
 }

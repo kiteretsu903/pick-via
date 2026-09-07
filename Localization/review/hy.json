@@ -50,5 +50,20 @@
       "Historical v1.4 prose unchanged"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "website": "5215dea8f3c91493771b083082ac9ee78dfc0f6e124c991fe7675d3939cf6e4e"
+    },
+    "checks": [
+      "Armenian v1.5.1 summary self-reviewed against current English",
+      "Website validate_catalog passed; historical release content preserved"
+    ],
+    "unresolvedIssues": []
   }
 }

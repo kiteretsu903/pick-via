@@ -47,5 +47,20 @@
     "outputs": {
       "Localization/website/si.json": "72965f5667cf113019c7b726b97996b87f4c49ae45a4c7dbc1d28ffc04ad41f3"
     }
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "website": "76c0fa83b150145d1ff682137a68611e6c7abe9d78360ad5d8013f016c4daa08"
+    },
+    "checks": [
+      "Reviewed Sinhala release summary meaning and grammar",
+      "Website validate_catalog passed"
+    ],
+    "unresolvedIssues": []
   }
 }

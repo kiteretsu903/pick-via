@@ -149,7 +149,7 @@ def build_page(template, page, locale, registry, catalog, *, legacy=False):
         destination = prefix + entry['code'] + '/' + ('' if page == 'index.html' else page)
         selected = ' selected' if entry['code'] == code else ''
         options.append(f'<option value="{destination}" lang="{entry["code"]}" dir="{entry["dir"]}"{selected}>{html.escape(entry["name"])}</option>')
-    selector = (f'<div class="shell language-bar"><label for="website-language">{html.escape(catalog["shared.language"])}</label>'
+    selector = (f'<div class="language-picker"><label class="visually-hidden" for="website-language">{html.escape(catalog["shared.language"])}</label>'
                 f'<select id="website-language" aria-label="{html.escape(catalog["shared.languageNavigation"], quote=True)}">'
                 + ''.join(options) + '</select></div>')
     result = template.replace('{{locale.head}}', '\n    '.join(head)).replace('{{locale.selector}}', selector)

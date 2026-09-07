@@ -42,5 +42,21 @@
       "Apple Development signing distinguished from notarization; Safari permissions and new-window behavior preserved"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "website": "24a89119066a757e0ce38564a340d42a2ed82fe1a86dc5290b8cda9d6aa76ec4"
+    },
+    "checks": [
+      "Latvian release1.5.1 summary self-reviewed",
+      "Assigned website passed project validator",
+      "Historical release prose unchanged"
+    ],
+    "unresolvedIssues": []
   }
 }

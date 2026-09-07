@@ -20,22 +20,13 @@ struct DuckDuckGoBuildCompatibilityTests {
     )
   }
 
-  @Test(arguments: ["1.203.0", "1.203.1", "1.203.999"])
-  func patchUpdatesUseTheSamePrivatePreferencePolicy(_ version: String) {
-    #expect(checker(version: version).compatibility(of: applicationURL) == .fire)
-  }
-
-  @Test(arguments: [
-    "1.202.99", "1.204.0", "2.203.0", "1.203", "1.203.0-beta", "1.203.-1", "1.203.0.1", "1.203.",
-  ])
-  func otherReleasesAndMalformedVersionsAreOrdinaryOnly(_ version: String) {
-    #expect(checker(version: version).compatibility(of: applicationURL) == .ordinaryOnly)
+  @Test func unsandboxedDuckDuckGoIsPrivateCompatible() {
+    #expect(checker().compatibility(of: applicationURL) == .fire)
   }
 
   @Test func sandboxedAndUnknownBuildsDoNotUseDisposableHome() {
     #expect(checker(sandboxed: true).compatibility(of: applicationURL) == .ordinaryOnly)
     #expect(checker(sandboxed: nil).compatibility(of: applicationURL) == .ordinaryOnly)
-    #expect(checker(version: nil).compatibility(of: applicationURL) == .ordinaryOnly)
   }
 
   @Test func sandboxMetadataDoesNotRequirePublisherOrVersionFields() {
@@ -54,13 +45,13 @@ struct DuckDuckGoBuildCompatibilityTests {
 
   private func checker(
     bundleIdentifier: String = DuckDuckGoBuildCompatibilityChecker.bundleIdentifier,
-    version: String? = "1.203.0", sandboxed: Bool? = false
+    sandboxed: Bool? = false
   ) -> DuckDuckGoBuildCompatibilityChecker {
     DuckDuckGoBuildCompatibilityChecker(
       metadataProvider: StubMetadataProvider(
         metadata:
           DuckDuckGoApplicationMetadata(
-            bundleIdentifier: bundleIdentifier, shortVersion: version, isSandboxed: sandboxed)))
+            bundleIdentifier: bundleIdentifier, isSandboxed: sandboxed)))
   }
 }
 

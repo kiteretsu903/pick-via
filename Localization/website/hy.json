@@ -53,7 +53,7 @@
   "index.p.002": "Բնիկ հղումների ընտրիչ macOS-ի համար",
   "index.h1.001": "Այլևս մի բացեք<br />հղումները սխալ<br /><em>դիտարկիչում կամ պրոֆիլում։</em>",
   "index.p.003": "PickVia-ն հարցնում է յուրաքանչյուր վեբ կամ նամակի հղում բացելուց առաջ, որպեսզի վեբ հղումները գնան ձեր ընտրած դիտարկիչին կամ պրոֆիլին, իսկ նամակների հղումները՝ ձեր նախատեսած փոստային հավելվածին։",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Ներբեռնել v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Աստղ տալ GitHub-ում</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Ներբեռնել v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Աստղ տալ GitHub-ում</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Անվճար և բաց կոդով",
   "index.p.005": "Էկրանակադրերը ցույց են տալիս անգլերեն միջերեսը։",
   "index.p.006": "01 / Ընտրեք բացելուց առաջ",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Կարգավորեք ձեր ընտրանքները",
   "index.h2.003": "Կարգավորեք մեկ անգամ։<br /><em>Ընտրեք արագ։</em>",
   "index.p.016": "Մեկ անգամ կարգավորեք ձեր սովորական դիտարկիչի պրոֆիլներն ու փոստային հավելվածները, ապա վերադասավորեք ամենաշատ օգտագործվող նպատակակետերը։",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Հաջորդ հղումը բացեք<br />ճիշտ <em>տեղում։</em>",
   "index.a.005": "Ներբեռնել macOS-ի համար <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · MIT լիցենզիա",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Ընտրել կայքի լեզուն",
   "index.aria-label.003": "Աստղ տվեք PickVia-ին GitHub-ում",
   "release.v1_5.title": "Տարբերակ 1.5",
-  "release.v1_5.meta": "<strong>06 ՍԵՊ 2026</strong><span class=\"release-current\">Ընթացիկ թողարկում</span>",
+  "release.v1_5.meta": "<strong>06 ՍԵՊ 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Թողարկման ամբողջական նշումներ <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Ներբեռնել v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Փորձեք Safari Stable-ի փորձնական պրոֆիլները՝ տրամադրելով Մատչելիության և Ավտոմատացման թույլտվությունները։ Յուրաքանչյուր հղում բացվում է ընտրված պրոֆիլի նոր պատուհանում։",
   "release.v1_5.duckduckgo": "Պարզեցվել են DuckDuckGo-ի մասնավոր աշխատաշրջանների վերականգնումն ու մաքրումը։ Մեկուսացված միջավայրից դուրս աշխատող համատեղելի 1.203.x կառուցվածքներն աջակցում են մասնավոր ուղղորդմանը․ սովորական հղումների համար տարբերակի կամ հրատարակչի ստորագրության պահանջ չկա։",
-  "release.v1_5.signing": "Կառուցվածքների համար օգտագործվում է նույն հաստատուն Apple Development վկայականը։ Ներբեռնումը Apple-ի նոտարական ստուգում չի անցել․ հետևեք README-ի տեղադրման հրահանգներին։"
+  "release.v1_5.signing": "Կառուցվածքների համար օգտագործվում է նույն հաստատուն Apple Development վկայականը։ Ներբեռնումը Apple-ի նոտարական ստուգում չի անցել․ հետևեք README-ի տեղադրման հրահանգներին։",
+  "release.v1_5_1.title": "Տարբերակ 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Թողարկման ամբողջական նշումներ <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Ներբեռնել v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 ՍԵՊ 2026</strong><span class=\"release-current\">Ընթացիկ թողարկում</span>",
+  "release.v1_5_1.summary": "Հեռացվել է DuckDuckGo-ի մասնավոր ռեժիմի տարբերակի սահմանափակումը, լեզվի ընտրիչը տեղափոխվել է վերին վահանակ, իսկ գլխավոր էջի լեզուների մասին ծանուցումը հեռացվել է։"
 }

@@ -53,7 +53,7 @@
   "index.p.002": "macOS-ისთვის შექმნილი ბმულის ამრჩევი",
   "index.h1.001": "შეწყვიტეთ ბმულების<br />გახსნა არასწორ<br /><em>ბრაუზერში ან პროფილში.</em>",
   "index.p.003": "PickVia ყოველი ვებბმულის ან ელფოსტის ბმულის გახსნამდე გეკითხებათ, რათა ვებბმულები არჩეულ ბრაუზერში ან პროფილში გადავიდეს, ხოლო საფოსტო ბმულები — სასურველ საფოსტო აპში.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5-ის ჩამოტვირთვა <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> ვარსკვლავი GitHub-ზე</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1-ის ჩამოტვირთვა <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> ვარსკვლავი GitHub-ზე</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · უფასო და ღია კოდით",
   "index.p.005": "ეკრანის სურათები ინგლისურ ინტერფეისს აჩვენებს.",
   "index.p.006": "01 / აირჩიეთ გახსნამდე",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / მოაწყვეთ თქვენი არჩევანი",
   "index.h2.003": "დააყენეთ ერთხელ.<br /><em>აირჩიეთ სწრაფად.</em>",
   "index.p.016": "ერთხელ დააყენეთ თქვენი ჩვეულებრივი ბრაუზერის პროფილები და საფოსტო აპები, შემდეგ გადაალაგეთ ყველაზე ხშირად გამოყენებული სამიზნეები.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "გახსენით შემდეგი ბმული<br />სწორ <em>ადგილას.</em>",
   "index.a.005": "ჩამოტვირთვა macOS-ისთვის <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · MIT ლიცენზია",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "ვებსაიტის ენის არჩევა",
   "index.aria-label.003": "მიანიჭეთ PickVia-ს ვარსკვლავი GitHub-ზე",
   "release.v1_5.title": "ვერსია 1.5",
-  "release.v1_5.meta": "<strong>06 სექ 2026</strong><span class=\"release-current\">მიმდინარე გამოშვება</span>",
+  "release.v1_5.meta": "<strong>06 სექ 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">გამოშვების სრული შენიშვნები <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">v1.5-ის ჩამოტვირთვა <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "სცადეთ Safari Stable-ის ექსპერიმენტული პროფილები ხელმისაწვდომობისა და ავტომატიზაციის ნებართვებით. თითოეული ბმული იხსნება არჩეული პროფილის ახალ ფანჯარაში.",
   "release.v1_5.duckduckgo": "გამარტივდა DuckDuckGo-ს პირადი სესიების აღდგენა და გასუფთავება. თავსებადი 1.203.x აგებები sandbox-ის გარეშე მხარს უჭერს პირად გახსნას; ჩვეულებრივი ბმულებისთვის არ მოითხოვება კონკრეტული ვერსია ან გამომცემლის ხელმოწერა.",
-  "release.v1_5.signing": "აგებებისთვის გამოიყენება ერთი და იგივე Apple Development სერტიფიკატი. ჩამოსატვირთ აპს ნოტარიზაცია არ გაუვლია; მიჰყევით README-ში მოცემულ ინსტალაციის მითითებებს."
+  "release.v1_5.signing": "აგებებისთვის გამოიყენება ერთი და იგივე Apple Development სერტიფიკატი. ჩამოსატვირთ აპს ნოტარიზაცია არ გაუვლია; მიჰყევით README-ში მოცემულ ინსტალაციის მითითებებს.",
+  "release.v1_5_1.title": "ვერსია 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">გამოშვების სრული შენიშვნები <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1-ის ჩამოტვირთვა <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 სექ 2026</strong><span class=\"release-current\">მიმდინარე გამოშვება</span>",
+  "release.v1_5_1.summary": "მოიხსნა DuckDuckGo-ს პირადი რეჟიმის ვერსიის შეზღუდვა, ენის ამრჩევი გადავიდა ზედა ზოლში და მთავარი გვერდიდან წაიშალა ენების შესახებ შეტყობინება."
 }

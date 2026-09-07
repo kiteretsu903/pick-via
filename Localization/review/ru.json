@@ -44,5 +44,22 @@
       "Release meaning and modified Russian prose reviewed; public test-report links and validation claims removed as requested"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721",
+      "readme": "8114dfa56538038c919c7273ddce14a851fa2fa24862272d73042668d64fd81c"
+    },
+    "outputSHA256": {
+      "website": "7921e99bace4de99b1541b2e5154553bd861e111c8ab40a4835abc8b42c33673",
+      "readme": "fa103d8c05441df024779942740bf16c030940f14fcd667949039334e37d54b2"
+    },
+    "checks": [
+      "Reviewed new Russian release summary and scoped README changes for final release meaning",
+      "Website validate_catalog and README validate passed"
+    ],
+    "unresolvedIssues": []
   }
 }

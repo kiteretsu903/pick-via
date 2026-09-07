@@ -46,5 +46,21 @@
       "website/bs.json": "843383387f0c6c1599fc5c0a532e04e43ff9f6218962566119fe506def75bab1"
     },
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "website": "b02fa7be878b6c40bd1a6c31abe939730255910fe59eec64217cffeddd8a83da"
+    },
+    "checks": [
+      "Bosnian release1.5.1 summary self-reviewed",
+      "Assigned website passed project validator",
+      "Historical release prose unchanged"
+    ],
+    "unresolvedIssues": []
   }
 }

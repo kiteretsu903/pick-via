@@ -53,7 +53,7 @@
   "index.p.002": "Izvorni birač linkova za macOS",
   "index.h1.001": "Prestanite otvarati<br />linkove u<br /><em>pogrešnom pregledniku ili profilu.</em>",
   "index.p.003": "PickVia pita prije otvaranja svakog web linka ili linka za e-poštu, pa web linkovi idu u preglednik ili profil koji odaberete, a linkovi za e-poštu u aplikaciju koju ste namjeravali koristiti.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Preuzmi v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Dodaj zvjezdicu na GitHubu</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Preuzmi v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Dodaj zvjezdicu na GitHubu</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Besplatno &amp; otvorenog koda",
   "index.p.005": "Snimci ekrana prikazuju interfejs na engleskom jeziku.",
   "index.p.006": "01 / Odaberite prije otvaranja",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Podesite svoje izbore",
   "index.h2.003": "Podesite jednom.<br /><em>Birajte brzo.</em>",
   "index.p.016": "Podesite svoje uobičajene profile preglednika i aplikacije za e-poštu jednom, a zatim poredajte odredišta koja najviše koristite.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Otvorite sljedeći link<br />na pravom <em>mjestu.</em>",
   "index.a.005": "Preuzmi za macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · MIT licenca",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Odaberite jezik web stranice",
   "index.aria-label.003": "Dodajte zvjezdicu aplikaciji PickVia na GitHubu",
   "release.v1_5.title": "Verzija 1.5",
-  "release.v1_5.meta": "<strong>6. SEPTEMBAR 2026.</strong><span class=\"release-current\">Trenutno izdanje</span>",
+  "release.v1_5.meta": "<strong>6. SEPTEMBAR 2026.</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Potpune napomene o izdanju <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Preuzmi v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Isprobajte eksperimentalne profile za Safari Stable uz dozvole za pristupačnost i automatizaciju. Svaka veza otvara se u novom prozoru odabranog profila.",
   "release.v1_5.duckduckgo": "Pojednostavljen je oporavak i čišćenje privatnih sesija u DuckDuckGo. Kompatibilne verzije 1.203.x bez izolovanog okruženja podržavaju privatno otvaranje; obične veze nemaju zahtjev za određenom verzijom ili potpisom izdavača.",
-  "release.v1_5.signing": "Za izradu aplikacije koristi se stalni Apple Development certifikat. Preuzeta aplikacija nije notarizovana; slijedite upute za instalaciju u README datoteci."
+  "release.v1_5.signing": "Za izradu aplikacije koristi se stalni Apple Development certifikat. Preuzeta aplikacija nije notarizovana; slijedite upute za instalaciju u README datoteci.",
+  "release.v1_5_1.title": "Verzija 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Potpune napomene o izdanju <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Preuzmi v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>6. SEPTEMBAR 2026.</strong><span class=\"release-current\">Trenutno izdanje</span>",
+  "release.v1_5_1.summary": "Uklanja ograničenje verzije za privatni način rada preglednika DuckDuckGo, premješta birač jezika u gornju traku i uklanja obavijest o jezicima s početne stranice."
 }

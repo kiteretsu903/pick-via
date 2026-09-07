@@ -58,5 +58,19 @@
       "Localization/website/hi.json": "bf17a002bedcba2c2997516ec343e18791ce13abf39007eac864bd6ac2bfa830",
       "Localization/readme/hi.md": "1072539eb7d718cfd21fe1e787aac2d69a8f7c97f404d847cb6a3376ed599b62"
     }
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Reviewed new release summary and narrow README delta: version1.5.1, no DuckDuckGo private-mode version restriction on compatible unsandboxed builds, top-bar language selector and removed homepage notice. Catalog/readme validators passed. Historical prose retained.",
+    "unresolvedIssues": [],
+    "sources": {
+      "Localization/website/en.json": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721",
+      "Localization/readme/en.md": "8114dfa56538038c919c7273ddce14a851fa2fa24862272d73042668d64fd81c"
+    },
+    "outputs": {
+      "Localization/website/hi.json": "efdd0049612ac63a9aeff676ee5aac662553313daf8ad9022edc9e95bf3bce28",
+      "Localization/readme/hi.md": "23d5d01e3e5a71ec880416a745bce51ae56b94056fdf1959c2b2e731b9531e97"
+    }
   }
 }

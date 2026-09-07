@@ -19,13 +19,13 @@ macOS 可能會重複使用錯誤的瀏覽器視窗或設定檔，而每個 `mai
 
 ## 語言
 
-PickVia v1.5 的應用程式與網站支援 80 種語言，包含語言選擇器及
+PickVia v1.5.1 的應用程式與網站支援 80 種語言，包含語言選擇器及
 從右至左的版面配置，另外提供 12 種 README 語言版本。你可以在「設定」中
 選擇應用程式語言，或跟隨系統的主要語言。產品螢幕截圖顯示的是英文介面。
 
 ## 下載
 
-**[下載 macOS 版 PickVia v1.5](https://github.com/kiteretsu903/pick-via/releases/latest)**
+**[下載 macOS 版 PickVia v1.5.1](https://github.com/kiteretsu903/pick-via/releases/latest)**
 
 PickVia 需要搭載 **Apple Silicon** 的 Mac，作業系統為 **macOS 14 Sonoma 或以上版本**，
 可處理 HTTP、HTTPS 與 `mailto:` 連結。
@@ -53,7 +53,7 @@ PickVia 需要搭載 **Apple Silicon** 的 Mac，作業系統為 **macOS 14 Sono
 ## 安裝
 
 1. 從 [GitHub 版本發布頁面](https://github.com/kiteretsu903/pick-via/releases/latest)
-   下載並開啟 `PickVia-v1.5.dmg`。
+   下載並開啟 `PickVia-v1.5.1.dmg`。
 2. 將 **PickVia** 拖移至安裝程式中顯示的「**應用程式**」檔案夾。
 3. 從「應用程式」開啟 **PickVia**，並依照歡迎流程操作。
 4. 選擇「**設為預設值**」。macOS 會分別詢問是否允許處理
@@ -63,7 +63,7 @@ PickVia 需要搭載 **Apple Silicon** 的 Mac，作業系統為 **macOS 14 Sono
 
 ### 首次啟動與 Gatekeeper
 
-PickVia v1.5 使用 Apple Development 憑證簽署，未經公證。macOS 可能會阻擋下載後的
+PickVia v1.5.1 使用 Apple Development 憑證簽署，未經公證。macOS 可能會阻擋下載後的
 應用程式首次啟動。如果你是從 GitHub 版本發布頁面下載，且選擇信任它：
 
 1. 嘗試開啟 PickVia 一次，然後關閉警告。
@@ -95,8 +95,8 @@ Apple 在[於 Mac 上安全地開啟 App](https://support.apple.com/en-asia/1024
 | Firefox Stable / Developer Edition / Nightly | 是 | 是 | 是 |
 | Opera、Arc、Orion | 否 | 是 | 否 |
 
-\* DuckDuckGo 私密模式在相容且未使用沙盒的版本中，使用隔離的一次性狀態
-（目前為 1.203.x 版本系列）。它不需要 DuckDuckGo 擴充功能或「輔助使用」
+\* DuckDuckGo 私密模式在相容且未使用沙盒的版本中，使用隔離的一次性狀態，
+不設版本限制。它不需要 DuckDuckGo 擴充功能或「輔助使用」
 權限。一般 DuckDuckGo 連結不要求特定版本或發行者簽章。當 PickVia 執行時，
 私密狀態會在其瀏覽器程序結束後清除；也可能在下次啟動或處理連結時清除。
 

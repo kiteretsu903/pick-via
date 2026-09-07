@@ -53,7 +53,7 @@
   "index.p.002": "macOS 原生連結選擇器",
   "index.h1.001": "別再讓連結<br />開啟在錯誤的<br /><em>瀏覽器或設定檔中。</em>",
   "index.p.003": "PickVia 會在每個網頁或電子郵件連結開啟前詢問，讓網頁連結前往你選擇的瀏覽器或設定檔，郵件連結則交給你想用的郵件應用程式。",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">下載 v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> 在 GitHub 上給星</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">下載 v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> 在 GitHub 上給星</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · 免費且開放原始碼",
   "index.p.005": "螢幕截圖顯示的是英文介面。",
   "index.p.006": "01 / 開啟前先選擇",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / 設定你的選項",
   "index.h2.003": "一次設定。<br /><em>快速選擇。</em>",
   "index.p.016": "一次設定常用的瀏覽器設定檔與郵件應用程式，再將最常使用的目標重新排序。",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "讓下一個連結<br />開啟在合適的<em>地方。</em>",
   "index.a.005": "下載 macOS 版 <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · MIT 授權條款",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "選擇網站語言",
   "index.aria-label.003": "在 GitHub 上給 PickVia 一顆星",
   "release.v1_5.title": "版本 1.5",
-  "release.v1_5.meta": "<strong>2026 年 9 月 6 日</strong><span class=\"release-current\">目前版本</span>",
+  "release.v1_5.meta": "<strong>2026 年 9 月 6 日</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">完整版本說明 <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">下載 v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "使用「輔助使用」與「自動化」權限，試用實驗性的 Safari Stable 設定檔功能。每個連結都會在所選設定檔的新視窗中開啟。",
   "release.v1_5.duckduckgo": "簡化 DuckDuckGo 私密工作階段的復原與清理。相容且未使用沙盒的 1.203.x 版本支援私密連結開啟方式；一般連結不要求特定版本或發行者簽章。",
-  "release.v1_5.signing": "建置時使用固定的 Apple Development 憑證。下載檔案未經公證；請依照 README 的安裝說明操作。"
+  "release.v1_5.signing": "建置時使用固定的 Apple Development 憑證。下載檔案未經公證；請依照 README 的安裝說明操作。",
+  "release.v1_5_1.title": "版本 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">完整版本說明 <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">下載 v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>2026 年 9 月 6 日</strong><span class=\"release-current\">目前版本</span>",
+  "release.v1_5_1.summary": "移除 DuckDuckGo 私密模式的版本限制，將語言選擇器移至頂部導覽列，並移除首頁的語言公告。"
 }

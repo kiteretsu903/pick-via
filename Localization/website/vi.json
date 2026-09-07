@@ -53,7 +53,7 @@
   "index.p.002": "Công cụ chọn ứng dụng mở liên kết gốc cho macOS",
   "index.h1.001": "Đừng mở<br />liên kết trong<br /><em>sai trình duyệt hoặc hồ sơ nữa.</em>",
   "index.p.003": "PickVia hỏi trước khi mở mỗi liên kết web hoặc email, để liên kết web tới trình duyệt hay hồ sơ bạn chọn và liên kết email tới ứng dụng thư bạn định dùng.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Tải v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Tặng sao trên GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Tải v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Tặng sao trên GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Miễn phí và mã nguồn mở",
   "index.p.005": "Ảnh chụp màn hình hiển thị giao diện tiếng Anh.",
   "index.p.006": "01 / Chọn trước khi mở",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Thiết lập lựa chọn",
   "index.h2.003": "Thiết lập một lần.<br /><em>Chọn nhanh chóng.</em>",
   "index.p.016": "Thiết lập hồ sơ trình duyệt và ứng dụng thư thường dùng một lần, rồi sắp xếp lại các đích bạn dùng nhiều nhất.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Mở liên kết tiếp theo<br />ở đúng <em>nơi.</em>",
   "index.a.005": "Tải cho macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · Giấy phép MIT",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Chọn ngôn ngữ trang web",
   "index.aria-label.003": "Tặng PickVia một sao trên GitHub",
   "release.v1_5.title": "Phiên bản 1.5",
-  "release.v1_5.meta": "<strong>06 THÁNG 9 2026</strong><span class=\"release-current\">Bản phát hành hiện tại</span>",
+  "release.v1_5.meta": "<strong>06 THÁNG 9 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Ghi chú phát hành đầy đủ <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Tải v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Thử tính năng hồ sơ Safari Stable đang thử nghiệm với quyền Trợ năng và Tự động hóa. Mỗi liên kết mở trong một cửa sổ mới của hồ sơ đã chọn.",
   "release.v1_5.duckduckgo": "Đơn giản hóa việc khôi phục và dọn dẹp phiên riêng tư của DuckDuckGo. Các bản dựng 1.203.x tương thích không chạy trong sandbox hỗ trợ định tuyến riêng tư; liên kết thông thường không có yêu cầu về phiên bản hoặc chữ ký của nhà phát hành.",
-  "release.v1_5.signing": "Sử dụng một chứng chỉ Apple Development cố định cho các bản dựng. Bản tải xuống chưa được Apple công chứng; hãy làm theo hướng dẫn cài đặt trong README."
+  "release.v1_5.signing": "Sử dụng một chứng chỉ Apple Development cố định cho các bản dựng. Bản tải xuống chưa được Apple công chứng; hãy làm theo hướng dẫn cài đặt trong README.",
+  "release.v1_5_1.title": "Phiên bản 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Ghi chú phát hành đầy đủ <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Tải v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 THÁNG 9 2026</strong><span class=\"release-current\">Bản phát hành hiện tại</span>",
+  "release.v1_5_1.summary": "Gỡ bỏ giới hạn phiên bản đối với chế độ riêng tư của DuckDuckGo, chuyển bộ chọn ngôn ngữ lên thanh trên cùng và xóa thông báo về ngôn ngữ trên trang chủ."
 }

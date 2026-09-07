@@ -34,5 +34,20 @@
       "Historical v1.4 prose unchanged"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "website": "af5dc9779d879bc0b803553d9bd420f1601028df6117bc6cfc0602bdfcce5d85"
+    },
+    "checks": [
+      "Nepali v1.5.1 summary self-reviewed against current English",
+      "Website validate_catalog passed; historical release content preserved"
+    ],
+    "unresolvedIssues": []
   }
 }

@@ -53,7 +53,7 @@
   "index.p.002": "Uhlelo lokukhetha indlela yokuvula izixhumanisi olwakhelwe i-macOS",
   "index.h1.001": "Yeka ukuvula<br />izixhumanisi<br /><em>esipheqululini noma kuphrofayela engafanele.</em>",
   "index.p.003": "I-PickVia iyabuza ngaphambi kokuvula isixhumanisi ngasinye sewebhu noma se-imeyili, ukuze izixhumanisi zewebhu ziye esipheqululini noma kuphrofayela oyikhethayo, nezixhumanisi ze-imeyili ziye ohlelweni lwe-imeyili obuhlose ukulusebenzisa.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Landa i-v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Nikeza inkanyezi ku-GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Landa i-v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Nikeza inkanyezi ku-GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Kumahhala futhi kunekhodi yomthombo evulekile",
   "index.p.005": "Izithombe zesikrini zibonisa isixhumi esibonakalayo sesiNgisi.",
   "index.p.006": "01 / Khetha ngaphambi kokuvula",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Setha izinketho zakho",
   "index.h2.003": "Setha kanye.<br /><em>Khetha ngokushesha.</em>",
   "index.p.016": "Setha amaphrofayela esiphequluli nezinhlelo ze-imeyili ojwayele ukuzisebenzisa kanye, bese uhlela izinketho ozisebenzisa kakhulu.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Vula isixhumanisi esilandelayo<br />endaweni <em>efanele.</em>",
   "index.a.005": "Landa okwe-macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · Ilayisensi ye-MIT",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Khetha ulimi lwewebhusayithi",
   "index.aria-label.003": "Nikeza i-PickVia inkanyezi ku-GitHub",
   "release.v1_5.title": "Inguqulo 1.5",
-  "release.v1_5.meta": "<strong>06 Septhemba 2026</strong><span class=\"release-current\">Ukukhishwa kwamanje</span>",
+  "release.v1_5.meta": "<strong>06 Septhemba 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Amanothi aphelele okukhishwa <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Landa i-v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Zama amaphrofayela okuhlola e-Safari Stable ngezimvume zokufinyeleleka nokwenza ngokuzenzakalela. Isixhumanisi ngasinye sivuleka ewindini elisha lephrofayela ekhethiwe.",
   "release.v1_5.duckduckgo": "Kwenziwa lula ukubuyiselwa nokuhlanzwa kwamaseshini ayimfihlo e-DuckDuckGo. Izinguqulo ezihambisanayo ze-1.203.x ezingasebenzisi indawo ehlukanisiwe ye-sandbox zisekela ukuvula izixhumanisi ngendlela eyimfihlo; izixhumanisi ezivamile azidingi inguqulo ethile noma isiginesha yomshicileli.",
-  "release.v1_5.signing": "Kusetshenziswa isitifiketi esifanayo se-Apple Development lapho kwakhiwa uhlelo. Okulandwayo akuqinisekiswanga ngenqubo ye-notarization; landela imiyalelo yokufaka eku-README."
+  "release.v1_5.signing": "Kusetshenziswa isitifiketi esifanayo se-Apple Development lapho kwakhiwa uhlelo. Okulandwayo akuqinisekiswanga ngenqubo ye-notarization; landela imiyalelo yokufaka eku-README.",
+  "release.v1_5_1.title": "Inguqulo 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Amanothi aphelele okukhishwa <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Landa i-v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 Septhemba 2026</strong><span class=\"release-current\">Ukukhishwa kwamanje</span>",
+  "release.v1_5_1.summary": "Kususwe umkhawulo wenguqulo yemodi eyimfihlo ye-DuckDuckGo, isikhethi solimi sihanjiswe kubha ephezulu, futhi kwasuswa isaziso solimi ekhasini lasekhaya."
 }

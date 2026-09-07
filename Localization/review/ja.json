@@ -45,5 +45,24 @@
       "README sections, links, inline code and commands match",
       "Public README test-report links and validation claims removed to match final English"
     ]
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website/en.json": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721",
+      "readme/en.md": "8114dfa56538038c919c7273ddce14a851fa2fa24862272d73042668d64fd81c"
+    },
+    "outputSHA256": {
+      "website/ja.json": "21d1ef3f62d1edf5cac73082136308faa9541af5078f23adbe47f5144e2c8cb3",
+      "readme/ja.md": "2bf842eac23fffd625d5b8023a2058872b9d2b92cc3c3001b9e0667778a552e3"
+    },
+    "unresolvedIssues": [],
+    "checks": [
+      "v1.5.1 summary and README version/compatibility delta reviewed",
+      "Website validate_catalog PASS",
+      "README validate PASS",
+      "Historical releases and unrelated translations preserved"
+    ]
   }
 }

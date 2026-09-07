@@ -60,5 +60,20 @@
       "Website exact key parity, HTML tags/attributes and placeholders passed"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "website": "4062fb56489fa92cf62182da45110b06f419b7acb5d1c805635d063a8539b562"
+    },
+    "checks": [
+      "Czech v1.5.1 summary self-reviewed against current English",
+      "Website validate_catalog passed; historical release content preserved"
+    ],
+    "unresolvedIssues": []
   }
 }

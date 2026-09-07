@@ -53,7 +53,7 @@
   "index.p.002": "Un selector de ligazóns nativo para macOS",
   "index.h1.001": "Deixa de abrir<br />ligazóns no<br /><em>navegador ou perfil equivocado.</em>",
   "index.p.003": "PickVia pregunta antes de abrir cada ligazón web ou de correo, para que as ligazóns web vaian ao navegador ou perfil que escollas e as de correo á aplicación que querías usar.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Descargar v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Dar unha estrela en GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Descargar v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Dar unha estrela en GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Gratuíto e de código aberto",
   "index.p.005": "As capturas mostran a interface en inglés.",
   "index.p.006": "01 / Escolle antes de abrir",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Configura as túas opcións",
   "index.h2.003": "Configura unha vez.<br /><em>Escolle axiña.</em>",
   "index.p.016": "Configura unha vez os teus perfís de navegador e aplicacións de correo habituais e despois reordena os destinos que máis usas.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Abre a seguinte ligazón<br />no lugar <em>axeitado.</em>",
   "index.a.005": "Descargar para macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · Licenza MIT",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Escolle o idioma do sitio",
   "index.aria-label.003": "Dálle unha estrela a PickVia en GitHub",
   "release.v1_5.title": "Versión 1.5",
-  "release.v1_5.meta": "<strong>06 SET 2026</strong><span class=\"release-current\">Versión actual</span>",
+  "release.v1_5.meta": "<strong>06 SET 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Notas de versión completas <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Descargar v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Proba os perfís experimentais de Safari Stable cos permisos de Accesibilidade e Automatización. Cada ligazón ábrese nunha nova xanela do perfil seleccionado.",
   "release.v1_5.duckduckgo": "Simplifícanse a recuperación e a limpeza das sesións privadas de DuckDuckGo. As compilacións 1.203.x compatibles sen sandbox permiten o encamiñamento privado; as ligazóns normais non teñen requisitos de versión nin de sinatura do editor.",
-  "release.v1_5.signing": "Úsase un certificado fixo de Apple Development para as compilacións. A descarga non está notarizada; segue as instrucións de instalación do README."
+  "release.v1_5.signing": "Úsase un certificado fixo de Apple Development para as compilacións. A descarga non está notarizada; segue as instrucións de instalación do README.",
+  "release.v1_5_1.title": "Versión 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Notas de versión completas <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Descargar v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 SET 2026</strong><span class=\"release-current\">Versión actual</span>",
+  "release.v1_5_1.summary": "Elimínase a restrición de versión do modo privado de DuckDuckGo, móvese o selector de idioma á barra superior e elimínase o aviso de idiomas da páxina de inicio."
 }

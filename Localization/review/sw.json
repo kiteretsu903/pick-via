@@ -45,5 +45,17 @@
       "Website key set, HTML tags and attributes, and placeholders validated"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Translated v1.5.1 summary in Swahili; preserved historical releases, cloned labels and all other translations.",
+    "sources": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputs": {
+      "website": "cf000e99aa564070f4fb2a6c7a01f8ee8ce88a4bc7ab2d4ad082d1a8f65e4c21"
+    },
+    "unresolvedIssues": []
   }
 }

@@ -43,5 +43,20 @@
       "scripts/localize-website.py validate_catalog passed for full locale catalog; historical changelog unchanged"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceHashes": {
+      "website/en.json": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputHashes": {
+      "website/et.json": "934506b584f646e8f18dbc220cc5b0c9457b0ec559f49ac7f1a9515d153a0a0d"
+    },
+    "checks": [
+      "v1.5.1 summary translated and self-reviewed: DuckDuckGo version restriction removed, language selector moved to top bar, homepage language notice removed",
+      "Website validate_catalog passed; historical content preserved"
+    ],
+    "unresolvedIssues": []
   }
 }

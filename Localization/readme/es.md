@@ -16,11 +16,11 @@ macOS puede reutilizar una ventana o un perfil de navegador equivocados, mientra
 
 ## Idiomas
 
-PickVia v1.5 admite 80 idiomas para la aplicación y el sitio web, con un selector de idioma y diseños de derecha a izquierda, además de 12 idiomas para el README. Elige el idioma de la aplicación en Ajustes o utiliza el idioma principal del sistema. Las capturas del producto muestran la interfaz en inglés.
+PickVia v1.5.1 admite 80 idiomas para la aplicación y el sitio web, con un selector de idioma y diseños de derecha a izquierda, además de 12 idiomas para el README. Elige el idioma de la aplicación en Ajustes o utiliza el idioma principal del sistema. Las capturas del producto muestran la interfaz en inglés.
 
 ## Descarga
 
-**[Descargar PickVia v1.5 para macOS](https://github.com/kiteretsu903/pick-via/releases/latest)**
+**[Descargar PickVia v1.5.1 para macOS](https://github.com/kiteretsu903/pick-via/releases/latest)**
 
 PickVia requiere **macOS 14 Sonoma o posterior** en **Apple Silicon** y gestiona enlaces HTTP, HTTPS y `mailto:`.
 
@@ -46,7 +46,7 @@ Activa, desactiva, reordena y vuelve a buscar destinos de navegador y aplicacion
 
 ## Instalación
 
-1. Descarga y abre `PickVia-v1.5.dmg` desde la [versión de GitHub](https://github.com/kiteretsu903/pick-via/releases/latest).
+1. Descarga y abre `PickVia-v1.5.1.dmg` desde la [versión de GitHub](https://github.com/kiteretsu903/pick-via/releases/latest).
 2. Arrastra **PickVia** a la carpeta **Aplicaciones** que aparece en el instalador.
 3. Abre **PickVia** desde Aplicaciones y sigue los pasos de bienvenida.
 4. Elige **Establecer como predeterminado**. macOS solicita permiso por separado para gestionar enlaces HTTP y HTTPS.
@@ -54,7 +54,7 @@ Activa, desactiva, reordena y vuelve a buscar destinos de navegador y aplicacion
 
 ### Primer inicio y Gatekeeper
 
-PickVia v1.5 está firmado con un certificado Apple Development y no está notarizado. macOS puede bloquear el primer inicio de la aplicación descargada. Si la descargaste desde la versión de GitHub y decides confiar en ella:
+PickVia v1.5.1 está firmado con un certificado Apple Development y no está notarizado. macOS puede bloquear el primer inicio de la aplicación descargada. Si la descargaste desde la versión de GitHub y decides confiar en ella:
 
 1. Intenta abrir PickVia una vez y cierra la advertencia.
 2. Abre **Ajustes del Sistema → Privacidad y seguridad** y desplázate hasta **Seguridad**.
@@ -82,7 +82,7 @@ Apple documenta esta excepción de Gatekeeper y sus implicaciones de seguridad e
 | Firefox Stable / Developer Edition / Nightly | Sí | Sí | Sí |
 | Opera, Arc, Orion | No | Sí | No |
 
-\* DuckDuckGo privado utiliza datos aislados y desechables en versiones compatibles sin aislamiento de aplicaciones (actualmente, la familia de versiones 1.203.x). No requiere ninguna extensión de DuckDuckGo ni acceso de Accesibilidad. Los enlaces normales de DuckDuckGo no requieren una versión concreta ni una firma del editor. Los datos privados se eliminan cuando termina el proceso del navegador mientras PickVia está en ejecución, o en un inicio o apertura de enlace posterior.
+\* DuckDuckGo privado utiliza datos aislados y desechables en versiones compatibles sin aislamiento de aplicaciones, sin restricciones de versión. No requiere ninguna extensión de DuckDuckGo ni acceso de Accesibilidad. Los enlaces normales de DuckDuckGo no requieren una versión concreta ni una firma del editor. Los datos privados se eliminan cuando termina el proceso del navegador mientras PickVia está en ejecución, o en un inicio o apertura de enlace posterior.
 
 Cada edición instalada aparece como un navegador independiente, con su propio nombre e icono. Los perfiles de Firefox asociados a otra edición instalada se excluyen de la lista de perfiles de ese navegador. La asociación se basa en la ruta de la aplicación registrada por Firefox; los perfiles cuyos metadatos falten o no se reconozcan conservan el comportamiento alternativo existente y pueden aparecer en más de una edición.
 

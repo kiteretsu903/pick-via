@@ -45,5 +45,16 @@
       "Exact website keys and HTML preserved; historical releases unchanged"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website/en.json": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "website/is.json": "01d1ba6efd32a8e55f2fa765106202adcdb886c277a51f2fe769157769d2f35f"
+    },
+    "unresolvedIssues": []
   }
 }

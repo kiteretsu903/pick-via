@@ -56,5 +56,24 @@
       "Final README removes public test-report links and test coverage prose; preserves support-varies and experimental Safari statements"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721",
+      "readme": "8114dfa56538038c919c7273ddce14a851fa2fa24862272d73042668d64fd81c"
+    },
+    "outputSHA256": {
+      "website": "4c4e04f6645894193d18f215dcc26cacce8b5dac156a6dda48a0c82d62b1b066",
+      "readme": "c904d5670cbff7a78a872543f4c10314f0c9d7dc584ba04d26ab11a8a43d866d"
+    },
+    "checks": [
+      "Spanish release1.5.1 summary self-reviewed",
+      "README version and removal of DuckDuckGo private version restriction synchronized",
+      "Assigned website and README passed project validators",
+      "Historical release prose unchanged"
+    ],
+    "unresolvedIssues": []
   }
 }

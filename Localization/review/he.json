@@ -30,5 +30,20 @@
     "outputs": {
       "Localization/website/he.json": "d4b7a7a51bd51bb4fd86782f5acc64113e35c6046595dbba2a6ac1d92782f4ba"
     }
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "website": "68b3feadb3392887609b0ce17671aff27c0f70ec75f40ca64ad8ee6c28b4dca1"
+    },
+    "checks": [
+      "Reviewed Hebrew release summary meaning and grammar",
+      "Website validate_catalog passed"
+    ],
+    "unresolvedIssues": []
   }
 }

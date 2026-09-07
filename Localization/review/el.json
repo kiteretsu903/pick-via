@@ -40,5 +40,20 @@
       "Website exact key parity, HTML tags/attributes and placeholders passed"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "Localization/website/en.json": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "Localization/website/el.json": "c8f5873447ae403bc5b28df0933538476faa69776edccfc8f32207afab332ec1"
+    },
+    "checks": [
+      "Release summary translated and reviewed",
+      "Official locale-specific website validator passed"
+    ],
+    "unresolvedIssues": []
   }
 }

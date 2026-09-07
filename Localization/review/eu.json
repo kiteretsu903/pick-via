@@ -46,5 +46,17 @@
       "website": "6377f6722b8f85b459dc5bf71d53ce4fd0e0a1ddc14d9b339b456c78f6bf580e"
     },
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Translated v1.5.1 summary in Basque; preserved historical releases, cloned labels and all other translations.",
+    "sources": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputs": {
+      "website": "71c3e8a04f01f987980f09c291e7ff6bba7a9d2cf2da0b81ba981813ae111dab"
+    },
+    "unresolvedIssues": []
   }
 }

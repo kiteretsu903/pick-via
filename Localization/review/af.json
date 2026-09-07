@@ -51,5 +51,20 @@
       "Complete keys and exact HTML attributes/placeholders validated",
       "Historical changelog and app unchanged"
     ]
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website/en.json": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "website/af.json": "d3c35714eea28cc2354ef0fce41dbf0496a3a5925f877ab9475347d6ab6e3995"
+    },
+    "checks": [
+      "Release151 summary meaning self-reviewed",
+      "Official website validate_catalog passed"
+    ],
+    "unresolvedIssues": []
   }
 }

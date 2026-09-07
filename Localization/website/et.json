@@ -53,7 +53,7 @@
   "index.p.002": "macOS-i jaoks loodud lingivalija",
   "index.h1.001": "Lõpeta linkide<br />avamine vales<br /><em>brauseris või profiilis.</em>",
   "index.p.003": "PickVia küsib enne iga veebi- või meililingi avamist, nii et veebilingid suunatakse valitud brauserisse või profiili ja meililingid soovitud meilirakendusse.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Laadi alla v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Anna GitHubis täht</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Laadi alla v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Anna GitHubis täht</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Tasuta ja avatud lähtekoodiga",
   "index.p.005": "Kuvatõmmised näitavad ingliskeelset liidest.",
   "index.p.006": "01 / Vali enne avamist",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Seadista oma valikud",
   "index.h2.003": "Seadista üks kord.<br /><em>Vali kiiresti.</em>",
   "index.p.016": "Seadista oma tavapärased brauseriprofiilid ja meilirakendused üks kord ning järjesta enim kasutatavad sihtkohad.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Ava järgmine link<br />õiges <em>kohas.</em>",
   "index.a.005": "Laadi alla macOS-ile <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · MIT litsents",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Vali veebisaidi keel",
   "index.aria-label.003": "Anna PickViale GitHubis täht",
   "release.v1_5.title": "Versioon 1.5",
-  "release.v1_5.meta": "<strong>06 SEPT 2026</strong><span class=\"release-current\">Praegune väljalase</span>",
+  "release.v1_5.meta": "<strong>06 SEPT 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Täielikud väljalaskemärkmed <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Laadi alla v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Proovi eksperimentaalseid Safari Stable’i profiile juurdepääsetavuse ja automatiseerimise lubadega. Iga link avaneb valitud profiili uues aknas.",
   "release.v1_5.duckduckgo": "DuckDuckGo privaatseansside taastamist ja puhastamist on lihtsustatud. Ühilduvad liivakastita 1.203.x järkversioonid toetavad privaatset suunamist; tavalistel linkidel pole versiooni ega väljaandja allkirja nõuet.",
-  "release.v1_5.signing": "Järkude jaoks kasutatakse püsivat Apple Development sertifikaati. Allalaaditav rakendus pole notariseeritud; järgi README paigaldusjuhiseid."
+  "release.v1_5.signing": "Järkude jaoks kasutatakse püsivat Apple Development sertifikaati. Allalaaditav rakendus pole notariseeritud; järgi README paigaldusjuhiseid.",
+  "release.v1_5_1.title": "Versioon 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Täielikud väljalaskemärkmed <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Laadi alla v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 SEPT 2026</strong><span class=\"release-current\">Praegune väljalase</span>",
+  "release.v1_5_1.summary": "DuckDuckGo privaatrežiimi versioonipiirang on eemaldatud, keelevalija on viidud ülaribale ja avalehe keeleteavitus on eemaldatud."
 }

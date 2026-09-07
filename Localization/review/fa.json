@@ -60,5 +60,17 @@
     ],
     "readme": "No fa README exists; no README modified",
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Reviewed new Persian summary: DuckDuckGo private version restriction removed, language selector moved to top bar, homepage language notice removed. Existing release prose unchanged. Catalog validator passed.",
+    "unresolvedIssues": [],
+    "sources": {
+      "Localization/website/en.json": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputs": {
+      "Localization/website/fa.json": "8a916a3bb12d6692c1378205b4f5f9a32899e4cfa629a07e5c8e315eaa23987e"
+    }
   }
 }

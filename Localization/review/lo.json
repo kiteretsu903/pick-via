@@ -58,5 +58,21 @@
       "website/lo.json": "cb66093e9165180c28cd232471f9a80c30b4ffedd5a75534958d9da200fcd27a"
     },
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "website": "ba43a6dbf6d9014dcf44f6ba1b5a112c49f7d78434c306c665e698531a617cbd"
+    },
+    "checks": [
+      "Lao release1.5.1 summary self-reviewed",
+      "Assigned website passed project validator",
+      "Historical release prose unchanged"
+    ],
+    "unresolvedIssues": []
   }
 }

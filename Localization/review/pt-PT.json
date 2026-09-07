@@ -60,5 +60,17 @@
     ],
     "readme": "No pt-PT README exists; no README modified",
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Translated v1.5.1 summary in European Portuguese; preserved historical releases, cloned labels and all other translations.",
+    "sources": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputs": {
+      "website": "84875c49bbe1c329986e469aac8a70c40a756be01387eb4b30d0af0f1f9c7f82"
+    },
+    "unresolvedIssues": []
   }
 }

@@ -28,5 +28,15 @@
       "outputSHA256": "65df86c374738da00d8865768e6226861059c5492be38e4376dd09fb5a6af1e8"
     },
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Reviewed Vietnamese summary against final English: removal of DuckDuckGo private-mode version restriction, language selector relocated to top bar, and homepage language notice removed. Other translations and release labels unchanged. Strict assigned website catalog validation passed.",
+    "website": {
+      "sourceSHA256": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721",
+      "outputSHA256": "56d713531db7ceab52e7837243e8dce1dd66013e49063325ff245059e73c3b91"
+    },
+    "unresolvedIssues": []
   }
 }

@@ -53,7 +53,7 @@
   "index.p.002": "'n Inheemse skakelkieser vir macOS",
   "index.h1.001": "Hou op om<br />skakels in die<br /><em>verkeerde blaaier of profiel oop te maak.</em>",
   "index.p.003": "PickVia vra voordat elke web- of e-posskakel oopmaak, sodat webskakels na die blaaier of profiel gaan wat jy kies en e-posskakels na die e-postoepassing wat jy bedoel het.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Laai v1.5 af <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Gee 'n ster op GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Laai v1.5.1 af <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Gee 'n ster op GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Gratis &amp; oopbron",
   "index.p.005": "Skermskote wys die Engelse koppelvlak.",
   "index.p.006": "01 / Kies voordat dit oopmaak",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Stel jou keuses op",
   "index.h2.003": "Stel een keer op.<br /><em>Kies vinnig.</em>",
   "index.p.016": "Stel jou gewone blaaierprofiele en e-postoepassings een keer op en herrangskik dan die teikens wat jy die meeste gebruik.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Maak die volgende skakel<br />op die regte <em>plek oop.</em>",
   "index.a.005": "Laai af vir macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · MIT-lisensie",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Kies webwerftaal",
   "index.aria-label.003": "Gee PickVia 'n ster op GitHub",
   "release.v1_5.title": "Weergawe 1.5",
-  "release.v1_5.meta": "<strong>06 SEP 2026</strong><span class=\"release-current\">Huidige vrystelling</span>",
+  "release.v1_5.meta": "<strong>06 SEP 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Volledige vrystellingsnotas <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Laai v1.5 af <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Probeer eksperimentele Safari Stable-profiele met Toeganklikheid- en Outomatisering-toestemmings. Elke skakel maak in ’n nuwe venster van die gekose profiel oop.",
   "release.v1_5.duckduckgo": "Herstel en opruiming van private DuckDuckGo-sessies is vereenvoudig. Versoenbare 1.203.x-bouweergawes sonder ’n sandput ondersteun private roetering; gewone skakels het geen vereiste vir die weergawe of uitgewer se handtekening nie.",
-  "release.v1_5.signing": "Gebruik ’n vaste Apple Development-sertifikaat vir bouweergawes. Die aflaai is nie genotariseer nie; volg die installasie-instruksies in die README."
+  "release.v1_5.signing": "Gebruik ’n vaste Apple Development-sertifikaat vir bouweergawes. Die aflaai is nie genotariseer nie; volg die installasie-instruksies in die README.",
+  "release.v1_5_1.title": "Weergawe 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Volledige vrystellingsnotas <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Laai v1.5.1 af <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 SEP 2026</strong><span class=\"release-current\">Huidige vrystelling</span>",
+  "release.v1_5_1.summary": "Die weergawebeperking vir DuckDuckGo se privaatmodus is verwyder, die taalkieser is na die boonste balk geskuif, en die taalkennisgewing op die tuisblad is verwyder."
 }

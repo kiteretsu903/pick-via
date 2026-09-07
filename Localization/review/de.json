@@ -52,5 +52,23 @@
       "Final README omits all test/prototype report links and pass/pending coverage prose, matching English"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721",
+      "readme": "8114dfa56538038c919c7273ddce14a851fa2fa24862272d73042668d64fd81c"
+    },
+    "outputSHA256": {
+      "website": "bcba9ef17ee03ccd0990e9db43e076e83f0cd1fb8d332c27a30509e3c41eef3a",
+      "readme": "da220aeddd1fa1786c4ee8f857553ce5f11ae88816ee70824d305bab2d1343c0"
+    },
+    "checks": [
+      "New v1.5.1 summary translated and reviewed",
+      "README current version and removal of DuckDuckGo version restriction synchronized",
+      "Website validate_catalog and README validate passed"
+    ],
+    "unresolvedIssues": []
   }
 }

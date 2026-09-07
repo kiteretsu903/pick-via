@@ -34,5 +34,21 @@
       "Complete keys and exact HTML attributes/placeholders validated",
       "Historical changelog and app unchanged"
     ]
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website/en.json": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "website/gl.json": "5316bc9e5ad6f076a76141272ab07589f9b458f1208e47f8af16ae7639dfaa71"
+    },
+    "unresolvedIssues": [],
+    "checks": [
+      "v1.5.1 summary reviewed in Galician",
+      "Website validate_catalog PASS",
+      "Historical releases and unrelated translations preserved"
+    ]
   }
 }

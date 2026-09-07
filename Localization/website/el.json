@@ -53,7 +53,7 @@
   "index.p.002": "Εγγενές εργαλείο επιλογής προορισμού συνδέσμων για macOS",
   "index.h1.001": "Σταματήστε να ανοίγετε<br />συνδέσμους σε<br /><em>λάθος πρόγραμμα περιήγησης ή προφίλ.</em>",
   "index.p.003": "Το PickVia ρωτά πριν ανοίξει κάθε σύνδεσμος ιστού ή email, ώστε οι σύνδεσμοι ιστού να πηγαίνουν στο πρόγραμμα περιήγησης ή προφίλ που επιλέγετε και οι σύνδεσμοι email στην εφαρμογή που θέλετε.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Λήψη v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Αστέρι στο GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Λήψη v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Αστέρι στο GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Δωρεάν και ανοικτού κώδικα",
   "index.p.005": "Τα στιγμιότυπα οθόνης δείχνουν την αγγλική διεπαφή.",
   "index.p.006": "01 / Επιλέξτε πριν ανοίξει",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Ρυθμίστε τις επιλογές σας",
   "index.h2.003": "Ρυθμίστε μία φορά.<br /><em>Επιλέξτε γρήγορα.</em>",
   "index.p.016": "Ρυθμίστε μία φορά τα συνηθισμένα προφίλ περιήγησης και τις εφαρμογές email σας και μετά αλλάξτε τη σειρά των προορισμών που χρησιμοποιείτε περισσότερο.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Ανοίξτε τον επόμενο σύνδεσμο<br />στο σωστό <em>μέρος.</em>",
   "index.a.005": "Λήψη για macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · Άδεια MIT",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Επιλέξτε γλώσσα ιστοτόπου",
   "index.aria-label.003": "Δώστε ένα αστέρι στο PickVia στο GitHub",
   "release.v1_5.title": "Έκδοση 1.5",
-  "release.v1_5.meta": "<strong>06 ΣΕΠ 2026</strong><span class=\"release-current\">Τρέχουσα έκδοση</span>",
+  "release.v1_5.meta": "<strong>06 ΣΕΠ 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Πλήρεις σημειώσεις έκδοσης <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Λήψη v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Δοκιμάστε τα πειραματικά προφίλ του Safari Stable με δικαιώματα Προσβασιμότητας και Αυτοματισμού. Κάθε σύνδεσμος ανοίγει σε νέο παράθυρο του επιλεγμένου προφίλ.",
   "release.v1_5.duckduckgo": "Απλοποιήθηκαν η ανάκτηση και η εκκαθάριση των ιδιωτικών συνεδριών του DuckDuckGo. Οι συμβατές εκδόσεις 1.203.x χωρίς sandbox υποστηρίζουν ιδιωτικό άνοιγμα· οι κανονικοί σύνδεσμοι δεν απαιτούν συγκεκριμένη έκδοση ή υπογραφή εκδότη.",
-  "release.v1_5.signing": "Οι μεταγλωττίσεις χρησιμοποιούν ένα σταθερό πιστοποιητικό Apple Development. Η εφαρμογή που κατεβάζετε δεν έχει λάβει επικύρωση notarization· ακολουθήστε τις οδηγίες εγκατάστασης στο README."
+  "release.v1_5.signing": "Οι μεταγλωττίσεις χρησιμοποιούν ένα σταθερό πιστοποιητικό Apple Development. Η εφαρμογή που κατεβάζετε δεν έχει λάβει επικύρωση notarization· ακολουθήστε τις οδηγίες εγκατάστασης στο README.",
+  "release.v1_5_1.title": "Έκδοση 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Πλήρεις σημειώσεις έκδοσης <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Λήψη v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 ΣΕΠ 2026</strong><span class=\"release-current\">Τρέχουσα έκδοση</span>",
+  "release.v1_5_1.summary": "Κατάργηση του περιορισμού έκδοσης για την ιδιωτική λειτουργία του DuckDuckGo, μεταφορά του επιλογέα γλώσσας στην επάνω γραμμή και αφαίρεση της ειδοποίησης γλωσσών από την αρχική σελίδα."
 }

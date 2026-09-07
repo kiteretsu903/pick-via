@@ -40,5 +40,15 @@
       "outputSHA256": "b2895309467665b02ea73bb03d39d61de54556ce951b01ee88f209c8263cd8f7"
     },
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Reviewed Welsh summary against final English: removal of DuckDuckGo private-mode version restriction, language selector moved into top bar, homepage language notice removed. Historical text and existing release labels unchanged. Strict assigned website catalog validation passed.",
+    "website": {
+      "sourceSHA256": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721",
+      "outputSHA256": "932c86af88a9ca443200f46c9ad8f058a914b5c87177e41a1f85446970d317b7"
+    },
+    "unresolvedIssues": []
   }
 }

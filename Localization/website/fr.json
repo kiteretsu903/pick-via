@@ -53,7 +53,7 @@
   "index.p.002": "Un sélecteur de liens natif pour macOS",
   "index.h1.001": "N’ouvrez plus<br />vos liens dans le<br /><em>mauvais navigateur ou profil.</em>",
   "index.p.003": "PickVia vous demande votre choix avant d’ouvrir chaque lien web ou d’e-mail : les liens web vont dans le navigateur ou le profil choisi, et les liens d’e-mail dans l’application de messagerie souhaitée.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Télécharger v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Ajouter une étoile sur GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Télécharger v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Ajouter une étoile sur GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Gratuit &amp; à code source ouvert",
   "index.p.005": "Les captures d’écran présentent l’interface en anglais.",
   "index.p.006": "01 / Choisissez avant l’ouverture",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Configurez vos choix",
   "index.h2.003": "Configurez une fois.<br /><em>Choisissez rapidement.</em>",
   "index.p.016": "Configurez une fois vos profils de navigateur et applications de messagerie habituels, puis réorganisez les destinations les plus utilisées.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Ouvrez le prochain lien<br />au bon <em>endroit.</em>",
   "index.a.005": "Télécharger pour macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · Licence MIT",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Choisir la langue du site",
   "index.aria-label.003": "Ajouter une étoile à PickVia sur GitHub",
   "release.v1_5.title": "Version 1.5",
-  "release.v1_5.meta": "<strong>06 SEPT. 2026</strong><span class=\"release-current\">Version actuelle</span>",
+  "release.v1_5.meta": "<strong>06 SEPT. 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Notes de version complètes <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Télécharger v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Essayez les profils expérimentaux de Safari Stable avec les autorisations d’accessibilité et d’automatisation. Chaque lien s’ouvre dans une nouvelle fenêtre du profil sélectionné.",
   "release.v1_5.duckduckgo": "Simplification de la récupération et du nettoyage des sessions privées de DuckDuckGo. Les versions 1.203.x compatibles sans bac à sable prennent en charge l’ouverture privée ; les liens normaux n’exigent aucune version ni signature d’éditeur particulière.",
-  "release.v1_5.signing": "Utilisation d’un certificat Apple Development fixe pour les compilations. Le téléchargement n’est pas notarié ; suivez les instructions d’installation du README."
+  "release.v1_5.signing": "Utilisation d’un certificat Apple Development fixe pour les compilations. Le téléchargement n’est pas notarié ; suivez les instructions d’installation du README.",
+  "release.v1_5_1.title": "Version 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Notes de version complètes <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Télécharger v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 SEPT. 2026</strong><span class=\"release-current\">Version actuelle</span>",
+  "release.v1_5_1.summary": "Suppression de la restriction de version pour le mode privé de DuckDuckGo, déplacement du sélecteur de langue dans la barre supérieure et suppression de l’avis sur les langues de la page d’accueil."
 }

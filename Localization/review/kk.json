@@ -57,5 +57,17 @@
     ],
     "readme": "No kk README exists; no README modified",
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Reviewed new Kazakh summary: DuckDuckGo private version restriction removed, language selector moved to top bar, homepage language notice removed. Existing release prose unchanged. Catalog validator passed.",
+    "unresolvedIssues": [],
+    "sources": {
+      "Localization/website/en.json": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputs": {
+      "Localization/website/kk.json": "3a34a2091aaa41971f57bf404cb18c53cae2fe79c426439b04aa12c6fcd57c56"
+    }
   }
 }

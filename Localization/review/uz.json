@@ -35,5 +35,15 @@
       "outputSHA256": "ab8e70ab6c9f6835d5b079c5d182176dcae2b8e5805f35050fd896bcc80e6fec"
     },
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Reviewed Uzbek Latin summary against final English: DuckDuckGo private-mode version restriction removed, language selector moved to top bar, homepage language notice removed. Historical prose and existing release labels preserved. Strict assigned website catalog validation passed.",
+    "website": {
+      "sourceSHA256": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721",
+      "outputSHA256": "177531cd149737285fe46f9829b79f17c9234db5055ef0ec60fba7399f1f93de"
+    },
+    "unresolvedIssues": []
   }
 }

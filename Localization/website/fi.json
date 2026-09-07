@@ -53,7 +53,7 @@
   "index.p.002": "Natiivi linkkivalitsin macOS:lle",
   "index.h1.001": "Älä enää avaa<br />linkkejä<br /><em>väärässä selaimessa tai profiilissa.</em>",
   "index.p.003": "PickVia kysyy ennen jokaisen verkko- tai sähköpostilinkin avaamista, jotta verkkolinkit avautuvat valitsemassasi selaimessa tai profiilissa ja sähköpostilinkit haluamassasi sähköpostiapissa.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Lataa v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Anna tähti GitHubissa</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Lataa v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Anna tähti GitHubissa</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Maksuton &amp; avoin lähdekoodi",
   "index.p.005": "Kuvakaappaukset esittävät englanninkielistä käyttöliittymää.",
   "index.p.006": "01 / Valitse ennen avaamista",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Määritä valintasi",
   "index.h2.003": "Määritä kerran.<br /><em>Valitse nopeasti.</em>",
   "index.p.016": "Määritä tavalliset selainprofiilisi ja sähköpostiapit kerran ja järjestä sitten eniten käyttämäsi kohteet.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Avaa seuraava linkki<br />oikeassa <em>paikassa.</em>",
   "index.a.005": "Lataa macOS:lle <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · MIT-lisenssi",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Valitse sivuston kieli",
   "index.aria-label.003": "Anna PickVialle tähti GitHubissa",
   "release.v1_5.title": "Versio 1.5",
-  "release.v1_5.meta": "<strong>6. SYYSKUUTA 2026</strong><span class=\"release-current\">Nykyinen julkaisu</span>",
+  "release.v1_5.meta": "<strong>6. SYYSKUUTA 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Täydelliset julkaisutiedot <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Lataa v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Kokeile Safari Stablen kokeellisia profiileja käyttöapu- ja automaatioluvilla. Jokainen linkki avautuu valitun profiilin uuteen ikkunaan.",
   "release.v1_5.duckduckgo": "DuckDuckGon yksityisten istuntojen palautusta ja siivousta on yksinkertaistettu. Yhteensopivat 1.203.x-versiot ilman hiekkalaatikkoa tukevat yksityistä avaamista; tavallisilla linkeillä ei ole versio- tai julkaisijan allekirjoitusvaatimusta.",
-  "release.v1_5.signing": "Koontiversioissa käytetään samaa Apple Development -varmennetta. Ladattavaa sovellusta ei ole notarisoitu; noudata README-tiedoston asennusohjeita."
+  "release.v1_5.signing": "Koontiversioissa käytetään samaa Apple Development -varmennetta. Ladattavaa sovellusta ei ole notarisoitu; noudata README-tiedoston asennusohjeita.",
+  "release.v1_5_1.title": "Versio 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Täydelliset julkaisutiedot <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Lataa v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>6. SYYSKUUTA 2026</strong><span class=\"release-current\">Nykyinen julkaisu</span>",
+  "release.v1_5_1.summary": "DuckDuckGon yksityisen tilan versiorajoitus poistettiin, kielivalitsin siirrettiin yläpalkkiin ja etusivun kieli-ilmoitus poistettiin."
 }

@@ -41,5 +41,20 @@
       "Apple Development signing distinguished from notarization; Safari permissions and new-window behavior preserved"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceHashes": {
+      "website/en.json": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputHashes": {
+      "website/km.json": "3727217aeccbc302e94a5f83691f53a1d557f472fa264ae0c11f783fa9addd9e"
+    },
+    "checks": [
+      "v1.5.1 summary translated and self-reviewed: DuckDuckGo version restriction removed, language selector moved to top bar, homepage language notice removed",
+      "Website validate_catalog passed; historical content preserved"
+    ],
+    "unresolvedIssues": []
   }
 }

@@ -51,5 +51,23 @@
       "Final public README excludes test reports and pass/pending claims; simple support variation and experimental Safari wording match source"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website/en.json": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721",
+      "readme/en.md": "8114dfa56538038c919c7273ddce14a851fa2fa24862272d73042668d64fd81c"
+    },
+    "outputSHA256": {
+      "website/zh-Hant.json": "0883f4e0875a4b5e53527f9bf4d7ae60492f95590382a4c0b27d6c619c30bbf9",
+      "readme/zh-Hant.md": "f9cf9d2ad11628ed0765e4e4556313a6255971a4fb246dbfe8cfdd16f79886ce"
+    },
+    "checks": [
+      "Release151 meaning self-reviewed: no DuckDuckGo version restriction, top-bar language selector, removed homepage notice",
+      "README current version and compatible unsandboxed unrestricted build meaning synced",
+      "Official website validate_catalog and README validate passed"
+    ],
+    "unresolvedIssues": []
   }
 }

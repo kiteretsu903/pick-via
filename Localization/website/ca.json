@@ -53,7 +53,7 @@
   "index.p.002": "Un selector d’enllaços natiu per al macOS",
   "index.h1.001": "Deixeu d’obrir<br />enllaços amb<br /><em>el navegador o el perfil equivocat.</em>",
   "index.p.003": "El PickVia pregunta abans d’obrir cada enllaç web o de correu, perquè els enllaços web vagin al navegador o al perfil que trieu i els de correu a l’app de correu que volíeu fer servir.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Baixa la v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Dona-li una estrella al GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Baixa la v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Dona-li una estrella al GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Gratuït i de codi obert",
   "index.p.005": "Les captures mostren la interfície en anglès.",
   "index.p.006": "01 / Trieu abans d’obrir",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Configureu les vostres opcions",
   "index.h2.003": "Configureu-ho una vegada.<br /><em>Trieu de pressa.</em>",
   "index.p.016": "Configureu una vegada els perfils de navegador i les apps de correu habituals, i ordeneu les opcions que més feu servir.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Obriu el proper enllaç<br />al lloc <em>adequat.</em>",
   "index.a.005": "Baixa per al macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · Llicència MIT",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Trieu l’idioma del lloc web",
   "index.aria-label.003": "Doneu una estrella al PickVia al GitHub",
   "release.v1_5.title": "Versió 1.5",
-  "release.v1_5.meta": "<strong>06 SET 2026</strong><span class=\"release-current\">Versió actual</span>",
+  "release.v1_5.meta": "<strong>06 SET 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Notes completes de la versió <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Baixa la v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Prova els perfils experimentals de Safari Stable amb permisos d’Accessibilitat i Automatització. Cada enllaç s’obre en una finestra nova del perfil seleccionat.",
   "release.v1_5.duckduckgo": "S’han simplificat la recuperació i la neteja de les sessions privades de DuckDuckGo. Les compilacions 1.203.x compatibles sense sandbox permeten obrir enllaços en mode privat; els enllaços normals no requereixen una versió concreta ni una signatura de l’editor.",
-  "release.v1_5.signing": "Fes servir el mateix certificat Apple Development per a les compilacions. La baixada no està notaritzada; segueix les instruccions d’instal·lació del README."
+  "release.v1_5.signing": "Fes servir el mateix certificat Apple Development per a les compilacions. La baixada no està notaritzada; segueix les instruccions d’instal·lació del README.",
+  "release.v1_5_1.title": "Versió 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Notes completes de la versió <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Baixa la v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 SET 2026</strong><span class=\"release-current\">Versió actual</span>",
+  "release.v1_5_1.summary": "S’ha eliminat la restricció de versió del mode privat de DuckDuckGo, s’ha mogut el selector d’idioma a la barra superior i s’ha eliminat l’avís d’idiomes de la pàgina d’inici."
 }

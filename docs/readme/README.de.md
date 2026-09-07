@@ -24,14 +24,14 @@ Screenshots, die wichtigsten Neuerungen und den [Versionsverlauf](https://kitere
 
 ## Sprachen
 
-PickVia v1.5 unterstützt 80 Sprachen für App und Website, einschließlich
+PickVia v1.5.1 unterstützt 80 Sprachen für App und Website, einschließlich
 Sprachauswahl und Layouts von rechts nach links, sowie 12 README-Sprachen. Wähle
 die App-Sprache in den Einstellungen oder verwende die primäre Systemsprache.
 Produkt-Screenshots zeigen die englische Oberfläche.
 
 ## Download
 
-**[PickVia v1.5 für macOS herunterladen](https://github.com/kiteretsu903/pick-via/releases/latest)**
+**[PickVia v1.5.1 für macOS herunterladen](https://github.com/kiteretsu903/pick-via/releases/latest)**
 
 PickVia benötigt **macOS 14 Sonoma oder neuer** auf **Apple Silicon** und
 verarbeitet HTTP-, HTTPS- und `mailto:`-Links.
@@ -59,7 +59,7 @@ deaktivieren, neu anordnen und erneut suchen.
 
 ## Installation
 
-1. Lade `PickVia-v1.5.dmg` aus der
+1. Lade `PickVia-v1.5.1.dmg` aus der
    [GitHub-Veröffentlichung](https://github.com/kiteretsu903/pick-via/releases/latest) herunter und öffne die Datei.
 2. Ziehe **PickVia** in den im Installationsfenster angezeigten Ordner **Programme**.
 3. Öffne **PickVia** aus „Programme“ und folge der Begrüßungseinrichtung.
@@ -70,7 +70,7 @@ deaktivieren, neu anordnen und erneut suchen.
 
 ### Erster Start und Gatekeeper
 
-PickVia v1.5 ist mit einem Apple Development-Zertifikat signiert und nicht notarisiert. macOS blockiert möglicherweise
+PickVia v1.5.1 ist mit einem Apple Development-Zertifikat signiert und nicht notarisiert. macOS blockiert möglicherweise
 den ersten Start der heruntergeladenen App. Wenn du sie aus der GitHub-Veröffentlichung
 heruntergeladen hast und ihr vertraust:
 
@@ -104,7 +104,7 @@ Apple beschreibt diese Gatekeeper-Ausnahme und ihre Sicherheitsfolgen unter
 | Opera, Arc, Orion | Nein | Ja | Nein |
 
 \* DuckDuckGo Privat verwendet isolierte temporäre Daten auf kompatiblen Builds
-ohne Sandbox (derzeit die Versionsfamilie 1.203.x). Weder eine DuckDuckGo-Erweiterung
+ohne Sandbox, ohne Versionsbeschränkung. Weder eine DuckDuckGo-Erweiterung
 noch Zugriff auf Bedienungshilfen ist erforderlich. Normale DuckDuckGo-Links erfordern
 keine bestimmte Version oder Herausgebersignatur. Private Daten werden nach dem
 Beenden ihres Browserprozesses gelöscht, sofern PickVia läuft, oder bei einem

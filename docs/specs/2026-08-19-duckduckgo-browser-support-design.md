@@ -76,14 +76,11 @@ publisher, or require private-mode compatibility. They still resolve the expecte
 browser and distinguish ordinary processes from PickVia-managed private ones.
 An unreadable private-build metadata record leaves the ordinary browser available.
 
-Private routing reads the bundle identifier, version, and sandbox entitlement.
-Reading entitlement metadata does not validate code signatures. Sandboxed or
-unknown-sandbox builds cannot use this disposable-home implementation. The
-compatibility policy accepts numeric `1.203.x` patch releases; different minor or
-major releases remain ordinary-only until the preference layout and native route
-have been evaluated. The policy's historical E2E baseline is 1.203.0, not a claim
-that every possible patch version has been tested. Malformed or absent versions
-remain ordinary-only. Rescans preserve unavailable private-target customization.
+Private routing reads the bundle identifier and sandbox entitlement only. There is
+no version allowlist or version parsing. Reading entitlement metadata does not
+validate code signatures. Sandboxed or unknown-sandbox builds cannot use this
+disposable-home implementation. Rescans preserve unavailable private-target
+customization.
 
 The internal preference layout remains an implementation dependency. A private
 failure never opens the link through an ordinary window. No real browser profile
@@ -237,7 +234,7 @@ Unit and integration coverage will establish that:
   consent prompts;
 - the coordinator reuses a valid process, rejects a reused or mismatched PID,
   and limits cleanup to stale coordinator-owned directories;
-- sandboxed/unknown-sandbox, out-of-range-version, profile-bearing, unavailable,
+- sandboxed/unknown-sandbox, profile-bearing, unavailable,
   and Apple-event failure cases do not silently fall back to ordinary routing;
 - normal discovery and routing do not depend on private compatibility metadata;
 - atomic journal transitions, legacy recovery, corruption, delayed deletion,

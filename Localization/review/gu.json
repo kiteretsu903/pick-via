@@ -58,5 +58,21 @@
       "website/gu.json": "fb711c559cee52eb56ce50a6b8665b3d32de57d63e70e69d7fdbc21382b7db31"
     },
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "website": "4c95b1bf7db37ec04fac966b3fadf54448c4057c0bef753851e13fb75db1725e"
+    },
+    "checks": [
+      "Gujarati release1.5.1 summary self-reviewed",
+      "Assigned website passed project validator",
+      "Historical release prose unchanged"
+    ],
+    "unresolvedIssues": []
   }
 }

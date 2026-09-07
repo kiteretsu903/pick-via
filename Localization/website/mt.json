@@ -53,7 +53,7 @@
   "index.p.002": "App nattiva ta’ macOS għall-għażla tad-destinazzjoni tal-links",
   "index.h1.001": "Tibqax tiftaħ<br />il-links fil-<br /><em>brawżer jew profil ħażin.</em>",
   "index.p.003": "PickVia jistaqsi qabel jinfetaħ kull link tal-web jew tal-email, sabiex il-links tal-web imorru għall-brawżer jew profil li tagħżel u l-links tal-posta għall-app tal-email li kellek f’moħħok.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Niżżel v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Agħti stilla fuq GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Niżżel v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Agħti stilla fuq GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · B’xejn u b’sors miftuħ",
   "index.p.005": "L-istampi tal-iskrin juru l-interfaċċa bl-Ingliż.",
   "index.p.006": "01 / Agħżel qabel jinfetaħ",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Issettja l-għażliet tiegħek",
   "index.h2.003": "Ikkonfigura darba.<br /><em>Agħżel malajr.</em>",
   "index.p.016": "Ikkonfigura l-profili tal-brawżer u l-apps tal-posta tas-soltu tiegħek darba, imbagħad irranġa d-destinazzjonijiet li tuża l-aktar.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Iftaħ il-link li jmiss<br />fil-<em>post it-tajjeb.</em>",
   "index.a.005": "Niżżel għal macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · Liċenzja MIT",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Agħżel il-lingwa tas-sit web",
   "index.aria-label.003": "Agħti stilla lil PickVia fuq GitHub",
   "release.v1_5.title": "Verżjoni 1.5",
-  "release.v1_5.meta": "<strong>6 SETTEMBRU 2026</strong><span class=\"release-current\">Rilaxx attwali</span>",
+  "release.v1_5.meta": "<strong>6 SETTEMBRU 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Noti sħaħ tar-rilaxx <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Niżżel v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Ipprova l-profili sperimentali ta’ Safari Stable bil-permessi tal-Aċċessibbiltà u l-Awtomazzjoni. Kull link tinfetaħ f’tieqa ġdida tal-profil magħżul.",
   "release.v1_5.duckduckgo": "L-irkupru u t-tindif tas-sessjonijiet privati ta’ DuckDuckGo saru aktar sempliċi. Il-builds kompatibbli 1.203.x li jaħdmu barra mis-sandbox jappoġġjaw ir-rotta privata; links normali ma jeħtiġux verżjoni partikolari jew firma tal-pubblikatur.",
-  "release.v1_5.signing": "Il-builds jużaw ċertifikat Apple Development fiss. It-tniżżil ma għaddiex mill-proċess ta’ notarizzazzjoni ta’ Apple; segwi l-istruzzjonijiet tal-installazzjoni fir-README."
+  "release.v1_5.signing": "Il-builds jużaw ċertifikat Apple Development fiss. It-tniżżil ma għaddiex mill-proċess ta’ notarizzazzjoni ta’ Apple; segwi l-istruzzjonijiet tal-installazzjoni fir-README.",
+  "release.v1_5_1.title": "Verżjoni 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Noti sħaħ tar-rilaxx <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Niżżel v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>6 SETTEMBRU 2026</strong><span class=\"release-current\">Rilaxx attwali</span>",
+  "release.v1_5_1.summary": "Tneħħiet ir-restrizzjoni tal-verżjoni għall-modalità privata ta’ DuckDuckGo, is-selettur tal-lingwa tmexxa lejn l-istrixxa ta’ fuq, u tneħħa l-avviż tal-lingwi mill-paġna ewlenija."
 }

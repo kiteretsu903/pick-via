@@ -53,7 +53,7 @@
   "index.p.002": "Olùyàn ìjápọ̀ abínibí fún macOS",
   "index.h1.001": "Dá ṣíṣí ìjápọ̀<br />nínú aṣàwákiri<br /><em>tàbí prófáìlì tí kò tọ́ dúró.</em>",
   "index.p.003": "PickVia ń béèrè kí ìjápọ̀ wẹ́ẹ̀bù tàbí ímeèlì kọ̀ọ̀kan tó ṣí, kí àwọn ìjápọ̀ wẹ́ẹ̀bù lọ sí aṣàwákiri tàbí prófáìlì tí o yàn, kí àwọn ìjápọ̀ ímeèlì sì lọ sí ìṣàfilọ́lẹ̀ ímeèlì tí o fẹ́.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Ṣe ìgbàsílẹ̀ v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Fún ní ìràwọ̀ lórí GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Ṣe ìgbàsílẹ̀ v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Fún ní ìràwọ̀ lórí GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Ọ̀fẹ́ àti orísun ṣíṣí",
   "index.p.005": "Àwọn àwòrán ojú ìbòjú fi ojú ìṣàfilọ́lẹ̀ Gẹ̀ẹ́sì hàn.",
   "index.p.006": "01 / Yan kí ó tó ṣí",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Ṣètò àwọn àṣàyàn rẹ",
   "index.h2.003": "Ṣètò lẹ́ẹ̀kan.<br /><em>Yan kíákíá.</em>",
   "index.p.016": "Ṣètò àwọn prófáìlì aṣàwákiri àti ìṣàfilọ́lẹ̀ ímeèlì tó wọ́pọ̀ fún ọ lẹ́ẹ̀kan, lẹ́yìn náà tún ìtòlẹ́sẹẹsẹ àwọn ibi ṣíṣí tí o ń lò jù lọ ṣe.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Ṣí ìjápọ̀ tó kàn<br />ní <em>ibi</em> tó tọ́.",
   "index.a.005": "Ṣe ìgbàsílẹ̀ fún macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · Ìwé-àṣẹ MIT",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Yan èdè ojúlé wẹ́ẹ̀bù",
   "index.aria-label.003": "Fún PickVia ní ìràwọ̀ lórí GitHub",
   "release.v1_5.title": "Ẹ̀yà 1.5",
-  "release.v1_5.meta": "<strong>06 OṢÙ KẸSÀN-ÁN 2026</strong><span class=\"release-current\">Ẹ̀yà lọ́wọ́lọ́wọ́</span>",
+  "release.v1_5.meta": "<strong>06 OṢÙ KẸSÀN-ÁN 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Àlàyé ìtújáde kíkún <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Ṣe ìgbàsílẹ̀ v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Dán àwọn prófáìlì Safari Stable tí ó ṣì wà ní ìpele ìdánwò wò pẹ̀lú àwọn àṣẹ Ìráyè sí àti Ṣíṣe Aládàáṣiṣẹ́. Ọ̀kọ̀ọ̀kan ìjápọ̀ yóò ṣí nínú fèrèsé tuntun ti prófáìlì tí o yàn.",
   "release.v1_5.duckduckgo": "Ìmúpadàbọ̀ àti ìmọ́tótó àwọn sáà àṣírí DuckDuckGo ti rọrùn sí i. Àwọn ẹ̀yà 1.203.x tí ó bá mu, tí kò lo sandbox, ṣe àtìlẹ́yìn fún ṣíṣí ìjápọ̀ ní ipò àṣírí; àwọn ìjápọ̀ déédéé kò nílò ẹ̀yà pàtó tàbí ìbuwọ́lu olùtẹ̀jáde.",
-  "release.v1_5.signing": "A ń lo ìwé-ẹ̀rí Apple Development kan náà fún àwọn ẹ̀yà tí a kọ́. Ìgbàsílẹ̀ náà kò tíì gba ìjẹ́rìí notarization; tẹ̀lé ìtọ́sọ́nà fífi sí ẹ̀rọ nínú README."
+  "release.v1_5.signing": "A ń lo ìwé-ẹ̀rí Apple Development kan náà fún àwọn ẹ̀yà tí a kọ́. Ìgbàsílẹ̀ náà kò tíì gba ìjẹ́rìí notarization; tẹ̀lé ìtọ́sọ́nà fífi sí ẹ̀rọ nínú README.",
+  "release.v1_5_1.title": "Ẹ̀yà 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Àlàyé ìtújáde kíkún <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Ṣe ìgbàsílẹ̀ v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 OṢÙ KẸSÀN-ÁN 2026</strong><span class=\"release-current\">Ẹ̀yà lọ́wọ́lọ́wọ́</span>",
+  "release.v1_5_1.summary": "A ti yọ ààlà ẹ̀yà fún ipò àṣírí DuckDuckGo kúrò, a ti gbé àṣàyàn èdè sí ọ̀pá òkè, a sì ti yọ ìfitónilétí èdè kúrò ní ojú ìwé àkọ́kọ́."
 }

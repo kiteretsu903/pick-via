@@ -53,7 +53,7 @@
   "index.p.002": "macOS အတွက် သီးသန့်ဖန်တီးထားသော လင့်ခ်ရွေးချယ်အက်ပ်",
   "index.h1.001": "လင့်ခ်များကို<br />မဖွင့်မိစေပါနှင့်<br /><em>မှားသော ဘရောက်ဇာ သို့မဟုတ် ပရိုဖိုင်တွင်။</em>",
   "index.p.003": "PickVia သည် ဝဘ် သို့မဟုတ် အီးမေးလ်လင့်ခ်တစ်ခုစီ မဖွင့်မီ မေးမြန်းသဖြင့် ဝဘ်လင့်ခ်များသည် သင်ရွေးသော ဘရောက်ဇာ သို့မဟုတ် ပရိုဖိုင်သို့၊ အီးမေးလ်လင့်ခ်များသည် သင်ရည်ရွယ်သော အီးမေးလ်အက်ပ်သို့ ရောက်ရှိသည်။",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5 ဒေါင်းလုဒ်လုပ်ရန် <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub တွင် ကြယ်ပေးရန်</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1 ဒေါင်းလုဒ်လုပ်ရန် <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub တွင် ကြယ်ပေးရန်</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · အခမဲ့ &amp; မူရင်းကုဒ်ဖွင့်ထားသည်",
   "index.p.005": "မျက်နှာပြင်ပုံများတွင် အင်္ဂလိပ်မျက်နှာပြင်ကို ပြထားသည်။",
   "index.p.006": "01 / မဖွင့်မီ ရွေးပါ",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / သင့်ရွေးချယ်မှုများ ပြင်ဆင်ပါ",
   "index.h2.003": "တစ်ကြိမ်သာ ပြင်ဆင်ပါ။<br /><em>မြန်မြန် ရွေးပါ။</em>",
   "index.p.016": "သင့်ပုံမှန် ဘရောက်ဇာပရိုဖိုင်များနှင့် အီးမေးလ်အက်ပ်များကို တစ်ကြိမ်ပြင်ဆင်ပြီး အသုံးများသော ဦးတည်ရာများ၏ အစီအစဉ်ကို ပြန်စီပါ။",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "နောက်လင့်ခ်ကို ဖွင့်ပါ<br /><em>မှန်ကန်သောနေရာတွင်။</em>",
   "index.a.005": "macOS အတွက် ဒေါင်းလုဒ်လုပ်ရန် <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · MIT လိုင်စင်",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "ဝဘ်ဆိုက်ဘာသာစကား ရွေးရန်",
   "index.aria-label.003": "GitHub တွင် PickVia ကို ကြယ်ပေးရန်",
   "release.v1_5.title": "ဗားရှင်း 1.5",
-  "release.v1_5.meta": "<strong>06 စက်တင်ဘာ 2026</strong><span class=\"release-current\">လက်ရှိထုတ်ဝေမှု</span>",
+  "release.v1_5.meta": "<strong>06 စက်တင်ဘာ 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">ထုတ်ဝေမှုမှတ်စု အပြည့်အစုံ <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">v1.5 ဒေါင်းလုဒ်လုပ်ရန် <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "သုံးစွဲနိုင်မှုနှင့် အလိုအလျောက်လုပ်ဆောင်မှု ခွင့်ပြုချက်များဖြင့် စမ်းသပ်ဆဲ Safari Stable ပရိုဖိုင်များကို အသုံးပြုကြည့်ပါ။ လင့်ခ်တစ်ခုစီသည် ရွေးချယ်ထားသော ပရိုဖိုင်၏ ဝင်းဒိုးအသစ်တွင် ပွင့်မည်။",
   "release.v1_5.duckduckgo": "DuckDuckGo သီးသန့်ဆက်ရှင်များ ပြန်လည်ရယူခြင်းနှင့် ရှင်းလင်းခြင်းကို ပိုမိုရိုးရှင်းစေထားသည်။ ကိုက်ညီမှုရှိသော sandbox မသုံးသည့် 1.203.x build များသည် သီးသန့်မုဒ်ဖြင့် လင့်ခ်ဖွင့်ခြင်းကို ပံ့ပိုးသည်။ ပုံမှန်လင့်ခ်များအတွက် သီးခြားဗားရှင်း သို့မဟုတ် ထုတ်ဝေသူလက်မှတ် မလိုအပ်ပါ။",
-  "release.v1_5.signing": "Build များအတွက် တူညီသော Apple Development အသိအမှတ်ပြုလက်မှတ်ကို အသုံးပြုသည်။ ဒေါင်းလုဒ်သည် Apple ၏ notarization စစ်ဆေးအတည်ပြုမှု မရရှိထားပါ။ README ရှိ ထည့်သွင်းခြင်းညွှန်ကြားချက်များကို လိုက်နာပါ။"
+  "release.v1_5.signing": "Build များအတွက် တူညီသော Apple Development အသိအမှတ်ပြုလက်မှတ်ကို အသုံးပြုသည်။ ဒေါင်းလုဒ်သည် Apple ၏ notarization စစ်ဆေးအတည်ပြုမှု မရရှိထားပါ။ README ရှိ ထည့်သွင်းခြင်းညွှန်ကြားချက်များကို လိုက်နာပါ။",
+  "release.v1_5_1.title": "ဗားရှင်း 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">ထုတ်ဝေမှုမှတ်စု အပြည့်အစုံ <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 ဒေါင်းလုဒ်လုပ်ရန် <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 စက်တင်ဘာ 2026</strong><span class=\"release-current\">လက်ရှိထုတ်ဝေမှု</span>",
+  "release.v1_5_1.summary": "DuckDuckGo သီးသန့်မုဒ်၏ ဗားရှင်းကန့်သတ်ချက်ကို ဖယ်ရှားထားပြီး ဘာသာစကားရွေးချယ်မှုကို အပေါ်ဘားသို့ ရွှေ့ထားကာ ပင်မစာမျက်နှာရှိ ဘာသာစကားအသိပေးချက်ကို ဖယ်ရှားထားသည်။"
 }

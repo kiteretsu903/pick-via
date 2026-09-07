@@ -37,5 +37,20 @@
     "outputs": {
       "Localization/website/mt.json": "442ace2046fbaa6fe4e91b54826c3d1b74683c6d7f8627e66dc654ee9ac567e6"
     }
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "website": "10ee36ac972503c6292a569a6dd619ea4df465324165f42153cc087e61864590"
+    },
+    "checks": [
+      "Reviewed Maltese release summary meaning and grammar",
+      "Website validate_catalog passed"
+    ],
+    "unresolvedIssues": []
   }
 }

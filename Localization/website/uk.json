@@ -53,7 +53,7 @@
   "index.p.002": "Засіб вибору для посилань, створений для macOS",
   "index.h1.001": "Досить відкривати<br />посилання не в тому<br /><em>браузері чи профілі.</em>",
   "index.p.003": "PickVia запитує перед відкриттям кожного вебпосилання чи поштового посилання, щоб вебпосилання потрапляли до вибраного браузера або профілю, а поштові — до потрібної поштової програми.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Завантажити v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Зірка на GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Завантажити v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Зірка на GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Безкоштовно, з відкритим кодом",
   "index.p.005": "Знімки екрана показують англійський інтерфейс.",
   "index.p.006": "01 / Виберіть перед відкриттям",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Налаштуйте варіанти",
   "index.h2.003": "Налаштуйте один раз.<br /><em>Вибирайте швидко.</em>",
   "index.p.016": "Налаштуйте звичні профілі браузерів і поштові програми один раз, а потім упорядкуйте найуживаніші цілі.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Відкрийте наступне посилання<br />у потрібному <em>місці.</em>",
   "index.a.005": "Завантажити для macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · Ліцензія MIT",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Вибрати мову сайту",
   "index.aria-label.003": "Поставити зірку PickVia на GitHub",
   "release.v1_5.title": "Версія 1.5",
-  "release.v1_5.meta": "<strong>06 ВЕР 2026</strong><span class=\"release-current\">Поточний випуск</span>",
+  "release.v1_5.meta": "<strong>06 ВЕР 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Повні примітки до випуску <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Завантажити v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Спробуйте експериментальну підтримку профілів Safari Stable з дозволами «Доступність» і «Автоматизація». Кожне посилання відкривається в новому вікні вибраного профілю.",
   "release.v1_5.duckduckgo": "Спрощено відновлення й очищення приватних сеансів DuckDuckGo. Сумісні збірки 1.203.x без пісочниці підтримують приватне відкриття посилань; для звичайних посилань немає вимог до версії чи підпису видавця.",
-  "release.v1_5.signing": "Для збірок використовується постійний сертифікат Apple Development. Завантажувана програма не нотаризована; дотримуйтеся інструкцій зі встановлення в README."
+  "release.v1_5.signing": "Для збірок використовується постійний сертифікат Apple Development. Завантажувана програма не нотаризована; дотримуйтеся інструкцій зі встановлення в README.",
+  "release.v1_5_1.title": "Версія 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Повні примітки до випуску <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Завантажити v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 ВЕР 2026</strong><span class=\"release-current\">Поточний випуск</span>",
+  "release.v1_5_1.summary": "Прибрано обмеження версії для приватного режиму DuckDuckGo, переміщено перемикач мови на верхню панель і видалено повідомлення про мови з головної сторінки."
 }

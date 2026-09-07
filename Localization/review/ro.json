@@ -28,5 +28,15 @@
       "outputSHA256": "d0c359ec7e249d42369913473cae3f1d894e5fa627f48b710baeb16ca653f947"
     },
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Reviewed Romanian summary against final English: DuckDuckGo private-mode version restriction removed, language selector moved to top bar, homepage language notice removed. Historical translations and cloned labels remain unchanged. Strict assigned website catalog validation passed.",
+    "website": {
+      "sourceSHA256": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721",
+      "outputSHA256": "4df9dfed262602433e718b3f12f5b92ef30319c60849d894387b15b0c0ac338d"
+    },
+    "unresolvedIssues": []
   }
 }

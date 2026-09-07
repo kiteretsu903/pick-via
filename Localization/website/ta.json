@@ -53,7 +53,7 @@
   "index.p.002": "macOS-க்காக உருவாக்கப்பட்ட இணைப்புத் தேர்வுச் செயலி",
   "index.h1.001": "இணைப்புகளை<br />தவறான உலாவி அல்லது<br /><em>சுயவிவரத்தில் திறப்பதை நிறுத்துங்கள்.</em>",
   "index.p.003": "ஒவ்வொரு இணைய அல்லது மின்னஞ்சல் இணைப்பையும் திறப்பதற்கு முன் PickVia கேட்கும். எனவே இணைய இணைப்புகள் நீங்கள் தேர்வுசெய்யும் உலாவி அல்லது சுயவிவரத்திற்கும், மின்னஞ்சல் இணைப்புகள் நீங்கள் நினைத்த மின்னஞ்சல் செயலிக்கும் செல்லும்.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5-ஐப் பதிவிறக்கு <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub-இல் நட்சத்திரமிடுங்கள்</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1-ஐப் பதிவிறக்கு <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub-இல் நட்சத்திரமிடுங்கள்</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · இலவசம் மற்றும் திறந்த மூலக் குறியீடு",
   "index.p.005": "திரைப்பிடிப்புகள் ஆங்கில இடைமுகத்தைக் காட்டுகின்றன.",
   "index.p.006": "01 / திறக்கும் முன் தேர்வுசெய்யுங்கள்",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / உங்கள் தேர்வுகளை அமைக்கவும்",
   "index.h2.003": "ஒருமுறை அமைக்கவும்.<br /><em>விரைவாகத் தேர்வுசெய்யவும்.</em>",
   "index.p.016": "உங்கள் வழக்கமான உலாவிச் சுயவிவரங்களையும் மின்னஞ்சல் செயலிகளையும் ஒருமுறை அமைத்து, பின்னர் அதிகம் பயன்படுத்தும் இலக்குகளை வரிசைப்படுத்துங்கள்.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "அடுத்த இணைப்பை<br />சரியான <em>இடத்தில் திறக்கவும்.</em>",
   "index.a.005": "macOS-க்குப் பதிவிறக்கு <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · MIT உரிமம்",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "இணையதள மொழியைத் தேர்வுசெய்யுங்கள்",
   "index.aria-label.003": "GitHub-இல் PickVia-க்கு நட்சத்திரமிடுங்கள்",
   "release.v1_5.title": "பதிப்பு 1.5",
-  "release.v1_5.meta": "<strong>6 செப்டம்பர் 2026</strong><span class=\"release-current\">தற்போதைய வெளியீடு</span>",
+  "release.v1_5.meta": "<strong>6 செப்டம்பர் 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">முழு வெளியீட்டுக் குறிப்புகள் <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">v1.5-ஐப் பதிவிறக்கு <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "அணுகல்தன்மை மற்றும் தானியக்க அனுமதிகளுடன் சோதனை அம்சமான Safari Stable சுயவிவரங்களை முயற்சிக்கவும். ஒவ்வொரு இணைப்பும் தேர்ந்தெடுத்த சுயவிவரத்தின் புதிய சாளரத்தில் திறக்கும்.",
   "release.v1_5.duckduckgo": "DuckDuckGo தனிப்பட்ட அமர்வுகளின் மீட்பும் தரவு அகற்றலும் எளிமைப்படுத்தப்பட்டுள்ளன. இணக்கமான, சாண்ட்பாக்ஸ் கட்டுப்பாடற்ற 1.203.x பதிப்புகள் தனிப்பட்ட முறையில் இணைப்புகளை வழியனுப்புவதை ஆதரிக்கின்றன; சாதாரண இணைப்புகளுக்குப் பதிப்பு அல்லது வெளியீட்டாளர் கையொப்பத் தேவை இல்லை.",
-  "release.v1_5.signing": "உருவாக்கங்களுக்கு நிலையான Apple Development சான்றிதழ் பயன்படுத்தப்படுகிறது. பதிவிறக்கம் நோட்டரைஸ் செய்யப்படவில்லை; README-இல் உள்ள நிறுவல் வழிமுறைகளைப் பின்பற்றவும்."
+  "release.v1_5.signing": "உருவாக்கங்களுக்கு நிலையான Apple Development சான்றிதழ் பயன்படுத்தப்படுகிறது. பதிவிறக்கம் நோட்டரைஸ் செய்யப்படவில்லை; README-இல் உள்ள நிறுவல் வழிமுறைகளைப் பின்பற்றவும்.",
+  "release.v1_5_1.title": "பதிப்பு 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">முழு வெளியீட்டுக் குறிப்புகள் <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1-ஐப் பதிவிறக்கு <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>6 செப்டம்பர் 2026</strong><span class=\"release-current\">தற்போதைய வெளியீடு</span>",
+  "release.v1_5_1.summary": "DuckDuckGo தனிப்பட்ட பயன்முறைக்கான பதிப்புக் கட்டுப்பாடு அகற்றப்பட்டது, மொழித் தேர்வி மேல் பட்டைக்கு நகர்த்தப்பட்டது, மேலும் முகப்புப் பக்கத்திலிருந்த மொழி அறிவிப்பு அகற்றப்பட்டது."
 }

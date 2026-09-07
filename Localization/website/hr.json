@@ -53,7 +53,7 @@
   "index.p.002": "Izvorni alat za odabir odredišta poveznica za macOS",
   "index.h1.001": "Prestanite otvarati<br />poveznice u<br /><em>pogrešnom pregledniku ili profilu.</em>",
   "index.p.003": "PickVia pita prije otvaranja svake web-poveznice ili poveznice za e-poštu, pa se web-poveznice otvaraju u odabranom pregledniku ili profilu, a poveznice za e-poštu u aplikaciji koju ste namjeravali koristiti.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Preuzmi v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Dodajte zvjezdicu na GitHubu</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Preuzmi v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Dodajte zvjezdicu na GitHubu</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Besplatno i otvorenog koda",
   "index.p.005": "Snimke zaslona prikazuju englesko sučelje.",
   "index.p.006": "01 / Odaberite prije otvaranja",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Postavite svoje izbore",
   "index.h2.003": "Postavite jednom.<br /><em>Birajte brzo.</em>",
   "index.p.016": "Jednom postavite uobičajene profile preglednika i aplikacije za e-poštu, a zatim posložite odredišta koja najčešće koristite.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Otvorite sljedeću poveznicu<br />na pravom <em>mjestu.</em>",
   "index.a.005": "Preuzmi za macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · Licenca MIT",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Odaberite jezik web-stranice",
   "index.aria-label.003": "Dodajte zvjezdicu aplikaciji PickVia na GitHubu",
   "release.v1_5.title": "Verzija 1.5",
-  "release.v1_5.meta": "<strong>6. RUJNA 2026.</strong><span class=\"release-current\">Trenutačno izdanje</span>",
+  "release.v1_5.meta": "<strong>6. RUJNA 2026.</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Potpune bilješke o izdanju <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Preuzmi v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Isprobajte eksperimentalne profile za Safari Stable uz dopuštenja za pristupačnost i automatizaciju. Svaka se poveznica otvara u novom prozoru odabranog profila.",
   "release.v1_5.duckduckgo": "Pojednostavljuje oporavak i čišćenje privatnih sesija preglednika DuckDuckGo. Kompatibilne verzije 1.203.x bez izoliranog okruženja podržavaju otvaranje u privatnom načinu rada; obične poveznice nemaju zahtjev za određenom verzijom ili potpisom izdavača.",
-  "release.v1_5.signing": "Za izgradnju se koristi stalni certifikat Apple Development. Preuzeta aplikacija nije notarizirana; slijedite upute za instalaciju u datoteci README."
+  "release.v1_5.signing": "Za izgradnju se koristi stalni certifikat Apple Development. Preuzeta aplikacija nije notarizirana; slijedite upute za instalaciju u datoteci README.",
+  "release.v1_5_1.title": "Verzija 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Potpune bilješke o izdanju <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Preuzmi v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>6. RUJNA 2026.</strong><span class=\"release-current\">Trenutačno izdanje</span>",
+  "release.v1_5_1.summary": "Uklonjeno je ograničenje verzije za privatni način rada u DuckDuckGou, odabir jezika premješten je u gornju traku, a obavijest o jezicima uklonjena je s početne stranice."
 }

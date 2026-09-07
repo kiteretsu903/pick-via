@@ -24,14 +24,14 @@ voir les captures d’écran, les nouveautés des versions et le [journal des mo
 
 ## Langues
 
-PickVia v1.5 prend en charge 80 langues pour l’application et le site web, avec
+PickVia v1.5.1 prend en charge 80 langues pour l’application et le site web, avec
 un sélecteur de langue et des interfaces de droite à gauche, ainsi que 12 langues
 pour le README. Choisissez la langue de l’application dans les réglages ou suivez
 la langue principale du système. Les captures du produit présentent l’interface en anglais.
 
 ## Téléchargement
 
-**[Télécharger PickVia v1.5 pour macOS](https://github.com/kiteretsu903/pick-via/releases/latest)**
+**[Télécharger PickVia v1.5.1 pour macOS](https://github.com/kiteretsu903/pick-via/releases/latest)**
 
 PickVia nécessite **macOS 14 Sonoma ou une version ultérieure** sur **Apple Silicon**
 et prend en charge les liens HTTP, HTTPS et `mailto:`.
@@ -59,7 +59,7 @@ de messagerie enregistrées, ou relancez leur détection dans les réglages.
 
 ## Installation
 
-1. Téléchargez et ouvrez `PickVia-v1.5.dmg` depuis la
+1. Téléchargez et ouvrez `PickVia-v1.5.1.dmg` depuis la
    [version publiée sur GitHub](https://github.com/kiteretsu903/pick-via/releases/latest).
 2. Faites glisser **PickVia** dans le dossier **Applications** affiché dans le programme d’installation.
 3. Ouvrez **PickVia** depuis Applications et suivez les étapes d’accueil.
@@ -71,7 +71,7 @@ de messagerie enregistrées, ou relancez leur détection dans les réglages.
 
 ### Premier lancement et Gatekeeper
 
-PickVia v1.5 est signé avec un certificat Apple Development et n’est pas notarié. macOS peut bloquer
+PickVia v1.5.1 est signé avec un certificat Apple Development et n’est pas notarié. macOS peut bloquer
 le premier lancement de l’application téléchargée. Si vous l’avez téléchargée
 depuis la version publiée sur GitHub et décidez de lui faire confiance :
 
@@ -105,7 +105,7 @@ Apple décrit ce contournement de Gatekeeper et ses conséquences pour la sécur
 | Opera, Arc, Orion | Non | Oui | Non |
 
 \* DuckDuckGo Privé utilise des données isolées et temporaires avec les versions
-compatibles sans bac à sable (actuellement la famille de versions 1.203.x). Il ne
+compatibles sans bac à sable, sans restriction de version. Il ne
 nécessite ni extension DuckDuckGo ni accès d’accessibilité. Les liens DuckDuckGo
 normaux ne nécessitent pas de version particulière ni de signature d’éditeur.
 Les données privées sont supprimées après l’arrêt du processus du navigateur si

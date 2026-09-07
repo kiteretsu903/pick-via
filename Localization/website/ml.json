@@ -53,7 +53,7 @@
   "index.p.002": "macOS-നായി നിർമ്മിച്ച ലിങ്ക് തിരഞ്ഞെടുപ്പ് ആപ്പ്",
   "index.h1.001": "തെറ്റായ ബ്രൗസറിലോ<br />പ്രൊഫൈലിലോ ലിങ്കുകൾ<br /><em>തുറക്കുന്നത് നിർത്തൂ.</em>",
   "index.p.003": "ഓരോ വെബ് അല്ലെങ്കിൽ ഇമെയിൽ ലിങ്കും തുറക്കുന്നതിന് മുമ്പ് PickVia ചോദിക്കും. അതിനാൽ വെബ് ലിങ്കുകൾ നിങ്ങൾ തിരഞ്ഞെടുക്കുന്ന ബ്രൗസറിലോ പ്രൊഫൈലിലോ എത്തും; മെയിൽ ലിങ്കുകൾ നിങ്ങൾ ഉദ്ദേശിച്ച ഇമെയിൽ ആപ്പിലേക്കും പോകും.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5 ഡൗൺലോഡ് ചെയ്യുക <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub-ൽ സ്റ്റാർ നൽകുക</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1 ഡൗൺലോഡ് ചെയ്യുക <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub-ൽ സ്റ്റാർ നൽകുക</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · സൗജന്യവും ഓപ്പൺ സോഴ്‌സും",
   "index.p.005": "സ്ക്രീൻഷോട്ടുകളിൽ ഇംഗ്ലീഷ് ഇന്റർഫേസാണ് കാണിക്കുന്നത്.",
   "index.p.006": "01 / തുറക്കുന്നതിന് മുമ്പ് തിരഞ്ഞെടുക്കുക",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / നിങ്ങളുടെ തിരഞ്ഞെടുപ്പുകൾ സജ്ജമാക്കുക",
   "index.h2.003": "ഒരിക്കൽ ക്രമീകരിക്കുക.<br /><em>വേഗത്തിൽ തിരഞ്ഞെടുക്കുക.</em>",
   "index.p.016": "പതിവായി ഉപയോഗിക്കുന്ന ബ്രൗസർ പ്രൊഫൈലുകളും മെയിൽ ആപ്പുകളും ഒരിക്കൽ ക്രമീകരിക്കുക; തുടർന്ന് കൂടുതൽ ഉപയോഗിക്കുന്ന ലക്ഷ്യങ്ങളുടെ ക്രമം മാറ്റുക.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "അടുത്ത ലിങ്ക്<br />ശരിയായ <em>ഇടത്ത് തുറക്കുക.</em>",
   "index.a.005": "macOS-നായി ഡൗൺലോഡ് ചെയ്യുക <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · MIT ലൈസൻസ്",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "വെബ്‌സൈറ്റ് ഭാഷ തിരഞ്ഞെടുക്കുക",
   "index.aria-label.003": "GitHub-ൽ PickVia-യ്ക്ക് ഒരു സ്റ്റാർ നൽകുക",
   "release.v1_5.title": "പതിപ്പ് 1.5",
-  "release.v1_5.meta": "<strong>2026 സെപ്റ്റംബർ 6</strong><span class=\"release-current\">നിലവിലെ പതിപ്പ്</span>",
+  "release.v1_5.meta": "<strong>2026 സെപ്റ്റംബർ 6</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">പതിപ്പിന്റെ മുഴുവൻ കുറിപ്പുകൾ <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">v1.5 ഡൗൺലോഡ് ചെയ്യുക <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "പ്രവേശനക്ഷമത, ഓട്ടോമേഷൻ അനുമതികളോടെ Safari Stable-ന്റെ പരീക്ഷണാത്മക പ്രൊഫൈലുകൾ പരീക്ഷിക്കുക. ഓരോ ലിങ്കും തിരഞ്ഞെടുത്ത പ്രൊഫൈലിന്റെ പുതിയ വിൻഡോയിൽ തുറക്കുന്നു.",
   "release.v1_5.duckduckgo": "DuckDuckGo സ്വകാര്യ സെഷനുകളുടെ വീണ്ടെടുക്കലും വൃത്തിയാക്കലും ലളിതമാക്കുന്നു. സാൻഡ്‌ബോക്‌സ് ഇല്ലാത്ത അനുയോജ്യമായ 1.203.x ബിൽഡുകൾ സ്വകാര്യ റൂട്ടിങ് പിന്തുണയ്ക്കുന്നു; സാധാരണ ലിങ്കുകൾക്ക് പ്രത്യേക പതിപ്പോ പ്രസാധകന്റെ ഒപ്പോ ആവശ്യമില്ല.",
-  "release.v1_5.signing": "ബിൽഡുകൾക്കായി സ്ഥിരമായ Apple Development സർട്ടിഫിക്കറ്റ് ഉപയോഗിക്കുന്നു. ഡൗൺലോഡ് നോട്ടറൈസ് ചെയ്തിട്ടില്ല; README-യിലെ ഇൻസ്റ്റാളേഷൻ നിർദേശങ്ങൾ പാലിക്കുക."
+  "release.v1_5.signing": "ബിൽഡുകൾക്കായി സ്ഥിരമായ Apple Development സർട്ടിഫിക്കറ്റ് ഉപയോഗിക്കുന്നു. ഡൗൺലോഡ് നോട്ടറൈസ് ചെയ്തിട്ടില്ല; README-യിലെ ഇൻസ്റ്റാളേഷൻ നിർദേശങ്ങൾ പാലിക്കുക.",
+  "release.v1_5_1.title": "പതിപ്പ് 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">പതിപ്പിന്റെ മുഴുവൻ കുറിപ്പുകൾ <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 ഡൗൺലോഡ് ചെയ്യുക <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>2026 സെപ്റ്റംബർ 6</strong><span class=\"release-current\">നിലവിലെ പതിപ്പ്</span>",
+  "release.v1_5_1.summary": "DuckDuckGo സ്വകാര്യ മോഡിന്റെ പതിപ്പ് നിയന്ത്രണം നീക്കം ചെയ്യുന്നു, ഭാഷ തിരഞ്ഞെടുക്കാനുള്ള സംവിധാനം മുകളിലെ ബാറിലേക്ക് മാറ്റുന്നു, ഹോംപേജിലെ ഭാഷാ അറിയിപ്പ് നീക്കം ചെയ്യുന്നു."
 }

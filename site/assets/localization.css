@@ -1,8 +1,6 @@
 /* Shared localization layout. Keep headings and prose readable in every script. */
 html { text-size-adjust: 100%; }
 body { overflow-x: visible; }
-.language-bar { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: .6rem; padding-block: .8rem; font-size: .85rem; }
-.language-bar select { max-width: 100%; min-width: 10rem; padding: .45rem .7rem; font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--rule); border-radius: .5rem; }
 header, .site-header { min-height: 82px; height: auto; padding-block: 1rem; gap: 1.2rem; flex-wrap: wrap; }
 header nav, nav, .release-links { flex-wrap: wrap; }
 .site-footer, footer { gap: 1rem; flex-wrap: wrap; line-height: 1.7; }
@@ -10,8 +8,7 @@ header nav, nav, .release-links { flex-wrap: wrap; }
 h1, h2, h3, p, li, .button, .intro-copy, .release-meta, footer { overflow-wrap: anywhere; }
 h1, h2 { line-height: 1.12; letter-spacing: -.04em; }
 .button { text-align: center; padding-block: .65rem; }
-.localization-notice, .screenshot-note { color: var(--muted); font-size: .85rem; line-height: 1.55; }
-.localization-notice { margin-block-end: 2rem; padding: .8rem 1rem; border: 1px solid var(--rule); border-radius: .6rem; }
+.screenshot-note { color: var(--muted); font-size: .85rem; line-height: 1.55; }
 .screenshot-note { margin-block-start: 2rem; }
 .screenshot-note + .product-frame { margin-top: .75rem; }
 figure { margin-inline: 0; }
@@ -22,8 +19,6 @@ html[dir="rtl"] ul { padding-left: 0; padding-right: 20px; }
 html[dir="rtl"] h1, html[dir="rtl"] h2, html[dir="rtl"] h3 { letter-spacing: normal; }
 html:lang(zh) h1, html:lang(zh) h2, html:lang(ja) h1, html:lang(ja) h2, html:lang(ko) h1, html:lang(ko) h2 { letter-spacing: normal; word-break: normal; }
 @media (max-width: 600px) {
-  .language-bar { justify-content: flex-start; }
-  .language-bar select { min-width: 0; flex: 1; }
   h1 { font-size: clamp(2.25rem, 10vw, 3.25rem); }
   h2 { font-size: clamp(2rem, 9vw, 3rem); }
   .release, .hero-top, .section-head, .mail-layout, .setup-grid, .download-inner { min-width: 0; }
@@ -39,3 +34,20 @@ html:lang(zh) h1, html:lang(zh) h2, html:lang(ja) h1, html:lang(ja) h2, html:lan
 }
 /* Burmese release prose needs extra leading for stacked vowel and tone marks. */
 html:lang(my) .release li { line-height: 1.85; }
+
+/* Language and Source share the header's pill controls. */
+.header-actions { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.language-picker { position: relative; display: inline-flex; min-width: 0; }
+.header-actions .button, .header-actions select { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; height: 43px; min-height: 43px; border: 1px solid var(--ink); border-radius: 999px; padding: 0 17px; font-family: inherit; font-size: 14px; font-weight: 650; color: var(--ink); background: transparent; white-space: nowrap; }
+.header-actions select { appearance: none; field-sizing: content; max-inline-size: 14rem; padding-inline-end: 35px; cursor: pointer; }
+.language-picker::after { content: ""; position: absolute; top: 50%; inset-inline-end: 16px; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-70%) rotate(45deg); pointer-events: none; }
+.header-actions .button:hover, .header-actions select:hover { background: white; }
+.header-actions :is(.button, select):focus-visible { outline: 2px solid var(--violet); outline-offset: 3px; }
+@media (max-width: 680px) {
+  header, .site-header { gap: 12px; }
+  .header-actions { gap: 8px; }
+  .header-actions .button, .header-actions select { height: 36px; min-height: 36px; padding-inline: 12px; font-size: 12px; }
+  .header-actions select { max-inline-size: 12rem; padding-inline-end: 28px; }
+  .language-picker::after { inset-inline-end: 12px; }
+}

@@ -53,7 +53,7 @@
   "index.p.002": "Isikhethi samakhonkco esakhelwe i-macOS ngqo",
   "index.h1.001": "Yeka ukuvula<br />amakhonkco<br /><em>kwisikhangeli okanye kwiprofayile engafanelekanga.</em>",
   "index.p.003": "IPickVia iyabuza ngaphambi kokuvula ikhonkco ngalinye lewebhu okanye le-imeyile, ukuze amakhonkco ewebhu aye kwisikhangeli okanye kwiprofayile oyikhethayo kwaye awe-imeyile aye kwi-app obufuna ukuyisebenzisa.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Khuphela v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Nika inkwenkwezi kwiGitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Khuphela v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Nika inkwenkwezi kwiGitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Isimahla kwaye ikhowudi ivulekile",
   "index.p.005": "Imifanekiso yesikrini ibonisa ujongano lwesiNgesi.",
   "index.p.006": "01 / Khetha ngaphambi kokuvula",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Misela izinto ozikhethayo",
   "index.h2.003": "Misela kube kanye.<br /><em>Khetha ngokukhawuleza.</em>",
   "index.p.016": "Misela iiprofayile zesikhangeli nee-app ze-imeyile oqhele ukuzisebenzisa kube kanye, uze ulungelelanise iindawo ozisebenzisa kakhulu.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Vula ikhonkco elilandelayo<br />kwindawo <em>efanelekileyo.</em>",
   "index.a.005": "Khuphela eye-macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · Ilayisenisi yeMIT",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Khetha ulwimi lwewebhusayithi",
   "index.aria-label.003": "Nika iPickVia inkwenkwezi kwiGitHub",
   "release.v1_5.title": "Uguqulelo 1.5",
-  "release.v1_5.meta": "<strong>06 SEPTEMBA 2026</strong><span class=\"release-current\">Uguqulelo lwangoku</span>",
+  "release.v1_5.meta": "<strong>06 SEPTEMBA 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Amanqaku apheleleyo oguqulelo <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Khuphela v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Zama iiprofayile zovavanyo ze-Safari Stable ngeemvume zokufikeleleka nezokusebenza ngokuzenzekelayo. Ikhonkco ngalinye livuleka kwifestile entsha yeprofayile ekhethiweyo.",
   "release.v1_5.duckduckgo": "Ukubuyiselwa nokucocwa kweeseshoni zabucala ze-DuckDuckGo kwenziwe lula. Iinguqulelo ze-1.203.x ezihambelanayo nezingasebenzisi indawo evalelweyo zixhasa ukuvula ngasese; amakhonkco aqhelekileyo awafuni nguqulelo ithile okanye utyikityo lomshicileli.",
-  "release.v1_5.signing": "Kusetyenziswa isatifikethi esinye esisisigxina se-Apple Development xa kusakhiwa usetyenziso. Into ekhutshelwayo ayinasiqinisekiso se-notarization; landela imiyalelo yokufaka ekwi-README."
+  "release.v1_5.signing": "Kusetyenziswa isatifikethi esinye esisisigxina se-Apple Development xa kusakhiwa usetyenziso. Into ekhutshelwayo ayinasiqinisekiso se-notarization; landela imiyalelo yokufaka ekwi-README.",
+  "release.v1_5_1.title": "Uguqulelo 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Amanqaku apheleleyo oguqulelo <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Khuphela v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 SEPTEMBA 2026</strong><span class=\"release-current\">Uguqulelo lwangoku</span>",
+  "release.v1_5_1.summary": "Isusa umda wenguqulelo kwimowudi yabucala ye-DuckDuckGo, ihambisa isikhethi solwimi kwibar ephezulu, ize isuse isaziso seelwimi kwiphepha lasekhaya."
 }

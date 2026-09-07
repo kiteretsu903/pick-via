@@ -53,7 +53,7 @@
   "index.p.002": "macOS కోసం స్థానిక లింక్ ఎంపిక యాప్",
   "index.h1.001": "లింక్‌లను<br />తప్పు బ్రౌజర్ లేదా<br /><em>ప్రొఫైల్‌లో తెరవడం ఆపండి.</em>",
   "index.p.003": "ప్రతి వెబ్ లేదా ఈమెయిల్ లింక్ తెరుచుకునే ముందు PickVia మిమ్మల్ని అడుగుతుంది. అందువల్ల వెబ్ లింక్‌లు మీరు ఎంచుకున్న బ్రౌజర్ లేదా ప్రొఫైల్‌కు, మెయిల్ లింక్‌లు మీరు ఉద్దేశించిన ఈమెయిల్ యాప్‌కు వెళతాయి.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5ను డౌన్‌లోడ్ చేయండి <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHubలో స్టార్ ఇవ్వండి</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1ను డౌన్‌లోడ్ చేయండి <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHubలో స్టార్ ఇవ్వండి</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · ఉచితం మరియు ఓపెన్ సోర్స్",
   "index.p.005": "స్క్రీన్‌షాట్‌లలో ఆంగ్ల ఇంటర్‌ఫేస్ కనిపిస్తుంది.",
   "index.p.006": "01 / తెరుచుకునే ముందే ఎంచుకోండి",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / మీ ఎంపికలను సెట్ చేసుకోండి",
   "index.h2.003": "ఒక్కసారి సెట్ చేయండి.<br /><em>వేగంగా ఎంచుకోండి.</em>",
   "index.p.016": "మీ సాధారణ బ్రౌజర్ ప్రొఫైల్‌లు, మెయిల్ యాప్‌లను ఒక్కసారి సెట్ చేసుకుని, ఎక్కువగా ఉపయోగించే గమ్యాల క్రమాన్ని మార్చుకోండి.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "తదుపరి లింక్‌ను<br />సరైన <em>చోట</em> తెరవండి.",
   "index.a.005": "macOS కోసం డౌన్‌లోడ్ చేయండి <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · MIT లైసెన్స్",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "వెబ్‌సైట్ భాషను ఎంచుకోండి",
   "index.aria-label.003": "GitHubలో PickViaకు స్టార్ ఇవ్వండి",
   "release.v1_5.title": "వెర్షన్ 1.5",
-  "release.v1_5.meta": "<strong>06 సెప్టెంబర్ 2026</strong><span class=\"release-current\">ప్రస్తుత విడుదల</span>",
+  "release.v1_5.meta": "<strong>06 సెప్టెంబర్ 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">పూర్తి విడుదల వివరాలు <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">v1.5ను డౌన్‌లోడ్ చేయండి <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "సౌలభ్య ప్రాప్తి మరియు ఆటోమేషన్ అనుమతులతో ప్రయోగాత్మక Safari Stable ప్రొఫైల్‌లను ప్రయత్నించండి. ప్రతి లింక్ ఎంచుకున్న ప్రొఫైల్‌లోని కొత్త విండోలో తెరుచుకుంటుంది.",
   "release.v1_5.duckduckgo": "DuckDuckGo ప్రైవేట్ సెషన్‌ల పునరుద్ధరణ మరియు శుభ్రపరచడం సరళీకరించబడ్డాయి. అనుకూలమైన, శాండ్‌బాక్స్ లేని 1.203.x బిల్డ్‌లు ప్రైవేట్ రూటింగ్‌కు మద్దతిస్తాయి; సాధారణ లింక్‌లకు నిర్దిష్ట వెర్షన్ లేదా ప్రచురణకర్త సంతకం అవసరం లేదు.",
-  "release.v1_5.signing": "బిల్డ్‌ల కోసం స్థిరమైన Apple Development సర్టిఫికెట్ ఉపయోగించబడుతుంది. డౌన్‌లోడ్ నోటరైజ్ చేయబడలేదు; READMEలోని ఇన్‌స్టాలేషన్ సూచనలను అనుసరించండి."
+  "release.v1_5.signing": "బిల్డ్‌ల కోసం స్థిరమైన Apple Development సర్టిఫికెట్ ఉపయోగించబడుతుంది. డౌన్‌లోడ్ నోటరైజ్ చేయబడలేదు; READMEలోని ఇన్‌స్టాలేషన్ సూచనలను అనుసరించండి.",
+  "release.v1_5_1.title": "వెర్షన్ 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">పూర్తి విడుదల వివరాలు <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1ను డౌన్‌లోడ్ చేయండి <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 సెప్టెంబర్ 2026</strong><span class=\"release-current\">ప్రస్తుత విడుదల</span>",
+  "release.v1_5_1.summary": "DuckDuckGo ప్రైవేట్ మోడ్‌పై వెర్షన్ పరిమితిని తొలగించి, భాష ఎంపికను పై పట్టీకి మార్చి, హోమ్‌పేజీలోని భాషల నోటీసును తొలగిస్తుంది."
 }

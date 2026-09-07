@@ -46,5 +46,20 @@
       "Historical v1.4 prose unchanged"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "website": "075d1ac440d76979573e69ff9fd781a790ab0489f9d2ea152f95fc36f9a1e934"
+    },
+    "checks": [
+      "Turkish v1.5.1 summary self-reviewed against current English",
+      "Website validate_catalog passed; historical release content preserved"
+    ],
+    "unresolvedIssues": []
   }
 }

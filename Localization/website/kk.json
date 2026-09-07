@@ -53,7 +53,7 @@
   "index.p.002": "macOS үшін жасалған сілтеме таңдағыш",
   "index.h1.001": "Сілтемелерді<br />қате браузерде не профильде<br /><em>ашуды доғарыңыз.</em>",
   "index.p.003": "PickVia әр веб немесе пошта сілтемесі ашылар алдында сұрайды: веб-сілтемелер сіз таңдаған браузерге не профильге, ал пошта сілтемелері қалаған пошта қолданбасына жіберіледі.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5 жүктеу <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub сайтында жұлдызша беру</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1 жүктеу <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub сайтында жұлдызша беру</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Тегін және ашық кодты",
   "index.p.005": "Скриншоттарда ағылшын интерфейсі көрсетілген.",
   "index.p.006": "01 / Ашылмай тұрып таңдаңыз",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Таңдауларыңызды баптаңыз",
   "index.h2.003": "Бір рет баптаңыз.<br /><em>Жылдам таңдаңыз.</em>",
   "index.p.016": "Жиі қолданатын браузер профильдері мен пошта қолданбаларын бір рет баптап, ең көп пайдаланатын нысаналарды реттеңіз.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Келесі сілтемені<br />дұрыс <em>жерде ашыңыз.</em>",
   "index.a.005": "macOS үшін жүктеу <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · MIT лицензиясы",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Веб-сайт тілін таңдау",
   "index.aria-label.003": "GitHub сайтында PickVia үшін жұлдызша беру",
   "release.v1_5.title": "1.5 нұсқасы",
-  "release.v1_5.meta": "<strong>2026 ЖЫЛҒЫ 6 ҚЫРКҮЙЕК</strong><span class=\"release-current\">Қазіргі шығарылым</span>",
+  "release.v1_5.meta": "<strong>2026 ЖЫЛҒЫ 6 ҚЫРКҮЙЕК</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Толық шығарылым жазбалары <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">v1.5 жүктеу <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Арнайы мүмкіндіктер және Автоматтандыру рұқсаттарын беріп, Safari Stable браузерінің тәжірибелік профильдерін қолданып көріңіз. Әр сілтеме таңдалған профильдің жаңа терезесінде ашылады.",
   "release.v1_5.duckduckgo": "DuckDuckGo жеке сеанстарын қалпына келтіру мен тазалауды жеңілдетеді. Sandbox қолданбайтын үйлесімді 1.203.x нұсқалары жеке режимге бағыттауды қолдайды; қалыпты сілтемелер үшін нұсқаға немесе жариялаушының қолтаңбасына талап қойылмайды.",
-  "release.v1_5.signing": "Құрастырылымдар үшін бірдей Apple Development сертификаты қолданылады. Жүктелетін файл Apple-дің notarization тексеруінен өтпеген; README ішіндегі орнату нұсқауларын орындаңыз."
+  "release.v1_5.signing": "Құрастырылымдар үшін бірдей Apple Development сертификаты қолданылады. Жүктелетін файл Apple-дің notarization тексеруінен өтпеген; README ішіндегі орнату нұсқауларын орындаңыз.",
+  "release.v1_5_1.title": "1.5.1 нұсқасы",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Толық шығарылым жазбалары <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 жүктеу <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>2026 ЖЫЛҒЫ 6 ҚЫРКҮЙЕК</strong><span class=\"release-current\">Қазіргі шығарылым</span>",
+  "release.v1_5_1.summary": "DuckDuckGo жеке режиміне қойылған нұсқа шектеуі алынып тасталды, тіл таңдағыш жоғарғы жолаққа көшірілді және басты беттегі тіл туралы хабарлама жойылды."
 }

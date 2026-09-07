@@ -55,5 +55,23 @@
       "Final English README cleanup reflected: historical E2E/prototype links removed and experimental Safari statement retained"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceHashes": {
+      "website/en.json": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721",
+      "readme/en.md": "8114dfa56538038c919c7273ddce14a851fa2fa24862272d73042668d64fd81c"
+    },
+    "outputHashes": {
+      "website/ko.json": "19b5f8d09aa0330f9fb8b722e69c4316d8ee798a0f58a7e948eb3b7f4ebb8b5f",
+      "readme/ko.md": "4c81c3400c14fd32105d23990acae6c4d910110c5b0cc8f35722a28c2232d84c"
+    },
+    "checks": [
+      "v1.5.1 summary translated; no DuckDuckGo private-mode version restriction, selector moved to top bar, homepage notice removed",
+      "README current version and compatible unsandboxed build wording updated narrowly; historical content preserved",
+      "Website validate_catalog and README validate passed"
+    ],
+    "unresolvedIssues": []
   }
 }

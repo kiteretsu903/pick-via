@@ -47,5 +47,16 @@
       "Experimental Safari scope, version and signing limitations preserved"
     ],
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website/en.json": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "website/ml.json": "f475d90769d38f632b662699fa6fe323dec377e9f8b987ca143ba2d95608c30d"
+    },
+    "unresolvedIssues": []
   }
 }

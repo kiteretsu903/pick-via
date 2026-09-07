@@ -23,14 +23,14 @@ screenshots, release highlights, and the [changelog](https://kiteretsu903.github
 
 ## Languages
 
-PickVia v1.5 supports 80 app and website languages, including a language
+PickVia v1.5.1 supports 80 app and website languages, including a language
 selector and right-to-left layouts, plus 12 README languages. Choose the app language
 in Settings or follow the primary system language. Product screenshots show
 the English interface.
 
 ## Download
 
-**[Download PickVia v1.5 for macOS](https://github.com/kiteretsu903/pick-via/releases/latest)**
+**[Download PickVia v1.5.1 for macOS](https://github.com/kiteretsu903/pick-via/releases/latest)**
 
 PickVia requires **macOS 14 Sonoma or later** on **Apple Silicon** and handles
 HTTP, HTTPS, and `mailto:` links.
@@ -58,7 +58,7 @@ Settings.
 
 ## Install
 
-1. Download and open `PickVia-v1.5.dmg` from the
+1. Download and open `PickVia-v1.5.1.dmg` from the
    [GitHub release](https://github.com/kiteretsu903/pick-via/releases/latest).
 2. Drag **PickVia** to the **Applications** folder shown in the installer.
 3. Open **PickVia** from Applications and follow the welcome flow.
@@ -69,7 +69,7 @@ Settings.
 
 ### First launch and Gatekeeper
 
-PickVia v1.5 is signed with an Apple Development certificate and is not notarized. macOS may block the first
+PickVia v1.5.1 is signed with an Apple Development certificate and is not notarized. macOS may block the first
 launch of the downloaded app. If you downloaded it from the GitHub release and
 choose to trust it:
 
@@ -103,7 +103,7 @@ Apple documents this Gatekeeper override and its security implications in
 | Opera, Arc, Orion | No | Yes | No |
 
 \* DuckDuckGo Private uses isolated, disposable state on compatible unsandboxed
-builds (currently the 1.203.x release family). It requires neither a DuckDuckGo
+builds, without a version restriction. It requires neither a DuckDuckGo
 extension nor Accessibility access. Normal DuckDuckGo links do not require a
 particular version or publisher signature. Private state is cleaned after its
 browser process exits while PickVia is running, or on a subsequent startup/route.

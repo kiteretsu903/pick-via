@@ -53,7 +53,7 @@
   "index.p.002": "Natív hivatkozásválasztó macOS rendszerre",
   "index.h1.001": "Ne a rossz<br />böngészőben<br /><em>vagy profilban nyíljanak meg a hivatkozások.</em>",
   "index.p.003": "A PickVia minden webes vagy e-mail-hivatkozás megnyitása előtt rákérdez a célra: a webhivatkozások a kiválasztott böngészőbe vagy profilba, az e-mail-hivatkozások pedig a kívánt levelezőalkalmazásba kerülnek.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5 letöltése <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Csillag a GitHubon</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1 letöltése <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Csillag a GitHubon</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Ingyenes és nyílt forráskódú",
   "index.p.005": "A képernyőképek az angol felületet mutatják.",
   "index.p.006": "01 / Válasszon megnyitás előtt",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Állítsa be a lehetőségeket",
   "index.h2.003": "Állítsa be egyszer.<br /><em>Válasszon gyorsan.</em>",
   "index.p.016": "Állítsa be egyszer a szokásos böngészőprofilokat és levelezőalkalmazásokat, majd rendezze át a leggyakrabban használt célokat.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "A következő hivatkozás<br />a megfelelő <em>helyen</em> nyíljon meg.",
   "index.a.005": "Letöltés macOS rendszerre <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · MIT-licenc",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "A webhely nyelvének kiválasztása",
   "index.aria-label.003": "Adjon csillagot a PickVia alkalmazásnak a GitHubon",
   "release.v1_5.title": "1.5 verzió",
-  "release.v1_5.meta": "<strong>2026. SZEPT. 06.</strong><span class=\"release-current\">Aktuális kiadás</span>",
+  "release.v1_5.meta": "<strong>2026. SZEPT. 06.</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Teljes kiadási megjegyzések <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">v1.5 letöltése <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Próbálja ki a Safari Stable kísérleti profiljait a Kisegítő lehetőségek és az Automatizálás engedélyével. Minden hivatkozás a kiválasztott profil új ablakában nyílik meg.",
   "release.v1_5.duckduckgo": "Egyszerűbb lett a DuckDuckGo privát munkameneteinek helyreállítása és takarítása. A kompatibilis, sandboxon kívül futó 1.203.x buildek támogatják a privát megnyitást; a normál hivatkozásokhoz nem szükséges meghatározott verzió vagy kiadói aláírás.",
-  "release.v1_5.signing": "A buildek állandó Apple Development tanúsítványt használnak. A letöltés nem rendelkezik Apple-notarizációval; kövesse a README telepítési útmutatóját."
+  "release.v1_5.signing": "A buildek állandó Apple Development tanúsítványt használnak. A letöltés nem rendelkezik Apple-notarizációval; kövesse a README telepítési útmutatóját.",
+  "release.v1_5_1.title": "1.5.1 verzió",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Teljes kiadási megjegyzések <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 letöltése <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>2026. SZEPT. 06.</strong><span class=\"release-current\">Aktuális kiadás</span>",
+  "release.v1_5_1.summary": "Megszűnt a DuckDuckGo privát módjának verziókorlátozása, a nyelvválasztó a felső sávba került, és eltávolítottuk a kezdőlap nyelvi tájékoztatóját."
 }

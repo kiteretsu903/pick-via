@@ -20,14 +20,14 @@ capturas de tela, destaques das versões e o [histórico de alterações](https:
 
 ## Idiomas
 
-O PickVia v1.5 oferece 80 idiomas no aplicativo e no site, incluindo um seletor de
+O PickVia v1.5.1 oferece 80 idiomas no aplicativo e no site, incluindo um seletor de
 idioma e layouts da direita para a esquerda, além de 12 idiomas para o README.
 Escolha o idioma do aplicativo nos Ajustes ou siga o idioma principal do sistema.
 As capturas do produto mostram a interface em inglês.
 
 ## Download
 
-**[Baixe o PickVia v1.5 para macOS](https://github.com/kiteretsu903/pick-via/releases/latest)**
+**[Baixe o PickVia v1.5.1 para macOS](https://github.com/kiteretsu903/pick-via/releases/latest)**
 
 O PickVia requer **macOS 14 Sonoma ou posterior** em **Apple Silicon** e processa
 links HTTP, HTTPS e `mailto:`.
@@ -55,7 +55,7 @@ aplicativos de e-mail registrados nos Ajustes.
 
 ## Instalação
 
-1. Baixe e abra `PickVia-v1.5.dmg` na
+1. Baixe e abra `PickVia-v1.5.1.dmg` na
    [versão do GitHub](https://github.com/kiteretsu903/pick-via/releases/latest).
 2. Arraste o **PickVia** para a pasta **Aplicativos** exibida no instalador.
 3. Abra o **PickVia** na pasta Aplicativos e siga as etapas de boas-vindas.
@@ -66,7 +66,7 @@ aplicativos de e-mail registrados nos Ajustes.
 
 ### Primeira abertura e Gatekeeper
 
-O PickVia v1.5 é assinado com um certificado Apple Development e não é notarizado. O macOS pode bloquear a
+O PickVia v1.5.1 é assinado com um certificado Apple Development e não é notarizado. O macOS pode bloquear a
 primeira abertura do aplicativo baixado. Se você o baixou da versão do GitHub e
 optar por confiar nele:
 
@@ -100,7 +100,7 @@ A Apple documenta essa exceção ao Gatekeeper e suas implicações de seguranç
 | Opera, Arc, Orion | Não | Sim | Não |
 
 \* O DuckDuckGo Privativo usa dados isolados e descartáveis em compilações
-compatíveis sem sandbox (atualmente a família de versões 1.203.x). Não exige
+compatíveis sem sandbox, sem restrição de versão. Não exige
 extensão do DuckDuckGo nem acesso à Acessibilidade. Links normais do DuckDuckGo
 não exigem uma versão específica nem assinatura do publicador. Os dados privativos
 são limpos após o processo do navegador ser encerrado enquanto o PickVia está em

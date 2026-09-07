@@ -19,14 +19,14 @@ macOS는 의도하지 않은 브라우저 창이나 프로필을 재사용할 �
 
 ## 언어
 
-PickVia v1.5는 언어 선택기와 오른쪽에서 왼쪽으로 쓰는 언어의 레이아웃을 포함하여
+PickVia v1.5.1는 언어 선택기와 오른쪽에서 왼쪽으로 쓰는 언어의 레이아웃을 포함하여
 앱과 웹사이트에 80개 언어를, README에 12개 언어를 지원합니다. 설정에서 앱 언어를
 선택하거나 시스템의 기본 언어를 따를 수 있습니다. 제품 스크린샷은
 영어 인터페이스를 보여 줍니다.
 
 ## 다운로드
 
-**[macOS용 PickVia v1.5 다운로드](https://github.com/kiteretsu903/pick-via/releases/latest)**
+**[macOS용 PickVia v1.5.1 다운로드](https://github.com/kiteretsu903/pick-via/releases/latest)**
 
 PickVia를 사용하려면 **Apple Silicon**과 **macOS 14 Sonoma 이상**이 필요하며,
 HTTP, HTTPS 및 `mailto:` 링크를 처리합니다.
@@ -55,7 +55,7 @@ HTTP, HTTPS 및 `mailto:` 링크를 처리합니다.
 ## 설치
 
 1. [GitHub 릴리스](https://github.com/kiteretsu903/pick-via/releases/latest)에서
-   `PickVia-v1.5.dmg`를 다운로드하여 엽니다.
+   `PickVia-v1.5.1.dmg`를 다운로드하여 엽니다.
 2. **PickVia**를 설치 프로그램에 표시된 **응용 프로그램** 폴더로 드래그합니다.
 3. 응용 프로그램에서 **PickVia**를 열고 시작 안내를 따릅니다.
 4. **기본값으로 설정**을 선택합니다. macOS는 HTTP와 HTTPS 링크를 처리할 권한을
@@ -65,7 +65,7 @@ HTTP, HTTPS 및 `mailto:` 링크를 처리합니다.
 
 ### 첫 실행과 Gatekeeper
 
-PickVia v1.5는 Apple Development 인증서로 서명되어 있으며 공증되지 않았습니다. macOS가 다운로드한 앱의
+PickVia v1.5.1는 Apple Development 인증서로 서명되어 있으며 공증되지 않았습니다. macOS가 다운로드한 앱의
 첫 실행을 차단할 수 있습니다. GitHub 릴리스에서 다운로드한 앱을 신뢰하기로 했다면
 다음과 같이 진행하세요.
 
@@ -98,7 +98,7 @@ Apple은 이러한 Gatekeeper 예외 허용 방법과 보안에 미치는 영향
 | Firefox Stable / Developer Edition / Nightly | 예 | 예 | 예 |
 | Opera, Arc, Orion | 아니요 | 예 | 아니요 |
 
-\* DuckDuckGo 비공개 모드는 호환되는 비샌드박스 빌드(현재 1.203.x 릴리스 계열)에서
+\* DuckDuckGo 비공개 모드는 호환되는 비샌드박스 빌드에서 버전 제한 없이
 격리된 일회성 상태를 사용합니다. DuckDuckGo 확장 프로그램이나 손쉬운 사용 접근 권한은
 필요하지 않습니다. 일반 DuckDuckGo 링크에는 특정 버전이나 게시자 서명이 필요하지 않습니다.
 비공개 상태는 PickVia가 실행 중일 때 해당 브라우저 프로세스가 종료되면 정리되거나,

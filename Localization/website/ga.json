@@ -53,7 +53,7 @@
   "index.p.002": "Roghnóir nasc dúchasach do macOS",
   "index.h1.001": "Ná hoscail<br />naisc sa<br /><em>bhrabhsálaí nó sa phróifíl mhícheart.</em>",
   "index.p.003": "Fiafraíonn PickVia díot sula n-osclaítear gach nasc gréasáin nó ríomhphoist, ionas go dtéann naisc ghréasáin chuig an mbrabhsálaí nó an phróifíl a roghnaíonn tú agus naisc ríomhphoist chuig an aip a bhí i gceist agat.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Íoslódáil v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Tabhair réalta ar GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Íoslódáil v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Tabhair réalta ar GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Saor in aisce agus foinse oscailte",
   "index.p.005": "Léiríonn na gabhálacha scáileáin an comhéadan Béarla.",
   "index.p.006": "01 / Roghnaigh sula n-osclaítear é",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Socraigh do roghanna",
   "index.h2.003": "Cumraigh uair amháin.<br /><em>Roghnaigh go tapa.</em>",
   "index.p.016": "Cumraigh do ghnáthphróifílí brabhsálaí agus aipeanna ríomhphoist uair amháin, ansin athordaigh na spriocanna is minice a úsáideann tú.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Oscail an chéad nasc eile<br />san <em>áit cheart.</em>",
   "index.a.005": "Íoslódáil do macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · Ceadúnas MIT",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Roghnaigh teanga an tsuímh",
   "index.aria-label.003": "Tabhair réalta do PickVia ar GitHub",
   "release.v1_5.title": "Leagan 1.5",
-  "release.v1_5.meta": "<strong>6 MEÁN FÓMHAIR 2026</strong><span class=\"release-current\">Eisiúint reatha</span>",
+  "release.v1_5.meta": "<strong>6 MEÁN FÓMHAIR 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Nótaí eisiúna iomlána <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Íoslódáil v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Bain triail as próifílí turgnamhacha Safari Stable leis na ceadanna Inrochtaineachta agus Uathoibrithe. Osclaítear gach nasc i bhfuinneog nua sa phróifíl roghnaithe.",
   "release.v1_5.duckduckgo": "Déantar aisghabháil agus glanadh seisiún príobháideach DuckDuckGo a shimpliú. Tacaíonn tógálacha comhoiriúnacha 1.203.x gan bhosca gainimh le ródú príobháideach; níl aon cheanglas maidir le leagan nó síniú foilsitheora ar ghnáthnaisc.",
-  "release.v1_5.signing": "Úsáidtear teastas seasta Apple Development do na tógálacha. Níl an íoslódáil deimhnithe ag Apple tríd an bpróiseas notarization; lean na treoracha suiteála sa README."
+  "release.v1_5.signing": "Úsáidtear teastas seasta Apple Development do na tógálacha. Níl an íoslódáil deimhnithe ag Apple tríd an bpróiseas notarization; lean na treoracha suiteála sa README.",
+  "release.v1_5_1.title": "Leagan 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Nótaí eisiúna iomlána <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Íoslódáil v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>6 MEÁN FÓMHAIR 2026</strong><span class=\"release-current\">Eisiúint reatha</span>",
+  "release.v1_5_1.summary": "Baineadh an srian leagain de mhód príobháideach DuckDuckGo, bogadh an roghnóir teanga go dtí an barra uachtarach, agus baineadh an fógra teanga den leathanach baile."
 }

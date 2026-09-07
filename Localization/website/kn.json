@@ -53,7 +53,7 @@
   "index.p.002": "macOS ಗಾಗಿ ಸ್ಥಳೀಯ ಲಿಂಕ್ ಆಯ್ಕೆ ಆಪ್",
   "index.h1.001": "ಲಿಂಕ್‌ಗಳನ್ನು<br />ತೆರೆಯಬೇಡಿ<br /><em>ತಪ್ಪು ಬ್ರೌಸರ್ ಅಥವಾ ಪ್ರೊಫೈಲ್‌ನಲ್ಲಿ.</em>",
   "index.p.003": "ಪ್ರತಿ ವೆಬ್ ಅಥವಾ ಇಮೇಲ್ ಲಿಂಕ್ ತೆರೆಯುವ ಮೊದಲು PickVia ಕೇಳುತ್ತದೆ. ಹೀಗಾಗಿ ವೆಬ್ ಲಿಂಕ್‌ಗಳು ನೀವು ಆಯ್ಕೆಮಾಡಿದ ಬ್ರೌಸರ್ ಅಥವಾ ಪ್ರೊಫೈಲ್‌ಗೆ, ಇಮೇಲ್ ಲಿಂಕ್‌ಗಳು ನೀವು ಉದ್ದೇಶಿಸಿದ ಇಮೇಲ್ ಆಪ್‌ಗೆ ಹೋಗುತ್ತವೆ.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5 ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub ನಲ್ಲಿ ನಕ್ಷತ್ರ ನೀಡಿ</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">v1.5.1 ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> GitHub ನಲ್ಲಿ ನಕ್ಷತ್ರ ನೀಡಿ</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · ಉಚಿತ &amp; ಮುಕ್ತ ಮೂಲ",
   "index.p.005": "ಸ್ಕ್ರೀನ್‌ಶಾಟ್‌ಗಳು ಇಂಗ್ಲಿಷ್ ಇಂಟರ್‌ಫೇಸ್ ತೋರಿಸುತ್ತವೆ.",
   "index.p.006": "01 / ತೆರೆಯುವ ಮೊದಲು ಆಯ್ಕೆಮಾಡಿ",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / ನಿಮ್ಮ ಆಯ್ಕೆಗಳನ್ನು ಹೊಂದಿಸಿ",
   "index.h2.003": "ಒಮ್ಮೆ ಸಂರಚಿಸಿ.<br /><em>ತ್ವರಿತವಾಗಿ ಆಯ್ಕೆಮಾಡಿ.</em>",
   "index.p.016": "ನಿಮ್ಮ ಸಾಮಾನ್ಯ ಬ್ರೌಸರ್ ಪ್ರೊಫೈಲ್‌ಗಳು ಮತ್ತು ಇಮೇಲ್ ಆಪ್‌ಗಳನ್ನು ಒಮ್ಮೆ ಸಂರಚಿಸಿ, ನಂತರ ಹೆಚ್ಚು ಬಳಸುವ ಗುರಿಗಳನ್ನು ಮರುಕ್ರಮಗೊಳಿಸಿ.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "ಮುಂದಿನ ಲಿಂಕ್ ಅನ್ನು<br />ಸೂಕ್ತ <em>ಸ್ಥಳದಲ್ಲಿ</em> ತೆರೆಯಿರಿ.",
   "index.a.005": "macOS ಗಾಗಿ ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · MIT ಪರವಾನಗಿ",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "ವೆಬ್‌ಸೈಟ್ ಭಾಷೆ ಆಯ್ಕೆಮಾಡಿ",
   "index.aria-label.003": "GitHub ನಲ್ಲಿ PickVia ಗೆ ನಕ್ಷತ್ರ ನೀಡಿ",
   "release.v1_5.title": "ಆವೃತ್ತಿ 1.5",
-  "release.v1_5.meta": "<strong>06 ಸೆಪ್ಟೆಂಬರ್ 2026</strong><span class=\"release-current\">ಪ್ರಸ್ತುತ ಬಿಡುಗಡೆ</span>",
+  "release.v1_5.meta": "<strong>06 ಸೆಪ್ಟೆಂಬರ್ 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">ಸಂಪೂರ್ಣ ಬಿಡುಗಡೆ ಟಿಪ್ಪಣಿಗಳು <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">v1.5 ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "ಪ್ರವೇಶಸಾಧ್ಯತೆ ಮತ್ತು ಸ್ವಯಂಚಾಲನೆ ಅನುಮತಿಗಳೊಂದಿಗೆ ಪ್ರಾಯೋಗಿಕ Safari Stable ಪ್ರೊಫೈಲ್‌ಗಳನ್ನು ಪ್ರಯತ್ನಿಸಿ. ಪ್ರತಿಯೊಂದು ಲಿಂಕ್ ಆಯ್ಕೆಮಾಡಿದ ಪ್ರೊಫೈಲ್‌ನ ಹೊಸ ವಿಂಡೋದಲ್ಲಿ ತೆರೆಯುತ್ತದೆ.",
   "release.v1_5.duckduckgo": "DuckDuckGo ಖಾಸಗಿ ಸೆಷನ್‌ಗಳ ಮರುಸ್ಥಾಪನೆ ಮತ್ತು ಸ್ವಚ್ಛಗೊಳಿಸುವಿಕೆಯನ್ನು ಸರಳಗೊಳಿಸಲಾಗಿದೆ. ಸ್ಯಾಂಡ್‌ಬಾಕ್ಸ್ ಇಲ್ಲದ ಹೊಂದಾಣಿಕೆಯ 1.203.x ಬಿಲ್ಡ್‌ಗಳು ಖಾಸಗಿ ಮೋಡ್‌ನಲ್ಲಿ ಲಿಂಕ್ ತೆರೆಯುವುದನ್ನು ಬೆಂಬಲಿಸುತ್ತವೆ; ಸಾಮಾನ್ಯ ಲಿಂಕ್‌ಗಳಿಗೆ ನಿರ್ದಿಷ್ಟ ಆವೃತ್ತಿ ಅಥವಾ ಪ್ರಕಾಶಕರ ಸಹಿಯ ಅವಶ್ಯಕತೆ ಇಲ್ಲ.",
-  "release.v1_5.signing": "ಬಿಲ್ಡ್‌ಗಳಿಗೆ ಸ್ಥಿರವಾದ Apple Development ಪ್ರಮಾಣಪತ್ರವನ್ನು ಬಳಸಲಾಗುತ್ತದೆ. ಡೌನ್‌ಲೋಡ್ ನೋಟರೀಕರಿಸಲ್ಪಟ್ಟಿಲ್ಲ; README ಯಲ್ಲಿರುವ ಅನುಸ್ಥಾಪನಾ ಸೂಚನೆಗಳನ್ನು ಅನುಸರಿಸಿ."
+  "release.v1_5.signing": "ಬಿಲ್ಡ್‌ಗಳಿಗೆ ಸ್ಥಿರವಾದ Apple Development ಪ್ರಮಾಣಪತ್ರವನ್ನು ಬಳಸಲಾಗುತ್ತದೆ. ಡೌನ್‌ಲೋಡ್ ನೋಟರೀಕರಿಸಲ್ಪಟ್ಟಿಲ್ಲ; README ಯಲ್ಲಿರುವ ಅನುಸ್ಥಾಪನಾ ಸೂಚನೆಗಳನ್ನು ಅನುಸರಿಸಿ.",
+  "release.v1_5_1.title": "ಆವೃತ್ತಿ 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">ಸಂಪೂರ್ಣ ಬಿಡುಗಡೆ ಟಿಪ್ಪಣಿಗಳು <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">v1.5.1 ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 ಸೆಪ್ಟೆಂಬರ್ 2026</strong><span class=\"release-current\">ಪ್ರಸ್ತುತ ಬಿಡುಗಡೆ</span>",
+  "release.v1_5_1.summary": "DuckDuckGo ಖಾಸಗಿ ಮೋಡ್‌ನ ಆವೃತ್ತಿ ನಿರ್ಬಂಧವನ್ನು ತೆಗೆದುಹಾಕಲಾಗಿದೆ, ಭಾಷಾ ಆಯ್ಕೆ ಸಾಧನವನ್ನು ಮೇಲಿನ ಪಟ್ಟಿಗೆ ಸರಿಸಲಾಗಿದೆ ಮತ್ತು ಮುಖಪುಟದ ಭಾಷಾ ಸೂಚನೆಯನ್ನು ತೆಗೆದುಹಾಕಲಾಗಿದೆ."
 }

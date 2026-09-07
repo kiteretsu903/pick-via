@@ -53,7 +53,7 @@
   "index.p.002": "Dewisydd dolenni brodorol ar gyfer macOS",
   "index.h1.001": "Peidiwch ag agor<br />dolenni yn<br /><em>y porwr neu'r proffil anghywir mwyach.</em>",
   "index.p.003": "Mae PickVia yn gofyn cyn agor pob dolen we neu e-bost, fel bod dolenni gwe'n mynd i'r porwr neu'r proffil o'ch dewis a dolenni e-bost i'r ap e-bost a fwriadwyd gennych.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Lawrlwytho v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Rhoi seren ar GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">Lawrlwytho v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> Rhoi seren ar GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · Am ddim &amp; ffynhonnell agored",
   "index.p.005": "Mae'r sgrinluniau'n dangos y rhyngwyneb Saesneg.",
   "index.p.006": "01 / Dewiswch cyn iddo agor",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / Gosodwch eich dewisiadau",
   "index.h2.003": "Gosodwch unwaith.<br /><em>Dewiswch yn gyflym.</em>",
   "index.p.016": "Gosodwch eich proffiliau porwr a'ch apiau e-bost arferol unwaith, yna aildrefnwch y cyrchfannau rydych yn eu defnyddio fwyaf.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "Agorwch y ddolen nesaf<br />yn y <em>lle cywir.</em>",
   "index.a.005": "Lawrlwytho ar gyfer macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · Trwydded MIT",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "Dewis iaith y wefan",
   "index.aria-label.003": "Rhoi seren i PickVia ar GitHub",
   "release.v1_5.title": "Fersiwn 1.5",
-  "release.v1_5.meta": "<strong>06 MED 2026</strong><span class=\"release-current\">Fersiwn gyfredol</span>",
+  "release.v1_5.meta": "<strong>06 MED 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">Nodiadau rhyddhau llawn <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">Lawrlwytho v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "Rhowch gynnig ar broffiliau arbrofol Safari Stable gyda chaniatâd Hygyrchedd ac Awtomeiddio. Mae pob dolen yn agor mewn ffenestr newydd o’r proffil a ddewiswyd.",
   "release.v1_5.duckduckgo": "Symleiddio adfer a glanhau sesiynau preifat DuckDuckGo. Mae adeiladau cydnaws 1.203.x nad ydynt yn rhedeg mewn blwch tywod yn cefnogi llwybro preifat; nid oes gofyniad o ran fersiwn na llofnod y cyhoeddwr ar gyfer dolenni arferol.",
-  "release.v1_5.signing": "Defnyddio tystysgrif Apple Development sefydlog ar gyfer adeiladau. Nid yw’r lawrlwythiad wedi’i notareiddio; dilynwch y cyfarwyddiadau gosod yn y README."
+  "release.v1_5.signing": "Defnyddio tystysgrif Apple Development sefydlog ar gyfer adeiladau. Nid yw’r lawrlwythiad wedi’i notareiddio; dilynwch y cyfarwyddiadau gosod yn y README.",
+  "release.v1_5_1.title": "Fersiwn 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">Nodiadau rhyddhau llawn <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">Lawrlwytho v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 MED 2026</strong><span class=\"release-current\">Fersiwn gyfredol</span>",
+  "release.v1_5_1.summary": "Dileu’r cyfyngiad fersiwn ar fodd preifat DuckDuckGo, symud y dewisydd iaith i’r bar uchaf, a dileu’r hysbysiad am ieithoedd o’r hafan."
 }

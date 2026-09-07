@@ -45,5 +45,20 @@
       "website/fi.json": "dc4a72b1ef3f5e61bd13e92ee336a139dee9f06e16189dc0c278f821fea1d040"
     },
     "unresolvedIssues": []
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "sourceSHA256": {
+      "website": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputSHA256": {
+      "website": "f5a2bda23cd1375445f792b6751e8ebc8ad19b9d0bbe1ff1f59e5574b19c53f9"
+    },
+    "checks": [
+      "New v1.5.1 summary translated and semantically reviewed",
+      "Website validate_catalog passed; historical entries unchanged"
+    ],
+    "unresolvedIssues": []
   }
 }

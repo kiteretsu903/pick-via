@@ -53,7 +53,7 @@
   "index.p.002": "ເຄື່ອງມືເລືອກປາຍທາງລິ້ງແບບເນທີບສຳລັບ macOS",
   "index.h1.001": "ຢຸດເປີດ<br />ລິ້ງໃນ<br /><em>ບຣາວເຊີ ຫຼື ໂປຣໄຟລ໌ທີ່ຜິດ.</em>",
   "index.p.003": "PickVia ຈະຖາມກ່ອນເປີດແຕ່ລະລິ້ງເວັບ ຫຼື ອີເມວ, ເພື່ອໃຫ້ລິ້ງເວັບໄປຫາບຣາວເຊີ ຫຼື ໂປຣໄຟລ໌ທີ່ທ່ານເລືອກ ແລະ ລິ້ງອີເມວໄປຫາແອັບອີເມວທີ່ທ່ານຕ້ອງການ.",
-  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">ດາວໂຫຼດ v1.5 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> ໃຫ້ດາວໃນ GitHub</a>",
+  "index.div.001": "<a class=\"button button-dark\" href=\"https://github.com/kiteretsu903/pick-via/releases/latest\">ດາວໂຫຼດ v1.5.1 <span aria-hidden=\"true\">↓</span></a><a class=\"button button-light\" href=\"https://github.com/kiteretsu903/pick-via\" aria-label=\"Give PickVia a star on GitHub\"><span aria-hidden=\"true\">★</span> ໃຫ້ດາວໃນ GitHub</a>",
   "index.p.004": "macOS 14+ · Apple Silicon · ຟຣີ ແລະ ໂອເພນຊອດ",
   "index.p.005": "ຮູບໜ້າຈໍສະແດງສ່ວນຕິດຕໍ່ພາສາອັງກິດ.",
   "index.p.006": "01 / ເລືອກກ່ອນເປີດ",
@@ -76,7 +76,7 @@
   "index.p.015": "03 / ຕັ້ງຄ່າຕົວເລືອກຂອງທ່ານ",
   "index.h2.003": "ຕັ້ງຄ່າຄັ້ງດຽວ.<br /><em>ເລືອກໄດ້ໄວ.</em>",
   "index.p.016": "ຕັ້ງຄ່າໂປຣໄຟລ໌ບຣາວເຊີ ແລະ ແອັບອີເມວທີ່ໃຊ້ປະຈຳຄັ້ງດຽວ ແລ້ວຈັດລຳດັບປາຍທາງທີ່ໃຊ້ຫຼາຍທີ່ສຸດ.",
-  "index.p.017": "PickVia v1.5",
+  "index.p.017": "PickVia v1.5.1",
   "index.h2.004": "ເປີດລິ້ງຕໍ່ໄປ<br />ໃນ <em>ບ່ອນທີ່ເໝາະສົມ.</em>",
   "index.a.005": "ດາວໂຫຼດສຳລັບ macOS <span aria-hidden=\"true\">↓</span>",
   "index.span.001": "© 2026 PickVia · ສັນຍາອະນຸຍາດ MIT",
@@ -139,9 +139,13 @@
   "shared.languageNavigation": "ເລືອກພາສາເວັບໄຊ",
   "index.aria-label.003": "ໃຫ້ດາວ PickVia ໃນ GitHub",
   "release.v1_5.title": "ເວີຊັນ 1.5",
-  "release.v1_5.meta": "<strong>06 ກັນຍາ 2026</strong><span class=\"release-current\">ລຸ້ນປັດຈຸບັນ</span>",
+  "release.v1_5.meta": "<strong>06 ກັນຍາ 2026</strong>",
   "release.v1_5.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5\">ບັນທຶກປະຈຳລຸ້ນສະບັບເຕັມ <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5/PickVia-v1.5.dmg\">ດາວໂຫຼດ v1.5 <span aria-hidden=\"true\">↓</span></a>",
   "release.v1_5.safari": "ລອງໃຊ້ໂປຣໄຟລ໌ Safari Stable ແບບທົດລອງ ໂດຍໃຫ້ສິດການເຂົ້າເຖິງແລະການເຮັດວຽກອັດຕະໂນມັດ. ແຕ່ລະລິ້ງຈະເປີດໃນໜ້າຕ່າງໃໝ່ຂອງໂປຣໄຟລ໌ທີ່ເລືອກ.",
   "release.v1_5.duckduckgo": "ປັບໃຫ້ການກູ້ຄືນແລະການລ້າງຂໍ້ມູນເຊດຊັນສ່ວນຕົວຂອງ DuckDuckGo ງ່າຍຂຶ້ນ. ລຸ້ນ 1.203.x ທີ່ເຂົ້າກັນໄດ້ແລະບໍ່ໃຊ້ແຊນບັອກຮອງຮັບການເປີດລິ້ງແບບສ່ວນຕົວ; ລິ້ງປົກກະຕິບໍ່ຕ້ອງການລຸ້ນຫຼືລາຍເຊັນຜູ້ເຜີຍແຜ່ທີ່ກຳນົດໄວ້.",
-  "release.v1_5.signing": "ໃຊ້ໃບຮັບຮອງ Apple Development ອັນເດີມສຳລັບການບິວດ໌. ໄຟລ໌ດາວໂຫຼດບໍ່ໄດ້ຮັບການຮັບຮອງ notarization; ກະລຸນາເຮັດຕາມຄຳແນະນຳການຕິດຕັ້ງໃນ README."
+  "release.v1_5.signing": "ໃຊ້ໃບຮັບຮອງ Apple Development ອັນເດີມສຳລັບການບິວດ໌. ໄຟລ໌ດາວໂຫຼດບໍ່ໄດ້ຮັບການຮັບຮອງ notarization; ກະລຸນາເຮັດຕາມຄຳແນະນຳການຕິດຕັ້ງໃນ README.",
+  "release.v1_5_1.title": "ເວີຊັນ 1.5.1",
+  "release.v1_5_1.links": "<a href=\"https://github.com/kiteretsu903/pick-via/releases/tag/v1.5.1\">ບັນທຶກປະຈຳລຸ້ນສະບັບເຕັມ <span aria-hidden=\"true\">↗</span></a><a href=\"https://github.com/kiteretsu903/pick-via/releases/download/v1.5.1/PickVia-v1.5.1.dmg\">ດາວໂຫຼດ v1.5.1 <span aria-hidden=\"true\">↓</span></a>",
+  "release.v1_5_1.meta": "<strong>06 ກັນຍາ 2026</strong><span class=\"release-current\">ລຸ້ນປັດຈຸບັນ</span>",
+  "release.v1_5_1.summary": "ຍົກເລີກຂໍ້ຈຳກັດເວີຊັນສຳລັບໂໝດສ່ວນຕົວຂອງ DuckDuckGo, ຍ້າຍຕົວເລືອກພາສາໄປໄວ້ໃນແຖບເທິງ ແລະລຶບຂໍ້ຄວາມແຈ້ງກ່ຽວກັບພາສາອອກຈາກໜ້າຫຼັກ."
 }

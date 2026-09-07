@@ -46,5 +46,17 @@
     "outputs": {
       "Localization/website/hu.json": "be71a40a72df18bee50dcedadbc3103bd07b3d6f99e4d19f04dbd43055b8f581"
     }
+  },
+  "release151Review": {
+    "translator": "AI",
+    "reviewer": "AI self-review",
+    "review": "Reviewed new summary: DuckDuckGo private version restriction removed, language selector moved to top bar, homepage language notice removed. Existing release prose unchanged. Catalog validator passed.",
+    "unresolvedIssues": [],
+    "sources": {
+      "Localization/website/en.json": "c85a6fe8fcab49c05ca3cbeea756d76689b68ba87f00cc297d70b2001fb61721"
+    },
+    "outputs": {
+      "Localization/website/hu.json": "dcad5dfce32bd6738ce3779a74641dc8e472086ecedd8ece8978c965e9834353"
+    }
   }
 }
