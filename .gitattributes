@@ -1,0 +1,3 @@
+# Exclude the companion website from GitHub language statistics.
+site/** linguist-detectable=false
+Localization/website/** linguist-detectable=false
